@@ -9,7 +9,6 @@ import {
   LogIn,
   UserPlus,
   X,
-  Check,
   Play,
   FileText,
   Users,
