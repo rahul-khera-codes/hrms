@@ -27,7 +27,7 @@ export interface AttendanceRecord {
   regularHours: number
   overtimeHours: number
   nightHours: number
-  status: 'present' | 'absent' | 'leave' | 'adjusted'
+  status: 'present' | 'absent' | 'leave' | 'adjusted' | 'active'
 }
 
 export interface PayrollRule {

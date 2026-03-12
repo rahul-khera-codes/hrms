@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import clsx from 'clsx'
+import { validateLogin, validateSignup } from '@/lib/validation'
 
 const features = [
   {
@@ -41,7 +42,7 @@ const features = [
 
 export default function Landing() {
   const navigate = useNavigate()
-  const { user, login } = useAuth()
+  const { user, login, register } = useAuth()
   const [authOpen, setAuthOpen] = useState(false)
   const [mode, setMode] = useState<'login' | 'signup'>('login')
   const [role, setRole] = useState<'employee' | 'admin'>('employee')
@@ -60,13 +61,24 @@ export default function Landing() {
   async function handleAuthSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
+    const validationError =
+      mode === 'login'
+        ? validateLogin(email, password)
+        : validateSignup(name, email, password)
+    if (validationError) {
+      setError(validationError)
+      return
+    }
     setLoading(true)
     try {
-      await login(email || 'demo@company.com', password, role)
+      const u = mode === 'login'
+        ? await login(email.trim(), password)
+        : await register(name.trim(), email.trim(), password, role)
       setAuthOpen(false)
-      navigate(role === 'admin' ? '/admin' : '/dashboard', { replace: true })
-    } catch {
-      setError('Something went wrong. Try again.')
+      navigate(u.role === 'admin' ? '/admin' : '/dashboard', { replace: true })
+    } catch (err: unknown) {
+      const message = err && typeof err === 'object' && 'message' in err ? String((err as Error).message) : 'Something went wrong. Try again.'
+      setError(message)
     } finally {
       setLoading(false)
     }
@@ -87,7 +99,7 @@ export default function Landing() {
             <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-brand-500 flex items-center justify-center shrink-0">
               <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
             </div>
-            <span className="text-base sm:text-lg font-semibold text-surface-900 truncate">TimeTrack</span>
+            <span className="text-base sm:text-lg font-semibold text-surface-900 truncate">HARMONY</span>
           </a>
           <nav className="hidden md:flex items-center gap-6 lg:gap-8">
             <a href="#features" className="text-sm font-medium text-surface-600 hover:text-surface-900 transition-colors whitespace-nowrap">
@@ -375,7 +387,7 @@ export default function Landing() {
                   </button>
                 </div>
                 <form onSubmit={handleAuthSubmit} className="space-y-3 sm:space-y-4">
-                  {mode === 'signup' && (
+                    {mode === 'signup' && (
                     <div>
                       <label className="label">Name</label>
                       <input
@@ -384,6 +396,7 @@ export default function Landing() {
                         placeholder="Your name"
                         value={name}
                         onChange={(e) => setName(e.target.value)}
+                        maxLength={255}
                       />
                     </div>
                   )}
@@ -403,10 +416,11 @@ export default function Landing() {
                     <input
                       type="password"
                       className="input min-h-[2.75rem]"
-                      placeholder="••••••••"
+                      placeholder="Password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+                      minLength={6}
                     />
                   </div>
                   <div>
@@ -466,7 +480,7 @@ export default function Landing() {
             <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-brand-500 flex items-center justify-center shrink-0">
               <Clock className="w-4 h-4 text-white" />
             </div>
-            <span className="font-semibold text-surface-900 text-sm sm:text-base">TimeTrack</span>
+            <span className="font-semibold text-surface-900 text-sm sm:text-base">HARMONY</span>
           </div>
           <p className="text-xs sm:text-sm text-surface-500">
             © {new Date().getFullYear()} TimeTrack. Time tracking & payroll.

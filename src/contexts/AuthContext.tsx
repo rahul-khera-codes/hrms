@@ -1,4 +1,5 @@
-import { createContext, useContext, useState, useCallback, type ReactNode } from 'react'
+import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react'
+import { api } from '@/lib/api'
 
 export type Role = 'employee' | 'admin'
 
@@ -13,55 +14,81 @@ export interface User {
 interface AuthContextValue {
   user: User | null
   loading: boolean
-  login: (email: string, password: string, role?: Role) => Promise<void>
+  login: (email: string, password: string) => Promise<User>
+  register: (name: string, email: string, password: string, role: Role) => Promise<User>
   logout: () => void
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
-const MOCK_USERS: Record<string, User> = {
-  employee: {
-    id: 'emp-1',
-    email: 'jane@company.com',
-    name: 'Jane Doe',
-    role: 'employee',
-  },
-  admin: {
-    id: 'admin-1',
-    email: 'admin@company.com',
-    name: 'Admin User',
-    role: 'admin',
-  },
+const USER_KEY = 'timetrack_user'
+const TOKEN_KEY = 'timetrack_token'
+
+function persistAuth(user: User, token: string) {
+  localStorage.setItem(USER_KEY, JSON.stringify(user))
+  localStorage.setItem(TOKEN_KEY, token)
+}
+
+function clearAuth() {
+  localStorage.removeItem(USER_KEY)
+  localStorage.removeItem(TOKEN_KEY)
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(() => {
-    try {
-      const stored = localStorage.getItem('timetrack_user')
-      return stored ? JSON.parse(stored) : null
-    } catch {
-      return null
-    }
-  })
-  const [loading, setLoading] = useState(false)
+  const [user, setUser] = useState<User | null>(null)
+  const [loading, setLoading] = useState(true)
 
-  const login = useCallback(async (email: string, _password: string, role?: Role) => {
-    setLoading(true)
-    await new Promise((r) => setTimeout(r, 600))
-    const key = role === 'admin' ? 'admin' : 'employee'
-    const u = MOCK_USERS[key]
-    setUser({ ...u, email: email || u.email })
-    localStorage.setItem('timetrack_user', JSON.stringify({ ...u, email: email || u.email }))
-    setLoading(false)
+  const restoreSession = useCallback(async () => {
+    const token = localStorage.getItem(TOKEN_KEY)
+    if (!token) {
+      setLoading(false)
+      return
+    }
+    try {
+      const { user: me } = await api<{ user: User }>('/api/auth/me', { token })
+      setUser(me)
+    } catch {
+      clearAuth()
+      setUser(null)
+    } finally {
+      setLoading(false)
+    }
   }, [])
+
+  useEffect(() => {
+    restoreSession()
+  }, [restoreSession])
+
+  const login = useCallback(async (email: string, password: string): Promise<User> => {
+    const { user: u, token } = await api<{ user: User; token: string }>('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    })
+    setUser(u)
+    persistAuth(u, token)
+    return u
+  }, [])
+
+  const register = useCallback(
+    async (name: string, email: string, password: string, role: Role): Promise<User> => {
+      const { user: u, token } = await api<{ user: User; token: string }>('/api/auth/register', {
+        method: 'POST',
+        body: JSON.stringify({ name, email, password, role }),
+      })
+      setUser(u)
+      persistAuth(u, token)
+      return u
+    },
+    []
+  )
 
   const logout = useCallback(() => {
     setUser(null)
-    localStorage.removeItem('timetrack_user')
+    clearAuth()
   }, [])
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
       {children}
     </AuthContext.Provider>
   )

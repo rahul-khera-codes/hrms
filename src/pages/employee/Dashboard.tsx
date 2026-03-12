@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react'
-import { format, subDays } from 'date-fns'
+import { useState, useMemo, useCallback, useEffect } from 'react'
+import { format, subDays, startOfDay } from 'date-fns'
 import { Clock, Play, Square, TrendingUp, Moon, Zap, Calendar } from 'lucide-react'
 import {
   PieChart,
@@ -12,22 +12,8 @@ import {
   YAxis,
   Tooltip,
 } from 'recharts'
-import { mockSessions, mockPayrollSummary } from '@/data/mock'
-
-// Mock weekly hours for bar chart (last 7 days)
-const getWeeklyHoursData = () => {
-  return [6, 5, 4, 3, 2, 1, 0].map((daysAgo) => {
-    const d = subDays(new Date(), daysAgo)
-    const dayHours = daysAgo === 0 ? 4.5 : daysAgo === 1 ? 8 : daysAgo === 2 ? 9 : 8
-    return {
-      day: format(d, 'EEE'),
-      fullDate: format(d, 'MMM d'),
-      hours: dayHours,
-      regular: Math.min(dayHours, 8),
-      overtime: Math.max(0, dayHours - 8),
-    }
-  }).reverse()
-}
+import type { ClockSession, PayrollSummary } from '@/types'
+import { getActiveSession, getSessions, getSummary, clockIn as apiClockIn, clockOut as apiClockOut } from '@/lib/apiSessions'
 
 const HOURS_COLORS = {
   regular: '#14b8a6',
@@ -35,37 +21,107 @@ const HOURS_COLORS = {
   night: '#6366f1',
 }
 
+function buildWeeklyData(sessions: ClockSession[]) {
+  return [6, 5, 4, 3, 2, 1, 0].map((daysAgo) => {
+    const d = subDays(new Date(), daysAgo)
+    const dayStr = format(startOfDay(d), 'yyyy-MM-dd')
+    const daySessions = sessions.filter((s) => {
+      const inDate = format(startOfDay(new Date(s.clockIn)), 'yyyy-MM-dd')
+      return inDate === dayStr && s.clockOut
+    })
+    const totalMinutes = daySessions.reduce(
+      (acc, s) =>
+        acc + (s.regularMinutes ?? 0) + (s.overtimeMinutes ?? 0) + (s.nightMinutes ?? 0),
+      0
+    )
+    const hours = Math.round((totalMinutes / 60) * 10) / 10
+    return {
+      day: format(d, 'EEE'),
+      fullDate: format(d, 'MMM d'),
+      hours,
+      regular: Math.min(hours, 8),
+      overtime: Math.max(0, hours - 8),
+    }
+  }).reverse()
+}
+
 export default function EmployeeDashboard() {
-  const [clockedIn, setClockedIn] = useState(
-    () => mockSessions.some((s) => s.status === 'active')
-  )
+  const [activeSession, setActiveSession] = useState<ClockSession | null>(null)
+  const [sessions, setSessions] = useState<ClockSession[]>([])
+  const [summary, setSummary] = useState<PayrollSummary | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [actionLoading, setActionLoading] = useState(false)
+
+  const fetchData = useCallback(async () => {
+    try {
+      const [active, list, sum] = await Promise.all([
+        getActiveSession(),
+        getSessions({ limit: 20 }),
+        getSummary(),
+      ])
+      setActiveSession(active)
+      setSessions(list)
+      setSummary(sum)
+    } catch {
+      setSessions([])
+      setSummary(null)
+      setActiveSession(null)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchData()
+  }, [fetchData])
+
+  const clockedIn = activeSession != null
   const currentTime = format(new Date(), 'HH:mm')
   const currentDate = format(new Date(), 'EEEE, MMMM d')
 
-  const weeklyData = useMemo(() => getWeeklyHoursData(), [])
+  const weeklyData = useMemo(() => buildWeeklyData(sessions), [sessions])
 
-  const pieData = useMemo(
-    () => [
-      {
-        name: 'Regular',
-        value: mockPayrollSummary.regularHours,
-        color: HOURS_COLORS.regular,
-      },
-      {
-        name: 'Overtime',
-        value: mockPayrollSummary.overtimeHours,
-        color: HOURS_COLORS.overtime,
-      },
-      ...(mockPayrollSummary.nightHours > 0
-        ? [{ name: 'Night', value: mockPayrollSummary.nightHours, color: HOURS_COLORS.night }]
+  const pieData = useMemo(() => {
+    if (!summary) return []
+    return [
+      { name: 'Regular', value: summary.regularHours, color: HOURS_COLORS.regular },
+      { name: 'Overtime', value: summary.overtimeHours, color: HOURS_COLORS.overtime },
+      ...(summary.nightHours > 0
+        ? [{ name: 'Night', value: summary.nightHours, color: HOURS_COLORS.night }]
         : []),
-    ].filter((d) => d.value > 0),
-    []
-  )
+    ].filter((d) => d.value > 0)
+  }, [summary])
+
+  async function handleClockIn() {
+    setActionLoading(true)
+    try {
+      await apiClockIn()
+      await fetchData()
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  async function handleClockOut() {
+    setActionLoading(true)
+    try {
+      await apiClockOut()
+      await fetchData()
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[200px]">
+        <div className="w-8 h-8 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6 sm:space-y-8 overflow-x-hidden">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-semibold text-surface-900 tracking-tight">Dashboard</h1>
@@ -73,7 +129,6 @@ export default function EmployeeDashboard() {
         </div>
       </div>
 
-      {/* Clock card */}
       <div className="relative overflow-hidden rounded-xl sm:rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 p-4 sm:p-6 lg:p-8 shadow-lg shadow-brand-500/20">
         <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-4 sm:gap-6">
           <div className="min-w-0">
@@ -96,19 +151,29 @@ export default function EmployeeDashboard() {
             {clockedIn ? (
               <button
                 type="button"
-                onClick={() => setClockedIn(false)}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-white/20 hover:bg-white/30 text-white font-medium px-4 py-3 sm:px-6 sm:py-3.5 backdrop-blur-sm transition-colors w-full sm:w-auto min-h-[2.75rem]"
+                onClick={handleClockOut}
+                disabled={actionLoading}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-white/20 hover:bg-white/30 text-white font-medium px-4 py-3 sm:px-6 sm:py-3.5 backdrop-blur-sm transition-colors w-full sm:w-auto min-h-[2.75rem] disabled:opacity-70"
               >
-                <Square className="w-5 h-5 shrink-0" />
+                {actionLoading ? (
+                  <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Square className="w-5 h-5 shrink-0" />
+                )}
                 Clock out
               </button>
             ) : (
               <button
                 type="button"
-                onClick={() => setClockedIn(true)}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-white text-brand-700 hover:bg-brand-50 font-medium px-4 py-3 sm:px-6 sm:py-3.5 shadow-sm transition-colors w-full sm:w-auto min-h-[2.75rem]"
+                onClick={handleClockIn}
+                disabled={actionLoading}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-white text-brand-700 hover:bg-brand-50 font-medium px-4 py-3 sm:px-6 sm:py-3.5 shadow-sm transition-colors w-full sm:w-auto min-h-[2.75rem] disabled:opacity-70"
               >
-                <Play className="w-5 h-5 shrink-0" />
+                {actionLoading ? (
+                  <span className="w-5 h-5 border-2 border-brand-700 border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Play className="w-5 h-5 shrink-0" />
+                )}
                 Clock in
               </button>
             )}
@@ -118,71 +183,70 @@ export default function EmployeeDashboard() {
         <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2" />
       </div>
 
-      {/* Summary cards */}
-      <div>
-        <div className="flex items-center gap-2 mb-3 sm:mb-4">
-          <Calendar className="w-4 h-4 text-surface-500 shrink-0" />
-          <span className="text-xs sm:text-sm text-surface-500 truncate">{mockPayrollSummary.period}</span>
+      {summary && (
+        <div>
+          <div className="flex items-center gap-2 mb-3 sm:mb-4">
+            <Calendar className="w-4 h-4 text-surface-500 shrink-0" />
+            <span className="text-xs sm:text-sm text-surface-500 truncate">{summary.period}</span>
+          </div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            <div className="rounded-lg sm:rounded-xl border border-surface-200/80 bg-white p-3 sm:p-5 shadow-sm hover:shadow-md transition-shadow min-w-0">
+              <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-surface-100 flex items-center justify-center shrink-0">
+                  <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-surface-600" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[10px] sm:text-xs font-medium text-surface-500 uppercase tracking-wider truncate">Regular</p>
+                  <p className="text-lg sm:text-xl font-semibold text-surface-900 tabular-nums truncate">
+                    {summary.regularHours}h
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="rounded-lg sm:rounded-xl border border-surface-200/80 bg-white p-3 sm:p-5 shadow-sm hover:shadow-md transition-shadow min-w-0">
+              <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-amber-50 flex items-center justify-center shrink-0">
+                  <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-amber-600" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[10px] sm:text-xs font-medium text-surface-500 uppercase tracking-wider truncate">Overtime</p>
+                  <p className="text-lg sm:text-xl font-semibold text-surface-900 tabular-nums truncate">
+                    {summary.overtimeHours}h
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="rounded-lg sm:rounded-xl border border-surface-200/80 bg-white p-3 sm:p-5 shadow-sm hover:shadow-md transition-shadow min-w-0">
+              <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-indigo-50 flex items-center justify-center shrink-0">
+                  <Moon className="w-4 h-4 sm:w-5 sm:h-5 text-indigo-600" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[10px] sm:text-xs font-medium text-surface-500 uppercase tracking-wider truncate">Night</p>
+                  <p className="text-lg sm:text-xl font-semibold text-surface-900 tabular-nums truncate">
+                    {summary.nightHours}h
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="rounded-lg sm:rounded-xl border border-brand-200/80 bg-brand-50/50 p-3 sm:p-5 shadow-sm hover:shadow-md transition-shadow min-w-0">
+              <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-brand-100 flex items-center justify-center shrink-0">
+                  <Zap className="w-4 h-4 sm:w-5 sm:h-5 text-brand-600" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[10px] sm:text-xs font-medium text-brand-700 uppercase tracking-wider truncate">Total</p>
+                  <p className="text-lg sm:text-xl font-semibold text-surface-900 tabular-nums truncate">
+                    {summary.totalHours}h
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-          <div className="rounded-lg sm:rounded-xl border border-surface-200/80 bg-white p-3 sm:p-5 shadow-sm hover:shadow-md transition-shadow min-w-0">
-            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-              <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-surface-100 flex items-center justify-center shrink-0">
-                <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-surface-600" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-[10px] sm:text-xs font-medium text-surface-500 uppercase tracking-wider truncate">Regular</p>
-                <p className="text-lg sm:text-xl font-semibold text-surface-900 tabular-nums truncate">
-                  {mockPayrollSummary.regularHours}h
-                </p>
-              </div>
-            </div>
-          </div>
-          <div className="rounded-lg sm:rounded-xl border border-surface-200/80 bg-white p-3 sm:p-5 shadow-sm hover:shadow-md transition-shadow min-w-0">
-            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-              <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-amber-50 flex items-center justify-center shrink-0">
-                <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-amber-600" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-[10px] sm:text-xs font-medium text-surface-500 uppercase tracking-wider truncate">Overtime</p>
-                <p className="text-lg sm:text-xl font-semibold text-surface-900 tabular-nums truncate">
-                  {mockPayrollSummary.overtimeHours}h
-                </p>
-              </div>
-            </div>
-          </div>
-          <div className="rounded-lg sm:rounded-xl border border-surface-200/80 bg-white p-3 sm:p-5 shadow-sm hover:shadow-md transition-shadow min-w-0">
-            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-              <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-indigo-50 flex items-center justify-center shrink-0">
-                <Moon className="w-4 h-4 sm:w-5 sm:h-5 text-indigo-600" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-[10px] sm:text-xs font-medium text-surface-500 uppercase tracking-wider truncate">Night</p>
-                <p className="text-lg sm:text-xl font-semibold text-surface-900 tabular-nums truncate">
-                  {mockPayrollSummary.nightHours}h
-                </p>
-              </div>
-            </div>
-          </div>
-          <div className="rounded-lg sm:rounded-xl border border-brand-200/80 bg-brand-50/50 p-3 sm:p-5 shadow-sm hover:shadow-md transition-shadow min-w-0">
-            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-              <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-brand-100 flex items-center justify-center shrink-0">
-                <Zap className="w-4 h-4 sm:w-5 sm:h-5 text-brand-600" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-[10px] sm:text-xs font-medium text-brand-700 uppercase tracking-wider truncate">Total</p>
-                <p className="text-lg sm:text-xl font-semibold text-surface-900 tabular-nums truncate">
-                  {mockPayrollSummary.totalHours}h
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      )}
 
-      {/* Charts row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-        {/* Hours breakdown - Pie */}
         <div className="rounded-xl sm:rounded-2xl border border-surface-200/80 bg-white p-4 sm:p-6 shadow-sm min-w-0">
           <h2 className="text-sm sm:text-base font-semibold text-surface-900 mb-0.5 sm:mb-1">Hours breakdown</h2>
           <p className="text-xs sm:text-sm text-surface-500 mb-4 sm:mb-6">This period by type</p>
@@ -220,7 +284,6 @@ export default function EmployeeDashboard() {
           )}
         </div>
 
-        {/* Weekly hours - Bar */}
         <div className="rounded-xl sm:rounded-2xl border border-surface-200/80 bg-white p-4 sm:p-6 shadow-sm min-w-0">
           <h2 className="text-sm sm:text-base font-semibold text-surface-900 mb-0.5 sm:mb-1">Hours this week</h2>
           <p className="text-xs sm:text-sm text-surface-500 mb-4 sm:mb-6">Daily breakdown</p>
@@ -258,7 +321,6 @@ export default function EmployeeDashboard() {
         </div>
       </div>
 
-      {/* Recent sessions */}
       <div className="min-w-0">
         <h2 className="text-sm sm:text-base font-semibold text-surface-900 mb-0.5 sm:mb-1">Recent sessions</h2>
         <p className="text-xs sm:text-sm text-surface-500 mb-3 sm:mb-4">Your latest clock-in activity</p>
@@ -282,7 +344,7 @@ export default function EmployeeDashboard() {
                 </tr>
               </thead>
               <tbody>
-                {mockSessions.slice(0, 5).map((s) => (
+                {sessions.slice(0, 5).map((s) => (
                   <tr
                     key={s.id}
                     className="border-b border-surface-100 last:border-0 hover:bg-surface-50/50 transition-colors"
@@ -312,6 +374,11 @@ export default function EmployeeDashboard() {
               </tbody>
             </table>
           </div>
+          {sessions.length === 0 && (
+            <div className="p-8 text-center text-surface-500 text-sm">
+              No sessions yet. Clock in to start tracking.
+            </div>
+          )}
         </div>
       </div>
     </div>

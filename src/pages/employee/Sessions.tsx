@@ -1,37 +1,58 @@
-import { useMemo } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
 import { format } from 'date-fns'
-import { mockSessions } from '@/data/mock'
+import { getSessions } from '@/lib/apiSessions'
+import type { ClockSession } from '@/types'
 import { Clock, Calendar, TrendingUp, Zap } from 'lucide-react'
 
 export default function EmployeeSessions() {
-  const summary = useMemo(() => {
-    const total = mockSessions.filter((s) => s.status === 'completed').length
-    const regular = mockSessions.reduce(
-      (acc, s) => acc + (s.regularMinutes ?? 0) / 60,
-      0
-    )
-    const overtime = mockSessions.reduce(
-      (acc, s) => acc + (s.overtimeMinutes ?? 0) / 60,
-      0
-    )
-    return {
-      sessions: total,
-      regularHours: regular.toFixed(1),
-      overtimeHours: overtime.toFixed(1),
-      totalHours: (regular + overtime).toFixed(1),
+  const [sessions, setSessions] = useState<ClockSession[]>([])
+  const [loading, setLoading] = useState(true)
+
+  const fetchSessions = useCallback(async () => {
+    try {
+      const list = await getSessions({ limit: 100 })
+      setSessions(list)
+    } catch {
+      setSessions([])
+    } finally {
+      setLoading(false)
     }
   }, [])
 
+  useEffect(() => {
+    fetchSessions()
+  }, [fetchSessions])
+
+  const summary = useMemo(() => {
+    const completed = sessions.filter((s) => s.status === 'completed')
+    const regular = completed.reduce((acc, s) => acc + (s.regularMinutes ?? 0) / 60, 0)
+    const overtime = completed.reduce((acc, s) => acc + (s.overtimeMinutes ?? 0) / 60, 0)
+    const night = completed.reduce((acc, s) => acc + (s.nightMinutes ?? 0) / 60, 0)
+    return {
+      sessions: completed.length,
+      regularHours: regular.toFixed(1),
+      overtimeHours: overtime.toFixed(1),
+      nightHours: night.toFixed(1),
+      totalHours: (regular + overtime + night).toFixed(1),
+    }
+  }, [sessions])
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[200px]">
+        <div className="w-8 h-8 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6 sm:space-y-8 overflow-x-hidden">
-      {/* Header */}
       <div>
         <h1 className="text-xl sm:text-2xl font-semibold text-surface-900 tracking-tight">My Sessions</h1>
         <p className="text-surface-500 mt-1 text-xs sm:text-sm">View and manage your clock-in / clock-out history.</p>
       </div>
 
-      {/* Summary strip */}
-      {mockSessions.length > 0 && (
+      {sessions.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
           <div className="rounded-lg sm:rounded-xl border border-surface-200/80 bg-white p-3 sm:p-4 shadow-sm min-w-0">
             <div className="flex items-center gap-2 sm:gap-3 min-w-0">
@@ -80,9 +101,8 @@ export default function EmployeeSessions() {
         </div>
       )}
 
-      {/* Sessions table */}
       <div className="rounded-xl sm:rounded-2xl border border-surface-200/80 bg-white overflow-hidden shadow-sm min-w-0">
-        {mockSessions.length === 0 ? (
+        {sessions.length === 0 ? (
           <div className="p-8 sm:p-16 text-center">
             <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl bg-surface-100 flex items-center justify-center mx-auto mb-4 sm:mb-5">
               <Clock className="w-7 h-7 sm:w-8 sm:h-8 text-surface-400" />
@@ -118,7 +138,7 @@ export default function EmployeeSessions() {
                 </tr>
               </thead>
               <tbody>
-                {mockSessions.map((s) => (
+                {sessions.map((s) => (
                   <tr
                     key={s.id}
                     className="border-b border-surface-100 last:border-0 hover:bg-surface-50/50 transition-colors"

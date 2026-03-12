@@ -1,28 +1,97 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { format, subDays } from 'date-fns'
 import { BarChart3, Download } from 'lucide-react'
-import { mockAttendanceRecords, mockPayrollSummary } from '@/data/mock'
+import { getAdminAttendance, getReportsSummary } from '@/lib/apiAdmin'
 import type { AttendanceRecord } from '@/types'
 
-const statusColors: Record<AttendanceRecord['status'], string> = {
+const statusColors: Record<string, string> = {
   present: 'bg-brand-100 text-brand-700',
+  active: 'bg-amber-100 text-amber-700',
   absent: 'bg-amber-100 text-amber-700',
   leave: 'bg-surface-100 text-surface-600',
   adjusted: 'bg-indigo-100 text-indigo-700',
 }
 
+function downloadCsv(filename: string, content: string) {
+  const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' })
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(blob)
+  link.download = filename
+  link.click()
+  URL.revokeObjectURL(link.href)
+}
+
 export default function AdminReports() {
   const [reportType, setReportType] = useState<'attendance' | 'payroll'>('attendance')
   const [range, setRange] = useState<'week' | 'month'>('week')
+  const [attendanceData, setAttendanceData] = useState<AttendanceRecord[]>([])
+  const [summaryData, setSummaryData] = useState<{
+    period: string
+    regularHours: number
+    overtimeHours: number
+    nightHours: number
+    totalHours: number
+  } | null>(null)
+  const [loading, setLoading] = useState(false)
 
-  const sampleData = reportType === 'attendance'
-    ? mockAttendanceRecords.slice(0, 10)
-    : []
+  const toDate = new Date()
+  const fromDate = range === 'week' ? subDays(toDate, 7) : subDays(toDate, 30)
+  const fromStr = format(fromDate, 'yyyy-MM-dd')
+  const toStr = format(toDate, 'yyyy-MM-dd')
 
   const rangeLabel =
     range === 'week'
-      ? format(subDays(new Date(), 7), 'MMM d') + ' – ' + format(new Date(), 'MMM d, yyyy')
-      : format(subDays(new Date(), 30), 'MMM d') + ' – ' + format(new Date(), 'MMM d, yyyy')
+      ? format(fromDate, 'MMM d') + ' – ' + format(toDate, 'MMM d, yyyy')
+      : format(fromDate, 'MMM d') + ' – ' + format(toDate, 'MMM d, yyyy')
+
+  const fetchData = useCallback(async () => {
+    setLoading(true)
+    try {
+      if (reportType === 'attendance') {
+        const list = await getAdminAttendance({ from: fromStr, to: toStr })
+        setAttendanceData(list)
+        setSummaryData(null)
+      } else {
+        const summary = await getReportsSummary({ from: fromStr, to: toStr })
+        setSummaryData(summary)
+        setAttendanceData([])
+      }
+    } catch {
+      setAttendanceData([])
+      setSummaryData(null)
+    } finally {
+      setLoading(false)
+    }
+  }, [reportType, range, fromStr, toStr])
+
+  useEffect(() => {
+    fetchData()
+  }, [fetchData])
+
+  function handleExport() {
+    if (reportType === 'attendance') {
+      const headers = ['Employee', 'Date', 'Clock In', 'Clock Out', 'Regular (h)', 'Overtime (h)', 'Night (h)', 'Total (h)', 'Status']
+      const rows = attendanceData.map((r) => [
+        r.employeeName,
+        r.date,
+        r.clockIn ? format(new Date(r.clockIn), 'HH:mm') : '',
+        r.clockOut ? format(new Date(r.clockOut), 'HH:mm') : '',
+        r.regularHours,
+        r.overtimeHours,
+        r.nightHours,
+        (r.regularHours + r.overtimeHours + r.nightHours).toFixed(1),
+        r.status,
+      ])
+      const csv = [headers.join(','), ...rows.map((row) => row.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(','))].join('\n')
+      downloadCsv(`attendance-report-${fromStr}-to-${toStr}.csv`, csv)
+    } else if (summaryData) {
+      const csv = [
+        'Report,Period,Regular (h),Overtime (h),Night (h),Total (h)',
+        `Payroll summary,${summaryData.period},${summaryData.regularHours},${summaryData.overtimeHours},${summaryData.nightHours},${summaryData.totalHours}`,
+      ].join('\n')
+      downloadCsv(`payroll-summary-${fromStr}-to-${toStr}.csv`, csv)
+    }
+  }
 
   return (
     <div className="space-y-6 sm:space-y-8 overflow-x-hidden">
@@ -31,7 +100,12 @@ export default function AdminReports() {
           <h1 className="text-xl sm:text-2xl font-semibold text-surface-900 tracking-tight">Reports</h1>
           <p className="text-surface-500 mt-1 text-xs sm:text-sm">Generate and export payroll-ready reports.</p>
         </div>
-        <button type="button" className="btn-primary flex items-center justify-center gap-2 w-full sm:w-fit rounded-xl min-h-[2.75rem]">
+        <button
+          type="button"
+          onClick={handleExport}
+          disabled={loading || (reportType === 'attendance' && attendanceData.length === 0) || (reportType === 'payroll' && !summaryData)}
+          className="btn-primary flex items-center justify-center gap-2 w-full sm:w-fit rounded-xl min-h-[2.75rem] disabled:opacity-50"
+        >
           <Download className="w-4 h-4 shrink-0" />
           Export report
         </button>
@@ -78,24 +152,28 @@ export default function AdminReports() {
             <p className="text-xs sm:text-sm text-surface-500 mt-0.5 truncate">{rangeLabel}</p>
           </div>
         </div>
-        {reportType === 'payroll' ? (
+        {loading ? (
+          <div className="py-8 flex items-center justify-center">
+            <div className="w-8 h-8 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : reportType === 'payroll' ? (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
             <div className="rounded-lg sm:rounded-xl border border-surface-200/80 p-4 sm:p-5 shadow-sm">
               <p className="text-[10px] sm:text-xs font-medium text-surface-500 uppercase tracking-wider">Total regular hours</p>
               <p className="text-xl sm:text-2xl font-semibold text-surface-900 mt-1 tabular-nums">
-                {mockPayrollSummary.regularHours}h
+                {summaryData?.regularHours ?? 0}h
               </p>
             </div>
             <div className="rounded-lg sm:rounded-xl border border-surface-200/80 p-4 sm:p-5 shadow-sm">
               <p className="text-[10px] sm:text-xs font-medium text-surface-500 uppercase tracking-wider">Total overtime</p>
               <p className="text-xl sm:text-2xl font-semibold text-surface-900 mt-1 tabular-nums">
-                {mockPayrollSummary.overtimeHours}h
+                {summaryData?.overtimeHours ?? 0}h
               </p>
             </div>
             <div className="rounded-lg sm:rounded-xl border border-brand-200/80 bg-brand-50/50 p-4 sm:p-5 shadow-sm">
-              <p className="text-[10px] sm:text-xs font-medium text-brand-700 uppercase tracking-wider">Total amount</p>
+              <p className="text-[10px] sm:text-xs font-medium text-brand-700 uppercase tracking-wider">Total hours</p>
               <p className="text-xl sm:text-2xl font-semibold text-surface-900 mt-1 tabular-nums">
-                ${mockPayrollSummary.amount?.toLocaleString() ?? '—'}
+                {summaryData?.totalHours ?? 0}h
               </p>
             </div>
           </div>
@@ -119,7 +197,7 @@ export default function AdminReports() {
                 </tr>
               </thead>
               <tbody>
-                {sampleData.map((r) => (
+                {attendanceData.map((r) => (
                   <tr
                     key={r.id}
                     className="border-b border-surface-100 last:border-0 hover:bg-surface-50/50 transition-colors"
@@ -127,10 +205,10 @@ export default function AdminReports() {
                     <td className="px-3 py-2.5 sm:px-5 sm:py-3.5 text-xs sm:text-sm font-medium text-surface-900 truncate max-w-[100px] sm:max-w-none">{r.employeeName}</td>
                     <td className="px-3 py-2.5 sm:px-5 sm:py-3.5 text-xs sm:text-sm text-surface-700 tabular-nums whitespace-nowrap">{r.date}</td>
                     <td className="px-3 py-2.5 sm:px-5 sm:py-3.5 text-xs sm:text-sm text-surface-700 tabular-nums">
-                      {r.regularHours + r.overtimeHours}h
+                      {(r.regularHours + r.overtimeHours + r.nightHours).toFixed(1)}h
                     </td>
                     <td className="px-3 py-2.5 sm:px-5 sm:py-3.5">
-                      <span className={`inline-flex items-center px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-medium ${statusColors[r.status]}`}>
+                      <span className={`inline-flex items-center px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-medium ${statusColors[r.status] ?? 'bg-surface-100 text-surface-600'}`}>
                         {r.status}
                       </span>
                     </td>
@@ -138,6 +216,9 @@ export default function AdminReports() {
                 ))}
               </tbody>
             </table>
+            {attendanceData.length === 0 && (
+              <div className="p-8 text-center text-surface-500 text-sm">No attendance records in this period.</div>
+            )}
           </div>
         )}
       </div>

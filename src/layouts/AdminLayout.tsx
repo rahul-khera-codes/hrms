@@ -101,7 +101,7 @@ export default function AdminLayout() {
             {!collapsed && (
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium text-surface-900 truncate">{user?.name}</p>
-                <p className="text-xs text-surface-500 truncate">Admin</p>
+                <p className="text-xs text-surface-500 truncate">{user?.email}</p>
               </div>
             )}
           </div>

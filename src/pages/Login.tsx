@@ -2,26 +2,32 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Clock, Lock } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
-import clsx from 'clsx'
+import type { User } from '@/contexts/AuthContext'
+import { validateLogin } from '@/lib/validation'
 
 export default function Login() {
   const navigate = useNavigate()
   const { login } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [role, setRole] = useState<'employee' | 'admin'>('employee')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
+    const validationError = validateLogin(email, password)
+    if (validationError) {
+      setError(validationError)
+      return
+    }
     setLoading(true)
     try {
-      await login(email, password, role)
-      navigate(role === 'admin' ? '/admin' : '/dashboard', { replace: true })
-    } catch {
-      setError('Invalid credentials')
+      const user: User = await login(email, password)
+      navigate(user.role === 'admin' ? '/admin' : '/dashboard', { replace: true })
+    } catch (err: unknown) {
+      const message = err && typeof err === 'object' && 'message' in err ? String((err as Error).message) : 'Invalid credentials'
+      setError(message)
     } finally {
       setLoading(false)
     }
@@ -44,7 +50,7 @@ export default function Login() {
             Clock in and out, track sessions, and get payroll-ready reports — all in one place.
           </p>
         </div>
-        <p className="text-surface-500 text-sm">© TimeTrack. Demo credentials: any email / any password.</p>
+        <p className="text-surface-500 text-sm">© TimeTrack. Sign in with your account.</p>
       </div>
       <div className="flex-1 flex items-center justify-center p-8 bg-white">
         <div className="w-full max-w-sm">
@@ -73,40 +79,12 @@ export default function Login() {
               <input
                 type="password"
                 className="input"
-                placeholder="••••••••"
+                placeholder="Password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete="current-password"
+                minLength={6}
               />
-            </div>
-            <div>
-              <label className="label">Sign in as</label>
-              <div className="flex gap-2 p-1 rounded-lg bg-surface-100">
-                <button
-                  type="button"
-                  onClick={() => setRole('employee')}
-                  className={clsx(
-                    'flex-1 py-2 rounded-md text-sm font-medium transition-colors',
-                    role === 'employee'
-                      ? 'bg-white text-surface-900 shadow-sm'
-                      : 'text-surface-600 hover:text-surface-900'
-                  )}
-                >
-                  Employee
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setRole('admin')}
-                  className={clsx(
-                    'flex-1 py-2 rounded-md text-sm font-medium transition-colors',
-                    role === 'admin'
-                      ? 'bg-white text-surface-900 shadow-sm'
-                      : 'text-surface-600 hover:text-surface-900'
-                  )}
-                >
-                  Admin
-                </button>
-              </div>
             </div>
             {error && (
               <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>
@@ -124,9 +102,6 @@ export default function Login() {
               Sign in
             </button>
           </form>
-          <p className="text-center text-surface-500 text-xs mt-6">
-            Demo: use any email and password, then choose Employee or Admin above.
-          </p>
         </div>
       </div>
     </div>
