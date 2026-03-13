@@ -184,4 +184,36 @@ router.get('/summary', async (req, res) => {
   }
 })
 
+// GET /api/sessions/my-schedule?from=YYYY-MM-DD&to=YYYY-MM-DD
+// Returns the logged-in employee's shift assignments (for My Schedule page).
+router.get('/my-schedule', async (req, res) => {
+  try {
+    const userId = req.user.id
+    const { from, to } = req.query
+    const fromDate = from || new Date().toISOString().slice(0, 10)
+    const toDate = to || fromDate
+    const result = await query(
+      `SELECT a.id, a.date::text AS date_str,
+              c.name AS client_name, s.name AS shift_name, s.start_time, s.end_time
+       FROM schedule_assignments a
+       JOIN clients c ON c.id = a.client_id
+       JOIN shifts s ON s.id = a.shift_id
+       WHERE a.user_id = $1 AND a.date >= $2::date AND a.date <= $3::date
+       ORDER BY a.date, s.start_time`,
+      [userId, fromDate, toDate]
+    )
+    res.json(result.rows.map((r) => ({
+      id: r.id,
+      date: r.date_str ? r.date_str.slice(0, 10) : null,
+      clientName: r.client_name,
+      shiftName: r.shift_name,
+      startTime: r.start_time,
+      endTime: r.end_time,
+    })))
+  } catch (err) {
+    console.error('My schedule error:', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
 export default router

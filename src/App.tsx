@@ -5,11 +5,15 @@ import EmployeeLayout from './layouts/EmployeeLayout'
 import AdminLayout from './layouts/AdminLayout'
 import EmployeeDashboard from './pages/employee/Dashboard'
 import EmployeeSessions from './pages/employee/Sessions'
+import EmployeeMySchedule from './pages/employee/MySchedule'
 import AdminDashboard from './pages/admin/Dashboard'
 import AdminAttendance from './pages/admin/Attendance'
 import AdminPayroll from './pages/admin/Payroll'
 import AdminReports from './pages/admin/Reports'
 import AdminSettings from './pages/admin/Settings'
+import AdminClients from './pages/admin/Clients'
+import AdminShifts from './pages/admin/Shifts'
+import AdminSchedule from './pages/admin/Schedule'
 
 function ProtectedEmployee({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -53,6 +57,7 @@ export default function App() {
         >
           <Route index element={<EmployeeDashboard />} />
           <Route path="sessions" element={<EmployeeSessions />} />
+          <Route path="schedule" element={<EmployeeMySchedule />} />
         </Route>
         <Route
           path="/admin/*"
@@ -68,6 +73,9 @@ export default function App() {
           <Route path="payroll" element={<AdminPayroll />} />
           <Route path="reports" element={<AdminReports />} />
           <Route path="settings" element={<AdminSettings />} />
+          <Route path="clients" element={<AdminClients />} />
+          <Route path="shifts" element={<AdminShifts />} />
+          <Route path="schedule" element={<AdminSchedule />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

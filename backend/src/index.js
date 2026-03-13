@@ -72,6 +72,44 @@ try {
     VALUES (1, 23.83, 8, 1.35, 1.15, 21, 7)
     ON CONFLICT (id) DO NOTHING
   `)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS clients (
+      id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      name       VARCHAR(255) NOT NULL,
+      code       VARCHAR(50),
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS shifts (
+      id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      name       VARCHAR(255) NOT NULL,
+      start_time TIME NOT NULL,
+      end_time   TIME NOT NULL,
+      client_id  UUID REFERENCES clients (id) ON DELETE SET NULL,
+      timezone   VARCHAR(64) DEFAULT 'UTC',
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `)
+  try {
+    await pool.query(`ALTER TABLE shifts ADD COLUMN timezone VARCHAR(64) DEFAULT 'UTC'`)
+  } catch (e) {
+    if (e.code !== '42701') throw e
+  }
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS schedule_assignments (
+      id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      client_id  UUID NOT NULL REFERENCES clients (id) ON DELETE CASCADE,
+      user_id    UUID NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+      shift_id   UUID NOT NULL REFERENCES shifts (id) ON DELETE CASCADE,
+      date       DATE NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE (client_id, user_id, date)
+    )
+  `)
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_schedule_assignments_client_date ON schedule_assignments (client_id, date)')
+  console.log('Clients, Shifts, Schedule tables ready')
   console.log('Settings table ready')
   console.log('Users table ready')
   console.log('Sessions table ready')

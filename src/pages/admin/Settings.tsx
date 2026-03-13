@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Clock, Moon, TrendingUp, Save, Plug, Calendar } from 'lucide-react'
-import { getSettings, updateSettings, type SettingsResponse } from '@/lib/apiAdmin'
+import { getSettings, updateSettings } from '@/lib/apiAdmin'
 
 function formatHour(h: number) {
   if (h === 0) return '12 AM'
@@ -9,7 +9,6 @@ function formatHour(h: number) {
 }
 
 export default function AdminSettings() {
-  const [settings, setSettings] = useState<SettingsResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -28,7 +27,6 @@ export default function AdminSettings() {
     getSettings()
       .then((data) => {
         if (cancelled) return
-        setSettings(data)
         setWorkingDaysPerMonth(String(data.workingDaysPerMonth))
         setHoursPerDay(String(data.hoursPerDay))
         setOtMultiplier(String(data.otMultiplier))
@@ -58,7 +56,7 @@ export default function AdminSettings() {
     }
     setSaving(true)
     try {
-      const updated = await updateSettings({
+      await updateSettings({
         workingDaysPerMonth: wd,
         hoursPerDay: hd,
         otMultiplier: ot,
@@ -66,7 +64,6 @@ export default function AdminSettings() {
         nightShiftStartHour,
         nightShiftEndHour,
       })
-      setSettings(updated)
       setSuccess(true)
       setTimeout(() => setSuccess(false), 3000)
     } catch (e: unknown) {

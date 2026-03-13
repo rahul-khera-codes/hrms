@@ -9,6 +9,9 @@ import {
   LogOut,
   PanelLeftClose,
   PanelLeft,
+  Building2,
+  CalendarDays,
+  Timer,
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import clsx from 'clsx'
@@ -16,9 +19,12 @@ import clsx from 'clsx'
 const nav = [
   { to: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/admin/attendance', label: 'Attendance', icon: Clock },
+  { to: '/admin/schedule', label: 'Schedule', icon: CalendarDays },
   { to: '/admin/payroll', label: 'Payroll', icon: FileText },
   { to: '/admin/reports', label: 'Reports', icon: BarChart3 },
   { to: '/admin/settings', label: 'Settings', icon: Settings },
+  { to: '/admin/clients', label: 'Clients', icon: Building2 },
+  { to: '/admin/shifts', label: 'Shifts', icon: Timer },
 ]
 
 export default function AdminLayout() {

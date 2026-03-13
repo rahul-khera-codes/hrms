@@ -85,6 +85,10 @@ export interface PayrollResponse {
     totalNightPay: number
     totalPay: number
   }
+  rulesUsed?: {
+    otMultiplier: number
+    nightMultiplier: number
+  }
 }
 
 export async function getPayroll(params: { from: string; to: string }): Promise<PayrollResponse> {
@@ -120,4 +124,88 @@ export async function updateSettings(data: Partial<SettingsResponse>): Promise<S
     method: 'PATCH',
     body: JSON.stringify(data),
   })
+}
+
+// --- Scheduling: BPO clients, shifts, schedule ---
+
+export interface Client {
+  id: string
+  name: string
+  code: string | null
+}
+
+export interface Shift {
+  id: string
+  name: string
+  startTime: string
+  endTime: string
+  clientId: string | null
+  timezone?: string
+}
+
+export interface ScheduleAssignment {
+  id: string
+  clientId: string
+  userId: string
+  userName: string
+  shiftId: string
+  shiftName: string
+  shiftStart: string
+  shiftEnd: string
+  date: string
+}
+
+export interface EmployeeOption {
+  id: string
+  name: string
+}
+
+export async function getEmployees(): Promise<EmployeeOption[]> {
+  return api<EmployeeOption[]>('/api/admin/employees')
+}
+
+export async function getClients(): Promise<Client[]> {
+  return api<Client[]>('/api/admin/clients')
+}
+
+export async function createClient(data: { name: string; code?: string }): Promise<Client> {
+  return api<Client>('/api/admin/clients', { method: 'POST', body: JSON.stringify(data) })
+}
+
+export async function updateClient(id: string, data: { name?: string; code?: string }): Promise<Client> {
+  return api<Client>(`/api/admin/clients/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
+}
+
+export async function deleteClient(id: string): Promise<void> {
+  return api(`/api/admin/clients/${id}`, { method: 'DELETE' })
+}
+
+export async function getShifts(clientId?: string): Promise<Shift[]> {
+  const q = clientId ? `?client_id=${encodeURIComponent(clientId)}` : ''
+  return api<Shift[]>(`/api/admin/shifts${q}`)
+}
+
+export async function createShift(data: { name: string; startTime?: string; endTime?: string; clientId?: string; timezone?: string }): Promise<Shift> {
+  return api<Shift>('/api/admin/shifts', { method: 'POST', body: JSON.stringify(data) })
+}
+
+export async function updateShift(id: string, data: { name?: string; startTime?: string; endTime?: string; clientId?: string; timezone?: string }): Promise<Shift> {
+  return api<Shift>(`/api/admin/shifts/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
+}
+
+export async function deleteShift(id: string): Promise<void> {
+  return api(`/api/admin/shifts/${id}`, { method: 'DELETE' })
+}
+
+export async function getSchedule(params: { clientId: string; from: string; to: string }): Promise<ScheduleAssignment[]> {
+  const search = new URLSearchParams({ client_id: params.clientId, from: params.from, to: params.to })
+  return api<ScheduleAssignment[]>(`/api/admin/schedule?${search}`)
+}
+
+export async function createScheduleAssignment(data: { clientId: string; userId: string; shiftId: string; date: string }): Promise<ScheduleAssignment> {
+  return api<ScheduleAssignment>('/api/admin/schedule', { method: 'POST', body: JSON.stringify(data) })
+}
+
+export async function deleteScheduleAssignment(id: string): Promise<void> {
+  return api(`/api/admin/schedule/${id}`, { method: 'DELETE' })
 }

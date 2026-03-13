@@ -59,19 +59,21 @@ export default function AdminPayroll() {
 
   function exportPayrollCSV() {
     if (!payroll?.employees?.length) return
+    const otPct = payroll?.rulesUsed ? Math.round((payroll.rulesUsed.otMultiplier - 1) * 100) : 35
+    const nightPct = payroll?.rulesUsed ? Math.round((payroll.rulesUsed.nightMultiplier - 1) * 100) : 15
     const headers = [
       'Employee',
       'Salary type',
       'Hourly rate',
       'Regular hours',
-      'OT 35% hours',
+      `OT ${otPct}% hours`,
       'OT 100% hours',
-      'Night hours',
+      `Night ${nightPct}% hours`,
       'Total hours',
       'Regular pay',
-      'OT 35% pay',
+      `OT ${otPct}% pay`,
       'OT 100% pay',
-      'Night pay',
+      `Night ${nightPct}% pay`,
       'Total pay',
     ]
     const rows = payroll.employees.map((e) => [
@@ -100,6 +102,8 @@ export default function AdminPayroll() {
   }
 
   const summary = payroll?.summary
+  const otPercent = payroll?.rulesUsed ? Math.round((payroll.rulesUsed.otMultiplier - 1) * 100) : 35
+  const nightPercent = payroll?.rulesUsed ? Math.round((payroll.rulesUsed.nightMultiplier - 1) * 100) : 15
 
   return (
     <div className="space-y-6 sm:space-y-8 overflow-x-hidden">
@@ -180,7 +184,7 @@ export default function AdminPayroll() {
                   <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-amber-600" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-[10px] sm:text-xs font-medium text-surface-500 uppercase tracking-wider truncate">OT 35%</p>
+                  <p className="text-[10px] sm:text-xs font-medium text-surface-500 uppercase tracking-wider truncate">OT {otPercent}%</p>
                   <p className="text-lg sm:text-xl font-semibold text-surface-900 mt-0.5 tabular-nums truncate">
                     {summary.totalOt35Hours}h
                   </p>
@@ -206,7 +210,7 @@ export default function AdminPayroll() {
                   <Moon className="w-4 h-4 sm:w-5 sm:h-5 text-indigo-600" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-[10px] sm:text-xs font-medium text-surface-500 uppercase tracking-wider truncate">Night</p>
+                  <p className="text-[10px] sm:text-xs font-medium text-surface-500 uppercase tracking-wider truncate">Night {nightPercent}%</p>
                   <p className="text-lg sm:text-xl font-semibold text-surface-900 mt-0.5 tabular-nums truncate">
                     {summary.totalNightHours}h
                   </p>
@@ -236,14 +240,14 @@ export default function AdminPayroll() {
                   <th className="py-2 pr-2 font-medium text-surface-700">Employee</th>
                   <th className="py-2 pr-2 font-medium text-surface-700 text-right">Rate</th>
                   <th className="py-2 pr-2 font-medium text-surface-700 text-right">Regular h</th>
-                  <th className="py-2 pr-2 font-medium text-surface-700 text-right">OT 35% h</th>
+                  <th className="py-2 pr-2 font-medium text-surface-700 text-right">OT {otPercent}% h</th>
                   <th className="py-2 pr-2 font-medium text-surface-700 text-right">OT 100% h</th>
-                  <th className="py-2 pr-2 font-medium text-surface-700 text-right">Night h</th>
+                  <th className="py-2 pr-2 font-medium text-surface-700 text-right">Night {nightPercent}% h</th>
                   <th className="py-2 pr-2 font-medium text-surface-700 text-right">Total h</th>
                   <th className="py-2 pr-2 font-medium text-surface-700 text-right">Regular pay</th>
-                  <th className="py-2 pr-2 font-medium text-surface-700 text-right">OT 35% pay</th>
+                  <th className="py-2 pr-2 font-medium text-surface-700 text-right">OT {otPercent}% pay</th>
                   <th className="py-2 pr-2 font-medium text-surface-700 text-right">OT 100% pay</th>
-                  <th className="py-2 pr-2 font-medium text-surface-700 text-right">Night pay</th>
+                  <th className="py-2 pr-2 font-medium text-surface-700 text-right">Night {nightPercent}% pay</th>
                   <th className="py-2 pr-2 font-medium text-surface-700 text-right">Total pay</th>
                   <th className="py-2 pl-2 w-10" aria-label="Edit salary" />
                 </tr>

@@ -400,6 +400,10 @@ router.get('/payroll', async (req, res) => {
         totalNightPay: Math.round(totalNightPay * 100) / 100,
         totalPay: Math.round((totalRegularPay + totalOt35Pay + totalOt100Pay + totalNightPay) * 100) / 100,
       },
+      rulesUsed: {
+        otMultiplier: settings.otMultiplier,
+        nightMultiplier: settings.nightMultiplier,
+      },
     })
   } catch (err) {
     console.error('Admin payroll error:', err)
@@ -473,6 +477,258 @@ router.get('/reports/summary', async (req, res) => {
     })
   } catch (err) {
     console.error('Admin reports summary error:', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// --- Scheduling (admin as supervisor): BPO clients, shifts, schedule assignments ---
+
+// GET /api/admin/employees - list employees for schedule dropdown
+router.get('/employees', async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT id, name FROM users WHERE role = 'employee' ORDER BY name`
+    )
+    res.json(result.rows.map((r) => ({ id: r.id, name: r.name })))
+  } catch (err) {
+    console.error('Admin list employees error:', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// GET /api/admin/clients
+router.get('/clients', async (req, res) => {
+  try {
+    const result = await query('SELECT id, name, code, created_at FROM clients ORDER BY name')
+    res.json(result.rows.map((r) => ({ id: r.id, name: r.name, code: r.code || null })))
+  } catch (err) {
+    console.error('Admin list clients error:', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// POST /api/admin/clients
+router.post('/clients', async (req, res) => {
+  try {
+    const { name, code } = req.body
+    if (!name || String(name).trim() === '') {
+      return res.status(400).json({ error: 'Bad request', message: 'Name is required' })
+    }
+    const result = await query(
+      'INSERT INTO clients (name, code) VALUES ($1, $2) RETURNING id, name, code',
+      [String(name).trim(), code ? String(code).trim() : null]
+    )
+    res.status(201).json(result.rows[0])
+  } catch (err) {
+    console.error('Admin create client error:', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// PATCH /api/admin/clients/:id
+router.patch('/clients/:id', async (req, res) => {
+  try {
+    const { id } = req.params
+    const { name, code } = req.body
+    const updates = []
+    const params = []
+    let i = 1
+    if (name !== undefined) { updates.push(`name = $${i++}`); params.push(String(name).trim()) }
+    if (code !== undefined) { updates.push(`code = $${i++}`); params.push(code ? String(code).trim() : null) }
+    if (updates.length === 0) {
+      const r = await query('SELECT id, name, code FROM clients WHERE id = $1', [id])
+      if (r.rows.length === 0) return res.status(404).json({ error: 'Not found' })
+      return res.json(r.rows[0])
+    }
+    updates.push('updated_at = NOW()')
+    params.push(id)
+    await query(`UPDATE clients SET ${updates.join(', ')} WHERE id = $${i}`, params)
+    const r = await query('SELECT id, name, code FROM clients WHERE id = $1', [id])
+    if (r.rows.length === 0) return res.status(404).json({ error: 'Not found' })
+    res.json(r.rows[0])
+  } catch (err) {
+    console.error('Admin update client error:', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// DELETE /api/admin/clients/:id
+router.delete('/clients/:id', async (req, res) => {
+  try {
+    const { id } = req.params
+    const result = await query('DELETE FROM clients WHERE id = $1 RETURNING id', [id])
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' })
+    res.status(204).send()
+  } catch (err) {
+    console.error('Admin delete client error:', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// GET /api/admin/shifts?client_id=
+router.get('/shifts', async (req, res) => {
+  try {
+    const { client_id } = req.query
+    let sql = 'SELECT s.id, s.name, s.start_time, s.end_time, s.client_id, s.timezone FROM shifts s WHERE 1=1'
+    const params = []
+    if (client_id) {
+      params.push(client_id)
+      sql += ` AND (s.client_id = $${params.length} OR s.client_id IS NULL)`
+    }
+    sql += ' ORDER BY s.name'
+    const result = await query(sql, params)
+    res.json(result.rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      startTime: r.start_time,
+      endTime: r.end_time,
+      clientId: r.client_id,
+      timezone: r.timezone || 'UTC',
+    })))
+  } catch (err) {
+    console.error('Admin list shifts error:', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// POST /api/admin/shifts
+router.post('/shifts', async (req, res) => {
+  try {
+    const { name, startTime, endTime, clientId, timezone } = req.body
+    if (!name || String(name).trim() === '') {
+      return res.status(400).json({ error: 'Bad request', message: 'Name is required' })
+    }
+    const start = startTime != null ? String(startTime) : '09:00'
+    const end = endTime != null ? String(endTime) : '17:00'
+    const tz = timezone && String(timezone).trim() ? String(timezone).trim() : 'UTC'
+    const result = await query(
+      'INSERT INTO shifts (name, start_time, end_time, client_id, timezone) VALUES ($1, $2, $3, $4, $5) RETURNING id, name, start_time, end_time, client_id, timezone',
+      [String(name).trim(), start, end, clientId || null, tz]
+    )
+    const r = result.rows[0]
+    res.status(201).json({ id: r.id, name: r.name, startTime: r.start_time, endTime: r.end_time, clientId: r.client_id, timezone: r.timezone || 'UTC' })
+  } catch (err) {
+    console.error('Admin create shift error:', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// PATCH /api/admin/shifts/:id
+router.patch('/shifts/:id', async (req, res) => {
+  try {
+    const { id } = req.params
+    const { name, startTime, endTime, clientId, timezone } = req.body
+    const updates = []
+    const params = []
+    let i = 1
+    if (name !== undefined) { updates.push(`name = $${i++}`); params.push(String(name).trim()) }
+    if (startTime !== undefined) { updates.push(`start_time = $${i++}`); params.push(String(startTime)) }
+    if (endTime !== undefined) { updates.push(`end_time = $${i++}`); params.push(String(endTime)) }
+    if (clientId !== undefined) { updates.push(`client_id = $${i++}`); params.push(clientId || null) }
+    if (timezone !== undefined) { updates.push(`timezone = $${i++}`); params.push(timezone && String(timezone).trim() ? String(timezone).trim() : 'UTC') }
+    if (updates.length === 0) {
+      const r = await query('SELECT id, name, start_time, end_time, client_id, timezone FROM shifts WHERE id = $1', [id])
+      if (r.rows.length === 0) return res.status(404).json({ error: 'Not found' })
+      const row = r.rows[0]
+      return res.json({ id: row.id, name: row.name, startTime: row.start_time, endTime: row.end_time, clientId: row.client_id, timezone: row.timezone || 'UTC' })
+    }
+    params.push(id)
+    await query(`UPDATE shifts SET ${updates.join(', ')} WHERE id = $${i}`, params)
+    const r = await query('SELECT id, name, start_time, end_time, client_id, timezone FROM shifts WHERE id = $1', [id])
+    if (r.rows.length === 0) return res.status(404).json({ error: 'Not found' })
+    const row = r.rows[0]
+    res.json({ id: row.id, name: row.name, startTime: row.start_time, endTime: row.end_time, clientId: row.client_id, timezone: row.timezone || 'UTC' })
+  } catch (err) {
+    console.error('Admin update shift error:', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// DELETE /api/admin/shifts/:id
+router.delete('/shifts/:id', async (req, res) => {
+  try {
+    const { id } = req.params
+    const result = await query('DELETE FROM shifts WHERE id = $1 RETURNING id', [id])
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' })
+    res.status(204).send()
+  } catch (err) {
+    console.error('Admin delete shift error:', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// GET /api/admin/schedule?client_id=&from=YYYY-MM-DD&to=YYYY-MM-DD
+// Use a.date::text so we return calendar date YYYY-MM-DD without timezone shift.
+router.get('/schedule', async (req, res) => {
+  try {
+    const { client_id, from, to } = req.query
+    if (!client_id) return res.status(400).json({ error: 'Bad request', message: 'client_id is required' })
+    const fromDate = from || new Date().toISOString().slice(0, 10)
+    const toDate = to || fromDate
+    const result = await query(
+      `SELECT a.id, a.client_id, a.user_id, a.shift_id, a.date::text AS date_str,
+              u.name AS user_name, s.name AS shift_name, s.start_time AS shift_start, s.end_time AS shift_end
+       FROM schedule_assignments a
+       JOIN users u ON u.id = a.user_id
+       JOIN shifts s ON s.id = a.shift_id
+       WHERE a.client_id = $1 AND a.date >= $2::date AND a.date <= $3::date
+       ORDER BY a.date, u.name`,
+      [client_id, fromDate, toDate]
+    )
+    res.json(result.rows.map((r) => ({
+      id: r.id,
+      clientId: r.client_id,
+      userId: r.user_id,
+      userName: r.user_name,
+      shiftId: r.shift_id,
+      shiftName: r.shift_name,
+      shiftStart: r.shift_start,
+      shiftEnd: r.shift_end,
+      date: r.date_str ? r.date_str.slice(0, 10) : null,
+    })))
+  } catch (err) {
+    console.error('Admin list schedule error:', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// POST /api/admin/schedule
+router.post('/schedule', async (req, res) => {
+  try {
+    const { clientId, userId, shiftId, date } = req.body
+    if (!clientId || !userId || !shiftId || !date) {
+      return res.status(400).json({ error: 'Bad request', message: 'clientId, userId, shiftId, date are required' })
+    }
+    const result = await query(
+      `INSERT INTO schedule_assignments (client_id, user_id, shift_id, date)
+       VALUES ($1, $2, $3, $4::date)
+       ON CONFLICT (client_id, user_id, date) DO UPDATE SET shift_id = $3
+       RETURNING id, client_id, user_id, shift_id, date::text AS date_str`,
+      [clientId, userId, shiftId, date]
+    )
+    const r = result.rows[0]
+    res.status(201).json({
+      id: r.id,
+      clientId: r.client_id,
+      userId: r.user_id,
+      shiftId: r.shift_id,
+      date: r.date_str ? r.date_str.slice(0, 10) : null,
+    })
+  } catch (err) {
+    console.error('Admin create schedule error:', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// DELETE /api/admin/schedule/:id
+router.delete('/schedule/:id', async (req, res) => {
+  try {
+    const { id } = req.params
+    const result = await query('DELETE FROM schedule_assignments WHERE id = $1 RETURNING id', [id])
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' })
+    res.status(204).send()
+  } catch (err) {
+    console.error('Admin delete schedule error:', err)
     res.status(500).json({ error: 'Internal server error' })
   }
 })
