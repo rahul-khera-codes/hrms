@@ -109,7 +109,98 @@ try {
     )
   `)
   await pool.query('CREATE INDEX IF NOT EXISTS idx_schedule_assignments_client_date ON schedule_assignments (client_id, date)')
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS payroll_line_items (
+      id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id    UUID NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+      period_from DATE NOT NULL,
+      period_to   DATE NOT NULL,
+      type       VARCHAR(32) NOT NULL,
+      label      VARCHAR(255),
+      amount     DECIMAL(12,2) NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `)
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_payroll_line_items_user_period ON payroll_line_items (user_id, period_from, period_to)')
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS payroll_government_deductions (
+      id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id      UUID NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+      period_from  DATE NOT NULL,
+      period_to    DATE NOT NULL,
+      social_security DECIMAL(12,2) NOT NULL DEFAULT 0,
+      tax          DECIMAL(12,2) NOT NULL DEFAULT 0,
+      infotep      DECIMAL(12,2) NOT NULL DEFAULT 0,
+      created_at   TIMESTAMPTZ DEFAULT NOW(),
+      updated_at   TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE (user_id, period_from, period_to)
+    )
+  `)
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_payroll_gov_deductions_user_period ON payroll_government_deductions (user_id, period_from, period_to)')
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS payroll_periods (
+        id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        period_from DATE NOT NULL,
+        period_to   DATE NOT NULL,
+        pay_date    DATE NOT NULL,
+        cycle_code  VARCHAR(20) NOT NULL,
+        year_cycle  INT NOT NULL,
+        UNIQUE (period_from, period_to)
+      )
+    `)
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_payroll_periods_dates ON payroll_periods (period_from, period_to)')
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_payroll_periods_year ON payroll_periods (year_cycle)')
+    const seedPayrollPeriods = async () => {
+      const periods = []
+      let from = new Date('2025-11-30')
+      for (let p = 26; p <= 26; p++) {
+        const to = new Date(from)
+        to.setDate(to.getDate() + 13)
+        const payDate = new Date(to)
+        payDate.setDate(payDate.getDate() + 6)
+        periods.push({
+          from: from.toISOString().slice(0, 10),
+          to: to.toISOString().slice(0, 10),
+          pay: payDate.toISOString().slice(0, 10),
+          code: `2025-P${String(p).padStart(2, '0')}`,
+          year: 2025,
+        })
+        from = new Date(to)
+        from.setDate(from.getDate() + 1)
+      }
+      from = new Date('2025-12-14')
+      for (let p = 1; p <= 26; p++) {
+        const to = new Date(from)
+        to.setDate(to.getDate() + 13)
+        const payDate = new Date(to)
+        payDate.setDate(payDate.getDate() + 6)
+        periods.push({
+          from: from.toISOString().slice(0, 10),
+          to: to.toISOString().slice(0, 10),
+          pay: payDate.toISOString().slice(0, 10),
+          code: `2026-P${String(p).padStart(2, '0')}`,
+          year: 2026,
+        })
+        from = new Date(to)
+        from.setDate(from.getDate() + 1)
+      }
+      for (const { from: pf, to: pt, pay, code, year } of periods) {
+        await pool.query(
+          `INSERT INTO payroll_periods (period_from, period_to, pay_date, cycle_code, year_cycle)
+           VALUES ($1::date, $2::date, $3::date, $4, $5)
+           ON CONFLICT (period_from, period_to) DO NOTHING`,
+          [pf, pt, pay, code, year]
+        )
+      }
+    }
+    await seedPayrollPeriods()
+    console.log('Payroll periods table ready')
+  } catch (e) {
+    console.warn('Payroll periods init skipped (table may already exist):', e.message)
+  }
   console.log('Clients, Shifts, Schedule tables ready')
+  console.log('Payroll line items, government deductions tables ready')
   console.log('Settings table ready')
   console.log('Users table ready')
   console.log('Sessions table ready')

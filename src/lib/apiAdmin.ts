@@ -52,6 +52,13 @@ export async function getReportsSummary(params?: {
   return api<ReportsSummaryResponse>(`/api/admin/reports/summary${q ? `?${q}` : ''}`)
 }
 
+export interface PayrollLineItem {
+  id: string
+  type: string
+  label: string
+  amount: number
+}
+
 export interface PayrollEmployeeRow {
   employeeId: string
   employeeName: string
@@ -67,6 +74,14 @@ export interface PayrollEmployeeRow {
   ot100Pay: number
   nightPay: number
   totalPay: number
+  lineItems?: PayrollLineItem[]
+  additionsTotal?: number
+  deductionsTotal?: number
+  socialSecurity?: number
+  tax?: number
+  infotep?: number
+  netPay?: number
+  govAutoCalculated?: boolean
 }
 
 export interface PayrollResponse {
@@ -84,6 +99,10 @@ export interface PayrollResponse {
     totalOt100Pay: number
     totalNightPay: number
     totalPay: number
+    totalAdditions?: number
+    totalDeductions?: number
+    totalGovDeductions?: number
+    totalNetPay?: number
   }
   rulesUsed?: {
     otMultiplier: number
@@ -104,6 +123,58 @@ export async function updateEmployeeSalary(
     method: 'PATCH',
     body: JSON.stringify(data),
   })
+}
+
+export async function getPayrollLineItems(params: { from: string; to: string }): Promise<
+  { id: string; userId: string; userName: string; periodFrom: string; periodTo: string; type: string; label: string; amount: number }[]
+> {
+  const q = new URLSearchParams({ from: params.from, to: params.to })
+  return api(`/api/admin/payroll/line-items?${q}`)
+}
+
+export async function createPayrollLineItem(data: {
+  employeeId: string
+  periodFrom: string
+  periodTo: string
+  type: 'bonus' | 'incentive' | 'deduction' | 'passthrough_credit'
+  label?: string
+  amount: number
+}): Promise<{ id: string; userId: string; periodFrom: string; periodTo: string; type: string; label: string; amount: number }> {
+  return api('/api/admin/payroll/line-items', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
+export async function deletePayrollLineItem(id: string): Promise<void> {
+  return api(`/api/admin/payroll/line-items/${id}`, { method: 'DELETE' })
+}
+
+export async function setPayrollDeductions(data: {
+  employeeId: string
+  periodFrom: string
+  periodTo: string
+  socialSecurity: number
+  tax: number
+  infotep: number
+}): Promise<{ employeeId: string; periodFrom: string; periodTo: string; socialSecurity: number; tax: number; infotep: number }> {
+  return api('/api/admin/payroll/deductions', {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  })
+}
+
+export interface PayrollPeriod {
+  periodFrom: string
+  periodTo: string
+  payDate: string
+  cycleCode: string
+  yearCycle: number
+}
+
+export async function getPayrollPeriods(year?: number): Promise<PayrollPeriod[]> {
+  const q = year != null ? `?year=${year}` : ''
+  return api<PayrollPeriod[]>(`/api/admin/payroll/periods${q}`)
 }
 
 export interface SettingsResponse {
@@ -160,8 +231,39 @@ export interface EmployeeOption {
   name: string
 }
 
-export async function getEmployees(): Promise<EmployeeOption[]> {
-  return api<EmployeeOption[]>('/api/admin/employees')
+export interface EmployeeRecord {
+  id: string
+  name: string
+  email: string
+  salaryType: string
+  baseSalary: number
+}
+
+export async function getEmployees(): Promise<EmployeeRecord[]> {
+  return api<EmployeeRecord[]>('/api/admin/employees')
+}
+
+export async function createEmployee(data: {
+  name: string
+  email: string
+  password: string
+  salaryType?: 'hourly' | 'monthly'
+  baseSalary?: number
+}): Promise<EmployeeRecord> {
+  return api<EmployeeRecord>('/api/admin/employees', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
+export async function updateEmployee(
+  id: string,
+  data: { name?: string; email?: string; password?: string; salaryType?: 'hourly' | 'monthly'; baseSalary?: number }
+): Promise<EmployeeRecord> {
+  return api<EmployeeRecord>(`/api/admin/employees/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  })
 }
 
 export async function getClients(): Promise<Client[]> {

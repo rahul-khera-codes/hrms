@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight } from 'lucide-react'
 import { getClients, getShifts, getEmployees, getSchedule, createScheduleAssignment, deleteScheduleAssignment, type Client, type Shift, type ScheduleAssignment } from '@/lib/apiAdmin'
-import { addDays, startOfWeek, format, isSameDay, parseISO } from 'date-fns'
+import { addDays, startOfWeek, format, parseISO } from 'date-fns'
 
 const WEEKDAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 

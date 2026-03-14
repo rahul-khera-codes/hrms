@@ -12,14 +12,18 @@ import {
   Building2,
   CalendarDays,
   Timer,
+  Users,
+  Calendar,
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import clsx from 'clsx'
 
 const nav = [
   { to: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { to: '/admin/employees', label: 'Employees', icon: Users },
   { to: '/admin/attendance', label: 'Attendance', icon: Clock },
   { to: '/admin/schedule', label: 'Schedule', icon: CalendarDays },
+  { to: '/admin/payroll-calendar', label: 'Payroll calendar', icon: Calendar },
   { to: '/admin/payroll', label: 'Payroll', icon: FileText },
   { to: '/admin/reports', label: 'Reports', icon: BarChart3 },
   { to: '/admin/settings', label: 'Settings', icon: Settings },

@@ -1,6 +1,8 @@
 import express from 'express'
+import bcrypt from 'bcryptjs'
 import { query } from '../config/db.js'
 import { authMiddleware, requireAdmin } from '../middleware/auth.js'
+import { computeSSEmployeeBiWeekly, computeTaxForPeriod } from '../lib/drPayrollRules.js'
 
 const router = express.Router()
 
@@ -327,9 +329,39 @@ router.get('/payroll', async (req, res) => {
     const employees = await query(
       `SELECT id, name, salary_type, base_salary FROM users WHERE role = 'employee' ORDER BY name`
     )
+    const lineItemsByUser = {}
+    const lineItemsRows = await query(
+      `SELECT id, user_id, type, label, amount FROM payroll_line_items
+       WHERE period_from = $1::date AND period_to = $2::date`,
+      [fromDate, toDate]
+    )
+    for (const r of lineItemsRows.rows) {
+      const uid = r.user_id
+      if (!lineItemsByUser[uid]) lineItemsByUser[uid] = []
+      lineItemsByUser[uid].push({
+        id: r.id,
+        type: r.type,
+        label: r.label || '',
+        amount: Number(r.amount),
+      })
+    }
+    const govDeductionsByUser = {}
+    const govRows = await query(
+      `SELECT user_id, social_security, tax, infotep FROM payroll_government_deductions
+       WHERE period_from = $1::date AND period_to = $2::date`,
+      [fromDate, toDate]
+    )
+    for (const r of govRows.rows) {
+      govDeductionsByUser[r.user_id] = {
+        socialSecurity: Number(r.social_security),
+        tax: Number(r.tax),
+        infotep: Number(r.infotep),
+      }
+    }
     const payroll = []
     let totalRegularPay = 0, totalOt35Pay = 0, totalOt100Pay = 0, totalNightPay = 0
     let totalRegularHours = 0, totalOt35Hours = 0, totalOt100Hours = 0, totalNightHours = 0
+    let totalAdditions = 0, totalDeductions = 0, totalGovDeductions = 0, totalNetPay = 0
     for (const emp of employees.rows) {
       const sessionsResult = await query(
         `SELECT (clock_in AT TIME ZONE 'UTC')::date AS date,
@@ -358,7 +390,34 @@ router.get('/payroll', async (req, res) => {
       const ot35Pay = ot35Hours * rate * settings.otMultiplier
       const ot100Pay = ot100Hours * rate * OT_100_MULTIPLIER
       const nightPay = nightHours * rate * settings.nightMultiplier
-      const totalPay = regularPay + ot35Pay + ot100Pay + nightPay
+      const grossPay = regularPay + ot35Pay + ot100Pay + nightPay
+      const items = lineItemsByUser[emp.id] || []
+      let additionsTotal = 0
+      let deductionsTotal = 0
+      for (const it of items) {
+        if (it.type === 'bonus' || it.type === 'incentive') {
+          additionsTotal += it.amount
+        } else {
+          deductionsTotal += Math.abs(it.amount)
+        }
+      }
+      const hasGovOverride = !!govDeductionsByUser[emp.id]
+      let socialSecurity = 0
+      let tax = 0
+      const infotep = hasGovOverride ? govDeductionsByUser[emp.id].infotep : 0
+      if (hasGovOverride) {
+        socialSecurity = govDeductionsByUser[emp.id].socialSecurity
+        tax = govDeductionsByUser[emp.id].tax
+      } else {
+        socialSecurity = computeSSEmployeeBiWeekly(regularPay)
+        const periodTaxable = grossPay + additionsTotal - deductionsTotal
+        tax = computeTaxForPeriod(periodTaxable, true)
+      }
+      socialSecurity = Math.round(socialSecurity * 100) / 100
+      tax = Math.round(tax * 100) / 100
+      const infotepRounded = Math.round(infotep * 100) / 100
+      const govTotal = socialSecurity + tax + infotepRounded
+      const netPay = Math.round((grossPay + additionsTotal - deductionsTotal - govTotal) * 100) / 100
       totalRegularPay += regularPay
       totalOt35Pay += ot35Pay
       totalOt100Pay += ot100Pay
@@ -367,6 +426,10 @@ router.get('/payroll', async (req, res) => {
       totalOt35Hours += ot35Hours
       totalOt100Hours += ot100Hours
       totalNightHours += nightHours
+      totalAdditions += additionsTotal
+      totalDeductions += deductionsTotal
+      totalGovDeductions += govTotal
+      totalNetPay += netPay
       payroll.push({
         employeeId: emp.id,
         employeeName: emp.name,
@@ -381,7 +444,15 @@ router.get('/payroll', async (req, res) => {
         ot35Pay: Math.round(ot35Pay * 100) / 100,
         ot100Pay: Math.round(ot100Pay * 100) / 100,
         nightPay: Math.round(nightPay * 100) / 100,
-        totalPay: Math.round(totalPay * 100) / 100,
+        totalPay: Math.round(grossPay * 100) / 100,
+        lineItems: items,
+        additionsTotal: Math.round(additionsTotal * 100) / 100,
+        deductionsTotal: Math.round(deductionsTotal * 100) / 100,
+        socialSecurity,
+        tax,
+        infotep: infotepRounded,
+        netPay,
+        govAutoCalculated: !hasGovOverride,
       })
     }
     res.json({
@@ -399,6 +470,10 @@ router.get('/payroll', async (req, res) => {
         totalOt100Pay: Math.round(totalOt100Pay * 100) / 100,
         totalNightPay: Math.round(totalNightPay * 100) / 100,
         totalPay: Math.round((totalRegularPay + totalOt35Pay + totalOt100Pay + totalNightPay) * 100) / 100,
+        totalAdditions: Math.round(totalAdditions * 100) / 100,
+        totalDeductions: Math.round(totalDeductions * 100) / 100,
+        totalGovDeductions: Math.round(totalGovDeductions * 100) / 100,
+        totalNetPay: Math.round(totalNetPay * 100) / 100,
       },
       rulesUsed: {
         otMultiplier: settings.otMultiplier,
@@ -411,11 +486,147 @@ router.get('/payroll', async (req, res) => {
   }
 })
 
-// PATCH /api/admin/employees/:id
+// GET /api/admin/payroll/line-items?from=&to=
+router.get('/payroll/line-items', async (req, res) => {
+  try {
+    const { from, to } = req.query
+    if (!from || !to) {
+      return res.status(400).json({ error: 'Bad request', message: 'from and to dates required' })
+    }
+    const result = await query(
+      `SELECT pl.id, pl.user_id, pl.period_from, pl.period_to, pl.type, pl.label, pl.amount, u.name AS user_name
+       FROM payroll_line_items pl
+       JOIN users u ON u.id = pl.user_id
+       WHERE pl.period_from = $1::date AND pl.period_to = $2::date
+       ORDER BY u.name, pl.type`,
+      [from, to]
+    )
+    res.json(result.rows.map((r) => ({
+      id: r.id,
+      userId: r.user_id,
+      userName: r.user_name,
+      periodFrom: r.period_from ? new Date(r.period_from).toISOString().slice(0, 10) : '',
+      periodTo: r.period_to ? new Date(r.period_to).toISOString().slice(0, 10) : '',
+      type: r.type,
+      label: r.label || '',
+      amount: Number(r.amount),
+    })))
+  } catch (err) {
+    console.error('List payroll line items error:', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// POST /api/admin/payroll/line-items
+router.post('/payroll/line-items', async (req, res) => {
+  try {
+    const { employeeId, periodFrom, periodTo, type, label, amount } = req.body
+    if (!employeeId || !periodFrom || !periodTo || !type || amount === undefined) {
+      return res.status(400).json({ error: 'Bad request', message: 'employeeId, periodFrom, periodTo, type, and amount are required' })
+    }
+    const validTypes = ['bonus', 'incentive', 'deduction', 'passthrough_credit']
+    if (!validTypes.includes(String(type))) {
+      return res.status(400).json({ error: 'Bad request', message: 'type must be bonus, incentive, deduction, or passthrough_credit' })
+    }
+    const amt = Number(amount)
+    if (Number.isNaN(amt)) {
+      return res.status(400).json({ error: 'Bad request', message: 'amount must be a number' })
+    }
+    const result = await query(
+      `INSERT INTO payroll_line_items (user_id, period_from, period_to, type, label, amount)
+       VALUES ($1, $2::date, $3::date, $4, $5, $6)
+       RETURNING id, user_id, period_from, period_to, type, label, amount`,
+      [employeeId, periodFrom, periodTo, type, label || '', amt]
+    )
+    const r = result.rows[0]
+    res.status(201).json({
+      id: r.id,
+      userId: r.user_id,
+      periodFrom: r.period_from ? new Date(r.period_from).toISOString().slice(0, 10) : '',
+      periodTo: r.period_to ? new Date(r.period_to).toISOString().slice(0, 10) : '',
+      type: r.type,
+      label: r.label || '',
+      amount: Number(r.amount),
+    })
+  } catch (err) {
+    console.error('Create payroll line item error:', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// DELETE /api/admin/payroll/line-items/:id
+router.delete('/payroll/line-items/:id', async (req, res) => {
+  try {
+    const { id } = req.params
+    const result = await query('DELETE FROM payroll_line_items WHERE id = $1 RETURNING id', [id])
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Not found' })
+    }
+    res.status(204).send()
+  } catch (err) {
+    console.error('Delete payroll line item error:', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// PUT /api/admin/payroll/deductions - set government deductions for one employee, one period
+router.put('/payroll/deductions', async (req, res) => {
+  try {
+    const { employeeId, periodFrom, periodTo, socialSecurity, tax, infotep } = req.body
+    if (!employeeId || !periodFrom || !periodTo) {
+      return res.status(400).json({ error: 'Bad request', message: 'employeeId, periodFrom, periodTo required' })
+    }
+    const ss = Math.max(0, Number(socialSecurity) || 0)
+    const tx = Math.max(0, Number(tax) || 0)
+    const inf = Math.max(0, Number(infotep) || 0)
+    await query(
+      `INSERT INTO payroll_government_deductions (user_id, period_from, period_to, social_security, tax, infotep, updated_at)
+       VALUES ($1, $2::date, $3::date, $4, $5, $6, NOW())
+       ON CONFLICT (user_id, period_from, period_to)
+       DO UPDATE SET social_security = $4, tax = $5, infotep = $6, updated_at = NOW()`,
+      [employeeId, periodFrom, periodTo, ss, tx, inf]
+    )
+    res.json({
+      employeeId,
+      periodFrom,
+      periodTo,
+      socialSecurity: ss,
+      tax: tx,
+      infotep: inf,
+    })
+  } catch (err) {
+    console.error('Set payroll deductions error:', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// GET /api/admin/payroll/periods?year=2026 - bi-weekly payroll calendar periods (DR)
+router.get('/payroll/periods', async (req, res) => {
+  try {
+    const year = req.query.year ? parseInt(req.query.year, 10) : new Date().getFullYear()
+    const result = await query(
+      `SELECT period_from, period_to, pay_date, cycle_code, year_cycle
+       FROM payroll_periods WHERE year_cycle = $1 ORDER BY period_from`,
+      [year]
+    )
+    res.json(result.rows.map((r) => ({
+      periodFrom: r.period_from ? new Date(r.period_from).toISOString().slice(0, 10) : '',
+      periodTo: r.period_to ? new Date(r.period_to).toISOString().slice(0, 10) : '',
+      payDate: r.pay_date ? new Date(r.pay_date).toISOString().slice(0, 10) : '',
+      cycleCode: r.cycle_code,
+      yearCycle: r.year_cycle,
+    })))
+  } catch (err) {
+    console.error('List payroll periods error:', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// PATCH /api/admin/employees/:id - update employee (name, email, password, salary)
 router.patch('/employees/:id', async (req, res) => {
   try {
     const { id } = req.params
-    const { salaryType, baseSalary } = req.body
+    const { name, email, password, salaryType, baseSalary } = req.body
     const emp = await query(
       "SELECT id FROM users WHERE id = $1 AND role = 'employee'",
       [id]
@@ -423,23 +634,55 @@ router.patch('/employees/:id', async (req, res) => {
     if (emp.rows.length === 0) {
       return res.status(404).json({ error: 'Not found', message: 'Employee not found' })
     }
-    const st = salaryType === 'monthly' ? 'monthly' : 'hourly'
-    const sal = baseSalary != null ? Math.max(0, Number(baseSalary)) : null
-    if (sal === null) {
-      await query('UPDATE users SET salary_type = $1, updated_at = NOW() WHERE id = $2', [st, id])
-    } else {
-      await query('UPDATE users SET salary_type = $1, base_salary = $2, updated_at = NOW() WHERE id = $3', [st, sal, id])
+    const updates = []
+    const params = []
+    let i = 1
+    if (name !== undefined && String(name).trim() !== '') {
+      updates.push(`name = $${i++}`)
+      params.push(String(name).trim())
     }
-    const updated = await query('SELECT id, name, salary_type, base_salary FROM users WHERE id = $1', [id])
+    if (email !== undefined && String(email).trim() !== '') {
+      const emailTrim = String(email).trim().toLowerCase()
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+      if (!emailRegex.test(emailTrim)) {
+        return res.status(400).json({ error: 'Validation failed', message: 'Valid email is required' })
+      }
+      const existing = await query('SELECT id FROM users WHERE email = $1 AND id != $2', [emailTrim, id])
+      if (existing.rows.length > 0) {
+        return res.status(409).json({ error: 'Conflict', message: 'Email already in use' })
+      }
+      updates.push(`email = $${i++}`)
+      params.push(emailTrim)
+    }
+    if (password !== undefined && String(password).length >= 6) {
+      const password_hash = await bcrypt.hash(String(password), 10)
+      updates.push(`password_hash = $${i++}`)
+      params.push(password_hash)
+    }
+    if (salaryType !== undefined) {
+      const st = salaryType === 'monthly' ? 'monthly' : 'hourly'
+      updates.push(`salary_type = $${i++}`)
+      params.push(st)
+    }
+    if (baseSalary !== undefined) {
+      updates.push(`base_salary = $${i++}`)
+      params.push(Math.max(0, Number(baseSalary)))
+    }
+    if (updates.length > 0) {
+      params.push(id)
+      await query(`UPDATE users SET ${updates.join(', ')}, updated_at = NOW() WHERE id = $${i}`, params)
+    }
+    const updated = await query('SELECT id, name, email, salary_type, base_salary FROM users WHERE id = $1', [id])
     const row = updated.rows[0]
     res.json({
-      employeeId: row.id,
-      employeeName: row.name,
-      salaryType: row.salary_type,
+      id: row.id,
+      name: row.name,
+      email: row.email || '',
+      salaryType: row.salary_type || 'hourly',
       baseSalary: row.base_salary != null ? Number(row.base_salary) : 0,
     })
   } catch (err) {
-    console.error('Update employee salary error:', err)
+    console.error('Update employee error:', err)
     res.status(500).json({ error: 'Internal server error' })
   }
 })
@@ -483,15 +726,62 @@ router.get('/reports/summary', async (req, res) => {
 
 // --- Scheduling (admin as supervisor): BPO clients, shifts, schedule assignments ---
 
-// GET /api/admin/employees - list employees for schedule dropdown
+// GET /api/admin/employees - list employees (full for database page; schedule uses id, name)
 router.get('/employees', async (req, res) => {
   try {
     const result = await query(
-      `SELECT id, name FROM users WHERE role = 'employee' ORDER BY name`
+      `SELECT id, name, email, salary_type, base_salary FROM users WHERE role = 'employee' ORDER BY name`
     )
-    res.json(result.rows.map((r) => ({ id: r.id, name: r.name })))
+    res.json(result.rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      email: r.email || '',
+      salaryType: r.salary_type || 'hourly',
+      baseSalary: r.base_salary != null ? Number(r.base_salary) : 0,
+    })))
   } catch (err) {
     console.error('Admin list employees error:', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// POST /api/admin/employees - create employee (admin only)
+router.post('/employees', requireAdmin, async (req, res) => {
+  try {
+    const { name, email, password, salaryType, baseSalary } = req.body
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!name || String(name).trim() === '') {
+      return res.status(400).json({ error: 'Validation failed', message: 'Name is required' })
+    }
+    if (!email || !emailRegex.test(String(email).trim())) {
+      return res.status(400).json({ error: 'Validation failed', message: 'Valid email is required' })
+    }
+    if (!password || String(password).length < 6) {
+      return res.status(400).json({ error: 'Validation failed', message: 'Password must be at least 6 characters' })
+    }
+    const existing = await query('SELECT id FROM users WHERE email = $1', [String(email).trim().toLowerCase()])
+    if (existing.rows.length > 0) {
+      return res.status(409).json({ error: 'Conflict', message: 'Email already registered' })
+    }
+    const password_hash = await bcrypt.hash(String(password), 10)
+    const st = salaryType === 'monthly' ? 'monthly' : 'hourly'
+    const sal = baseSalary != null ? Math.max(0, Number(baseSalary)) : 0
+    const result = await query(
+      `INSERT INTO users (email, name, password_hash, role, salary_type, base_salary)
+       VALUES ($1, $2, $3, 'employee', $4, $5)
+       RETURNING id, name, email, salary_type, base_salary`,
+      [String(email).trim().toLowerCase(), String(name).trim(), password_hash, st, sal]
+    )
+    const r = result.rows[0]
+    res.status(201).json({
+      id: r.id,
+      name: r.name,
+      email: r.email,
+      salaryType: r.salary_type || 'hourly',
+      baseSalary: r.base_salary != null ? Number(r.base_salary) : 0,
+    })
+  } catch (err) {
+    console.error('Admin create employee error:', err)
     res.status(500).json({ error: 'Internal server error' })
   }
 })

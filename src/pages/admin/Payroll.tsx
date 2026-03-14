@@ -1,9 +1,158 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { format, subDays } from 'date-fns'
-import { Download, Calculator, Calendar, Clock, TrendingUp, DollarSign, Moon, Settings2 } from 'lucide-react'
-import { getPayroll, updateEmployeeSalary, type PayrollResponse, type PayrollEmployeeRow } from '@/lib/apiAdmin'
+import { Download, Calculator, Calendar, Clock, TrendingUp, DollarSign, Moon, Settings2, Plus, Trash2 } from 'lucide-react'
+import {
+  getPayroll,
+  updateEmployeeSalary,
+  createPayrollLineItem,
+  deletePayrollLineItem,
+  setPayrollDeductions,
+  type PayrollResponse,
+  type PayrollEmployeeRow,
+} from '@/lib/apiAdmin'
+
+function PayrollRow({
+  row,
+  onEditSalary,
+  onAddItem,
+  onSaveDeductions,
+  onDeleteLineItem,
+  deductionSaving,
+}: {
+  row: PayrollEmployeeRow
+  otPercent: number
+  nightPercent: number
+  onEditSalary: () => void
+  onAddItem: () => void
+  onSaveDeductions: (row: PayrollEmployeeRow, ss: number, tax: number, infotep: number) => void
+  onDeleteLineItem: (id: string) => void
+  deductionSaving: boolean
+}) {
+  const num = (v: unknown): string =>
+    v !== undefined && v !== null && !Number.isNaN(Number(v)) ? String(Number(v)) : '0'
+  const [ss, setSs] = useState(() => num(row.socialSecurity))
+  const [tax, setTax] = useState(() => num(row.tax))
+  const [infotep, setInfotep] = useState(() => num(row.infotep))
+
+  useEffect(() => {
+    setSs(num(row.socialSecurity))
+    setTax(num(row.tax))
+    setInfotep(num(row.infotep))
+  }, [row.socialSecurity, row.tax, row.infotep])
+
+  const handleDeductionsBlur = () => {
+    const s = parseFloat(ss)
+    const t = parseFloat(tax)
+    const i = parseFloat(infotep)
+    if (!Number.isNaN(s) && !Number.isNaN(t) && !Number.isNaN(i) && (s >= 0 && t >= 0 && i >= 0)) {
+      onSaveDeductions(row, Number.isNaN(s) ? 0 : s, Number.isNaN(t) ? 0 : t, Number.isNaN(i) ? 0 : i)
+    }
+  }
+
+  return (
+    <tr className="border-b border-surface-100">
+      <td className="py-3 px-4 text-surface-900 font-medium">{row.employeeName}</td>
+      <td className="py-3 px-4 text-right tabular-nums text-surface-700">
+        ${row.hourlyRate.toFixed(2)} ({row.salaryType})
+      </td>
+      <td className="py-3 px-4 text-right tabular-nums">{row.regularHours}</td>
+      <td className="py-3 px-4 text-right tabular-nums">{row.ot35Hours}</td>
+      <td className="py-3 px-4 text-right tabular-nums">{row.ot100Hours}</td>
+      <td className="py-3 px-4 text-right tabular-nums">{row.nightHours}</td>
+      <td className="py-3 px-4 text-right tabular-nums font-medium">{row.totalHours}</td>
+      <td className="py-3 px-4 text-right tabular-nums">${row.regularPay.toFixed(2)}</td>
+      <td className="py-3 px-4 text-right tabular-nums">${row.ot35Pay.toFixed(2)}</td>
+      <td className="py-3 px-4 text-right tabular-nums">${row.ot100Pay.toFixed(2)}</td>
+      <td className="py-3 px-4 text-right tabular-nums">${row.nightPay.toFixed(2)}</td>
+      <td className="py-3 px-4 text-right tabular-nums font-semibold">${row.totalPay.toFixed(2)}</td>
+      <td className="py-3 px-4 text-right tabular-nums text-green-600">
+        ${(row.additionsTotal ?? 0).toFixed(2)}
+      </td>
+      <td className="py-3 px-4 text-right tabular-nums text-red-600">
+        ${(row.deductionsTotal ?? 0).toFixed(2)}
+      </td>
+      <td className="py-3 px-4">
+        <input
+          type="number"
+          min={0}
+          step={0.01}
+          className="input w-16 text-right py-1.5 text-sm rounded-lg"
+          value={ss || '0'}
+          onChange={(e) => setSs(e.target.value)}
+          onBlur={handleDeductionsBlur}
+          disabled={deductionSaving}
+        />
+      </td>
+      <td className="py-3 px-4">
+        <input
+          type="number"
+          min={0}
+          step={0.01}
+          className="input w-16 text-right py-1.5 text-sm rounded-lg"
+          value={tax || '0'}
+          onChange={(e) => setTax(e.target.value)}
+          onBlur={handleDeductionsBlur}
+          disabled={deductionSaving}
+        />
+      </td>
+      <td className="py-3 px-4">
+        <input
+          type="number"
+          min={0}
+          step={0.01}
+          className="input w-16 text-right py-1.5 text-sm rounded-lg"
+          value={infotep || '0'}
+          onChange={(e) => setInfotep(e.target.value)}
+          onBlur={handleDeductionsBlur}
+          disabled={deductionSaving}
+        />
+      </td>
+      <td className="py-3 px-4 text-right tabular-nums font-semibold">${(row.netPay ?? row.totalPay).toFixed(2)}</td>
+      <td className="py-3 px-4">
+        <div className="flex flex-col gap-2 min-w-[140px]">
+          {(row.lineItems ?? []).map((it) => (
+            <div
+              key={it.id}
+              className="flex items-center justify-between gap-2 rounded-xl border border-surface-200 bg-surface-50 px-2.5 py-1.5 text-xs transition-colors duration-150 hover:bg-surface-100"
+            >
+              <span className="font-medium text-surface-700 truncate min-w-0">
+                {it.label || it.type}: <span className="tabular-nums text-surface-900">${Math.abs(it.amount).toFixed(2)}</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => onDeleteLineItem(it.id)}
+                className="shrink-0 p-1.5 rounded-lg text-surface-400 hover:bg-red-50 hover:text-red-600 transition-colors duration-150"
+                title="Remove"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={onAddItem}
+            className="flex items-center justify-center gap-1.5 rounded-xl border border-dashed border-surface-300 bg-surface-50/50 py-2 text-xs font-medium text-surface-600 hover:bg-brand-50 hover:border-brand-300 hover:text-brand-600 transition-colors duration-150"
+            title="Add bonus, incentive, or deduction"
+          >
+            <Plus className="w-4 h-4" />
+            Add item
+          </button>
+        </div>
+      </td>
+      <td className="py-3 px-4">
+        <button type="button" onClick={onEditSalary} className="p-2 rounded-lg text-surface-500 hover:bg-surface-100 hover:text-surface-700" title="Edit salary">
+          <Settings2 className="w-4 h-4" />
+        </button>
+      </td>
+    </tr>
+  )
+}
 
 export default function AdminPayroll() {
+  const [searchParams] = useSearchParams()
+  const fromParam = searchParams.get('from')
+  const toParam = searchParams.get('to')
   const [periodStart, setPeriodStart] = useState(format(subDays(new Date(), 14), 'yyyy-MM-dd'))
   const [periodEnd, setPeriodEnd] = useState(format(new Date(), 'yyyy-MM-dd'))
   const [payroll, setPayroll] = useState<PayrollResponse | null>(null)
@@ -13,6 +162,19 @@ export default function AdminPayroll() {
   const [editSalaryType, setEditSalaryType] = useState<'hourly' | 'monthly'>('hourly')
   const [editBaseSalary, setEditBaseSalary] = useState('')
   const [savingSalary, setSavingSalary] = useState(false)
+  const [addItemRow, setAddItemRow] = useState<PayrollEmployeeRow | null>(null)
+  const [itemType, setItemType] = useState<'bonus' | 'incentive' | 'deduction' | 'passthrough_credit'>('bonus')
+  const [itemLabel, setItemLabel] = useState('')
+  const [itemAmount, setItemAmount] = useState('')
+  const [savingItem, setSavingItem] = useState(false)
+  const [deductionSaving, setDeductionSaving] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (fromParam && toParam) {
+      setPeriodStart(fromParam)
+      setPeriodEnd(toParam)
+    }
+  }, [fromParam, toParam])
 
   async function handleCalculate() {
     setError(null)
@@ -57,6 +219,60 @@ export default function AdminPayroll() {
     }
   }
 
+  async function handleSaveDeductions(row: PayrollEmployeeRow, socialSecurity: number, tax: number, infotep: number) {
+    if (!payroll) return
+    setDeductionSaving(row.employeeId)
+    try {
+      await setPayrollDeductions({
+        employeeId: row.employeeId,
+        periodFrom: payroll.from,
+        periodTo: payroll.to,
+        socialSecurity,
+        tax,
+        infotep,
+      })
+      await handleCalculate()
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to save deductions')
+    } finally {
+      setDeductionSaving(null)
+    }
+  }
+
+  async function handleAddLineItem() {
+    if (!addItemRow || !payroll) return
+    const amount = parseFloat(itemAmount)
+    if (Number.isNaN(amount)) return
+    setSavingItem(true)
+    try {
+      await createPayrollLineItem({
+        employeeId: addItemRow.employeeId,
+        periodFrom: payroll.from,
+        periodTo: payroll.to,
+        type: itemType,
+        label: itemLabel.trim() || undefined,
+        amount,
+      })
+      setAddItemRow(null)
+      setItemLabel('')
+      setItemAmount('')
+      await handleCalculate()
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to add item')
+    } finally {
+      setSavingItem(false)
+    }
+  }
+
+  async function handleDeleteLineItem(itemId: string) {
+    try {
+      await deletePayrollLineItem(itemId)
+      if (payroll) await handleCalculate()
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to delete item')
+    }
+  }
+
   function exportPayrollCSV() {
     if (!payroll?.employees?.length) return
     const otPct = payroll?.rulesUsed ? Math.round((payroll.rulesUsed.otMultiplier - 1) * 100) : 35
@@ -75,6 +291,12 @@ export default function AdminPayroll() {
       'OT 100% pay',
       `Night ${nightPct}% pay`,
       'Total pay',
+      'Additions',
+      'Deductions',
+      'Social Security',
+      'Tax',
+      'INFOTEP',
+      'Net pay',
     ]
     const rows = payroll.employees.map((e) => [
       e.employeeName,
@@ -90,6 +312,12 @@ export default function AdminPayroll() {
       e.ot100Pay,
       e.nightPay,
       e.totalPay,
+      e.additionsTotal ?? 0,
+      e.deductionsTotal ?? 0,
+      e.socialSecurity ?? 0,
+      e.tax ?? 0,
+      e.infotep ?? 0,
+      e.netPay ?? e.totalPay,
     ])
     const csv = [headers.join(','), ...rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(','))].join('\n')
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
@@ -224,62 +452,79 @@ export default function AdminPayroll() {
                 <DollarSign className="w-4 h-4 sm:w-5 sm:h-5 text-brand-600" />
               </div>
               <div className="min-w-0">
-                <p className="text-[10px] sm:text-xs font-medium text-brand-700 uppercase tracking-wider truncate">Total amount</p>
+                <p className="text-[10px] sm:text-xs font-medium text-brand-700 uppercase tracking-wider truncate">Total gross</p>
                 <p className="text-lg sm:text-xl font-semibold text-surface-900 mt-0.5 tabular-nums truncate">
                   ${summary.totalPay.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                 </p>
               </div>
             </div>
           </div>
+          {summary.totalNetPay != null && (
+            <div className="rounded-lg sm:rounded-xl border border-green-200/80 bg-green-50/50 p-3 sm:p-5 shadow-sm min-w-0">
+              <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                <div className="min-w-0">
+                  <p className="text-[10px] sm:text-xs font-medium text-green-700 uppercase tracking-wider truncate">Total net pay</p>
+                  <p className="text-lg sm:text-xl font-semibold text-surface-900 mt-0.5 tabular-nums truncate">
+                    ${summary.totalNetPay.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </p>
+                  {(summary.totalAdditions !== undefined && summary.totalAdditions > 0) ||
+                   (summary.totalDeductions !== undefined && summary.totalDeductions > 0) ||
+                   (summary.totalGovDeductions !== undefined && summary.totalGovDeductions > 0) ? (
+                    <p className="text-xs text-surface-500 mt-1">
+                      +Additions ${(summary.totalAdditions ?? 0).toFixed(2)} −Deductions ${(summary.totalDeductions ?? 0).toFixed(2)} −Gov ${(summary.totalGovDeductions ?? 0).toFixed(2)}
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="rounded-xl sm:rounded-2xl border border-surface-200/80 bg-white p-4 sm:p-6 shadow-sm overflow-x-auto">
-            <h2 className="text-sm sm:text-base font-semibold text-surface-900 mb-3">Employee payroll</h2>
+            <h2 className="text-sm sm:text-base font-semibold text-surface-900 mb-0.5 sm:mb-1">Employee payroll</h2>
+            <p className="text-xs sm:text-sm text-surface-500 mb-4">SS and Tax are auto-calculated per DR rules (TSS/DGII 2026). Edit cells to override.</p>
             <table className="w-full text-left text-sm border-collapse">
               <thead>
-                <tr className="border-b border-surface-200">
-                  <th className="py-2 pr-2 font-medium text-surface-700">Employee</th>
-                  <th className="py-2 pr-2 font-medium text-surface-700 text-right">Rate</th>
-                  <th className="py-2 pr-2 font-medium text-surface-700 text-right">Regular h</th>
-                  <th className="py-2 pr-2 font-medium text-surface-700 text-right">OT {otPercent}% h</th>
-                  <th className="py-2 pr-2 font-medium text-surface-700 text-right">OT 100% h</th>
-                  <th className="py-2 pr-2 font-medium text-surface-700 text-right">Night {nightPercent}% h</th>
-                  <th className="py-2 pr-2 font-medium text-surface-700 text-right">Total h</th>
-                  <th className="py-2 pr-2 font-medium text-surface-700 text-right">Regular pay</th>
-                  <th className="py-2 pr-2 font-medium text-surface-700 text-right">OT {otPercent}% pay</th>
-                  <th className="py-2 pr-2 font-medium text-surface-700 text-right">OT 100% pay</th>
-                  <th className="py-2 pr-2 font-medium text-surface-700 text-right">Night {nightPercent}% pay</th>
-                  <th className="py-2 pr-2 font-medium text-surface-700 text-right">Total pay</th>
-                  <th className="py-2 pl-2 w-10" aria-label="Edit salary" />
+                <tr className="border-b border-surface-200 bg-surface-50/80">
+                  <th className="py-3 px-4 font-medium text-surface-700">Employee</th>
+                  <th className="py-3 px-4 font-medium text-surface-700 text-right">Rate</th>
+                  <th className="py-3 px-4 font-medium text-surface-700 text-right">Regular h</th>
+                  <th className="py-3 px-4 font-medium text-surface-700 text-right">OT {otPercent}% h</th>
+                  <th className="py-3 px-4 font-medium text-surface-700 text-right">OT 100% h</th>
+                  <th className="py-3 px-4 font-medium text-surface-700 text-right">Night {nightPercent}% h</th>
+                  <th className="py-3 px-4 font-medium text-surface-700 text-right">Total h</th>
+                  <th className="py-3 px-4 font-medium text-surface-700 text-right">Regular pay</th>
+                  <th className="py-3 px-4 font-medium text-surface-700 text-right">OT {otPercent}% pay</th>
+                  <th className="py-3 px-4 font-medium text-surface-700 text-right">OT 100% pay</th>
+                  <th className="py-3 px-4 font-medium text-surface-700 text-right">Night {nightPercent}% pay</th>
+                  <th className="py-3 px-4 font-medium text-surface-700 text-right">Total pay</th>
+                  <th className="py-3 px-4 font-medium text-surface-700 text-right">Additions</th>
+                  <th className="py-3 px-4 font-medium text-surface-700 text-right">Deductions</th>
+                  <th className="py-3 px-4 font-medium text-surface-700 text-right">SS</th>
+                  <th className="py-3 px-4 font-medium text-surface-700 text-right">Tax</th>
+                  <th className="py-3 px-4 font-medium text-surface-700 text-right">INFOTEP</th>
+                  <th className="py-3 px-4 font-medium text-surface-700 text-right">Net pay</th>
+                  <th className="py-3 px-4 font-medium text-surface-700">Items</th>
+                  <th className="py-3 px-4 w-10" aria-label="Edit salary" />
                 </tr>
               </thead>
               <tbody>
                 {payroll.employees.map((row) => (
-                  <tr key={row.employeeId} className="border-b border-surface-100">
-                    <td className="py-2 pr-2 text-surface-900">{row.employeeName}</td>
-                    <td className="py-2 pr-2 text-right tabular-nums text-surface-700">
-                      ${row.hourlyRate.toFixed(2)} ({row.salaryType})
-                    </td>
-                    <td className="py-2 pr-2 text-right tabular-nums">{row.regularHours}</td>
-                    <td className="py-2 pr-2 text-right tabular-nums">{row.ot35Hours}</td>
-                    <td className="py-2 pr-2 text-right tabular-nums">{row.ot100Hours}</td>
-                    <td className="py-2 pr-2 text-right tabular-nums">{row.nightHours}</td>
-                    <td className="py-2 pr-2 text-right tabular-nums font-medium">{row.totalHours}</td>
-                    <td className="py-2 pr-2 text-right tabular-nums">${row.regularPay.toFixed(2)}</td>
-                    <td className="py-2 pr-2 text-right tabular-nums">${row.ot35Pay.toFixed(2)}</td>
-                    <td className="py-2 pr-2 text-right tabular-nums">${row.ot100Pay.toFixed(2)}</td>
-                    <td className="py-2 pr-2 text-right tabular-nums">${row.nightPay.toFixed(2)}</td>
-                    <td className="py-2 pr-2 text-right tabular-nums font-semibold">${row.totalPay.toFixed(2)}</td>
-                    <td className="py-2 pl-2">
-                      <button
-                        type="button"
-                        onClick={() => openEditSalary(row)}
-                        className="p-1.5 rounded-lg text-surface-500 hover:bg-surface-100 hover:text-surface-700"
-                        title="Edit salary"
-                      >
-                        <Settings2 className="w-4 h-4" />
-                      </button>
-                    </td>
-                  </tr>
+                  <PayrollRow
+                    key={row.employeeId}
+                    row={row}
+                    otPercent={otPercent}
+                    nightPercent={nightPercent}
+                    onEditSalary={() => openEditSalary(row)}
+                    onAddItem={() => {
+                      setAddItemRow(row)
+                      setItemType('bonus')
+                      setItemLabel('')
+                      setItemAmount('')
+                    }}
+                    onSaveDeductions={handleSaveDeductions}
+                    onDeleteLineItem={handleDeleteLineItem}
+                    deductionSaving={deductionSaving === row.employeeId}
+                  />
                 ))}
               </tbody>
             </table>
@@ -287,7 +532,7 @@ export default function AdminPayroll() {
 
           <div className="rounded-xl sm:rounded-2xl border border-surface-200/80 bg-white p-4 sm:p-6 shadow-sm">
             <h2 className="text-sm sm:text-base font-semibold text-surface-900 mb-0.5 sm:mb-1">Export</h2>
-            <p className="text-xs sm:text-sm text-surface-500 mb-4 sm:mb-5">
+            <p className="text-xs sm:text-sm text-surface-500 mb-4">
               Export payroll data for your accounting or payroll system.
             </p>
             <div className="flex flex-col sm:flex-row flex-wrap gap-2 sm:gap-3">
@@ -352,6 +597,65 @@ export default function AdminPayroll() {
                 className="btn-primary rounded-xl min-h-[2.75rem] px-4 disabled:opacity-60"
               >
                 {savingSalary ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {addItemRow && payroll && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" role="dialog" aria-modal="true" aria-labelledby="add-item-title">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6">
+            <h2 id="add-item-title" className="text-lg font-semibold text-surface-900 mb-4">
+              Add payable item — {addItemRow.employeeName}
+            </h2>
+            <p className="text-xs sm:text-sm text-surface-500 mb-4">Bonuses, incentives, or deductions (e.g. passthrough credits) for this period.</p>
+            <div className="space-y-4">
+              <div>
+                <label className="label">Type</label>
+                <select
+                  className="input w-full rounded-xl min-h-[2.75rem]"
+                  value={itemType}
+                  onChange={(e) => setItemType(e.target.value as 'bonus' | 'incentive' | 'deduction' | 'passthrough_credit')}
+                >
+                  <option value="bonus">Bonus</option>
+                  <option value="incentive">Incentive</option>
+                  <option value="deduction">Deduction</option>
+                  <option value="passthrough_credit">Passthrough credit</option>
+                </select>
+              </div>
+              <div>
+                <label className="label">Label (optional)</label>
+                <input
+                  type="text"
+                  className="input w-full rounded-xl min-h-[2.75rem]"
+                  value={itemLabel}
+                  onChange={(e) => setItemLabel(e.target.value)}
+                  placeholder="e.g. Performance bonus"
+                />
+              </div>
+              <div>
+                <label className="label">Amount</label>
+                <input
+                  type="number"
+                  step={0.01}
+                  min={0}
+                  className="input w-full rounded-xl min-h-[2.75rem]"
+                  value={itemAmount}
+                  onChange={(e) => setItemAmount(e.target.value)}
+                  placeholder="0.00"
+                />
+              </div>
+            </div>
+            <div className="mt-6 flex gap-3 justify-end">
+              <button type="button" onClick={() => setAddItemRow(null)} className="btn-secondary rounded-xl min-h-[2.75rem] px-4">Cancel</button>
+              <button
+                type="button"
+                onClick={handleAddLineItem}
+                disabled={savingItem || itemAmount === '' || parseFloat(itemAmount) < 0}
+                className="btn-primary rounded-xl min-h-[2.75rem] px-4 disabled:opacity-60"
+              >
+                {savingItem ? 'Saving…' : 'Add'}
               </button>
             </div>
           </div>
