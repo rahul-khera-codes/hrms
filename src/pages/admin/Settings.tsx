@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Clock, Moon, TrendingUp, Save, Plug, Calendar } from 'lucide-react'
 import { getSettings, updateSettings } from '@/lib/apiAdmin'
+import AdminSelect from '@/components/AdminSelect'
 
 function formatHour(h: number) {
   if (h === 0) return '12 AM'
@@ -171,27 +172,25 @@ export default function AdminSettings() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 p-3 sm:p-4 rounded-lg sm:rounded-xl border border-surface-200/80">
             <div className="flex flex-col gap-2">
               <label className="label">Night shift start (hour, 0–23)</label>
-              <select
-                className="input rounded-xl min-h-[2.75rem]"
-                value={nightShiftStartHour}
-                onChange={(e) => setNightShiftStartHour(parseInt(e.target.value, 10))}
-              >
-                {Array.from({ length: 24 }, (_, i) => (
-                  <option key={i} value={i}>{formatHour(i)}</option>
-                ))}
-              </select>
+              <AdminSelect
+                value={String(nightShiftStartHour)}
+                onChange={(val) => setNightShiftStartHour(parseInt(val, 10))}
+                options={Array.from({ length: 24 }, (_, i) => ({
+                  value: String(i),
+                  label: formatHour(i),
+                }))}
+              />
             </div>
             <div className="flex flex-col gap-2">
               <label className="label">Night shift end (hour, 0–23)</label>
-              <select
-                className="input rounded-xl min-h-[2.75rem]"
-                value={nightShiftEndHour}
-                onChange={(e) => setNightShiftEndHour(parseInt(e.target.value, 10))}
-              >
-                {Array.from({ length: 24 }, (_, i) => (
-                  <option key={i} value={i}>{formatHour(i)}</option>
-                ))}
-              </select>
+              <AdminSelect
+                value={String(nightShiftEndHour)}
+                onChange={(val) => setNightShiftEndHour(parseInt(val, 10))}
+                options={Array.from({ length: 24 }, (_, i) => ({
+                  value: String(i),
+                  label: formatHour(i),
+                }))}
+              />
             </div>
           </div>
           <p className="text-xs text-surface-500 px-1">

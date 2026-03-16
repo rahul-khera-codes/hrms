@@ -3,6 +3,8 @@ import { format, subDays } from 'date-fns'
 import { Search, Download, Edit2 } from 'lucide-react'
 import { getAdminAttendance } from '@/lib/apiAdmin'
 import type { AttendanceRecord } from '@/types'
+import AdminSelect from '@/components/AdminSelect'
+import AdminDatePicker from '@/components/AdminDatePicker'
 
 const statusColors: Record<string, string> = {
   present: 'bg-brand-100 text-brand-700',
@@ -19,6 +21,9 @@ export default function AdminAttendance() {
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [dateFrom, setDateFrom] = useState(() => format(subDays(new Date(), 7), 'yyyy-MM-dd'))
   const [dateTo, setDateTo] = useState(() => format(new Date(), 'yyyy-MM-dd'))
+  const [editingRecordId, setEditingRecordId] = useState<string | null>(null)
+  const [editingStatus, setEditingStatus] = useState<AttendanceRecord['status']>('present')
+  const [saveNotice, setSaveNotice] = useState('')
 
   const fetchAttendance = useCallback(async () => {
     setLoading(true)
@@ -41,16 +46,75 @@ export default function AdminAttendance() {
     fetchAttendance()
   }, [fetchAttendance])
 
+  useEffect(() => {
+    if (!saveNotice) return
+    const timeoutId = window.setTimeout(() => setSaveNotice(''), 2200)
+    return () => window.clearTimeout(timeoutId)
+  }, [saveNotice])
+
+  function exportAttendanceCSV() {
+    if (!records.length) return
+    const headers = ['Employee', 'Date', 'Clock In', 'Clock Out', 'Regular (h)', 'Overtime (h)', 'Night (h)', 'Total (h)', 'Status']
+    const rows = records.map((r) => [
+      r.employeeName,
+      r.date,
+      r.clockIn ? format(new Date(r.clockIn), 'HH:mm') : '',
+      r.clockOut ? format(new Date(r.clockOut), 'HH:mm') : '',
+      r.regularHours,
+      r.overtimeHours,
+      r.nightHours,
+      (r.regularHours + r.overtimeHours + r.nightHours).toFixed(1),
+      r.status,
+    ])
+    const csv = [headers.join(','), ...rows.map((row) => row.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(','))].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `attendance-${dateFrom}-to-${dateTo}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  function handleEditStatus(recordId: string) {
+    const target = records.find((r) => r.id === recordId)
+    if (!target) return
+    setEditingRecordId(recordId)
+    setEditingStatus(target.status)
+  }
+
+  function saveEditedStatus() {
+    if (!editingRecordId) return
+    setRecords((prev) => prev.map((r) => (r.id === editingRecordId ? { ...r, status: editingStatus } : r)))
+    setEditingRecordId(null)
+    setSaveNotice('Attendance status updated successfully.')
+  }
+
+  function cancelEditStatus() {
+    setEditingRecordId(null)
+  }
+
   const filtered = records
 
   return (
     <div className="space-y-4 sm:space-y-6 overflow-x-hidden">
+      {saveNotice && (
+        <div className="fixed right-4 top-4 z-50 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700 shadow-lg">
+          {saveNotice}
+        </div>
+      )}
+
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-semibold text-surface-900 tracking-tight">Attendance</h1>
           <p className="text-surface-500 mt-1 text-xs sm:text-sm">View and manage employee attendance records.</p>
         </div>
-        <button type="button" className="btn-secondary flex items-center justify-center gap-2 rounded-xl w-full sm:w-auto min-h-[2.75rem]">
+        <button
+          type="button"
+          onClick={exportAttendanceCSV}
+          disabled={loading || records.length === 0}
+          className="btn-secondary flex items-center justify-center gap-2 rounded-xl w-full sm:w-auto min-h-[2.75rem] disabled:opacity-50"
+        >
           <Download className="w-4 h-4 shrink-0" />
           Export
         </button>
@@ -70,31 +134,25 @@ export default function AdminAttendance() {
               />
             </div>
             <div className="flex gap-2 flex-wrap">
-              <input
-                type="date"
-                className="input rounded-xl min-h-[2.75rem] flex-1 min-w-[120px]"
-                value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
-              />
-              <input
-                type="date"
-                className="input rounded-xl min-h-[2.75rem] flex-1 min-w-[120px]"
-                value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
-              />
+              <div className="flex-1 min-w-[140px]">
+                <AdminDatePicker value={dateFrom} onChange={(val) => setDateFrom(val)} />
+              </div>
+              <div className="flex-1 min-w-[140px]">
+                <AdminDatePicker value={dateTo} onChange={(val) => setDateTo(val)} />
+              </div>
             </div>
-            <select
-              className="input w-full sm:w-auto sm:min-w-[140px] rounded-xl min-h-[2.75rem]"
+            <AdminSelect
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-            >
-              <option value="all">All status</option>
-              <option value="present">Present</option>
-              <option value="active">Active (clocked in)</option>
-              <option value="absent">Absent</option>
-              <option value="leave">Leave</option>
-              <option value="adjusted">Adjusted</option>
-            </select>
+              onChange={(val) => setStatusFilter(val)}
+              options={[
+                { value: 'all', label: 'All status' },
+                { value: 'present', label: 'Present' },
+                { value: 'active', label: 'Active (clocked in)' },
+                { value: 'absent', label: 'Absent' },
+                { value: 'leave', label: 'Leave' },
+                { value: 'adjusted', label: 'Adjusted' },
+              ]}
+            />
           </div>
         </div>
       </div>
@@ -171,6 +229,7 @@ export default function AdminAttendance() {
                     <td className="px-3 py-2.5 sm:px-5 sm:py-3.5">
                       <button
                         type="button"
+                        onClick={() => handleEditStatus(r.id)}
                         className="p-2 rounded-lg text-surface-400 hover:bg-surface-100 hover:text-surface-600 transition-colors touch-manipulation"
                         title="Edit"
                       >
@@ -189,6 +248,52 @@ export default function AdminAttendance() {
           </div>
         )}
       </div>
+
+      {editingRecordId && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center p-4">
+          <button
+            type="button"
+            aria-label="Close"
+            className="absolute inset-0 bg-black/40"
+            onClick={cancelEditStatus}
+          />
+          <div className="relative z-10 w-full max-w-sm rounded-2xl border border-surface-200 bg-white p-5 shadow-xl">
+            <h2 className="text-base font-semibold text-surface-900">Edit attendance status</h2>
+            <p className="mt-1 text-sm text-surface-500">Select a new status for this record.</p>
+
+            <div className="mt-4">
+              <AdminSelect
+                value={editingStatus}
+                onChange={(val) => setEditingStatus(val as AttendanceRecord['status'])}
+                options={[
+                  { value: 'present', label: 'Present' },
+                  { value: 'active', label: 'Active (clocked in)' },
+                  { value: 'absent', label: 'Absent' },
+                  { value: 'leave', label: 'Leave' },
+                  { value: 'adjusted', label: 'Adjusted' },
+                ]}
+              />
+            </div>
+
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={cancelEditStatus}
+                className="btn-secondary rounded-xl px-4 py-2"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={saveEditedStatus}
+                className="btn-primary rounded-xl px-4 py-2"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

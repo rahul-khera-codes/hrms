@@ -75,9 +75,16 @@ export default function EmployeeDashboard() {
     fetchData()
   }, [fetchData])
 
+  const [now, setNow] = useState(() => new Date())
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000)
+    return () => clearInterval(id)
+  }, [])
+
   const clockedIn = activeSession != null
-  const currentTime = format(new Date(), 'HH:mm')
-  const currentDate = format(new Date(), 'EEEE, MMMM d')
+  const currentTime = format(now, 'HH:mm')
+  const currentDate = format(now, 'EEEE, MMMM d')
 
   const weeklyData = useMemo(() => buildWeeklyData(sessions), [sessions])
 
@@ -301,7 +308,7 @@ export default function EmployeeDashboard() {
                   axisLine={false}
                   tickLine={false}
                   tickFormatter={(v) => `${v}h`}
-                  width={24}
+                  width={60}
                 />
                 <Tooltip
                   contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '12px' }}

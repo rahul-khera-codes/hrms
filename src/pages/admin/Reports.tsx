@@ -3,6 +3,7 @@ import { format, subDays } from 'date-fns'
 import { BarChart3, Download } from 'lucide-react'
 import { getAdminAttendance, getReportsSummary } from '@/lib/apiAdmin'
 import type { AttendanceRecord } from '@/types'
+import AdminSelect from '@/components/AdminSelect'
 
 const statusColors: Record<string, string> = {
   present: 'bg-brand-100 text-brand-700',
@@ -117,25 +118,25 @@ export default function AdminReports() {
         <div className="flex flex-col sm:flex-row flex-wrap gap-4 sm:gap-6">
           <div className="flex-1 min-w-0 sm:flex-initial">
             <label className="label">Report type</label>
-            <select
-              className="input w-full sm:w-48 rounded-xl min-h-[2.75rem]"
+            <AdminSelect
               value={reportType}
-              onChange={(e) => setReportType(e.target.value as 'attendance' | 'payroll')}
-            >
-              <option value="attendance">Attendance summary</option>
-              <option value="payroll">Payroll summary</option>
-            </select>
+              onChange={(val) => setReportType(val as 'attendance' | 'payroll')}
+              options={[
+                { value: 'attendance', label: 'Attendance summary' },
+                { value: 'payroll', label: 'Payroll summary' },
+              ]}
+            />
           </div>
           <div className="flex-1 min-w-0 sm:flex-initial">
             <label className="label">Date range</label>
-            <select
-              className="input w-full sm:w-48 rounded-xl min-h-[2.75rem]"
+            <AdminSelect
               value={range}
-              onChange={(e) => setRange(e.target.value as 'week' | 'month')}
-            >
-              <option value="week">Last 7 days</option>
-              <option value="month">Last 30 days</option>
-            </select>
+              onChange={(val) => setRange(val as 'week' | 'month')}
+              options={[
+                { value: 'week', label: 'Last 7 days' },
+                { value: 'month', label: 'Last 30 days' },
+              ]}
+            />
           </div>
         </div>
       </div>

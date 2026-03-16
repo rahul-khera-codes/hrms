@@ -11,6 +11,8 @@ import {
   type PayrollResponse,
   type PayrollEmployeeRow,
 } from '@/lib/apiAdmin'
+import AdminDatePicker from '@/components/AdminDatePicker'
+import AdminSelect from '@/components/AdminSelect'
 
 function PayrollRow({
   row,
@@ -346,21 +348,15 @@ export default function AdminPayroll() {
         <div className="flex flex-col sm:flex-row flex-wrap gap-3 sm:gap-4 items-stretch sm:items-end">
           <div className="flex-1 sm:flex-initial min-w-0">
             <label className="label">Start date</label>
-            <input
-              type="date"
-              className="input w-full sm:w-40 rounded-xl min-h-[2.75rem]"
-              value={periodStart}
-              onChange={(e) => setPeriodStart(e.target.value)}
-            />
+            <div className="sm:w-40">
+              <AdminDatePicker value={periodStart} onChange={(val) => setPeriodStart(val)} />
+            </div>
           </div>
           <div className="flex-1 sm:flex-initial min-w-0">
             <label className="label">End date</label>
-            <input
-              type="date"
-              className="input w-full sm:w-40 rounded-xl min-h-[2.75rem]"
-              value={periodEnd}
-              onChange={(e) => setPeriodEnd(e.target.value)}
-            />
+            <div className="sm:w-40">
+              <AdminDatePicker value={periodEnd} onChange={(val) => setPeriodEnd(val)} />
+            </div>
           </div>
           <button
             type="button"
@@ -481,7 +477,7 @@ export default function AdminPayroll() {
 
           <div className="rounded-xl sm:rounded-2xl border border-surface-200/80 bg-white p-4 sm:p-6 shadow-sm overflow-x-auto">
             <h2 className="text-sm sm:text-base font-semibold text-surface-900 mb-0.5 sm:mb-1">Employee payroll</h2>
-            <p className="text-xs sm:text-sm text-surface-500 mb-4">SS and Tax are auto-calculated per DR rules (TSS/DGII 2026). Edit cells to override.</p>
+            <p className="text-xs sm:text-sm text-surface-500 mb-4">SS and Tax are auto-calculated per DR rules (TSS/DGII 2026). </p>
             <table className="w-full text-left text-sm border-collapse">
               <thead>
                 <tr className="border-b border-surface-200 bg-surface-50/80">
@@ -558,14 +554,14 @@ export default function AdminPayroll() {
             <div className="space-y-4">
               <div>
                 <label className="label">Salary type</label>
-                <select
+                <AdminSelect
                   value={editSalaryType}
-                  onChange={(e) => setEditSalaryType(e.target.value as 'hourly' | 'monthly')}
-                  className="input w-full rounded-xl min-h-[2.75rem]"
-                >
-                  <option value="hourly">Hourly</option>
-                  <option value="monthly">Monthly</option>
-                </select>
+                  onChange={(val) => setEditSalaryType(val as 'hourly' | 'monthly')}
+                  options={[
+                    { value: 'hourly', label: 'Hourly' },
+                    { value: 'monthly', label: 'Monthly' },
+                  ]}
+                />
               </div>
               <div>
                 <label className="label">
@@ -613,16 +609,18 @@ export default function AdminPayroll() {
             <div className="space-y-4">
               <div>
                 <label className="label">Type</label>
-                <select
-                  className="input w-full rounded-xl min-h-[2.75rem]"
+                <AdminSelect
                   value={itemType}
-                  onChange={(e) => setItemType(e.target.value as 'bonus' | 'incentive' | 'deduction' | 'passthrough_credit')}
-                >
-                  <option value="bonus">Bonus</option>
-                  <option value="incentive">Incentive</option>
-                  <option value="deduction">Deduction</option>
-                  <option value="passthrough_credit">Passthrough credit</option>
-                </select>
+                  onChange={(val) =>
+                    setItemType(val as 'bonus' | 'incentive' | 'deduction' | 'passthrough_credit')
+                  }
+                  options={[
+                    { value: 'bonus', label: 'Bonus' },
+                    { value: 'incentive', label: 'Incentive' },
+                    { value: 'deduction', label: 'Deduction' },
+                    { value: 'passthrough_credit', label: 'Passthrough credit' },
+                  ]}
+                />
               </div>
               <div>
                 <label className="label">Label (optional)</label>

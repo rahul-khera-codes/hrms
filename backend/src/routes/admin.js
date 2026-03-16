@@ -137,11 +137,8 @@ router.get('/attendance', async (req, res) => {
       const dateStr = row.date ? new Date(row.date).toISOString().slice(0, 10) : ''
       return toAttendanceRecord({ ...row, id: `${row.user_id}-${dateStr}` })
     })
-    if (statusFilter === 'present') {
-      records = records.filter((r) => r.status === 'present')
-    }
-    if (statusFilter === 'active') {
-      records = records.filter((r) => r.status === 'active')
+    if (statusFilter && statusFilter !== 'all') {
+      records = records.filter((r) => r.status === statusFilter)
     }
     res.json(records)
   } catch (err) {

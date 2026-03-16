@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Clock, Plus, Pencil, Trash2 } from 'lucide-react'
 import { getShifts, getClients, createShift, updateShift, deleteShift, type Shift, type Client } from '@/lib/apiAdmin'
+import AdminSelect from '@/components/AdminSelect'
 
 function formatTime(t: string) {
   if (!t) return '—'
@@ -135,16 +136,16 @@ export default function AdminShifts() {
 
       <div className="flex flex-wrap items-center gap-3">
         <label className="label mb-0">Filter by client</label>
-        <select
-          className="input w-auto rounded-xl min-h-[2.75rem]"
-          value={clientFilter}
-          onChange={(e) => setClientFilter(e.target.value)}
-        >
-          <option value="">All shifts</option>
-          {clients.map((c) => (
-            <option key={c.id} value={c.id}>{c.name}</option>
-          ))}
-        </select>
+        <div className="w-48">
+          <AdminSelect
+            value={clientFilter}
+            onChange={(val) => setClientFilter(val)}
+            options={[
+              { value: '', label: 'All shifts' },
+              ...clients.map((c) => ({ value: c.id, label: c.name })),
+            ]}
+          />
+        </div>
       </div>
 
       {error && (
@@ -200,20 +201,22 @@ export default function AdminShifts() {
               </div>
               <div>
                 <label className="label">Timezone</label>
-                <select className="input w-full rounded-xl min-h-[2.75rem]" value={timezone} onChange={(e) => setTimezone(e.target.value)}>
-                  {TIMEZONES.map((tz) => (
-                    <option key={tz} value={tz}>{tz}</option>
-                  ))}
-                </select>
+                <AdminSelect
+                  value={timezone}
+                  onChange={(val) => setTimezone(val)}
+                  options={TIMEZONES.map((tz) => ({ value: tz, label: tz }))}
+                />
               </div>
               <div>
                 <label className="label">Client (optional)</label>
-                <select className="input w-full rounded-xl min-h-[2.75rem]" value={clientId} onChange={(e) => setClientId(e.target.value)}>
-                  <option value="">— None —</option>
-                  {clients.map((c) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
+                <AdminSelect
+                  value={clientId}
+                  onChange={(val) => setClientId(val)}
+                  options={[
+                    { value: '', label: '— None —' },
+                    ...clients.map((c) => ({ value: c.id, label: c.name })),
+                  ]}
+                />
               </div>
             </div>
             <div className="mt-6 flex gap-3 justify-end">
@@ -228,3 +231,4 @@ export default function AdminShifts() {
     </div>
   )
 }
+

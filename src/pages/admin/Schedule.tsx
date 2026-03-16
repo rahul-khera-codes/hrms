@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight } from 'lucide-react'
 import { getClients, getShifts, getEmployees, getSchedule, createScheduleAssignment, deleteScheduleAssignment, type Client, type Shift, type ScheduleAssignment } from '@/lib/apiAdmin'
 import { addDays, startOfWeek, format, parseISO } from 'date-fns'
+import AdminSelect from '@/components/AdminSelect'
 
 const WEEKDAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
@@ -25,7 +26,7 @@ export default function AdminSchedule() {
 
   useEffect(() => {
     getClients().then(setClients).catch(() => {})
-    getEmployees().then(setEmployees).catch(() => {})
+    getEmployees().then((list) => setEmployees(list.map((e) => ({ id: e.id, name: e.name })))).catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -93,16 +94,14 @@ export default function AdminSchedule() {
         <div className="flex flex-col sm:flex-row flex-wrap gap-4 items-stretch sm:items-end">
           <div className="flex-1 min-w-0 sm:max-w-xs">
             <label className="label">BPO Client</label>
-            <select
-              className="input w-full rounded-xl min-h-[2.75rem]"
+            <AdminSelect
               value={clientId}
-              onChange={(e) => setClientId(e.target.value)}
-            >
-              <option value="">Select client</option>
-              {clients.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
+              onChange={(val) => setClientId(val)}
+              options={[
+                { value: '', label: 'Select client' },
+                ...clients.map((c) => ({ value: c.id, label: c.name })),
+              ]}
+            />
           </div>
           <div className="flex items-center gap-2">
             <button type="button" onClick={prevWeek} className="p-2 rounded-xl border border-surface-200 hover:bg-surface-50" aria-label="Previous week">
@@ -164,17 +163,16 @@ export default function AdminSchedule() {
                       const isUpdating = updating === key
                       return (
                         <td key={dateStr} className="py-1 px-1 align-middle">
-                          <select
-                            className="w-full text-xs rounded-lg border border-surface-200 bg-white py-1.5 px-2 min-h-[2rem] disabled:opacity-60"
+                          <AdminSelect
                             value={a?.shiftId ?? ''}
-                            onChange={(e) => handleCellChange(emp.id, dateStr, e.target.value)}
+                            onChange={(val) => handleCellChange(emp.id, dateStr, val)}
+                            options={[
+                              { value: '', label: '—' },
+                              ...shifts.map((s) => ({ value: s.id, label: s.name })),
+                            ]}
                             disabled={isUpdating}
-                          >
-                            <option value="">—</option>
-                            {shifts.map((s) => (
-                              <option key={s.id} value={s.id}>{s.name}</option>
-                            ))}
-                          </select>
+                            className="text-xs min-h-[2rem]"
+                          />
                         </td>
                       )
                     })}
@@ -188,3 +186,4 @@ export default function AdminSchedule() {
     </div>
   )
 }
+

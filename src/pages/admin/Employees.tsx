@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Users, Plus, Pencil } from 'lucide-react'
 import { getEmployees, createEmployee, updateEmployee, type EmployeeRecord } from '@/lib/apiAdmin'
+import AdminSelect from '@/components/AdminSelect'
 
 export default function AdminEmployees() {
   const [employees, setEmployees] = useState<EmployeeRecord[]>([])
@@ -167,7 +168,7 @@ export default function AdminEmployees() {
                 />
               </div>
               <div>
-                <label className="label">Email</label>
+                <label className="label">Email</label>xxx
                 <input
                   type="email"
                   className="input w-full rounded-xl min-h-[2.75rem]"
@@ -202,14 +203,14 @@ export default function AdminEmployees() {
               )}
               <div>
                 <label className="label">Salary type</label>
-                <select
-                  className="input w-full rounded-xl min-h-[2.75rem]"
+                <AdminSelect
                   value={salaryType}
-                  onChange={(e) => setSalaryType(e.target.value as 'hourly' | 'monthly')}
-                >
-                  <option value="hourly">Hourly</option>
-                  <option value="monthly">Monthly</option>
-                </select>
+                  onChange={(val) => setSalaryType(val as 'hourly' | 'monthly')}
+                  options={[
+                    { value: 'hourly', label: 'Hourly' },
+                    { value: 'monthly', label: 'Monthly' },
+                  ]}
+                />
               </div>
               <div>
                 <label className="label">{salaryType === 'monthly' ? 'Monthly base salary' : 'Hourly rate'}</label>

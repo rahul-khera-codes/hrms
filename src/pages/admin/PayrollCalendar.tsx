@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addMonths, subMonths, isSameMonth, isWithinInterval } from 'date-fns'
 import { ChevronLeft, ChevronRight, Calculator, CalendarDays } from 'lucide-react'
 import { getPayrollPeriods, type PayrollPeriod } from '@/lib/apiAdmin'
+import AdminSelect from '@/components/AdminSelect'
+
 
 export default function AdminPayrollCalendar() {
   const navigate = useNavigate()
@@ -24,7 +26,7 @@ export default function AdminPayrollCalendar() {
   const weeks: Date[][] = []
   let d = new Date(calStart)
   while (d <= calEnd) {
-    const week: Date[] = []
+    const week: Date[]=[]
     for (let i = 0; i < 7; i++) {
       week.push(new Date(d))
       d.setDate(d.getDate() + 1)
@@ -64,15 +66,16 @@ export default function AdminPayrollCalendar() {
         <p className="text-xs sm:text-sm text-surface-500 mb-4">Pay periods and pay dates per TSS calendar. Run payroll for a period.</p>
         <div className="flex items-center gap-2 mb-4">
           <label className="label mb-0">Year</label>
-          <select
-            className="input w-auto rounded-xl min-h-[2.75rem]"
-            value={periodsYear}
-            onChange={(e) => setPeriodsYear(parseInt(e.target.value, 10))}
-          >
-            {[currentYear - 1, currentYear, currentYear + 1].map((y) => (
-              <option key={y} value={y}>{y}</option>
-            ))}
-          </select>
+          <div className="w-28">
+            <AdminSelect
+              value={String(periodsYear)}
+              onChange={(val) => setPeriodsYear(parseInt(val, 10))}
+              options={[currentYear - 1, currentYear, currentYear + 1].map((y) => ({
+                value: String(y),
+                label: y,
+              }))}
+            />
+          </div>
         </div>
         {periods.length === 0 ? (
           <div className="p-6 text-center text-surface-500 text-sm rounded-xl bg-surface-50/80 border border-surface-100">No bi-weekly periods loaded for this year. Use the calendar below to pick a week.</div>

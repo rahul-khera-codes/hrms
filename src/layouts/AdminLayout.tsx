@@ -36,7 +36,7 @@ export default function AdminLayout() {
   const [collapsed, setCollapsed] = useState(false)
 
   return (
-    <div className="min-h-screen bg-surface-50 flex">
+    <div className="h-screen overflow-hidden bg-surface-50 flex">
       {/* Backdrop: only on small screens when sidebar is expanded */}
       {!collapsed && (
         <button
