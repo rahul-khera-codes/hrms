@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { Building2, Plus, Pencil, Trash2 } from 'lucide-react'
 import { getClients, createClient, updateClient, deleteClient, type Client } from '@/lib/apiAdmin'
 
@@ -125,9 +126,9 @@ export default function AdminClients() {
         )}
       </div>
 
-      {modal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" role="dialog" aria-modal="true">
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6">
+      {modal && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40" role="dialog" aria-modal="true">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
             <h2 className="text-lg font-semibold text-surface-900 mb-4">{modal === 'add' ? 'Add client' : 'Edit client'}</h2>
             <div className="space-y-4">
               <div>
@@ -146,7 +147,8 @@ export default function AdminClients() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )

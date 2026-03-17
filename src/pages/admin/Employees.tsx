@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { Users, Plus, Pencil } from 'lucide-react'
 import { getEmployees, createEmployee, updateEmployee, type EmployeeRecord } from '@/lib/apiAdmin'
 import AdminSelect from '@/components/AdminSelect'
@@ -152,9 +153,9 @@ export default function AdminEmployees() {
         )}
       </div>
 
-      {modal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" role="dialog" aria-modal="true">
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6">
+      {modal && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40" role="dialog" aria-modal="true">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
             <h2 className="text-lg font-semibold text-surface-900 mb-4">{modal === 'add' ? 'Add employee' : 'Edit employee'}</h2>
             <div className="space-y-4">
               <div>
@@ -168,7 +169,7 @@ export default function AdminEmployees() {
                 />
               </div>
               <div>
-                <label className="label">Email</label>xxx
+                <label className="label">Email</label>
                 <input
                   type="email"
                   className="input w-full rounded-xl min-h-[2.75rem]"
@@ -237,7 +238,8 @@ export default function AdminEmployees() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )
