@@ -14,6 +14,14 @@ const statusColors: Record<string, string> = {
   adjusted: 'bg-indigo-100 text-indigo-700',
 }
 
+function formatDurationFromHours(hours: number) {
+  const totalSeconds = Math.max(0, Math.round(hours * 3600))
+  const hh = Math.floor(totalSeconds / 3600)
+  const mm = Math.floor((totalSeconds % 3600) / 60)
+  const ss = totalSeconds % 60
+  return [hh, mm, ss].map((v) => String(v).padStart(2, '0')).join(':')
+}
+
 export default function AdminAttendance() {
   const [records, setRecords] = useState<AttendanceRecord[]>([])
   const [loading, setLoading] = useState(true)
@@ -54,16 +62,16 @@ export default function AdminAttendance() {
 
   function exportAttendanceCSV() {
     if (!records.length) return
-    const headers = ['Employee', 'Date', 'Clock In', 'Clock Out', 'Regular (h)', 'Overtime (h)', 'Night (h)', 'Total (h)', 'Status']
+    const headers = ['Employee', 'Date', 'Clock In', 'Clock Out', 'Regular', 'Overtime', 'Night', 'Total', 'Status']
     const rows = records.map((r) => [
       r.employeeName,
       r.date,
-      r.clockIn ? format(new Date(r.clockIn), 'HH:mm') : '',
-      r.clockOut ? format(new Date(r.clockOut), 'HH:mm') : '',
-      r.regularHours,
-      r.overtimeHours,
-      r.nightHours,
-      (r.regularHours + r.overtimeHours + r.nightHours).toFixed(1),
+      r.clockIn ? format(new Date(r.clockIn), 'HH:mm:ss') : '',
+      r.clockOut ? format(new Date(r.clockOut), 'HH:mm:ss') : '',
+      formatDurationFromHours(r.regularHours),
+      formatDurationFromHours(r.overtimeHours),
+      formatDurationFromHours(r.nightHours),
+      formatDurationFromHours(r.regularHours + r.overtimeHours + r.nightHours),
       r.status,
     ])
     const csv = [headers.join(','), ...rows.map((row) => row.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(','))].join('\n')
@@ -127,7 +135,7 @@ export default function AdminAttendance() {
               <Search className="absolute left-3 sm:left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400 shrink-0" />
               <input
                 type="text"
-                placeholder="Search by name or date..."
+                placeholder="Search by name"
                 className="input pl-9 sm:pl-10 rounded-xl min-h-[2.75rem]"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -210,16 +218,16 @@ export default function AdminAttendance() {
                     </td>
                     <td className="px-3 py-2.5 sm:px-5 sm:py-3.5 text-xs sm:text-sm text-surface-700 tabular-nums whitespace-nowrap">{r.date}</td>
                     <td className="px-3 py-2.5 sm:px-5 sm:py-3.5 text-xs sm:text-sm font-mono text-surface-700 tabular-nums">
-                      {r.clockIn ? format(new Date(r.clockIn), 'HH:mm') : '—'}
+                      {r.clockIn ? format(new Date(r.clockIn), 'HH:mm:ss') : '—'}
                     </td>
                     <td className="px-3 py-2.5 sm:px-5 sm:py-3.5 text-xs sm:text-sm font-mono text-surface-700 tabular-nums">
-                      {r.clockOut ? format(new Date(r.clockOut), 'HH:mm') : '—'}
+                      {r.clockOut ? format(new Date(r.clockOut), 'HH:mm:ss') : '—'}
                     </td>
-                    <td className="px-3 py-2.5 sm:px-5 sm:py-3.5 text-xs sm:text-sm text-surface-700 tabular-nums">{r.regularHours}h</td>
-                    <td className="px-3 py-2.5 sm:px-5 sm:py-3.5 text-xs sm:text-sm text-surface-700 tabular-nums">{r.overtimeHours}h</td>
-                    <td className="px-3 py-2.5 sm:px-5 sm:py-3.5 text-xs sm:text-sm text-surface-700 tabular-nums">{r.nightHours}h</td>
+                    <td className="px-3 py-2.5 sm:px-5 sm:py-3.5 text-xs sm:text-sm text-surface-700 tabular-nums">{formatDurationFromHours(r.regularHours)}</td>
+                    <td className="px-3 py-2.5 sm:px-5 sm:py-3.5 text-xs sm:text-sm text-surface-700 tabular-nums">{formatDurationFromHours(r.overtimeHours)}</td>
+                    <td className="px-3 py-2.5 sm:px-5 sm:py-3.5 text-xs sm:text-sm text-surface-700 tabular-nums">{formatDurationFromHours(r.nightHours)}</td>
                     <td className="px-3 py-2.5 sm:px-5 sm:py-3.5 text-xs sm:text-sm font-medium text-surface-900 tabular-nums">
-                      {(r.regularHours + r.overtimeHours + r.nightHours).toFixed(1)}h
+                      {formatDurationFromHours(r.regularHours + r.overtimeHours + r.nightHours)}
                     </td>
                     <td className="px-3 py-2.5 sm:px-5 sm:py-3.5">
                       <span className={`inline-flex items-center px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-medium ${statusColors[r.status] ?? 'bg-surface-100 text-surface-600'}`}>

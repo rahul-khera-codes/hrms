@@ -10,6 +10,10 @@ export interface ClockSession {
 
 export interface PayrollSummary {
   period: string
+  regularMinutes?: number
+  overtimeMinutes?: number
+  nightMinutes?: number
+  totalMinutes?: number
   regularHours: number
   overtimeHours: number
   nightHours: number

@@ -13,6 +13,14 @@ const statusColors: Record<string, string> = {
   adjusted: 'bg-indigo-100 text-indigo-700',
 }
 
+function formatDurationFromHours(hours: number) {
+  const totalSeconds = Math.max(0, Math.round(hours * 3600))
+  const hh = Math.floor(totalSeconds / 3600)
+  const mm = Math.floor((totalSeconds % 3600) / 60)
+  const ss = totalSeconds % 60
+  return [hh, mm, ss].map((v) => String(v).padStart(2, '0')).join(':')
+}
+
 function downloadCsv(filename: string, content: string) {
   const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' })
   const link = document.createElement('a')
@@ -71,24 +79,24 @@ export default function AdminReports() {
 
   function handleExport() {
     if (reportType === 'attendance') {
-      const headers = ['Employee', 'Date', 'Clock In', 'Clock Out', 'Regular (h)', 'Overtime (h)', 'Night (h)', 'Total (h)', 'Status']
+      const headers = ['Employee', 'Date', 'Clock In', 'Clock Out', 'Regular', 'Overtime', 'Night', 'Total', 'Status']
       const rows = attendanceData.map((r) => [
         r.employeeName,
         r.date,
-        r.clockIn ? format(new Date(r.clockIn), 'HH:mm') : '',
-        r.clockOut ? format(new Date(r.clockOut), 'HH:mm') : '',
-        r.regularHours,
-        r.overtimeHours,
-        r.nightHours,
-        (r.regularHours + r.overtimeHours + r.nightHours).toFixed(1),
+        r.clockIn ? format(new Date(r.clockIn), 'HH:mm:ss') : '',
+        r.clockOut ? format(new Date(r.clockOut), 'HH:mm:ss') : '',
+        formatDurationFromHours(r.regularHours),
+        formatDurationFromHours(r.overtimeHours),
+        formatDurationFromHours(r.nightHours),
+        formatDurationFromHours(r.regularHours + r.overtimeHours + r.nightHours),
         r.status,
       ])
       const csv = [headers.join(','), ...rows.map((row) => row.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(','))].join('\n')
       downloadCsv(`attendance-report-${fromStr}-to-${toStr}.csv`, csv)
     } else if (summaryData) {
       const csv = [
-        'Report,Period,Regular (h),Overtime (h),Night (h),Total (h)',
-        `Payroll summary,${summaryData.period},${summaryData.regularHours},${summaryData.overtimeHours},${summaryData.nightHours},${summaryData.totalHours}`,
+        'Report,Period,Regular,Overtime,Night,Total',
+        `Payroll summary,${summaryData.period},${formatDurationFromHours(summaryData.regularHours)},${formatDurationFromHours(summaryData.overtimeHours)},${formatDurationFromHours(summaryData.nightHours)},${formatDurationFromHours(summaryData.totalHours)}`,
       ].join('\n')
       downloadCsv(`payroll-summary-${fromStr}-to-${toStr}.csv`, csv)
     }
@@ -162,19 +170,19 @@ export default function AdminReports() {
             <div className="rounded-lg sm:rounded-xl border border-surface-200/80 p-4 sm:p-5 shadow-sm">
               <p className="text-[10px] sm:text-xs font-medium text-surface-500 uppercase tracking-wider">Total regular hours</p>
               <p className="text-xl sm:text-2xl font-semibold text-surface-900 mt-1 tabular-nums">
-                {summaryData?.regularHours ?? 0}h
+                {formatDurationFromHours(summaryData?.regularHours ?? 0)}
               </p>
             </div>
             <div className="rounded-lg sm:rounded-xl border border-surface-200/80 p-4 sm:p-5 shadow-sm">
               <p className="text-[10px] sm:text-xs font-medium text-surface-500 uppercase tracking-wider">Total overtime</p>
               <p className="text-xl sm:text-2xl font-semibold text-surface-900 mt-1 tabular-nums">
-                {summaryData?.overtimeHours ?? 0}h
+                {formatDurationFromHours(summaryData?.overtimeHours ?? 0)}
               </p>
             </div>
             <div className="rounded-lg sm:rounded-xl border border-brand-200/80 bg-brand-50/50 p-4 sm:p-5 shadow-sm">
               <p className="text-[10px] sm:text-xs font-medium text-brand-700 uppercase tracking-wider">Total hours</p>
               <p className="text-xl sm:text-2xl font-semibold text-surface-900 mt-1 tabular-nums">
-                {summaryData?.totalHours ?? 0}h
+                {formatDurationFromHours(summaryData?.totalHours ?? 0)}
               </p>
             </div>
           </div>
@@ -206,7 +214,7 @@ export default function AdminReports() {
                     <td className="px-3 py-2.5 sm:px-5 sm:py-3.5 text-xs sm:text-sm font-medium text-surface-900 truncate max-w-[100px] sm:max-w-none">{r.employeeName}</td>
                     <td className="px-3 py-2.5 sm:px-5 sm:py-3.5 text-xs sm:text-sm text-surface-700 tabular-nums whitespace-nowrap">{r.date}</td>
                     <td className="px-3 py-2.5 sm:px-5 sm:py-3.5 text-xs sm:text-sm text-surface-700 tabular-nums">
-                      {(r.regularHours + r.overtimeHours + r.nightHours).toFixed(1)}h
+                      {formatDurationFromHours(r.regularHours + r.overtimeHours + r.nightHours)}
                     </td>
                     <td className="px-3 py-2.5 sm:px-5 sm:py-3.5">
                       <span className={`inline-flex items-center px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-medium ${statusColors[r.status] ?? 'bg-surface-100 text-surface-600'}`}>

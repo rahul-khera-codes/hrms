@@ -21,6 +21,33 @@ const HOURS_COLORS = {
   night: '#6366f1',
 }
 
+function formatDuration(totalMinutes: number) {
+  const totalSeconds = Math.max(0, Math.round(totalMinutes * 60))
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+  return [hours, minutes, seconds].map((value) => String(value).padStart(2, '0')).join(':')
+}
+
+function getSessionElapsedMinutes(session: ClockSession) {
+  if (!session.clockOut) return 0
+  const startMs = new Date(session.clockIn).getTime()
+  const endMs = new Date(session.clockOut).getTime()
+  if (Number.isNaN(startMs) || Number.isNaN(endMs) || endMs <= startMs) return 0
+  return (endMs - startMs) / 60000
+}
+
+function formatCompactDuration(totalMinutes: number) {
+  return formatDuration(totalMinutes)
+}
+
+function formatWeeklyAxisTick(totalMinutes: number) {
+  if (totalMinutes <= 0) return '0s'
+  if (totalMinutes < 1) return `${Math.max(1, Math.round(totalMinutes * 60))}s`
+  if (totalMinutes < 60) return `${Math.round(totalMinutes)}m`
+  return `${(totalMinutes / 60).toFixed(1)}h`
+}
+
 function buildWeeklyData(sessions: ClockSession[]) {
   return [6, 5, 4, 3, 2, 1, 0].map((daysAgo) => {
     const d = subDays(new Date(), daysAgo)
@@ -29,18 +56,14 @@ function buildWeeklyData(sessions: ClockSession[]) {
       const inDate = format(startOfDay(new Date(s.clockIn)), 'yyyy-MM-dd')
       return inDate === dayStr && s.clockOut
     })
-    const totalMinutes = daySessions.reduce(
-      (acc, s) =>
-        acc + (s.regularMinutes ?? 0) + (s.overtimeMinutes ?? 0) + (s.nightMinutes ?? 0),
-      0
-    )
-    const hours = Math.round((totalMinutes / 60) * 10) / 10
+    const totalMinutes = daySessions.reduce((acc, s) => acc + getSessionElapsedMinutes(s), 0)
     return {
       day: format(d, 'EEE'),
       fullDate: format(d, 'MMM d'),
-      hours,
-      regular: Math.min(hours, 8),
-      overtime: Math.max(0, hours - 8),
+      minutes: totalMinutes,
+      hours: totalMinutes / 60,
+      regular: Math.min(totalMinutes / 60, 8),
+      overtime: Math.max(0, totalMinutes / 60 - 8),
     }
   }).reverse()
 }
@@ -83,7 +106,7 @@ export default function EmployeeDashboard() {
   }, [])
 
   const clockedIn = activeSession != null
-  const currentTime = format(now, 'HH:mm')
+  const currentTime = format(now, clockedIn ? 'HH:mm:ss' : 'HH:mm')
   const currentDate = format(now, 'EEEE, MMMM d')
 
   const weeklyData = useMemo(() => buildWeeklyData(sessions), [sessions])
@@ -91,13 +114,26 @@ export default function EmployeeDashboard() {
   const pieData = useMemo(() => {
     if (!summary) return []
     return [
-      { name: 'Regular', value: summary.regularHours, color: HOURS_COLORS.regular },
-      { name: 'Overtime', value: summary.overtimeHours, color: HOURS_COLORS.overtime },
-      ...(summary.nightHours > 0
-        ? [{ name: 'Night', value: summary.nightHours, color: HOURS_COLORS.night }]
+      {
+        name: 'Regular',
+        value: summary.regularMinutes ?? (summary.regularHours ?? 0) * 60,
+        color: HOURS_COLORS.regular,
+      },
+      {
+        name: 'Overtime',
+        value: summary.overtimeMinutes ?? (summary.overtimeHours ?? 0) * 60,
+        color: HOURS_COLORS.overtime,
+      },
+      ...((summary.nightMinutes ?? (summary.nightHours ?? 0) * 60) > 0
+        ? [{ name: 'Night', value: summary.nightMinutes ?? (summary.nightHours ?? 0) * 60, color: HOURS_COLORS.night }]
         : []),
     ].filter((d) => d.value > 0)
   }, [summary])
+
+  const regularDuration = formatDuration(summary?.regularMinutes ?? summary?.regularHours ?? 0)
+  const overtimeDuration = formatDuration(summary?.overtimeMinutes ?? summary?.overtimeHours ?? 0)
+  const nightDuration = formatDuration(summary?.nightMinutes ?? summary?.nightHours ?? 0)
+  const totalDuration = formatDuration(summary?.totalMinutes ?? summary?.totalHours ?? 0)
 
   async function handleClockIn() {
     setActionLoading(true)
@@ -205,7 +241,7 @@ export default function EmployeeDashboard() {
                 <div className="min-w-0">
                   <p className="text-[10px] sm:text-xs font-medium text-surface-500 uppercase tracking-wider truncate">Regular</p>
                   <p className="text-lg sm:text-xl font-semibold text-surface-900 tabular-nums truncate">
-                    {summary.regularHours}h
+                    {regularDuration}
                   </p>
                 </div>
               </div>
@@ -218,7 +254,7 @@ export default function EmployeeDashboard() {
                 <div className="min-w-0">
                   <p className="text-[10px] sm:text-xs font-medium text-surface-500 uppercase tracking-wider truncate">Overtime</p>
                   <p className="text-lg sm:text-xl font-semibold text-surface-900 tabular-nums truncate">
-                    {summary.overtimeHours}h
+                    {overtimeDuration}
                   </p>
                 </div>
               </div>
@@ -231,7 +267,7 @@ export default function EmployeeDashboard() {
                 <div className="min-w-0">
                   <p className="text-[10px] sm:text-xs font-medium text-surface-500 uppercase tracking-wider truncate">Night</p>
                   <p className="text-lg sm:text-xl font-semibold text-surface-900 tabular-nums truncate">
-                    {summary.nightHours}h
+                    {nightDuration}
                   </p>
                 </div>
               </div>
@@ -244,7 +280,7 @@ export default function EmployeeDashboard() {
                 <div className="min-w-0">
                   <p className="text-[10px] sm:text-xs font-medium text-brand-700 uppercase tracking-wider truncate">Total</p>
                   <p className="text-lg sm:text-xl font-semibold text-surface-900 tabular-nums truncate">
-                    {summary.totalHours}h
+                    {totalDuration}
                   </p>
                 </div>
               </div>
@@ -263,14 +299,14 @@ export default function EmployeeDashboard() {
                 <PieChart>
                   <Pie
                     data={pieData}
-                    cx="50%"
+                    cx="60%"
                     cy="50%"
                     innerRadius={48}
-                    outerRadius={72}
+                    outerRadius={68}
                     paddingAngle={2}
                     dataKey="value"
                     nameKey="name"
-                    label={({ name, value }) => `${name} ${value}h`}
+                    label={({ name, value }) => `${name} ${formatCompactDuration(Number(value) || 0)}`}
                     labelLine={false}
                   >
                     {pieData.map((entry, index) => (
@@ -278,7 +314,7 @@ export default function EmployeeDashboard() {
                     ))}
                   </Pie>
                   <Tooltip
-                    formatter={(value: number) => [`${value}h`, 'Hours']}
+                    formatter={(value: number) => [formatDuration(value), 'Duration']}
                     contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0' }}
                   />
                 </PieChart>
@@ -307,20 +343,20 @@ export default function EmployeeDashboard() {
                   tick={{ fontSize: 10 }}
                   axisLine={false}
                   tickLine={false}
-                  tickFormatter={(v) => `${v}h`}
+                  tickFormatter={(v) => formatWeeklyAxisTick(v)}
                   width={60}
                 />
                 <Tooltip
                   contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '12px' }}
-                  formatter={(value: number) => [`${value}h`, 'Hours']}
+                  formatter={(value: number) => [formatDuration(value), 'Duration']}
                   labelFormatter={(_, payload) => payload?.[0]?.payload?.fullDate}
                 />
                 <Bar
-                  dataKey="hours"
+                  dataKey="minutes"
                   fill="#14b8a6"
                   radius={[4, 4, 0, 0]}
                   maxBarSize={40}
-                  name="Hours"
+                  name="Duration"
                 />
               </BarChart>
             </ResponsiveContainer>
@@ -360,10 +396,10 @@ export default function EmployeeDashboard() {
                       {format(new Date(s.clockIn), 'MMM d, yyyy')}
                     </td>
                     <td className="px-3 py-2.5 sm:px-5 sm:py-3.5 text-xs sm:text-sm text-surface-700 font-mono tabular-nums">
-                      {format(new Date(s.clockIn), 'HH:mm')}
+                      {format(new Date(s.clockIn), 'HH:mm:ss')}
                     </td>
                     <td className="px-3 py-2.5 sm:px-5 sm:py-3.5 text-xs sm:text-sm text-surface-700 font-mono tabular-nums">
-                      {s.clockOut ? format(new Date(s.clockOut), 'HH:mm') : '—'}
+                      {s.clockOut ? format(new Date(s.clockOut), 'HH:mm:ss') : '—'}
                     </td>
                     <td className="px-3 py-2.5 sm:px-5 sm:py-3.5">
                       <span

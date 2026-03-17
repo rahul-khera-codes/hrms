@@ -15,9 +15,29 @@ function toAttendanceRecord(row) {
   const clockOut = row.last_clock_out
   const hasActive = row.has_active_session
   const status = hasActive ? 'active' : 'present'
-  const regularHours = (row.regular_minutes ?? 0) / 60
-  const overtimeHours = (row.overtime_minutes ?? 0) / 60
-  const nightHours = (row.night_minutes ?? 0) / 60
+  const regularMinutes = Number(row.regular_minutes ?? 0)
+  const overtimeMinutes = Number(row.overtime_minutes ?? 0)
+  const nightMinutes = Number(row.night_minutes ?? 0)
+  const preciseTotalMinutes = Number(row.precise_total_minutes)
+  const allBucketsZero = regularMinutes === 0 && overtimeMinutes === 0 && nightMinutes === 0
+
+  let regularHours = regularMinutes / 60
+  let overtimeHours = overtimeMinutes / 60
+  let nightHours = nightMinutes / 60
+
+  // For normal day sessions (no OT/Night), use exact elapsed duration so admin matches employee-side totals.
+  if (!hasActive && overtimeMinutes === 0 && nightMinutes === 0 && Number.isFinite(preciseTotalMinutes) && preciseTotalMinutes > 0) {
+    regularHours = preciseTotalMinutes / 60
+  }
+
+  // Fallback for very short sessions that persisted as zero minute buckets.
+  if (!hasActive && allBucketsZero && clockIn && clockOut) {
+    const startMs = new Date(clockIn).getTime()
+    const endMs = new Date(clockOut).getTime()
+    if (!Number.isNaN(startMs) && !Number.isNaN(endMs) && endMs > startMs) {
+      regularHours = (endMs - startMs) / 3600000
+    }
+  }
   const date = row.date ?? (clockIn ? new Date(clockIn).toISOString().slice(0, 10) : '')
   return {
     id: row.id,
@@ -26,9 +46,9 @@ function toAttendanceRecord(row) {
     date,
     clockIn: clockIn || null,
     clockOut: clockOut || null,
-    regularHours: Math.round(regularHours * 10) / 10,
-    overtimeHours: Math.round(overtimeHours * 10) / 10,
-    nightHours: Math.round(nightHours * 10) / 10,
+    regularHours,
+    overtimeHours,
+    nightHours,
     status,
   }
 }
@@ -110,6 +130,7 @@ router.get('/attendance', async (req, res) => {
         COALESCE(SUM(s.regular_minutes), 0)::int AS regular_minutes,
         COALESCE(SUM(s.overtime_minutes), 0)::int AS overtime_minutes,
         COALESCE(SUM(s.night_minutes), 0)::int AS night_minutes,
+        COALESCE(SUM(CASE WHEN s.clock_out IS NOT NULL THEN EXTRACT(EPOCH FROM (s.clock_out - s.clock_in)) / 60.0 ELSE 0 END), 0) AS precise_total_minutes,
         BOOL_OR(s.clock_out IS NULL) AS has_active_session
       FROM sessions s
       JOIN users u ON u.id = s.user_id AND u.role = 'employee'

@@ -1,8 +1,20 @@
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { Users, Plus, Pencil } from 'lucide-react'
-import { getEmployees, createEmployee, updateEmployee, type EmployeeRecord } from '@/lib/apiAdmin'
+import {
+  getEmployees,
+  createEmployee,
+  updateEmployee,
+  getClients,
+  getShifts,
+  createScheduleAssignment,
+  type EmployeeRecord,
+  type Client,
+  type Shift,
+} from '@/lib/apiAdmin'
 import AdminSelect from '@/components/AdminSelect'
+import AdminDatePicker from '@/components/AdminDatePicker'
+import { format } from 'date-fns'
 
 export default function AdminEmployees() {
   const [employees, setEmployees] = useState<EmployeeRecord[]>([])
@@ -15,6 +27,11 @@ export default function AdminEmployees() {
   const [password, setPassword] = useState('')
   const [salaryType, setSalaryType] = useState<'hourly' | 'monthly'>('hourly')
   const [baseSalary, setBaseSalary] = useState('')
+  const [clients, setClients] = useState<Client[]>([])
+  const [shifts, setShifts] = useState<Shift[]>([])
+  const [assignedClientId, setAssignedClientId] = useState('')
+  const [assignedShiftId, setAssignedShiftId] = useState('')
+  const [assignmentDate, setAssignmentDate] = useState(() => format(new Date(), 'yyyy-MM-dd'))
   const [saving, setSaving] = useState(false)
 
   function load() {
@@ -23,10 +40,27 @@ export default function AdminEmployees() {
 
   useEffect(() => {
     setLoading(true)
-    load()
+    Promise.all([load(), getClients().then(setClients)])
       .catch((e: unknown) => setError(e instanceof Error ? e.message : 'Failed to load'))
       .finally(() => setLoading(false))
   }, [])
+
+  useEffect(() => {
+    if (!assignedClientId) {
+      setShifts([])
+      setAssignedShiftId('')
+      return
+    }
+    getShifts(assignedClientId)
+      .then((list) => {
+        setShifts(list)
+        setAssignedShiftId((current) => (list.some((shift) => shift.id === current) ? current : ''))
+      })
+      .catch(() => {
+        setShifts([])
+        setAssignedShiftId('')
+      })
+  }, [assignedClientId])
 
   function openAdd() {
     setEditing(null)
@@ -35,6 +69,9 @@ export default function AdminEmployees() {
     setPassword('')
     setSalaryType('hourly')
     setBaseSalary('')
+    setAssignedClientId('')
+    setAssignedShiftId('')
+    setAssignmentDate(format(new Date(), 'yyyy-MM-dd'))
     setModal('add')
   }
 
@@ -45,6 +82,9 @@ export default function AdminEmployees() {
     setPassword('')
     setSalaryType((emp.salaryType === 'monthly' ? 'monthly' : 'hourly') as 'hourly' | 'monthly')
     setBaseSalary(emp.baseSalary > 0 ? String(emp.baseSalary) : '')
+    setAssignedClientId('')
+    setAssignedShiftId('')
+    setAssignmentDate(format(new Date(), 'yyyy-MM-dd'))
     setModal('edit')
   }
 
@@ -67,17 +107,40 @@ export default function AdminEmployees() {
       setError('Password must be at least 6 characters')
       return
     }
+    if (assignedClientId && !assignedShiftId) {
+      setError('Shift is required when a client is selected')
+      return
+    }
+    if (assignedShiftId && !assignedClientId) {
+      setError('Client is required when a shift is selected')
+      return
+    }
     setError(null)
     setSaving(true)
     try {
       if (modal === 'add') {
-        await createEmployee({
+        const createdEmployee = await createEmployee({
           name: trimmedName,
           email: trimmedEmail,
           password,
           salaryType,
           baseSalary: baseSalary ? parseFloat(baseSalary) : 0,
         })
+        if (assignedClientId && assignedShiftId) {
+          try {
+            await createScheduleAssignment({
+              clientId: assignedClientId,
+              userId: createdEmployee.id,
+              shiftId: assignedShiftId,
+              date: assignmentDate,
+            })
+          } catch {
+            await load()
+            setModal(null)
+            setError('Employee created, but shift assignment could not be saved')
+            return
+          }
+        }
       } else if (editing) {
         await updateEmployee(editing.id, {
           name: trimmedName,
@@ -86,6 +149,14 @@ export default function AdminEmployees() {
           salaryType,
           baseSalary: baseSalary ? parseFloat(baseSalary) : 0,
         })
+        if (assignedClientId && assignedShiftId) {
+          await createScheduleAssignment({
+            clientId: assignedClientId,
+            userId: editing.id,
+            shiftId: assignedShiftId,
+            date: assignmentDate,
+          })
+        }
       }
       setModal(null)
       await load()
@@ -232,6 +303,37 @@ export default function AdminEmployees() {
                   placeholder={salaryType === 'monthly' ? 'e.g. 25000' : 'e.g. 150'}
                 />
               </div>
+              {(modal === 'add' || modal === 'edit') && (
+                <>
+                  <div>
+                    <label className="label">Assign client</label>
+                    <AdminSelect
+                      value={assignedClientId}
+                      onChange={(val) => setAssignedClientId(val)}
+                      options={[
+                        { value: '', label: 'Select client' },
+                        ...clients.map((client) => ({ value: client.id, label: client.name })),
+                      ]}
+                    />
+                  </div>
+                  <div>
+                    <label className="label">Assign shift</label>
+                    <AdminSelect
+                      value={assignedShiftId}
+                      onChange={(val) => setAssignedShiftId(val)}
+                      options={[
+                        { value: '', label: assignedClientId ? 'Select shift' : 'Select client first' },
+                        ...shifts.map((shift) => ({ value: shift.id, label: shift.name })),
+                      ]}
+                      disabled={!assignedClientId}
+                    />
+                  </div>
+                  <div>
+                    <label className="label">Assignment date</label>
+                    <AdminDatePicker value={assignmentDate} onChange={setAssignmentDate} />
+                  </div>
+                </>
+              )}
             </div>
             <div className="mt-6 flex gap-3 justify-end">
               <button type="button" onClick={() => setModal(null)} className="btn-secondary rounded-xl min-h-[2.75rem] px-4">Cancel</button>

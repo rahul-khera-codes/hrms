@@ -4,6 +4,27 @@ import { getSessions } from '@/lib/apiSessions'
 import type { ClockSession } from '@/types'
 import { Clock, Calendar, TrendingUp, Zap } from 'lucide-react'
 
+function formatDuration(totalMinutes: number) {
+  const totalSeconds = Math.max(0, Math.round(totalMinutes * 60))
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+  return [hours, minutes, seconds].map((v) => String(v).padStart(2, '0')).join(':')
+}
+
+function getElapsedMinutes(session: ClockSession) {
+  if (!session.clockOut) return null
+  const startMs = new Date(session.clockIn).getTime()
+  const endMs = new Date(session.clockOut).getTime()
+  if (Number.isNaN(startMs) || Number.isNaN(endMs) || endMs < startMs) return null
+  return (endMs - startMs) / 60000
+}
+
+function getDisplayRegularMinutes(session: ClockSession) {
+  const elapsed = getElapsedMinutes(session)
+  return elapsed ?? 0
+}
+
 export default function EmployeeSessions() {
   const [sessions, setSessions] = useState<ClockSession[]>([])
   const [loading, setLoading] = useState(true)
@@ -25,15 +46,15 @@ export default function EmployeeSessions() {
 
   const summary = useMemo(() => {
     const completed = sessions.filter((s) => s.status === 'completed')
-    const regular = completed.reduce((acc, s) => acc + (s.regularMinutes ?? 0) / 60, 0)
-    const overtime = completed.reduce((acc, s) => acc + (s.overtimeMinutes ?? 0) / 60, 0)
-    const night = completed.reduce((acc, s) => acc + (s.nightMinutes ?? 0) / 60, 0)
+    const regularMin = completed.reduce((acc, s) => acc + getDisplayRegularMinutes(s), 0)
+    const overtimeMin = completed.reduce((acc, s) => acc + (s.overtimeMinutes ?? 0), 0)
+    const nightMin = completed.reduce((acc, s) => acc + (s.nightMinutes ?? 0), 0)
     return {
       sessions: completed.length,
-      regularHours: regular.toFixed(1),
-      overtimeHours: overtime.toFixed(1),
-      nightHours: night.toFixed(1),
-      totalHours: (regular + overtime + night).toFixed(1),
+      regularDuration: formatDuration(regularMin),
+      overtimeDuration: formatDuration(overtimeMin),
+      nightDuration: formatDuration(nightMin),
+      totalDuration: formatDuration(regularMin + overtimeMin + nightMin),
     }
   }, [sessions])
 
@@ -72,7 +93,7 @@ export default function EmployeeSessions() {
               </div>
               <div className="min-w-0">
                 <p className="text-[10px] sm:text-xs font-medium text-surface-500 uppercase tracking-wider truncate">Regular</p>
-                <p className="text-base sm:text-lg font-semibold text-surface-900 tabular-nums truncate">{summary.regularHours}h</p>
+                <p className="text-base sm:text-lg font-semibold text-surface-900 tabular-nums truncate">{summary.regularDuration}</p>
               </div>
             </div>
           </div>
@@ -83,7 +104,7 @@ export default function EmployeeSessions() {
               </div>
               <div className="min-w-0">
                 <p className="text-[10px] sm:text-xs font-medium text-surface-500 uppercase tracking-wider truncate">Overtime</p>
-                <p className="text-base sm:text-lg font-semibold text-surface-900 tabular-nums truncate">{summary.overtimeHours}h</p>
+                <p className="text-base sm:text-lg font-semibold text-surface-900 tabular-nums truncate">{summary.overtimeDuration}</p>
               </div>
             </div>
           </div>
@@ -94,7 +115,7 @@ export default function EmployeeSessions() {
               </div>
               <div className="min-w-0">
                 <p className="text-[10px] sm:text-xs font-medium text-brand-700 uppercase tracking-wider truncate">Total</p>
-                <p className="text-base sm:text-lg font-semibold text-surface-900 tabular-nums truncate">{summary.totalHours}h</p>
+                <p className="text-base sm:text-lg font-semibold text-surface-900 tabular-nums truncate">{summary.totalDuration}</p>
               </div>
             </div>
           </div>
@@ -138,41 +159,44 @@ export default function EmployeeSessions() {
                 </tr>
               </thead>
               <tbody>
-                {sessions.map((s) => (
-                  <tr
-                    key={s.id}
-                    className="border-b border-surface-100 last:border-0 hover:bg-surface-50/50 transition-colors"
-                  >
-                    <td className="px-3 py-2.5 sm:px-5 sm:py-3.5 text-xs sm:text-sm font-medium text-surface-900 whitespace-nowrap">
-                      {format(new Date(s.clockIn), 'MMM d, yyyy')}
-                    </td>
-                    <td className="px-3 py-2.5 sm:px-5 sm:py-3.5 text-xs sm:text-sm text-surface-700 font-mono tabular-nums">
-                      {format(new Date(s.clockIn), 'HH:mm')}
-                    </td>
-                    <td className="px-3 py-2.5 sm:px-5 sm:py-3.5 text-xs sm:text-sm text-surface-700 font-mono tabular-nums">
-                      {s.clockOut ? format(new Date(s.clockOut), 'HH:mm') : '—'}
-                    </td>
-                    <td className="px-3 py-2.5 sm:px-5 sm:py-3.5 text-xs sm:text-sm text-surface-700 tabular-nums">
-                      {s.regularMinutes != null ? `${(s.regularMinutes / 60).toFixed(1)}h` : '—'}
-                    </td>
-                    <td className="px-3 py-2.5 sm:px-5 sm:py-3.5 text-xs sm:text-sm text-surface-700 tabular-nums">
-                      {s.overtimeMinutes != null && s.overtimeMinutes > 0
-                        ? `${(s.overtimeMinutes / 60).toFixed(1)}h`
-                        : '—'}
-                    </td>
-                    <td className="px-3 py-2.5 sm:px-5 sm:py-3.5">
-                      <span
-                        className={
-                          s.status === 'active'
-                            ? 'inline-flex items-center px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-medium bg-brand-100 text-brand-700'
-                            : 'inline-flex items-center px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-medium bg-surface-100 text-surface-600'
-                        }
-                      >
-                        {s.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
+                {sessions.map((s) => {
+                  const displayRegularMinutes = getDisplayRegularMinutes(s)
+                  return (
+                    <tr
+                      key={s.id}
+                      className="border-b border-surface-100 last:border-0 hover:bg-surface-50/50 transition-colors"
+                    >
+                      <td className="px-3 py-2.5 sm:px-5 sm:py-3.5 text-xs sm:text-sm font-medium text-surface-900 whitespace-nowrap">
+                        {format(new Date(s.clockIn), 'MMM d, yyyy')}
+                      </td>
+                      <td className="px-3 py-2.5 sm:px-5 sm:py-3.5 text-xs sm:text-sm text-surface-700 font-mono tabular-nums">
+                        {format(new Date(s.clockIn), 'HH:mm:ss')}
+                      </td>
+                      <td className="px-3 py-2.5 sm:px-5 sm:py-3.5 text-xs sm:text-sm text-surface-700 font-mono tabular-nums">
+                        {s.clockOut ? format(new Date(s.clockOut), 'HH:mm:ss') : '—'}
+                      </td>
+                      <td className="px-3 py-2.5 sm:px-5 sm:py-3.5 text-xs sm:text-sm text-surface-700 tabular-nums">
+                        {s.status === 'completed' ? formatDuration(displayRegularMinutes) : '—'}
+                      </td>
+                      <td className="px-3 py-2.5 sm:px-5 sm:py-3.5 text-xs sm:text-sm text-surface-700 tabular-nums">
+                        {s.overtimeMinutes != null && s.overtimeMinutes > 0
+                          ? formatDuration(s.overtimeMinutes)
+                          : '—'}
+                      </td>
+                      <td className="px-3 py-2.5 sm:px-5 sm:py-3.5">
+                        <span
+                          className={
+                            s.status === 'active'
+                              ? 'inline-flex items-center px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-medium bg-brand-100 text-brand-700'
+                              : 'inline-flex items-center px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-medium bg-surface-100 text-surface-600'
+                          }
+                        >
+                          {s.status}
+                        </span>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>

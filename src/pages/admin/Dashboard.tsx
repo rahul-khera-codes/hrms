@@ -148,8 +148,8 @@ export default function AdminDashboard() {
                   <div className="min-w-0">
                     <p className="text-xs sm:text-sm font-medium text-surface-900 truncate">{r.employeeName}</p>
                     <p className="text-[10px] sm:text-xs text-surface-500 mt-0.5 truncate">
-                      {format(new Date(r.date), 'MMM d')} · {r.clockIn ? format(new Date(r.clockIn), 'HH:mm') : '—'} –{' '}
-                      {r.clockOut ? format(new Date(r.clockOut), 'HH:mm') : '—'}
+                      {format(new Date(r.date), 'MMM d')} · {r.clockIn ? format(new Date(r.clockIn), 'HH:mm:ss') : '—'} –{' '}
+                      {r.clockOut ? format(new Date(r.clockOut), 'HH:mm:ss') : '—'}
                     </p>
                   </div>
                   <span

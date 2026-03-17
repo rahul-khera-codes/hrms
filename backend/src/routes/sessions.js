@@ -20,17 +20,17 @@ async function getNightWindow() {
  * Minutes between start and end that fall in night window: configurable (default 9:00 PM - 7:00 AM).
  */
 function getNightMinutesBetween(start, end, nightStartHour, nightEndHour) {
-  let nightMinutes = 0
+  let nightSeconds = 0
   const endMs = end.getTime()
   let t = start.getTime()
-  const oneMinMs = 60 * 1000
+  const oneSecMs = 1000
   while (t < endMs) {
     const d = new Date(t)
     const hour = d.getHours()
-    if (hour >= nightStartHour || hour < nightEndHour) nightMinutes += 1
-    t += oneMinMs
+    if (hour >= nightStartHour || hour < nightEndHour) nightSeconds += 1
+    t += oneSecMs
   }
-  return nightMinutes
+  return nightSeconds / 60
 }
 
 function toSession(row) {
@@ -85,15 +85,16 @@ router.post('/clock-out', async (req, res) => {
     const clockIn = new Date(active.rows[0].clock_in)
     const clockOut = new Date()
     const { start: nightStart, end: nightEnd } = await getNightWindow()
-    const totalMinutes = Math.round((clockOut - clockIn) / 60000)
+    const totalMinutes = (clockOut - clockIn) / 60000
     const nightMinutes = getNightMinutesBetween(clockIn, clockOut, nightStart, nightEnd)
     const dayMinutes = totalMinutes - nightMinutes
-    const regularMinutes = Math.min(Math.max(0, dayMinutes), REGULAR_MINUTES_PER_DAY)
-    const overtimeMinutes = Math.max(0, dayMinutes - REGULAR_MINUTES_PER_DAY)
+    const regularMinutes = Math.round(Math.min(Math.max(0, dayMinutes), REGULAR_MINUTES_PER_DAY))
+    const overtimeMinutes = Math.round(Math.max(0, dayMinutes - REGULAR_MINUTES_PER_DAY))
+    const roundedNightMinutes = Math.round(nightMinutes)
     await query(
       `UPDATE sessions SET clock_out = $1, regular_minutes = $2, overtime_minutes = $3, night_minutes = $4
        WHERE id = $5`,
-      [clockOut.toISOString(), regularMinutes, overtimeMinutes, nightMinutes, active.rows[0].id]
+      [clockOut.toISOString(), regularMinutes, overtimeMinutes, roundedNightMinutes, active.rows[0].id]
     )
     const result = await query(
       'SELECT id, clock_in, clock_out, regular_minutes, overtime_minutes, night_minutes FROM sessions WHERE id = $1',
@@ -156,23 +157,39 @@ router.get('/summary', async (req, res) => {
     const now = new Date()
     const toDate = to || now.toISOString().slice(0, 10)
     const fromDate = from || new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+    const { start: nightStart, end: nightEnd } = await getNightWindow()
     const result = await query(
-      `SELECT COALESCE(SUM(regular_minutes), 0) AS regular_minutes,
-              COALESCE(SUM(overtime_minutes), 0) AS overtime_minutes,
-              COALESCE(SUM(night_minutes), 0) AS night_minutes
+      `SELECT clock_in, clock_out
        FROM sessions
        WHERE user_id = $1 AND clock_out IS NOT NULL
          AND clock_in >= $2::date AND clock_in < ($3::date + interval '1 day')`,
       [userId, fromDate, toDate]
     )
-    const row = result.rows[0]
-    const regularHours = (row.regular_minutes || 0) / 60
-    const overtimeHours = (row.overtime_minutes || 0) / 60
-    const nightHours = (row.night_minutes || 0) / 60
+    let regularMinutes = 0
+    let overtimeMinutes = 0
+    let nightMinutes = 0
+    for (const row of result.rows) {
+      const clockIn = new Date(row.clock_in)
+      const clockOut = new Date(row.clock_out)
+      const totalMinutes = (clockOut - clockIn) / 60000
+      const rowNightMinutes = getNightMinutesBetween(clockIn, clockOut, nightStart, nightEnd)
+      const rowDayMinutes = totalMinutes - rowNightMinutes
+      regularMinutes += Math.min(Math.max(0, rowDayMinutes), REGULAR_MINUTES_PER_DAY)
+      overtimeMinutes += Math.max(0, rowDayMinutes - REGULAR_MINUTES_PER_DAY)
+      nightMinutes += rowNightMinutes
+    }
+    const totalMinutes = regularMinutes + overtimeMinutes + nightMinutes
+    const regularHours = regularMinutes / 60
+    const overtimeHours = overtimeMinutes / 60
+    const nightHours = nightMinutes / 60
     const totalHours = regularHours + overtimeHours + nightHours
     const period = `${fromDate} – ${toDate}`
     res.json({
       period,
+      regularMinutes,
+      overtimeMinutes,
+      nightMinutes,
+      totalMinutes,
       regularHours: Math.round(regularHours * 10) / 10,
       overtimeHours: Math.round(overtimeHours * 10) / 10,
       nightHours: Math.round(nightHours * 10) / 10,
