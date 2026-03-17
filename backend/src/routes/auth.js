@@ -72,6 +72,16 @@ router.post('/register', async (req, res) => {
       [email.trim().toLowerCase(), nameTrimmed, password_hash, role]
     )
     const user = toUser(result.rows[0])
+
+    // Ensure employee database row exists for employees (keeps existing logic intact).
+    if (user.role === 'employee') {
+      await query(
+        `INSERT INTO employees (user_id, salary_type, base_salary)
+         VALUES ($1, 'hourly', 0)
+         ON CONFLICT (user_id) DO NOTHING`,
+        [user.id]
+      )
+    }
     const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN })
     res.status(201).json({ user, token })
   } catch (err) {

@@ -55,6 +55,28 @@ try {
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS salary_type VARCHAR(10) DEFAULT 'hourly'`)
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS base_salary DECIMAL(12,2) DEFAULT 0`)
   } catch (_) { /* columns may already exist */ }
+
+  // Employee database table (separate from auth users)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS employees (
+      id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id     UUID UNIQUE REFERENCES users (id) ON DELETE CASCADE,
+      salary_type VARCHAR(10) NOT NULL DEFAULT 'hourly' CHECK (salary_type IN ('hourly', 'monthly')),
+      base_salary DECIMAL(12,2) NOT NULL DEFAULT 0,
+      created_at  TIMESTAMPTZ DEFAULT NOW(),
+      updated_at  TIMESTAMPTZ DEFAULT NOW()
+    )
+  `)
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_employees_user_id ON employees (user_id)')
+
+  // Backfill employee records from users (safe to run repeatedly)
+  await pool.query(`
+    INSERT INTO employees (user_id, salary_type, base_salary)
+    SELECT u.id, COALESCE(u.salary_type, 'hourly'), COALESCE(u.base_salary, 0)
+    FROM users u
+    WHERE u.role = 'employee'
+    ON CONFLICT (user_id) DO NOTHING
+  `)
   await pool.query(`
     CREATE TABLE IF NOT EXISTS settings (
       id                      INT PRIMARY KEY DEFAULT 1,

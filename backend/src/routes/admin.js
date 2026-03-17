@@ -48,7 +48,8 @@ router.get('/dashboard', async (req, res) => {
       `SELECT COUNT(DISTINCT s.user_id)::int AS count
        FROM sessions s
        JOIN users u ON u.id = s.user_id AND u.role = 'employee'
-       WHERE (s.clock_in AT TIME ZONE 'UTC')::date = $1::date`,
+       WHERE (s.clock_in AT TIME ZONE 'UTC')::date = $1::date
+          OR s.clock_out IS NULL`,
       [today]
     )
     const presentToday = presentResult.rows[0]?.count ?? 0
@@ -137,7 +138,40 @@ router.get('/attendance', async (req, res) => {
       const dateStr = row.date ? new Date(row.date).toISOString().slice(0, 10) : ''
       return toAttendanceRecord({ ...row, id: `${row.user_id}-${dateStr}` })
     })
-    if (statusFilter && statusFilter !== 'all') {
+
+    // Include ABSENT rows only when filtering explicitly by "absent".
+    // Here "absent" means employees who had NO attendance activity at all in the range.
+    if (statusFilter === 'absent' && from && to) {
+      const employeesResult = await query("SELECT id, name FROM users WHERE role = 'employee' ORDER BY name")
+      const employees = employeesResult.rows || []
+      const hadActivity = new Set(records.map((r) => r.employeeId))
+      const fromDate = new Date(`${from}T12:00:00Z`)
+      const toDate = new Date(`${to}T12:00:00Z`)
+      for (const emp of employees) {
+        // Skip employees who had any attendance (present/active/etc.) in the range.
+        if (hadActivity.has(emp.id)) continue
+        const cur = new Date(fromDate)
+        while (cur <= toDate) {
+          const dateStr = cur.toISOString().slice(0, 10)
+          const key = `${emp.id}-${dateStr}`
+          records.push({
+            id: key,
+            employeeId: emp.id,
+            employeeName: emp.name,
+            date: dateStr,
+            clockIn: null,
+            clockOut: null,
+            regularHours: 0,
+            overtimeHours: 0,
+            nightHours: 0,
+            status: 'absent',
+          })
+          cur.setUTCDate(cur.getUTCDate() + 1)
+        }
+      }
+      // After adding synthetic absent rows, restrict to absent only.
+      records = records.filter((r) => r.status === 'absent')
+    } else if (statusFilter && statusFilter !== 'all') {
       records = records.filter((r) => r.status === statusFilter)
     }
     res.json(records)
@@ -324,7 +358,13 @@ router.get('/payroll', async (req, res) => {
     const toDate = to || new Date().toISOString().slice(0, 10)
     const fromDate = from || new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
     const employees = await query(
-      `SELECT id, name, salary_type, base_salary FROM users WHERE role = 'employee' ORDER BY name`
+      `SELECT u.id, u.name,
+              COALESCE(e.salary_type, u.salary_type) AS salary_type,
+              COALESCE(e.base_salary, u.base_salary) AS base_salary
+       FROM users u
+       LEFT JOIN employees e ON e.user_id = u.id
+       WHERE u.role = 'employee'
+       ORDER BY u.name`
     )
     const lineItemsByUser = {}
     const lineItemsRows = await query(
@@ -656,20 +696,31 @@ router.patch('/employees/:id', async (req, res) => {
       updates.push(`password_hash = $${i++}`)
       params.push(password_hash)
     }
-    if (salaryType !== undefined) {
-      const st = salaryType === 'monthly' ? 'monthly' : 'hourly'
-      updates.push(`salary_type = $${i++}`)
-      params.push(st)
-    }
-    if (baseSalary !== undefined) {
-      updates.push(`base_salary = $${i++}`)
-      params.push(Math.max(0, Number(baseSalary)))
-    }
+    const st = salaryType !== undefined ? (salaryType === 'monthly' ? 'monthly' : 'hourly') : undefined
+    const sal = baseSalary !== undefined ? Math.max(0, Number(baseSalary)) : undefined
     if (updates.length > 0) {
       params.push(id)
       await query(`UPDATE users SET ${updates.join(', ')}, updated_at = NOW() WHERE id = $${i}`, params)
     }
-    const updated = await query('SELECT id, name, email, salary_type, base_salary FROM users WHERE id = $1', [id])
+
+    if (st !== undefined || sal !== undefined) {
+      await query(
+        `INSERT INTO employees (user_id, salary_type, base_salary, updated_at)
+         VALUES ($1, $2, $3, NOW())
+         ON CONFLICT (user_id) DO UPDATE SET salary_type = $2, base_salary = $3, updated_at = NOW()`,
+        [id, st ?? 'hourly', sal ?? 0]
+      )
+    }
+
+    const updated = await query(
+      `SELECT u.id, u.name, u.email,
+              COALESCE(e.salary_type, u.salary_type) AS salary_type,
+              COALESCE(e.base_salary, u.base_salary) AS base_salary
+       FROM users u
+       LEFT JOIN employees e ON e.user_id = u.id
+       WHERE u.id = $1`,
+      [id]
+    )
     const row = updated.rows[0]
     res.json({
       id: row.id,
@@ -727,7 +778,13 @@ router.get('/reports/summary', async (req, res) => {
 router.get('/employees', async (req, res) => {
   try {
     const result = await query(
-      `SELECT id, name, email, salary_type, base_salary FROM users WHERE role = 'employee' ORDER BY name`
+      `SELECT u.id, u.name, u.email,
+              COALESCE(e.salary_type, u.salary_type) AS salary_type,
+              COALESCE(e.base_salary, u.base_salary) AS base_salary
+       FROM users u
+       LEFT JOIN employees e ON e.user_id = u.id
+       WHERE u.role = 'employee'
+       ORDER BY u.name`
     )
     res.json(result.rows.map((r) => ({
       id: r.id,
@@ -763,19 +820,25 @@ router.post('/employees', requireAdmin, async (req, res) => {
     const password_hash = await bcrypt.hash(String(password), 10)
     const st = salaryType === 'monthly' ? 'monthly' : 'hourly'
     const sal = baseSalary != null ? Math.max(0, Number(baseSalary)) : 0
-    const result = await query(
+    const createdUser = await query(
       `INSERT INTO users (email, name, password_hash, role, salary_type, base_salary)
        VALUES ($1, $2, $3, 'employee', $4, $5)
-       RETURNING id, name, email, salary_type, base_salary`,
+       RETURNING id, name, email`,
       [String(email).trim().toLowerCase(), String(name).trim(), password_hash, st, sal]
     )
-    const r = result.rows[0]
+    const u = createdUser.rows[0]
+    await query(
+      `INSERT INTO employees (user_id, salary_type, base_salary)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (user_id) DO UPDATE SET salary_type = $2, base_salary = $3, updated_at = NOW()`,
+      [u.id, st, sal]
+    )
     res.status(201).json({
-      id: r.id,
-      name: r.name,
-      email: r.email,
-      salaryType: r.salary_type || 'hourly',
-      baseSalary: r.base_salary != null ? Number(r.base_salary) : 0,
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      salaryType: st,
+      baseSalary: sal,
     })
   } catch (err) {
     console.error('Admin create employee error:', err)
