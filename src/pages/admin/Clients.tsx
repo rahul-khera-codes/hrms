@@ -88,7 +88,14 @@ export default function AdminClients() {
           <h1 className="text-xl sm:text-2xl font-semibold text-surface-900 tracking-tight">BPO Clients</h1>
           <p className="text-surface-500 mt-1 text-xs sm:text-sm">Manage clients. Use clients when building schedules.</p>
         </div>
-        <button type="button" onClick={openAdd} className="btn-primary flex items-center justify-center gap-2 rounded-xl min-h-[2.75rem]">
+        <button
+          type="button"
+          onClick={(e) => {
+            e.currentTarget.blur()
+            openAdd()
+          }}
+          className="btn-primary flex items-center justify-center gap-2 rounded-xl min-h-[2.75rem]"
+        >
           <Plus className="w-4 h-4" />
           Add client
         </button>

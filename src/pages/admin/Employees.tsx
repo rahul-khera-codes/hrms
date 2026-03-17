@@ -115,7 +115,14 @@ export default function AdminEmployees() {
           <h1 className="text-xl sm:text-2xl font-semibold text-surface-900 tracking-tight">Employee database</h1>
           <p className="text-surface-500 mt-1 text-xs sm:text-sm">Manage employees. Add and edit staff here; payroll uses this list.</p>
         </div>
-        <button type="button" onClick={openAdd} className="btn-primary flex items-center justify-center gap-2 rounded-xl min-h-[2.75rem]">
+        <button
+          type="button"
+          onClick={(e) => {
+            e.currentTarget.blur()
+            openAdd()
+          }}
+          className="btn-primary flex items-center justify-center gap-2 rounded-xl min-h-[2.75rem]"
+        >
           <Plus className="w-4 h-4" />
           Add employee
         </button>
