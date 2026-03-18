@@ -23,8 +23,10 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     let cancelled = false
-    getAdminDashboard()
-      .then((data) => {
+
+    const fetchDashboard = async () => {
+      try {
+        const data = await getAdminDashboard()
         if (cancelled) return
         setStats({
           totalEmployees: data.totalEmployees,
@@ -33,8 +35,7 @@ export default function AdminDashboard() {
           pendingAdjustments: data.pendingAdjustments,
         })
         setRecentAttendance(data.recentAttendance ?? [])
-      })
-      .catch(() => {
+      } catch {
         if (!cancelled) {
           setStats({
             totalEmployees: 0,
@@ -44,11 +45,33 @@ export default function AdminDashboard() {
           })
           setRecentAttendance([])
         }
-      })
-      .finally(() => {
+      } finally {
         if (!cancelled) setLoading(false)
-      })
-    return () => { cancelled = true }
+      }
+    }
+
+    // Initial fetch
+    fetchDashboard()
+
+    // Poll every 5 seconds when page is visible
+    const handleVisibilityChange = () => {
+      if (document.hidden) return
+      fetchDashboard()
+    }
+
+    const intervalId = window.setInterval(() => {
+      if (!document.hidden) {
+        fetchDashboard()
+      }
+    }, 1000)
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      cancelled = true
+      window.clearInterval(intervalId)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
   }, [])
 
   const statCards = stats
@@ -139,11 +162,11 @@ export default function AdminDashboard() {
           ) : recentAttendance.length === 0 ? (
             <p className="text-surface-500 text-sm py-4">No recent attendance records.</p>
           ) : (
-            <div className="space-y-0">
+            <div className="space-y-2">
               {recentAttendance.map((r) => (
                 <div
                   key={r.id}
-                  className="flex items-center justify-between gap-2 py-3 sm:py-3.5 border-b border-surface-100 last:border-0 hover:bg-surface-50/50 transition-colors rounded-lg px-2 -mx-2 min-w-0"
+                  className="flex items-center justify-between gap-2 py-3 sm:py-3.5 px-3 sm:px-4 rounded-xl bg-white ring-1 ring-surface-200/80 hover:shadow-md hover:ring-brand-200/80 transition-all min-w-0"
                 >
                   <div className="min-w-0">
                     <p className="text-xs sm:text-sm font-medium text-surface-900 truncate">{r.employeeName}</p>

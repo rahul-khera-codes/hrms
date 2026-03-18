@@ -233,4 +233,86 @@ router.get('/my-schedule', async (req, res) => {
   }
 })
 
+// GET /api/sessions/leave-requests
+router.get('/leave-requests', async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT lr.id, lr.leave_type, lr.start_date::text AS start_date_str, lr.end_date::text AS end_date_str,
+              lr.reason, lr.status, lr.reviewed_note, lr.reviewed_at,
+              reviewer.name AS reviewed_by_name,
+              lr.created_at
+       FROM leave_requests lr
+       LEFT JOIN users reviewer ON reviewer.id = lr.reviewed_by
+       WHERE lr.user_id = $1
+       ORDER BY lr.created_at DESC`,
+      [req.user.id]
+    )
+    res.json(result.rows.map((r) => ({
+      id: r.id,
+      leaveType: r.leave_type,
+      startDate: r.start_date_str?.slice(0, 10) ?? null,
+      endDate: r.end_date_str?.slice(0, 10) ?? null,
+      reason: r.reason || '',
+      status: r.status,
+      reviewedNote: r.reviewed_note || '',
+      reviewedAt: r.reviewed_at,
+      reviewedByName: r.reviewed_by_name || '',
+      createdAt: r.created_at,
+    })))
+  } catch (err) {
+    console.error('List leave requests error:', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// POST /api/sessions/leave-requests
+router.post('/leave-requests', async (req, res) => {
+  try {
+    const { leaveType = 'unpaid', startDate, endDate, reason } = req.body
+    if (!startDate || !endDate) {
+      return res.status(400).json({ error: 'Bad request', message: 'startDate and endDate are required' })
+    }
+    const type = leaveType === 'paid' ? 'paid' : 'unpaid'
+
+    const start = new Date(`${startDate}T00:00:00Z`)
+    const end = new Date(`${endDate}T00:00:00Z`)
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) {
+      return res.status(400).json({ error: 'Bad request', message: 'End date must be at least one day after start date' })
+    }
+
+    const overlap = await query(
+      `SELECT id
+       FROM leave_requests
+       WHERE user_id = $1
+         AND status != 'rejected'
+         AND NOT (end_date < $2::date OR start_date > $3::date)
+       LIMIT 1`,
+      [req.user.id, startDate, endDate]
+    )
+    if (overlap.rows.length > 0) {
+      return res.status(409).json({ error: 'Conflict', message: 'Overlapping leave request exists' })
+    }
+
+    const result = await query(
+      `INSERT INTO leave_requests (user_id, leave_type, start_date, end_date, reason, status)
+       VALUES ($1, $2, $3::date, $4::date, $5, 'pending')
+       RETURNING id, leave_type, start_date::text AS start_date_str, end_date::text AS end_date_str, reason, status, created_at`,
+      [req.user.id, type, startDate, endDate, reason ? String(reason).trim() : null]
+    )
+    const r = result.rows[0]
+    res.status(201).json({
+      id: r.id,
+      leaveType: r.leave_type,
+      startDate: r.start_date_str?.slice(0, 10) ?? null,
+      endDate: r.end_date_str?.slice(0, 10) ?? null,
+      reason: r.reason || '',
+      status: r.status,
+      createdAt: r.created_at,
+    })
+  } catch (err) {
+    console.error('Create leave request error:', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
 export default router

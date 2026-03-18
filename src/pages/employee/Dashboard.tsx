@@ -367,60 +367,37 @@ export default function EmployeeDashboard() {
       <div className="min-w-0">
         <h2 className="text-sm sm:text-base font-semibold text-surface-900 mb-0.5 sm:mb-1">Recent sessions</h2>
         <p className="text-xs sm:text-sm text-surface-500 mb-3 sm:mb-4">Your latest clock-in activity</p>
-        <div className="rounded-xl sm:rounded-2xl border border-surface-200/80 bg-white overflow-hidden shadow-sm">
-          <div className="overflow-x-auto -mx-px">
-            <table className="w-full text-left min-w-[420px]">
-              <thead>
-                <tr className="border-b border-surface-100 bg-surface-50/80">
-                  <th className="px-3 py-2.5 sm:px-5 sm:py-3.5 text-[10px] sm:text-xs font-semibold text-surface-500 uppercase tracking-wider">
-                    Date
-                  </th>
-                  <th className="px-3 py-2.5 sm:px-5 sm:py-3.5 text-[10px] sm:text-xs font-semibold text-surface-500 uppercase tracking-wider">
-                    Clock in
-                  </th>
-                  <th className="px-3 py-2.5 sm:px-5 sm:py-3.5 text-[10px] sm:text-xs font-semibold text-surface-500 uppercase tracking-wider">
-                    Clock out
-                  </th>
-                  <th className="px-3 py-2.5 sm:px-5 sm:py-3.5 text-[10px] sm:text-xs font-semibold text-surface-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {sessions.slice(0, 5).map((s) => (
-                  <tr
-                    key={s.id}
-                    className="border-b border-surface-100 last:border-0 hover:bg-surface-50/50 transition-colors"
+        <div className="rounded-xl sm:rounded-2xl border border-surface-200/80 bg-white shadow-sm min-w-0">
+          {sessions.length === 0 ? (
+            <div className="p-8 text-center text-surface-500 text-sm">No recent sessions</div>
+          ) : (
+            <ul className="p-3 sm:p-4 grid grid-cols-1 gap-3">
+              {sessions.slice(0, 5).map((s) => (
+                <li
+                  key={s.id}
+                  className="flex items-center gap-4 p-4 sm:p-5 rounded-xl border border-surface-200/80 bg-white transition-all hover:shadow-md hover:border-brand-200/80 min-w-0"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-surface-100 flex items-center justify-center shrink-0">
+                    <Clock className="w-5 h-5 text-surface-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs sm:text-sm font-medium text-surface-900">{format(new Date(s.clockIn), 'MMM d, yyyy')}</p>
+                    <p className="text-[10px] sm:text-xs text-surface-500 mt-0.5">
+                      {format(new Date(s.clockIn), 'HH:mm:ss')} – {s.clockOut ? format(new Date(s.clockOut), 'HH:mm:ss') : '—'}
+                    </p>
+                  </div>
+                  <span
+                    className={
+                      s.status === 'active'
+                        ? 'inline-flex items-center px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-medium bg-brand-100 text-brand-700 shrink-0'
+                        : 'inline-flex items-center px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-medium bg-surface-100 text-surface-600 shrink-0'
+                    }
                   >
-                    <td className="px-3 py-2.5 sm:px-5 sm:py-3.5 text-xs sm:text-sm font-medium text-surface-900 whitespace-nowrap">
-                      {format(new Date(s.clockIn), 'MMM d, yyyy')}
-                    </td>
-                    <td className="px-3 py-2.5 sm:px-5 sm:py-3.5 text-xs sm:text-sm text-surface-700 font-mono tabular-nums">
-                      {format(new Date(s.clockIn), 'HH:mm:ss')}
-                    </td>
-                    <td className="px-3 py-2.5 sm:px-5 sm:py-3.5 text-xs sm:text-sm text-surface-700 font-mono tabular-nums">
-                      {s.clockOut ? format(new Date(s.clockOut), 'HH:mm:ss') : '—'}
-                    </td>
-                    <td className="px-3 py-2.5 sm:px-5 sm:py-3.5">
-                      <span
-                        className={
-                          s.status === 'active'
-                            ? 'inline-flex items-center px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-medium bg-brand-100 text-brand-700'
-                            : 'inline-flex items-center px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-medium bg-surface-100 text-surface-600'
-                        }
-                      >
-                        {s.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {sessions.length === 0 && (
-            <div className="p-8 text-center text-surface-500 text-sm">
-              No sessions yet. Clock in to start tracking.
-            </div>
+                    {s.status}
+                  </span>
+                </li>
+              ))}
+            </ul>
           )}
         </div>
       </div>

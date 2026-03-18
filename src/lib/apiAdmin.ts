@@ -311,3 +311,34 @@ export async function createScheduleAssignment(data: { clientId: string; userId:
 export async function deleteScheduleAssignment(id: string): Promise<void> {
   return api(`/api/admin/schedule/${id}`, { method: 'DELETE' })
 }
+
+export interface AdminLeaveRequest {
+  id: string
+  employeeId: string
+  employeeName: string
+  leaveType: 'paid' | 'unpaid'
+  startDate: string | null
+  endDate: string | null
+  reason: string
+  status: 'pending' | 'approved' | 'rejected'
+  reviewedByName?: string
+  reviewedNote?: string
+  reviewedAt?: string | null
+  createdAt?: string
+}
+
+export async function getAdminLeaveRequests(status: 'all' | 'pending' | 'approved' | 'rejected' = 'all'): Promise<AdminLeaveRequest[]> {
+  const q = new URLSearchParams()
+  if (status !== 'all') q.set('status', status)
+  return api<AdminLeaveRequest[]>(`/api/admin/leave-requests${q.toString() ? `?${q.toString()}` : ''}`)
+}
+
+export async function reviewAdminLeaveRequest(
+  id: string,
+  data: { status: 'approved' | 'rejected'; reviewedNote?: string }
+): Promise<AdminLeaveRequest> {
+  return api<AdminLeaveRequest>(`/api/admin/leave-requests/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  })
+}

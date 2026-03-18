@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { format, subDays } from 'date-fns'
-import { Search, Download, Edit2 } from 'lucide-react'
+import { Search, Download } from 'lucide-react'
 import { getAdminAttendance } from '@/lib/apiAdmin'
 import type { AttendanceRecord } from '@/types'
 import AdminSelect from '@/components/AdminSelect'
@@ -29,12 +29,8 @@ export default function AdminAttendance() {
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [dateFrom, setDateFrom] = useState(() => format(subDays(new Date(), 7), 'yyyy-MM-dd'))
   const [dateTo, setDateTo] = useState(() => format(new Date(), 'yyyy-MM-dd'))
-  const [editingRecordId, setEditingRecordId] = useState<string | null>(null)
-  const [editingStatus, setEditingStatus] = useState<AttendanceRecord['status']>('present')
-  const [saveNotice, setSaveNotice] = useState('')
 
   const fetchAttendance = useCallback(async () => {
-    setLoading(true)
     try {
       const list = await getAdminAttendance({
         from: dateFrom,
@@ -43,22 +39,35 @@ export default function AdminAttendance() {
         status: statusFilter,
       })
       setRecords(list)
+      setLoading(false)
     } catch {
       setRecords([])
-    } finally {
       setLoading(false)
     }
   }, [dateFrom, dateTo, search, statusFilter])
 
   useEffect(() => {
     fetchAttendance()
-  }, [fetchAttendance])
 
-  useEffect(() => {
-    if (!saveNotice) return
-    const timeoutId = window.setTimeout(() => setSaveNotice(''), 2200)
-    return () => window.clearTimeout(timeoutId)
-  }, [saveNotice])
+    // Poll every 3 seconds when page is visible
+    const handleVisibilityChange = () => {
+      if (document.hidden) return
+      fetchAttendance()
+    }
+
+    const intervalId = window.setInterval(() => {
+      if (!document.hidden) {
+        fetchAttendance()
+      }
+    }, 1000)
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      window.clearInterval(intervalId)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [fetchAttendance])
 
   function exportAttendanceCSV() {
     if (!records.length) return
@@ -84,34 +93,28 @@ export default function AdminAttendance() {
     URL.revokeObjectURL(url)
   }
 
-  function handleEditStatus(recordId: string) {
-    const target = records.find((r) => r.id === recordId)
-    if (!target) return
-    setEditingRecordId(recordId)
-    setEditingStatus(target.status)
-  }
-
-  function saveEditedStatus() {
-    if (!editingRecordId) return
-    setRecords((prev) => prev.map((r) => (r.id === editingRecordId ? { ...r, status: editingStatus } : r)))
-    setEditingRecordId(null)
-    setSaveNotice('Attendance status updated successfully.')
-  }
-
-  function cancelEditStatus() {
-    setEditingRecordId(null)
-  }
-
   const filtered = records
+  const summary = useMemo(() => {
+    const total = filtered.length
+    const present = filtered.filter((r) => r.status === 'present').length
+    const active = filtered.filter((r) => r.status === 'active').length
+    const absent = filtered.filter((r) => r.status === 'absent').length
+    const leave = filtered.filter((r) => r.status === 'leave').length
+    const adjusted = filtered.filter((r) => r.status === 'adjusted').length
+    const totalHours = filtered.reduce((acc, r) => acc + r.regularHours + r.overtimeHours + r.nightHours, 0)
+    return {
+      total,
+      present,
+      active,
+      absent,
+      leave,
+      adjusted,
+      totalDuration: formatDurationFromHours(totalHours),
+    }
+  }, [filtered])
 
   return (
     <div className="space-y-4 sm:space-y-6 overflow-x-hidden">
-      {saveNotice && (
-        <div className="fixed right-4 top-4 z-50 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700 shadow-lg">
-          {saveNotice}
-        </div>
-      )}
-
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-semibold text-surface-900 tracking-tight">Attendance</h1>
@@ -165,6 +168,37 @@ export default function AdminAttendance() {
         </div>
       </div>
 
+      <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-3 sm:gap-4">
+        <div className="rounded-lg sm:rounded-xl border border-surface-200/80 bg-white p-3 sm:p-4 shadow-sm">
+          <p className="text-[10px] sm:text-xs font-medium text-surface-500 uppercase tracking-wider">Records</p>
+          <p className="mt-1 text-lg sm:text-xl font-semibold text-surface-900 tabular-nums">{summary.total}</p>
+        </div>
+        <div className="rounded-lg sm:rounded-xl border border-brand-200/80 bg-brand-50/50 p-3 sm:p-4 shadow-sm">
+          <p className="text-[10px] sm:text-xs font-medium text-brand-700 uppercase tracking-wider">Present</p>
+          <p className="mt-1 text-lg sm:text-xl font-semibold text-surface-900 tabular-nums">{summary.present}</p>
+        </div>
+        <div className="rounded-lg sm:rounded-xl border border-amber-200/80 bg-amber-50/50 p-3 sm:p-4 shadow-sm">
+          <p className="text-[10px] sm:text-xs font-medium text-amber-700 uppercase tracking-wider">Active</p>
+          <p className="mt-1 text-lg sm:text-xl font-semibold text-surface-900 tabular-nums">{summary.active}</p>
+        </div>
+        <div className="rounded-lg sm:rounded-xl border border-red-200/80 bg-red-50/50 p-3 sm:p-4 shadow-sm">
+          <p className="text-[10px] sm:text-xs font-medium text-red-700 uppercase tracking-wider">Absent</p>
+          <p className="mt-1 text-lg sm:text-xl font-semibold text-surface-900 tabular-nums">{summary.absent}</p>
+        </div>
+        <div className="rounded-lg sm:rounded-xl border border-surface-200/80 bg-white p-3 sm:p-4 shadow-sm">
+          <p className="text-[10px] sm:text-xs font-medium text-surface-500 uppercase tracking-wider">Leave</p>
+          <p className="mt-1 text-lg sm:text-xl font-semibold text-surface-900 tabular-nums">{summary.leave}</p>
+        </div>
+        <div className="rounded-lg sm:rounded-xl border border-indigo-200/80 bg-indigo-50/50 p-3 sm:p-4 shadow-sm">
+          <p className="text-[10px] sm:text-xs font-medium text-indigo-700 uppercase tracking-wider">Adjusted</p>
+          <p className="mt-1 text-lg sm:text-xl font-semibold text-surface-900 tabular-nums">{summary.adjusted}</p>
+        </div>
+        <div className="rounded-lg sm:rounded-xl border border-emerald-200/80 bg-emerald-50/50 p-3 sm:p-4 shadow-sm">
+          <p className="text-[10px] sm:text-xs font-medium text-emerald-700 uppercase tracking-wider">Worked</p>
+          <p className="mt-1 text-lg sm:text-xl font-semibold text-surface-900 tabular-nums">{summary.totalDuration}</p>
+        </div>
+      </div>
+
       <div className="rounded-xl sm:rounded-2xl border border-surface-200/80 bg-white overflow-hidden shadow-sm min-w-0">
         {loading ? (
           <div className="p-12 flex items-center justify-center">
@@ -172,7 +206,7 @@ export default function AdminAttendance() {
           </div>
         ) : (
           <div className="overflow-x-auto -mx-px">
-            <table className="w-full text-left min-w-[700px]">
+            <table className="w-full text-left min-w-[700px] border-separate [border-spacing:0_8px] px-2">
               <thead>
                 <tr className="border-b border-surface-100 bg-surface-50/80">
                   <th className="px-3 py-2.5 sm:px-5 sm:py-3.5 text-[10px] sm:text-xs font-semibold text-surface-500 uppercase tracking-wider">
@@ -202,18 +236,15 @@ export default function AdminAttendance() {
                   <th className="px-3 py-2.5 sm:px-5 sm:py-3.5 text-[10px] sm:text-xs font-semibold text-surface-500 uppercase tracking-wider">
                     Status
                   </th>
-                  <th className="px-3 py-2.5 sm:px-5 sm:py-3.5 text-[10px] sm:text-xs font-semibold text-surface-500 uppercase tracking-wider w-16 sm:w-20">
-                    Actions
-                  </th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.map((r) => (
                   <tr
                     key={r.id}
-                    className="border-b border-surface-100 last:border-0 hover:bg-surface-50/50 transition-colors"
+                    className="bg-white ring-1 ring-surface-200/80 hover:shadow-md hover:ring-brand-200/80 transition-all"
                   >
-                    <td className="px-3 py-2.5 sm:px-5 sm:py-3.5">
+                    <td className="px-3 py-2.5 sm:px-5 sm:py-3.5 rounded-l-xl">
                       <p className="text-xs sm:text-sm font-medium text-surface-900 truncate max-w-[120px] sm:max-w-none">{r.employeeName}</p>
                     </td>
                     <td className="px-3 py-2.5 sm:px-5 sm:py-3.5 text-xs sm:text-sm text-surface-700 tabular-nums whitespace-nowrap">{r.date}</td>
@@ -229,20 +260,10 @@ export default function AdminAttendance() {
                     <td className="px-3 py-2.5 sm:px-5 sm:py-3.5 text-xs sm:text-sm font-medium text-surface-900 tabular-nums">
                       {formatDurationFromHours(r.regularHours + r.overtimeHours + r.nightHours)}
                     </td>
-                    <td className="px-3 py-2.5 sm:px-5 sm:py-3.5">
+                    <td className="px-3 py-2.5 sm:px-5 sm:py-3.5 rounded-r-xl">
                       <span className={`inline-flex items-center px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-medium ${statusColors[r.status] ?? 'bg-surface-100 text-surface-600'}`}>
                         {r.status}
                       </span>
-                    </td>
-                    <td className="px-3 py-2.5 sm:px-5 sm:py-3.5">
-                      <button
-                        type="button"
-                        onClick={() => handleEditStatus(r.id)}
-                        className="p-2 rounded-lg text-surface-400 hover:bg-surface-100 hover:text-surface-600 transition-colors touch-manipulation"
-                        title="Edit"
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </button>
                     </td>
                   </tr>
                 ))}
@@ -256,52 +277,6 @@ export default function AdminAttendance() {
           </div>
         )}
       </div>
-
-      {editingRecordId && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center p-4">
-          <button
-            type="button"
-            aria-label="Close"
-            className="absolute inset-0 bg-black/40"
-            onClick={cancelEditStatus}
-          />
-          <div className="relative z-10 w-full max-w-sm rounded-2xl border border-surface-200 bg-white p-5 shadow-xl">
-            <h2 className="text-base font-semibold text-surface-900">Edit attendance status</h2>
-            <p className="mt-1 text-sm text-surface-500">Select a new status for this record.</p>
-
-            <div className="mt-4">
-              <AdminSelect
-                value={editingStatus}
-                onChange={(val) => setEditingStatus(val as AttendanceRecord['status'])}
-                options={[
-                  { value: 'present', label: 'Present' },
-                  { value: 'active', label: 'Active (clocked in)' },
-                  { value: 'absent', label: 'Absent' },
-                  { value: 'leave', label: 'Leave' },
-                  { value: 'adjusted', label: 'Adjusted' },
-                ]}
-              />
-            </div>
-
-            <div className="mt-5 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={cancelEditStatus}
-                className="btn-secondary rounded-xl px-4 py-2"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={saveEditedStatus}
-                className="btn-primary rounded-xl px-4 py-2"
-              >
-                Save
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

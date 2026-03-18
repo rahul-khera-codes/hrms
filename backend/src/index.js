@@ -132,6 +132,25 @@ try {
   `)
   await pool.query('CREATE INDEX IF NOT EXISTS idx_schedule_assignments_client_date ON schedule_assignments (client_id, date)')
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS leave_requests (
+      id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id       UUID NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+      leave_type    VARCHAR(20) NOT NULL DEFAULT 'unpaid' CHECK (leave_type IN ('paid', 'unpaid')),
+      start_date    DATE NOT NULL,
+      end_date      DATE NOT NULL,
+      reason        TEXT,
+      status        VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+      reviewed_by   UUID REFERENCES users (id) ON DELETE SET NULL,
+      reviewed_note TEXT,
+      reviewed_at   TIMESTAMPTZ,
+      created_at    TIMESTAMPTZ DEFAULT NOW(),
+      updated_at    TIMESTAMPTZ DEFAULT NOW(),
+      CHECK (end_date >= start_date)
+    )
+  `)
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_leave_requests_user_dates ON leave_requests (user_id, start_date, end_date)')
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_leave_requests_status ON leave_requests (status)')
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS payroll_line_items (
       id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       user_id    UUID NOT NULL REFERENCES users (id) ON DELETE CASCADE,

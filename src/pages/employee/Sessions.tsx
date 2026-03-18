@@ -4,6 +4,8 @@ import { getSessions } from '@/lib/apiSessions'
 import type { ClockSession } from '@/types'
 import { Clock, Calendar, TrendingUp, Zap } from 'lucide-react'
 
+const SESSIONS_PER_PAGE = 10
+
 function formatDuration(totalMinutes: number) {
   const totalSeconds = Math.max(0, Math.round(totalMinutes * 60))
   const hours = Math.floor(totalSeconds / 3600)
@@ -28,6 +30,7 @@ function getDisplayRegularMinutes(session: ClockSession) {
 export default function EmployeeSessions() {
   const [sessions, setSessions] = useState<ClockSession[]>([])
   const [loading, setLoading] = useState(true)
+  const [currentPage, setCurrentPage] = useState(1)
 
   const fetchSessions = useCallback(async () => {
     try {
@@ -57,6 +60,17 @@ export default function EmployeeSessions() {
       totalDuration: formatDuration(regularMin + overtimeMin + nightMin),
     }
   }, [sessions])
+
+  const totalPages = Math.max(1, Math.ceil(sessions.length / SESSIONS_PER_PAGE))
+  const safeCurrentPage = Math.min(currentPage, totalPages)
+  const pageStart = (safeCurrentPage - 1) * SESSIONS_PER_PAGE
+  const paginatedSessions = sessions.slice(pageStart, pageStart + SESSIONS_PER_PAGE)
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages)
+    }
+  }, [currentPage, totalPages])
 
   if (loading) {
     return (
@@ -134,74 +148,71 @@ export default function EmployeeSessions() {
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto -mx-px">
-            <table className="w-full text-left min-w-[520px]">
-              <thead>
-                <tr className="border-b border-surface-100 bg-surface-50/80">
-                  <th className="px-3 py-2.5 sm:px-5 sm:py-3.5 text-[10px] sm:text-xs font-semibold text-surface-500 uppercase tracking-wider">
-                    Date
-                  </th>
-                  <th className="px-3 py-2.5 sm:px-5 sm:py-3.5 text-[10px] sm:text-xs font-semibold text-surface-500 uppercase tracking-wider">
-                    Clock in
-                  </th>
-                  <th className="px-3 py-2.5 sm:px-5 sm:py-3.5 text-[10px] sm:text-xs font-semibold text-surface-500 uppercase tracking-wider">
-                    Clock out
-                  </th>
-                  <th className="px-3 py-2.5 sm:px-5 sm:py-3.5 text-[10px] sm:text-xs font-semibold text-surface-500 uppercase tracking-wider">
-                    Regular
-                  </th>
-                  <th className="px-3 py-2.5 sm:px-5 sm:py-3.5 text-[10px] sm:text-xs font-semibold text-surface-500 uppercase tracking-wider">
-                    Overtime
-                  </th>
-                  <th className="px-3 py-2.5 sm:px-5 sm:py-3.5 text-[10px] sm:text-xs font-semibold text-surface-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {sessions.map((s) => {
-                  const displayRegularMinutes = getDisplayRegularMinutes(s)
-                  return (
-                    <tr
-                      key={s.id}
-                      className="border-b border-surface-100 last:border-0 hover:bg-surface-50/50 transition-colors"
-                    >
-                      <td className="px-3 py-2.5 sm:px-5 sm:py-3.5 text-xs sm:text-sm font-medium text-surface-900 whitespace-nowrap">
-                        {format(new Date(s.clockIn), 'MMM d, yyyy')}
-                      </td>
-                      <td className="px-3 py-2.5 sm:px-5 sm:py-3.5 text-xs sm:text-sm text-surface-700 font-mono tabular-nums">
-                        {format(new Date(s.clockIn), 'HH:mm:ss')}
-                      </td>
-                      <td className="px-3 py-2.5 sm:px-5 sm:py-3.5 text-xs sm:text-sm text-surface-700 font-mono tabular-nums">
-                        {s.clockOut ? format(new Date(s.clockOut), 'HH:mm:ss') : '—'}
-                      </td>
-                      <td className="px-3 py-2.5 sm:px-5 sm:py-3.5 text-xs sm:text-sm text-surface-700 tabular-nums">
-                        {s.status === 'completed' ? formatDuration(displayRegularMinutes) : '—'}
-                      </td>
-                      <td className="px-3 py-2.5 sm:px-5 sm:py-3.5 text-xs sm:text-sm text-surface-700 tabular-nums">
-                        {s.overtimeMinutes != null && s.overtimeMinutes > 0
-                          ? formatDuration(s.overtimeMinutes)
-                          : '—'}
-                      </td>
-                      <td className="px-3 py-2.5 sm:px-5 sm:py-3.5">
-                        <span
-                          className={
-                            s.status === 'active'
-                              ? 'inline-flex items-center px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-medium bg-brand-100 text-brand-700'
-                              : 'inline-flex items-center px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-medium bg-surface-100 text-surface-600'
-                          }
-                        >
-                          {s.status}
-                        </span>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+          <ul className="p-3 sm:p-4 grid grid-cols-1 gap-3">
+            {paginatedSessions.map((s) => {
+              const displayRegularMinutes = getDisplayRegularMinutes(s)
+              return (
+                <li
+                  key={s.id}
+                  className="flex items-center gap-4 p-4 sm:p-5 rounded-xl border border-surface-200/80 bg-white transition-all hover:shadow-md hover:border-brand-200/80 min-w-0"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-surface-100 flex items-center justify-center shrink-0">
+                    <Clock className="w-5 h-5 text-surface-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs sm:text-sm font-medium text-surface-900">{format(new Date(s.clockIn), 'MMM d, yyyy')}</p>
+                    <p className="text-[10px] sm:text-xs text-surface-500 mt-0.5">
+                      {format(new Date(s.clockIn), 'HH:mm:ss')} – {s.clockOut ? format(new Date(s.clockOut), 'HH:mm:ss') : '—'}
+                    </p>
+                    <div className="flex items-center gap-4 mt-1 flex-wrap text-[10px] sm:text-xs text-surface-600">
+                      <span>Regular: {s.status === 'completed' ? formatDuration(displayRegularMinutes) : '—'}</span>
+                      <span>Overtime: {s.overtimeMinutes != null && s.overtimeMinutes > 0 ? formatDuration(s.overtimeMinutes) : '—'}</span>
+                    </div>
+                  </div>
+                  <span
+                    className={
+                      s.status === 'active'
+                        ? 'inline-flex items-center px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-medium bg-brand-100 text-brand-700 shrink-0'
+                        : 'inline-flex items-center px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-medium bg-surface-100 text-surface-600 shrink-0'
+                    }
+                  >
+                    {s.status}
+                  </span>
+                </li>
+              )
+            })}
+          </ul>
         )}
       </div>
+
+      {sessions.length > 0 && (
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-xs sm:text-sm text-surface-500">
+            Showing {pageStart + 1}-{Math.min(pageStart + SESSIONS_PER_PAGE, sessions.length)} of {sessions.length}
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={safeCurrentPage === 1}
+              className="btn-secondary rounded-xl min-h-[2.5rem] px-3 disabled:opacity-50"
+            >
+              Previous
+            </button>
+            <span className="text-xs sm:text-sm text-surface-600 min-w-[80px] text-center">
+              Page {safeCurrentPage} / {totalPages}
+            </span>
+            <button
+              type="button"
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={safeCurrentPage === totalPages}
+              className="btn-secondary rounded-xl min-h-[2.5rem] px-3 disabled:opacity-50"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

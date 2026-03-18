@@ -6,6 +6,7 @@ import AdminLayout from './layouts/AdminLayout'
 import EmployeeDashboard from './pages/employee/Dashboard'
 import EmployeeSessions from './pages/employee/Sessions'
 import EmployeeMySchedule from './pages/employee/MySchedule'
+import EmployeeLeave from './pages/employee/Leave'
 import AdminDashboard from './pages/admin/Dashboard'
 import AdminAttendance from './pages/admin/Attendance'
 import AdminPayroll from './pages/admin/Payroll'
@@ -16,6 +17,7 @@ import AdminShifts from './pages/admin/Shifts'
 import AdminSchedule from './pages/admin/Schedule'
 import AdminEmployees from './pages/admin/Employees'
 import AdminPayrollCalendar from './pages/admin/PayrollCalendar'
+import AdminLeaveRequests from './pages/admin/LeaveRequests'
 
 function ProtectedEmployee({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -60,6 +62,7 @@ export default function App() {
           <Route index element={<EmployeeDashboard />} />
           <Route path="sessions" element={<EmployeeSessions />} />
           <Route path="schedule" element={<EmployeeMySchedule />} />
+          <Route path="leave" element={<EmployeeLeave />} />
         </Route>
         <Route
           path="/admin/*"
@@ -80,6 +83,7 @@ export default function App() {
           <Route path="clients" element={<AdminClients />} />
           <Route path="shifts" element={<AdminShifts />} />
           <Route path="schedule" element={<AdminSchedule />} />
+          <Route path="leave-requests" element={<AdminLeaveRequests />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

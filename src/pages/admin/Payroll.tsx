@@ -14,6 +14,8 @@ import {
 import AdminDatePicker from '@/components/AdminDatePicker'
 import AdminSelect from '@/components/AdminSelect'
 
+const PAYROLL_ROWS_PER_PAGE = 10
+
 function PayrollRow({
   row,
   onEditSalary,
@@ -53,8 +55,8 @@ function PayrollRow({
   }
 
   return (
-    <tr className="border-b border-surface-100">
-      <td className="py-3 px-4 text-surface-900 font-medium">{row.employeeName}</td>
+    <tr className="bg-white ring-1 ring-surface-200/80 hover:shadow-md hover:ring-brand-200/80 transition-all">
+      <td className="py-3 px-4 text-surface-900 font-medium rounded-l-xl">{row.employeeName}</td>
       <td className="py-3 px-4 text-right tabular-nums text-surface-700">
         ${row.hourlyRate.toFixed(2)} ({row.salaryType})
       </td>
@@ -142,7 +144,7 @@ function PayrollRow({
           </button>
         </div>
       </td>
-      <td className="py-3 px-4">
+      <td className="py-3 px-4 rounded-r-xl">
         <button type="button" onClick={onEditSalary} className="p-2 rounded-lg text-surface-500 hover:bg-surface-100 hover:text-surface-700" title="Edit salary">
           <Settings2 className="w-4 h-4" />
         </button>
@@ -170,6 +172,7 @@ export default function AdminPayroll() {
   const [itemAmount, setItemAmount] = useState('')
   const [savingItem, setSavingItem] = useState(false)
   const [deductionSaving, setDeductionSaving] = useState<string | null>(null)
+  const [currentPage, setCurrentPage] = useState(1)
 
   useEffect(() => {
     if (fromParam && toParam) {
@@ -334,6 +337,17 @@ export default function AdminPayroll() {
   const summary = payroll?.summary
   const otPercent = payroll?.rulesUsed ? Math.round((payroll.rulesUsed.otMultiplier - 1) * 100) : 35
   const nightPercent = payroll?.rulesUsed ? Math.round((payroll.rulesUsed.nightMultiplier - 1) * 100) : 15
+  const payrollEmployees = payroll?.employees ?? []
+  const totalPages = Math.max(1, Math.ceil(payrollEmployees.length / PAYROLL_ROWS_PER_PAGE))
+  const safeCurrentPage = Math.min(currentPage, totalPages)
+  const pageStart = (safeCurrentPage - 1) * PAYROLL_ROWS_PER_PAGE
+  const paginatedEmployees = payrollEmployees.slice(pageStart, pageStart + PAYROLL_ROWS_PER_PAGE)
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages)
+    }
+  }, [currentPage, totalPages])
 
   return (
     <div className="space-y-6 sm:space-y-8 overflow-x-hidden">
@@ -478,7 +492,7 @@ export default function AdminPayroll() {
           <div className="rounded-xl sm:rounded-2xl border border-surface-200/80 bg-white p-4 sm:p-6 shadow-sm overflow-x-auto">
             <h2 className="text-sm sm:text-base font-semibold text-surface-900 mb-0.5 sm:mb-1">Employee payroll</h2>
             <p className="text-xs sm:text-sm text-surface-500 mb-4">SS and Tax are auto-calculated per DR rules (TSS/DGII 2026). </p>
-            <table className="w-full text-left text-sm border-collapse">
+            <table className="w-full text-left text-sm border-separate [border-spacing:0_8px]">
               <thead>
                 <tr className="border-b border-surface-200 bg-surface-50/80">
                   <th className="py-3 px-4 font-medium text-surface-700">Employee</th>
@@ -504,7 +518,7 @@ export default function AdminPayroll() {
                 </tr>
               </thead>
               <tbody>
-                {payroll.employees.map((row) => (
+                {paginatedEmployees.map((row) => (
                   <PayrollRow
                     key={row.employeeId}
                     row={row}
@@ -524,6 +538,35 @@ export default function AdminPayroll() {
                 ))}
               </tbody>
             </table>
+
+            {payrollEmployees.length > 0 && (
+              <div className="mt-3 flex items-center justify-between gap-3">
+                <p className="text-xs sm:text-sm text-surface-500">
+                  Showing {pageStart + 1}-{Math.min(pageStart + PAYROLL_ROWS_PER_PAGE, payrollEmployees.length)} of {payrollEmployees.length}
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    disabled={safeCurrentPage === 1}
+                    className="btn-secondary rounded-xl min-h-[2.5rem] px-3 disabled:opacity-50"
+                  >
+                    Previous
+                  </button>
+                  <span className="text-xs sm:text-sm text-surface-600 min-w-[80px] text-center">
+                    Page {safeCurrentPage} / {totalPages}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={safeCurrentPage === totalPages}
+                    className="btn-secondary rounded-xl min-h-[2.5rem] px-3 disabled:opacity-50"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="rounded-xl sm:rounded-2xl border border-surface-200/80 bg-white p-4 sm:p-6 shadow-sm">

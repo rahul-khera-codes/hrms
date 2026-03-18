@@ -53,6 +53,17 @@ function toAttendanceRecord(row) {
   }
 }
 
+function listDateStrings(fromDate, toDate) {
+  const dates = []
+  const cur = new Date(`${fromDate}T12:00:00Z`)
+  const end = new Date(`${toDate}T12:00:00Z`)
+  while (cur <= end) {
+    dates.push(cur.toISOString().slice(0, 10))
+    cur.setUTCDate(cur.getUTCDate() + 1)
+  }
+  return dates
+}
+
 router.use(authMiddleware)
 router.use(requireAdmin)
 
@@ -160,6 +171,55 @@ router.get('/attendance', async (req, res) => {
       return toAttendanceRecord({ ...row, id: `${row.user_id}-${dateStr}` })
     })
 
+    const today = new Date().toISOString().slice(0, 10)
+    const existingDates = records.map((r) => r.date).filter(Boolean).sort()
+    const boundFrom = from || existingDates[existingDates.length - 1] || today
+    const boundTo = to || existingDates[0] || today
+    const leaveFrom = boundFrom <= boundTo ? boundFrom : boundTo
+    const leaveTo = boundFrom <= boundTo ? boundTo : boundFrom
+
+    const approvedLeaves = await query(
+      `SELECT lr.id, lr.user_id, u.name AS user_name,
+              lr.start_date::text AS start_date_str,
+              lr.end_date::text AS end_date_str
+       FROM leave_requests lr
+       JOIN users u ON u.id = lr.user_id
+       WHERE u.role = 'employee'
+         AND lr.status = 'approved'
+         AND lr.start_date <= $2::date
+         AND lr.end_date >= $1::date
+       ORDER BY u.name, lr.start_date`,
+      [leaveFrom, leaveTo]
+    )
+
+    const existingKeys = new Set(records.map((r) => `${r.employeeId}-${r.date}`))
+    for (const leave of approvedLeaves.rows) {
+      const startDate = leave.start_date_str?.slice(0, 10)
+      const endDate = leave.end_date_str?.slice(0, 10)
+      if (!startDate || !endDate) continue
+      const days = listDateStrings(
+        startDate > leaveFrom ? startDate : leaveFrom,
+        endDate < leaveTo ? endDate : leaveTo
+      )
+      for (const dateStr of days) {
+        const key = `${leave.user_id}-${dateStr}`
+        if (existingKeys.has(key)) continue
+        existingKeys.add(key)
+        records.push({
+          id: key,
+          employeeId: leave.user_id,
+          employeeName: leave.user_name,
+          date: dateStr,
+          clockIn: null,
+          clockOut: null,
+          regularHours: 0,
+          overtimeHours: 0,
+          nightHours: 0,
+          status: 'leave',
+        })
+      }
+    }
+
     // Include ABSENT rows only when filtering explicitly by "absent".
     // Here "absent" means employees who had NO attendance activity at all in the range.
     if (statusFilter === 'absent' && from && to) {
@@ -198,6 +258,92 @@ router.get('/attendance', async (req, res) => {
     res.json(records)
   } catch (err) {
     console.error('Admin attendance list error:', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// GET /api/admin/leave-requests?status=pending|approved|rejected|all
+router.get('/leave-requests', async (req, res) => {
+  try {
+    const status = req.query.status ? String(req.query.status) : 'all'
+    const params = []
+    let sql =
+      `SELECT lr.id, lr.user_id, u.name AS user_name, lr.leave_type,
+              lr.start_date::text AS start_date_str,
+              lr.end_date::text AS end_date_str,
+              lr.reason, lr.status,
+              reviewer.name AS reviewed_by_name,
+              lr.reviewed_note, lr.reviewed_at, lr.created_at
+       FROM leave_requests lr
+       JOIN users u ON u.id = lr.user_id
+       LEFT JOIN users reviewer ON reviewer.id = lr.reviewed_by
+       WHERE u.role = 'employee'`
+    if (status !== 'all') {
+      params.push(status)
+      sql += ` AND lr.status = $${params.length}`
+    }
+    sql += ' ORDER BY CASE WHEN lr.status = \'pending\' THEN 0 ELSE 1 END, lr.created_at DESC'
+
+    const result = await query(sql, params)
+    res.json(result.rows.map((r) => ({
+      id: r.id,
+      employeeId: r.user_id,
+      employeeName: r.user_name,
+      leaveType: r.leave_type,
+      startDate: r.start_date_str?.slice(0, 10) ?? null,
+      endDate: r.end_date_str?.slice(0, 10) ?? null,
+      reason: r.reason || '',
+      status: r.status,
+      reviewedByName: r.reviewed_by_name || '',
+      reviewedNote: r.reviewed_note || '',
+      reviewedAt: r.reviewed_at,
+      createdAt: r.created_at,
+    })))
+  } catch (err) {
+    console.error('Admin list leave requests error:', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// PATCH /api/admin/leave-requests/:id
+router.patch('/leave-requests/:id', async (req, res) => {
+  try {
+    const { id } = req.params
+    const { status, reviewedNote } = req.body
+    if (!['approved', 'rejected'].includes(String(status))) {
+      return res.status(400).json({ error: 'Bad request', message: 'status must be approved or rejected' })
+    }
+
+    const result = await query(
+      `UPDATE leave_requests
+       SET status = $1,
+           reviewed_by = $2,
+           reviewed_note = $3,
+           reviewed_at = NOW(),
+           updated_at = NOW()
+       WHERE id = $4
+       RETURNING id, user_id, leave_type, start_date::text AS start_date_str, end_date::text AS end_date_str,
+                 reason, status, reviewed_note, reviewed_at, created_at`,
+      [status, req.user.id, reviewedNote ? String(reviewedNote).trim() : null, id]
+    )
+    if (!result.rows.length) {
+      return res.status(404).json({ error: 'Not found' })
+    }
+    const r = result.rows[0]
+    res.json({
+      id: r.id,
+      employeeId: r.user_id,
+      leaveType: r.leave_type,
+      startDate: r.start_date_str?.slice(0, 10) ?? null,
+      endDate: r.end_date_str?.slice(0, 10) ?? null,
+      reason: r.reason || '',
+      status: r.status,
+      reviewedNote: r.reviewed_note || '',
+      reviewedAt: r.reviewed_at,
+      createdAt: r.created_at,
+    })
+  } catch (err) {
+    console.error('Admin review leave request error:', err)
     res.status(500).json({ error: 'Internal server error' })
   }
 })

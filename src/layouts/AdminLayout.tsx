@@ -14,6 +14,7 @@ import {
   Timer,
   Users,
   Calendar,
+  CalendarCheck2,
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import clsx from 'clsx'
@@ -23,6 +24,7 @@ const nav = [
   { to: '/admin/employees', label: 'Employees', icon: Users },
   { to: '/admin/attendance', label: 'Attendance', icon: Clock },
   { to: '/admin/schedule', label: 'Schedule', icon: CalendarDays },
+  { to: '/admin/leave-requests', label: 'Leave requests', icon: CalendarCheck2 },
   { to: '/admin/payroll-calendar', label: 'Payroll calendar', icon: Calendar },
   { to: '/admin/payroll', label: 'Payroll', icon: FileText },
   { to: '/admin/reports', label: 'Reports', icon: BarChart3 },

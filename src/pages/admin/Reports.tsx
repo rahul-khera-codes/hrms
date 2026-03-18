@@ -188,7 +188,7 @@ export default function AdminReports() {
           </div>
         ) : (
           <div className="overflow-x-auto rounded-lg sm:rounded-xl border border-surface-200/80 overflow-hidden -mx-px">
-            <table className="w-full text-left min-w-[420px]">
+            <table className="w-full text-left min-w-[420px] border-separate [border-spacing:0_8px] px-2">
               <thead>
                 <tr className="border-b border-surface-100 bg-surface-50/80">
                   <th className="px-3 py-2.5 sm:px-5 sm:py-3.5 text-[10px] sm:text-xs font-semibold text-surface-500 uppercase tracking-wider">
@@ -209,14 +209,14 @@ export default function AdminReports() {
                 {attendanceData.map((r) => (
                   <tr
                     key={r.id}
-                    className="border-b border-surface-100 last:border-0 hover:bg-surface-50/50 transition-colors"
+                    className="bg-white ring-1 ring-surface-200/80 hover:shadow-md hover:ring-brand-200/80 transition-all"
                   >
-                    <td className="px-3 py-2.5 sm:px-5 sm:py-3.5 text-xs sm:text-sm font-medium text-surface-900 truncate max-w-[100px] sm:max-w-none">{r.employeeName}</td>
+                    <td className="px-3 py-2.5 sm:px-5 sm:py-3.5 text-xs sm:text-sm font-medium text-surface-900 truncate max-w-[100px] sm:max-w-none rounded-l-xl">{r.employeeName}</td>
                     <td className="px-3 py-2.5 sm:px-5 sm:py-3.5 text-xs sm:text-sm text-surface-700 tabular-nums whitespace-nowrap">{r.date}</td>
                     <td className="px-3 py-2.5 sm:px-5 sm:py-3.5 text-xs sm:text-sm text-surface-700 tabular-nums">
                       {formatDurationFromHours(r.regularHours + r.overtimeHours + r.nightHours)}
                     </td>
-                    <td className="px-3 py-2.5 sm:px-5 sm:py-3.5">
+                    <td className="px-3 py-2.5 sm:px-5 sm:py-3.5 rounded-r-xl">
                       <span className={`inline-flex items-center px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-medium ${statusColors[r.status] ?? 'bg-surface-100 text-surface-600'}`}>
                         {r.status}
                       </span>

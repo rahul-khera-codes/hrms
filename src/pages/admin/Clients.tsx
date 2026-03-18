@@ -109,9 +109,12 @@ export default function AdminClients() {
         {clients.length === 0 ? (
           <div className="p-8 text-center text-surface-500 text-sm">No clients yet. Add one to get started.</div>
         ) : (
-          <ul className="divide-y divide-surface-100">
+          <ul className="p-3 sm:p-4 grid grid-cols-1 gap-3">
             {clients.map((c) => (
-              <li key={c.id} className="flex items-center gap-4 p-4 sm:p-5">
+              <li
+                key={c.id}
+                className="flex items-center gap-4 p-4 sm:p-5 rounded-xl border border-surface-200/80 bg-white transition-all hover:shadow-md hover:border-brand-200/80"
+              >
                 <div className="w-10 h-10 rounded-xl bg-surface-100 flex items-center justify-center shrink-0">
                   <Building2 className="w-5 h-5 text-surface-600" />
                 </div>
