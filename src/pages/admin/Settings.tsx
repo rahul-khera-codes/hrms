@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Clock, Moon, TrendingUp, Save, Plug, Calendar } from 'lucide-react'
-import { getSettings, updateSettings } from '@/lib/apiAdmin'
+import { createHoliday, deleteHoliday, getHolidays, getSettings, updateSettings, type HolidayItem } from '@/lib/apiAdmin'
 import AdminSelect from '@/components/AdminSelect'
 
 function formatHour(h: number) {
@@ -21,6 +21,11 @@ export default function AdminSettings() {
   const [nightMultiplier, setNightMultiplier] = useState('1.15')
   const [nightShiftStartHour, setNightShiftStartHour] = useState(21)
   const [nightShiftEndHour, setNightShiftEndHour] = useState(7)
+  const [holidays, setHolidays] = useState<HolidayItem[]>([])
+  const [holidayDate, setHolidayDate] = useState('')
+  const [holidayName, setHolidayName] = useState('')
+  const [holidayPaid, setHolidayPaid] = useState(true)
+  const [holidaySaving, setHolidaySaving] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -41,8 +46,42 @@ export default function AdminSettings() {
       .finally(() => {
         if (!cancelled) setLoading(false)
       })
+    getHolidays()
+      .then((rows) => {
+        if (!cancelled) setHolidays(rows)
+      })
+      .catch(() => {
+        if (!cancelled) setHolidays([])
+      })
     return () => { cancelled = true }
   }, [])
+
+  async function handleAddHoliday() {
+    if (!holidayDate || !holidayName.trim()) return
+    setHolidaySaving(true)
+    try {
+      const created = await createHoliday({
+        date: holidayDate,
+        name: holidayName.trim(),
+        isPaid: holidayPaid,
+      })
+      setHolidays((prev) => [...prev.filter((h) => h.date !== created.date), created].sort((a, b) => (a.date || '').localeCompare(b.date || '')))
+      setHolidayName('')
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to save holiday')
+    } finally {
+      setHolidaySaving(false)
+    }
+  }
+
+  async function handleDeleteHoliday(id: string) {
+    try {
+      await deleteHoliday(id)
+      setHolidays((prev) => prev.filter((h) => h.id !== id))
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to delete holiday')
+    }
+  }
 
   async function handleSave() {
     setError(null)
@@ -93,6 +132,88 @@ export default function AdminSettings() {
       <div>
         <h1 className="text-xl sm:text-2xl font-semibold text-surface-900 tracking-tight">Settings</h1>
         <p className="text-surface-500 mt-1 text-xs sm:text-sm">Configure payroll rules and system options.</p>
+      </div>
+
+      <div className="rounded-xl sm:rounded-2xl border border-surface-200/80 bg-white p-4 sm:p-6 shadow-sm">
+        <h2 className="text-sm sm:text-base font-semibold text-surface-900 mb-0.5 sm:mb-1">Public holidays</h2>
+        <p className="text-xs sm:text-sm text-surface-500 mb-4 sm:mb-6">
+          Used by payroll holiday pay rules (scheduled pay + 100% premium for worked holiday hours).
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 mb-4">
+          <div>
+            <label className="label">Date</label>
+            <input
+              type="date"
+              className="input w-full rounded-xl min-h-[2.75rem]"
+              value={holidayDate}
+              onChange={(e) => setHolidayDate(e.target.value)}
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="label">Name</label>
+            <input
+              type="text"
+              className="input w-full rounded-xl min-h-[2.75rem]"
+              value={holidayName}
+              onChange={(e) => setHolidayName(e.target.value)}
+              placeholder="e.g. Independence Day"
+            />
+          </div>
+          <div>
+            <label className="label">Type</label>
+            <AdminSelect
+              value={holidayPaid ? 'paid' : 'unpaid'}
+              onChange={(val) => setHolidayPaid(val === 'paid')}
+              options={[
+                { value: 'paid', label: 'Paid holiday' },
+                { value: 'unpaid', label: 'Unpaid holiday' },
+              ]}
+            />
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={handleAddHoliday}
+          disabled={holidaySaving || !holidayDate || !holidayName.trim()}
+          className="btn-primary rounded-xl min-h-[2.75rem] px-4 disabled:opacity-60"
+        >
+          {holidaySaving ? 'Saving…' : 'Add / Update holiday'}
+        </button>
+        <div className="mt-4 rounded-xl border border-surface-200/80 overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-surface-50">
+              <tr>
+                <th className="py-2 px-3 text-left">Date</th>
+                <th className="py-2 px-3 text-left">Name</th>
+                <th className="py-2 px-3 text-left">Type</th>
+                <th className="py-2 px-3 text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {holidays.map((h) => (
+                <tr key={h.id} className="border-t border-surface-100">
+                  <td className="py-2 px-3">{h.date}</td>
+                  <td className="py-2 px-3">{h.name}</td>
+                  <td className="py-2 px-3">{h.isPaid ? 'Paid' : 'Unpaid'}</td>
+                  <td className="py-2 px-3 text-right">
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteHoliday(h.id)}
+                      className="btn-secondary rounded-lg px-3 py-1.5"
+                    >
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {holidays.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="py-4 px-3 text-center text-surface-500">No holidays added.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <div className="rounded-xl sm:rounded-2xl border border-surface-200/80 bg-white p-4 sm:p-6 shadow-sm">

@@ -55,28 +55,31 @@ function PayrollRow({
   }
 
   return (
-    <tr className="bg-white ring-1 ring-surface-200/80 hover:shadow-md hover:ring-brand-200/80 transition-all">
-      <td className="py-3 px-4 text-surface-900 font-medium rounded-l-xl">{row.employeeName}</td>
-      <td className="py-3 px-4 text-right tabular-nums text-surface-700">
+    <tr className="bg-white border-b border-surface-100 hover:bg-surface-50/70 transition-colors">
+      <td className="py-3.5 px-4 text-surface-900 font-medium whitespace-nowrap">{row.employeeName}</td>
+      <td className="py-3.5 px-4 text-right tabular-nums text-surface-700 whitespace-nowrap">
         ${row.hourlyRate.toFixed(2)} ({row.salaryType})
       </td>
-      <td className="py-3 px-4 text-right tabular-nums">{row.regularHours}</td>
-      <td className="py-3 px-4 text-right tabular-nums">{row.ot35Hours}</td>
-      <td className="py-3 px-4 text-right tabular-nums">{row.ot100Hours}</td>
-      <td className="py-3 px-4 text-right tabular-nums">{row.nightHours}</td>
-      <td className="py-3 px-4 text-right tabular-nums font-medium">{row.totalHours}</td>
-      <td className="py-3 px-4 text-right tabular-nums">${row.regularPay.toFixed(2)}</td>
-      <td className="py-3 px-4 text-right tabular-nums">${row.ot35Pay.toFixed(2)}</td>
-      <td className="py-3 px-4 text-right tabular-nums">${row.ot100Pay.toFixed(2)}</td>
-      <td className="py-3 px-4 text-right tabular-nums">${row.nightPay.toFixed(2)}</td>
-      <td className="py-3 px-4 text-right tabular-nums font-semibold">${row.totalPay.toFixed(2)}</td>
-      <td className="py-3 px-4 text-right tabular-nums text-green-600">
+      <td className="py-3.5 px-4 text-right tabular-nums whitespace-nowrap">{row.regularHours}</td>
+      <td className="py-3.5 px-4 text-right tabular-nums whitespace-nowrap">{row.ot35Hours}</td>
+      <td className="py-3.5 px-4 text-right tabular-nums whitespace-nowrap">{row.ot100Hours}</td>
+      <td className="py-3.5 px-4 text-right tabular-nums whitespace-nowrap">{row.nightHours}</td>
+      <td className="py-3.5 px-4 text-right tabular-nums whitespace-nowrap">{row.holidayScheduledHours ?? 0}</td>
+      <td className="py-3.5 px-4 text-right tabular-nums whitespace-nowrap">{row.holidayWorkedHours ?? 0}</td>
+      <td className="py-3.5 px-4 text-right tabular-nums font-medium whitespace-nowrap">{row.totalHours}</td>
+      <td className="py-3.5 px-4 text-right tabular-nums whitespace-nowrap">${row.regularPay.toFixed(2)}</td>
+      <td className="py-3.5 px-4 text-right tabular-nums whitespace-nowrap">${row.ot35Pay.toFixed(2)}</td>
+      <td className="py-3.5 px-4 text-right tabular-nums whitespace-nowrap">${row.ot100Pay.toFixed(2)}</td>
+      <td className="py-3.5 px-4 text-right tabular-nums whitespace-nowrap">${row.nightPay.toFixed(2)}</td>
+      <td className="py-3.5 px-4 text-right tabular-nums whitespace-nowrap">${(row.holidayPay ?? 0).toFixed(2)}</td>
+      <td className="py-3.5 px-4 text-right tabular-nums font-semibold whitespace-nowrap">${row.totalPay.toFixed(2)}</td>
+      <td className="py-3.5 px-4 text-right tabular-nums text-green-600 whitespace-nowrap">
         ${(row.additionsTotal ?? 0).toFixed(2)}
       </td>
-      <td className="py-3 px-4 text-right tabular-nums text-red-600">
+      <td className="py-3.5 px-4 text-right tabular-nums text-red-600 whitespace-nowrap">
         ${(row.deductionsTotal ?? 0).toFixed(2)}
       </td>
-      <td className="py-3 px-4">
+      <td className="py-3.5 px-4">
         <input
           type="number"
           min={0}
@@ -88,7 +91,7 @@ function PayrollRow({
           disabled={deductionSaving}
         />
       </td>
-      <td className="py-3 px-4">
+      <td className="py-3.5 px-4">
         <input
           type="number"
           min={0}
@@ -100,7 +103,7 @@ function PayrollRow({
           disabled={deductionSaving}
         />
       </td>
-      <td className="py-3 px-4">
+      <td className="py-3.5 px-4">
         <input
           type="number"
           min={0}
@@ -112,8 +115,8 @@ function PayrollRow({
           disabled={deductionSaving}
         />
       </td>
-      <td className="py-3 px-4 text-right tabular-nums font-semibold">${(row.netPay ?? row.totalPay).toFixed(2)}</td>
-      <td className="py-3 px-4">
+      <td className="py-3.5 px-4 text-right tabular-nums font-semibold whitespace-nowrap">${(row.netPay ?? row.totalPay).toFixed(2)}</td>
+      <td className="py-3.5 px-4">
         <div className="flex flex-col gap-2 min-w-[140px]">
           {(row.lineItems ?? []).map((it) => (
             <div
@@ -144,7 +147,7 @@ function PayrollRow({
           </button>
         </div>
       </td>
-      <td className="py-3 px-4 rounded-r-xl">
+      <td className="py-3.5 px-4">
         <button type="button" onClick={onEditSalary} className="p-2 rounded-lg text-surface-500 hover:bg-surface-100 hover:text-surface-700" title="Edit salary">
           <Settings2 className="w-4 h-4" />
         </button>
@@ -290,11 +293,14 @@ export default function AdminPayroll() {
       `OT ${otPct}% hours`,
       'OT 100% hours',
       `Night ${nightPct}% hours`,
+      'Holiday scheduled hours',
+      'Holiday worked hours',
       'Total hours',
       'Regular pay',
       `OT ${otPct}% pay`,
       'OT 100% pay',
       `Night ${nightPct}% pay`,
+      'Holiday pay',
       'Total pay',
       'Additions',
       'Deductions',
@@ -311,11 +317,14 @@ export default function AdminPayroll() {
       e.ot35Hours,
       e.ot100Hours,
       e.nightHours,
+      e.holidayScheduledHours ?? 0,
+      e.holidayWorkedHours ?? 0,
       e.totalHours,
       e.regularPay,
       e.ot35Pay,
       e.ot100Pay,
       e.nightPay,
+      e.holidayPay ?? 0,
       e.totalPay,
       e.additionsTotal ?? 0,
       e.deductionsTotal ?? 0,
@@ -455,6 +464,19 @@ export default function AdminPayroll() {
                 </div>
               </div>
             </div>
+            <div className="rounded-lg sm:rounded-xl border border-surface-200/80 bg-white p-3 sm:p-5 shadow-sm min-w-0">
+              <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-rose-50 flex items-center justify-center shrink-0">
+                  <Calendar className="w-4 h-4 sm:w-5 sm:h-5 text-rose-600" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[10px] sm:text-xs font-medium text-surface-500 uppercase tracking-wider truncate">Holiday pay</p>
+                  <p className="text-lg sm:text-xl font-semibold text-surface-900 mt-0.5 tabular-nums truncate">
+                    ${Number(summary.totalHolidayPay ?? 0).toFixed(2)}
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
           <div className="rounded-lg sm:rounded-xl border border-brand-200/80 bg-brand-50/50 p-3 sm:p-5 shadow-sm min-w-0">
             <div className="flex items-center gap-2 sm:gap-3 min-w-0">
@@ -489,31 +511,35 @@ export default function AdminPayroll() {
             </div>
           )}
 
-          <div className="rounded-xl sm:rounded-2xl border border-surface-200/80 bg-white p-4 sm:p-6 shadow-sm overflow-x-auto">
+          <div className="rounded-xl sm:rounded-2xl border border-surface-200/80 bg-white p-4 sm:p-6 shadow-sm">
             <h2 className="text-sm sm:text-base font-semibold text-surface-900 mb-0.5 sm:mb-1">Employee payroll</h2>
             <p className="text-xs sm:text-sm text-surface-500 mb-4">SS and Tax are auto-calculated per DR rules (TSS/DGII 2026). </p>
-            <table className="w-full text-left text-sm border-separate [border-spacing:0_8px]">
-              <thead>
-                <tr className="border-b border-surface-200 bg-surface-50/80">
-                  <th className="py-3 px-4 font-medium text-surface-700">Employee</th>
-                  <th className="py-3 px-4 font-medium text-surface-700 text-right">Rate</th>
-                  <th className="py-3 px-4 font-medium text-surface-700 text-right">Regular h</th>
-                  <th className="py-3 px-4 font-medium text-surface-700 text-right">OT {otPercent}% h</th>
-                  <th className="py-3 px-4 font-medium text-surface-700 text-right">OT 100% h</th>
-                  <th className="py-3 px-4 font-medium text-surface-700 text-right">Night {nightPercent}% h</th>
-                  <th className="py-3 px-4 font-medium text-surface-700 text-right">Total h</th>
-                  <th className="py-3 px-4 font-medium text-surface-700 text-right">Regular pay</th>
-                  <th className="py-3 px-4 font-medium text-surface-700 text-right">OT {otPercent}% pay</th>
-                  <th className="py-3 px-4 font-medium text-surface-700 text-right">OT 100% pay</th>
-                  <th className="py-3 px-4 font-medium text-surface-700 text-right">Night {nightPercent}% pay</th>
-                  <th className="py-3 px-4 font-medium text-surface-700 text-right">Total pay</th>
-                  <th className="py-3 px-4 font-medium text-surface-700 text-right">Additions</th>
-                  <th className="py-3 px-4 font-medium text-surface-700 text-right">Deductions</th>
-                  <th className="py-3 px-4 font-medium text-surface-700 text-right">SS</th>
-                  <th className="py-3 px-4 font-medium text-surface-700 text-right">Tax</th>
-                  <th className="py-3 px-4 font-medium text-surface-700 text-right">INFOTEP</th>
-                  <th className="py-3 px-4 font-medium text-surface-700 text-right">Net pay</th>
-                  <th className="py-3 px-4 font-medium text-surface-700">Items</th>
+            <div className="overflow-x-auto rounded-xl border border-surface-200/80">
+            <table className="w-full min-w-[1700px] text-left text-sm">
+              <thead className="sticky top-0 z-10 bg-surface-50/95 backdrop-blur supports-[backdrop-filter]:bg-surface-50/80 border-b border-surface-200">
+                <tr>
+                  <th className="py-3 px-4 font-semibold text-surface-700 whitespace-nowrap">Employee</th>
+                  <th className="py-3 px-4 font-semibold text-surface-700 text-right whitespace-nowrap">Rate</th>
+                  <th className="py-3 px-4 font-semibold text-surface-700 text-right whitespace-nowrap">Regular h</th>
+                  <th className="py-3 px-4 font-semibold text-surface-700 text-right whitespace-nowrap">OT {otPercent}% h</th>
+                  <th className="py-3 px-4 font-semibold text-surface-700 text-right whitespace-nowrap">OT 100% h</th>
+                  <th className="py-3 px-4 font-semibold text-surface-700 text-right whitespace-nowrap">Night {nightPercent}% h</th>
+                  <th className="py-3 px-4 font-semibold text-surface-700 text-right whitespace-nowrap">Holiday sched h</th>
+                  <th className="py-3 px-4 font-semibold text-surface-700 text-right whitespace-nowrap">Holiday worked h</th>
+                  <th className="py-3 px-4 font-semibold text-surface-700 text-right whitespace-nowrap">Total h</th>
+                  <th className="py-3 px-4 font-semibold text-surface-700 text-right whitespace-nowrap">Regular pay</th>
+                  <th className="py-3 px-4 font-semibold text-surface-700 text-right whitespace-nowrap">OT {otPercent}% pay</th>
+                  <th className="py-3 px-4 font-semibold text-surface-700 text-right whitespace-nowrap">OT 100% pay</th>
+                  <th className="py-3 px-4 font-semibold text-surface-700 text-right whitespace-nowrap">Night {nightPercent}% pay</th>
+                  <th className="py-3 px-4 font-semibold text-surface-700 text-right whitespace-nowrap">Holiday pay</th>
+                  <th className="py-3 px-4 font-semibold text-surface-700 text-right whitespace-nowrap">Total pay</th>
+                  <th className="py-3 px-4 font-semibold text-surface-700 text-right whitespace-nowrap">Additions</th>
+                  <th className="py-3 px-4 font-semibold text-surface-700 text-right whitespace-nowrap">Deductions</th>
+                  <th className="py-3 px-4 font-semibold text-surface-700 text-right whitespace-nowrap">SS</th>
+                  <th className="py-3 px-4 font-semibold text-surface-700 text-right whitespace-nowrap">Tax</th>
+                  <th className="py-3 px-4 font-semibold text-surface-700 text-right whitespace-nowrap">INFOTEP</th>
+                  <th className="py-3 px-4 font-semibold text-surface-700 text-right whitespace-nowrap">Net pay</th>
+                  <th className="py-3 px-4 font-semibold text-surface-700 whitespace-nowrap">Items</th>
                   <th className="py-3 px-4 w-10" aria-label="Edit salary" />
                 </tr>
               </thead>
@@ -538,6 +564,7 @@ export default function AdminPayroll() {
                 ))}
               </tbody>
             </table>
+            </div>
 
             {payrollEmployees.length > 0 && (
               <div className="mt-3 flex items-center justify-between gap-3">

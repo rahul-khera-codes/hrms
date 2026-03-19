@@ -1,8 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
-import { format } from 'date-fns'
-import { CalendarCheck2, Send } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Calendar, CalendarCheck2, Clock3, Send } from 'lucide-react'
 import { createLeaveRequest, getMyLeaveRequests, type LeaveRequestItem } from '@/lib/apiEmployee'
-import AdminDatePicker from '@/components/AdminDatePicker'
 import AdminSelect from '@/components/AdminSelect'
 
 const statusColors: Record<string, string> = {
@@ -11,15 +9,57 @@ const statusColors: Record<string, string> = {
   rejected: 'bg-red-100 text-red-700',
 }
 
+type CalculationType = 'non_payable' | 'hourly_salary' | 'monthly_salary'
+type LeaveCategory = 'marriage' | 'bereavement' | 'time_off' | 'maternity' | 'paternity' | 'medical_license'
+
+const dayOptions = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const
+const leaveCategoryOptions: Array<{ value: LeaveCategory; label: string }> = [
+  { value: 'marriage', label: 'Marriage' },
+  { value: 'bereavement', label: 'Bereavement' },
+  { value: 'time_off', label: 'Time Off' },
+  { value: 'maternity', label: 'Maternity' },
+  { value: 'paternity', label: 'Paternity' },
+  { value: 'medical_license', label: 'Medical License' },
+]
+
+function toDateTimeLocalInputValue(date: Date) {
+  const offsetMs = date.getTimezoneOffset() * 60000
+  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16)
+}
+
+function splitDateTimeValue(date: Date) {
+  const value = toDateTimeLocalInputValue(date)
+  return {
+    date: value.slice(0, 10),
+    time: value.slice(11, 16),
+  }
+}
+
+function formatCalculationType(value: CalculationType) {
+  if (value === 'non_payable') return 'Non-Payable'
+  if (value === 'hourly_salary') return 'Hourly Salary'
+  return 'Monthly Salary'
+}
+
 export default function EmployeeLeave() {
   const [requests, setRequests] = useState<LeaveRequestItem[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [leaveType, setLeaveType] = useState<'paid' | 'unpaid'>('unpaid')
-  const [startDate, setStartDate] = useState(() => format(new Date(), 'yyyy-MM-dd'))
-  const [endDate, setEndDate] = useState(() => format(new Date(), 'yyyy-MM-dd'))
+  const [leaveCategory, setLeaveCategory] = useState<LeaveCategory>('time_off')
+  const [calculationType, setCalculationType] = useState<CalculationType>('non_payable')
+  const [daysOff, setDaysOff] = useState<string[]>([])
+  const [daysOffOpen, setDaysOffOpen] = useState(false)
+  const initialDateTime = splitDateTimeValue(new Date())
+  const [startDate, setStartDate] = useState(initialDateTime.date)
+  const [startTime, setStartTime] = useState(initialDateTime.time)
+  const [endDate, setEndDate] = useState(initialDateTime.date)
+  const [endTime, setEndTime] = useState(initialDateTime.time)
+  const [returnDate, setReturnDate] = useState(initialDateTime.date)
+  const [returnTime, setReturnTime] = useState(initialDateTime.time)
+  const todayDate = new Date().toISOString().slice(0, 10)
   const [reason, setReason] = useState('')
   const [notice, setNotice] = useState('')
+  const daysOffRef = useRef<HTMLDivElement | null>(null)
 
   async function load(showLoader = true) {
     if (showLoader) setLoading(true)
@@ -61,24 +101,57 @@ export default function EmployeeLeave() {
     return () => window.clearTimeout(timeoutId)
   }, [notice])
 
+  useEffect(() => {
+    function handleOutsideClick(e: MouseEvent) {
+      if (!daysOffRef.current) return
+      if (!daysOffRef.current.contains(e.target as Node)) {
+        setDaysOffOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleOutsideClick)
+    return () => document.removeEventListener('mousedown', handleOutsideClick)
+  }, [])
+
   const pendingCount = useMemo(() => requests.filter((r) => r.status === 'pending').length, [requests])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    const start = new Date(`${startDate}T00:00:00Z`)
-    const end = new Date(`${endDate}T00:00:00Z`)
+    if (startDate < todayDate || endDate < todayDate || returnDate < todayDate) {
+      setNotice('Past dates are not allowed. Please select today or a future date.')
+      return
+    }
+    const startDateTimeValue = `${startDate}T${startTime}`
+    const endDateTimeValue = `${endDate}T${endTime}`
+    const returnDateTimeValue = `${returnDate}T${returnTime}`
+    const start = new Date(startDateTimeValue)
+    const end = new Date(endDateTimeValue)
+    const ret = new Date(returnDateTimeValue)
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) {
       setNotice('End date must be at least one day after start date.')
+      return
+    }
+    if (Number.isNaN(ret.getTime()) || ret < end) {
+      setNotice('Return date must be same or after end date.')
       return
     }
 
     setSaving(true)
     try {
+      const leaveType = calculationType === 'non_payable' ? 'unpaid' : 'paid'
+      const baseReason = reason.trim()
+      const details = [
+        `Leave Type: ${leaveCategoryOptions.find((opt) => opt.value === leaveCategory)?.label ?? 'Time Off'}`,
+        `Calculation Type: ${formatCalculationType(calculationType)}`,
+        `Days Off: ${daysOff.length ? daysOff.join(', ') : 'None'}`,
+        `Start DateTime: ${startDateTimeValue}`,
+        `End DateTime: ${endDateTimeValue}`,
+        `Return DateTime: ${returnDateTimeValue}`,
+      ].join(' | ')
       await createLeaveRequest({
         leaveType,
         startDate,
         endDate,
-        reason: reason.trim() || undefined,
+        reason: [baseReason, details].filter(Boolean).join(' || ') || undefined,
       })
       setReason('')
       setNotice('Leave request submitted.')
@@ -107,25 +180,138 @@ export default function EmployeeLeave() {
       <div className="rounded-xl sm:rounded-2xl border border-surface-200/80 bg-white p-4 sm:p-6 shadow-sm">
         <h2 className="text-sm sm:text-base font-semibold text-surface-900 mb-4">New leave request</h2>
         <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="label">Type</label>
+              <label className="label">Leave Type</label>
               <AdminSelect
-                value={leaveType}
-                onChange={(val) => setLeaveType(val as 'paid' | 'unpaid')}
+                value={leaveCategory}
+                onChange={(val) => setLeaveCategory(val as LeaveCategory)}
+                options={leaveCategoryOptions.map((opt) => ({ value: opt.value, label: opt.label }))}
+              />
+            </div>
+            <div>
+              <label className="label">Calculation Type</label>
+              <AdminSelect
+                value={calculationType}
+                onChange={(val) => setCalculationType(val as CalculationType)}
                 options={[
-                  { value: 'unpaid', label: 'Unpaid leave' },
-                  { value: 'paid', label: 'Paid leave' },
+                  { value: 'non_payable', label: 'Non-Payable' },
+                  { value: 'hourly_salary', label: 'Hourly Salary' },
+                  { value: 'monthly_salary', label: 'Monthly Salary' },
                 ]}
               />
             </div>
             <div>
-              <label className="label">Start date</label>
-              <AdminDatePicker value={startDate} onChange={(val) => setStartDate(val)} />
+              <label className="label">Days Off</label>
+              <div ref={daysOffRef} className="relative">
+                <button
+                  type="button"
+                  onClick={() => setDaysOffOpen((prev) => !prev)}
+                  className="input w-full rounded-xl min-h-[2.75rem] flex items-center justify-between px-3 py-2 text-left"
+                >
+                  <span className="truncate text-sm text-surface-700">
+                    {daysOff.length ? daysOff.join(', ') : 'Select days'}
+                  </span>
+                  <span className="ml-2 text-surface-400">▾</span>
+                </button>
+                {daysOffOpen && (
+                  <div className="absolute z-30 mt-1 w-full rounded-xl border border-surface-200 bg-white shadow-lg max-h-60 overflow-auto p-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      {dayOptions.map((day) => {
+                        const selected = daysOff.includes(day)
+                        return (
+                          <button
+                            key={day}
+                            type="button"
+                            onClick={() => {
+                              setDaysOff((prev) =>
+                                prev.includes(day)
+                                  ? prev.filter((d) => d !== day)
+                                  : [...prev, day]
+                              )
+                            }}
+                            className={`rounded-lg border px-2 py-2 text-xs font-medium transition-colors ${selected ? 'border-brand-300 bg-brand-50 text-brand-700' : 'border-surface-200 bg-white text-surface-600 hover:bg-surface-50'}`}
+                          >
+                            {day}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
             <div>
-              <label className="label">End date</label>
-              <AdminDatePicker value={endDate} onChange={(val) => setEndDate(val)} />
+              <label className="label">Start Date</label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div className="relative">
+                  <Calendar className="w-4 h-4 text-surface-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    min={todayDate}
+                    className="input w-full rounded-xl pl-9"
+                  />
+                </div>
+                <div className="relative">
+                  <Clock3 className="w-4 h-4 text-surface-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="time"
+                    value={startTime}
+                    onChange={(e) => setStartTime(e.target.value)}
+                    className="input w-full rounded-xl pl-9"
+                  />
+                </div>
+              </div>
+            </div>
+            <div>
+              <label className="label">End Date</label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div className="relative">
+                  <Calendar className="w-4 h-4 text-surface-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    min={todayDate}
+                    className="input w-full rounded-xl pl-9"
+                  />
+                </div>
+                <div className="relative">
+                  <Clock3 className="w-4 h-4 text-surface-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="time"
+                    value={endTime}
+                    onChange={(e) => setEndTime(e.target.value)}
+                    className="input w-full rounded-xl pl-9"
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="sm:col-span-2">
+              <label className="label">Return Date</label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div className="relative">
+                  <Calendar className="w-4 h-4 text-surface-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="date"
+                    value={returnDate}
+                    onChange={(e) => setReturnDate(e.target.value)}
+                    min={todayDate}
+                    className="input w-full rounded-xl pl-9"
+                  />
+                </div>
+                <div className="relative">
+                  <Clock3 className="w-4 h-4 text-surface-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="time"
+                    value={returnTime}
+                    onChange={(e) => setReturnTime(e.target.value)}
+                    className="input w-full rounded-xl pl-9"
+                  />
+                </div>
+              </div>
             </div>
           </div>
           <div>

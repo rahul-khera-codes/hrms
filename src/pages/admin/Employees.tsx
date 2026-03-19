@@ -25,7 +25,25 @@ type EmployeeAssignmentInfo = {
   clientName: string
   shiftId: string
   shiftName: string
+  shiftStart: string
+  shiftEnd: string
   date: string
+}
+
+function normalizeTimeInput(value: string) {
+  const trimmed = value.trim()
+  const match = /^(\d{1,2}):(\d{2})$/.exec(trimmed)
+  if (!match) return null
+  const hh = Number(match[1])
+  const mm = Number(match[2])
+  if (!Number.isInteger(hh) || !Number.isInteger(mm) || hh < 0 || hh > 23 || mm < 0 || mm > 59) return null
+  return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`
+}
+
+function formatShiftTimeRange(start?: string | null, end?: string | null) {
+  const s = start ? String(start).slice(0, 5) : '—'
+  const e = end ? String(end).slice(0, 5) : '—'
+  return `${s}-${e}`
 }
 
 export default function AdminEmployees() {
@@ -44,6 +62,8 @@ export default function AdminEmployees() {
   const [shifts, setShifts] = useState<Shift[]>([])
   const [assignedClientId, setAssignedClientId] = useState('')
   const [assignedShiftId, setAssignedShiftId] = useState('')
+  const [assignmentStartTime, setAssignmentStartTime] = useState('')
+  const [assignmentEndTime, setAssignmentEndTime] = useState('')
   const [assignmentDate, setAssignmentDate] = useState(() => format(new Date(), 'yyyy-MM-dd'))
   const [assignmentByEmployee, setAssignmentByEmployee] = useState<Record<string, EmployeeAssignmentInfo>>({})
   const [clientFilter, setClientFilter] = useState('all')
@@ -79,6 +99,8 @@ export default function AdminEmployees() {
           clientName: row.clientName,
           shiftId: row.shiftId,
           shiftName: row.shiftName,
+          shiftStart: row.shiftStart,
+          shiftEnd: row.shiftEnd,
           date: row.date,
         }
       }
@@ -157,18 +179,48 @@ export default function AdminEmployees() {
     if (!assignedClientId) {
       setShifts([])
       setAssignedShiftId('')
+      setAssignmentStartTime('')
+      setAssignmentEndTime('')
       return
     }
     getShifts(assignedClientId)
       .then((list) => {
         setShifts(list)
-        setAssignedShiftId((current) => (list.some((shift) => shift.id === current) ? current : ''))
+        setAssignedShiftId((current) => {
+          const nextShiftId = list.some((shift) => shift.id === current) ? current : ''
+          if (!nextShiftId) {
+            setAssignmentStartTime('')
+            setAssignmentEndTime('')
+          } else {
+            const selected = list.find((shift) => shift.id === nextShiftId)
+            if (selected) {
+              setAssignmentStartTime((prev) => prev || String(selected.startTime).slice(0, 5))
+              setAssignmentEndTime((prev) => prev || String(selected.endTime).slice(0, 5))
+            }
+          }
+          return nextShiftId
+        })
       })
       .catch(() => {
         setShifts([])
         setAssignedShiftId('')
+        setAssignmentStartTime('')
+        setAssignmentEndTime('')
       })
   }, [assignedClientId])
+
+  function handleAssignedShiftChange(shiftId: string) {
+    setAssignedShiftId(shiftId)
+    if (!shiftId) {
+      setAssignmentStartTime('')
+      setAssignmentEndTime('')
+      return
+    }
+    const selected = shifts.find((shift) => shift.id === shiftId)
+    if (!selected) return
+    setAssignmentStartTime(String(selected.startTime).slice(0, 5))
+    setAssignmentEndTime(String(selected.endTime).slice(0, 5))
+  }
 
   useEffect(() => {
     setCurrentPage(1)
@@ -189,6 +241,8 @@ export default function AdminEmployees() {
     setBaseSalary('')
     setAssignedClientId('')
     setAssignedShiftId('')
+    setAssignmentStartTime('')
+    setAssignmentEndTime('')
     setAssignmentDate(format(new Date(), 'yyyy-MM-dd'))
     setModal('add')
   }
@@ -200,9 +254,12 @@ export default function AdminEmployees() {
     setPassword('')
     setSalaryType((emp.salaryType === 'monthly' ? 'monthly' : 'hourly') as 'hourly' | 'monthly')
     setBaseSalary(emp.baseSalary > 0 ? String(emp.baseSalary) : '')
-    setAssignedClientId('')
-    setAssignedShiftId('')
-    setAssignmentDate(format(new Date(), 'yyyy-MM-dd'))
+    const assignment = assignmentByEmployee[emp.id]
+    setAssignedClientId(assignment?.clientId ?? '')
+    setAssignedShiftId(assignment?.shiftId ?? '')
+    setAssignmentStartTime(assignment ? String(assignment.shiftStart).slice(0, 5) : '')
+    setAssignmentEndTime(assignment ? String(assignment.shiftEnd).slice(0, 5) : '')
+    setAssignmentDate(assignment?.date ?? format(new Date(), 'yyyy-MM-dd'))
     setModal('edit')
   }
 
@@ -233,6 +290,17 @@ export default function AdminEmployees() {
       setError('Client is required when a shift is selected')
       return
     }
+    if ((assignmentStartTime && !assignmentEndTime) || (!assignmentStartTime && assignmentEndTime)) {
+      setError('Provide both start and end time for shift timing override')
+      return
+    }
+
+    const normalizedStart = assignmentStartTime ? normalizeTimeInput(assignmentStartTime) : null
+    const normalizedEnd = assignmentEndTime ? normalizeTimeInput(assignmentEndTime) : null
+    if ((assignmentStartTime && !normalizedStart) || (assignmentEndTime && !normalizedEnd)) {
+      setError('Invalid time format. Use HH:mm')
+      return
+    }
     setError(null)
     setSaving(true)
     try {
@@ -251,6 +319,9 @@ export default function AdminEmployees() {
               userId: createdEmployee.id,
               shiftId: assignedShiftId,
               date: assignmentDate,
+              ...(normalizedStart && normalizedEnd
+                ? { overrideStartTime: normalizedStart, overrideEndTime: normalizedEnd }
+                : {}),
             })
           } catch {
             await load()
@@ -273,6 +344,9 @@ export default function AdminEmployees() {
             userId: editing.id,
             shiftId: assignedShiftId,
             date: assignmentDate,
+            ...(normalizedStart && normalizedEnd
+              ? { overrideStartTime: normalizedStart, overrideEndTime: normalizedEnd }
+              : {}),
           })
         }
       }
@@ -379,7 +453,7 @@ export default function AdminEmployees() {
                   </p>
                   {assignmentByEmployee[emp.id] ? (
                     <p className="text-xs text-brand-600 mt-0.5 truncate">
-                      {assignmentByEmployee[emp.id].clientName} · {assignmentByEmployee[emp.id].shiftName} · {assignmentByEmployee[emp.id].date}
+                      {assignmentByEmployee[emp.id].clientName} · {assignmentByEmployee[emp.id].shiftName} ({formatShiftTimeRange(assignmentByEmployee[emp.id].shiftStart, assignmentByEmployee[emp.id].shiftEnd)}) · {assignmentByEmployee[emp.id].date}
                     </p>
                   ) : null}
                 </div>
@@ -512,13 +586,35 @@ export default function AdminEmployees() {
                     <label className="label">Assign shift</label>
                     <AdminSelect
                       value={assignedShiftId}
-                      onChange={(val) => setAssignedShiftId(val)}
+                      onChange={handleAssignedShiftChange}
                       options={[
                         { value: '', label: assignedClientId ? 'Select shift' : 'Select client first' },
                         ...shifts.map((shift) => ({ value: shift.id, label: shift.name })),
                       ]}
                       disabled={!assignedClientId}
                     />
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="label">Shift start time</label>
+                      <input
+                        type="time"
+                        className="input w-full rounded-xl min-h-[2.75rem]"
+                        value={assignmentStartTime}
+                        onChange={(e) => setAssignmentStartTime(e.target.value)}
+                        disabled={!assignedShiftId}
+                      />
+                    </div>
+                    <div>
+                      <label className="label">Shift end time</label>
+                      <input
+                        type="time"
+                        className="input w-full rounded-xl min-h-[2.75rem]"
+                        value={assignmentEndTime}
+                        onChange={(e) => setAssignmentEndTime(e.target.value)}
+                        disabled={!assignedShiftId}
+                      />
+                    </div>
                   </div>
                   <div>
                     <label className="label">Assignment date</label>

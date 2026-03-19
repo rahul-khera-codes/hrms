@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Outlet, NavLink } from 'react-router-dom'
 import { LayoutDashboard, Clock, CalendarDays, LogOut, PanelLeftClose, PanelLeft, CalendarCheck2 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
+import { Navbar } from '@/components/Navbar'
 import clsx from 'clsx'
 
 const nav = [
@@ -16,16 +17,18 @@ export default function EmployeeLayout() {
   const [collapsed, setCollapsed] = useState(false)
 
   return (
-    <div className="h-screen overflow-hidden bg-surface-50 flex">
-      {/* Backdrop: only on small screens when sidebar is expanded */}
-      {!collapsed && (
-        <button
-          type="button"
-          onClick={() => setCollapsed(true)}
-          className="fixed inset-0 z-40 bg-surface-900/50 md:hidden"
-          aria-label="Close sidebar"
-        />
-      )}
+    <div className="h-screen overflow-hidden bg-surface-50 flex flex-col">
+      <Navbar />
+      <div className="flex-1 min-w-0 flex overflow-hidden">
+        {/* Backdrop: only on small screens when sidebar is expanded */}
+        {!collapsed && (
+          <button
+            type="button"
+            onClick={() => setCollapsed(true)}
+            className="fixed inset-0 z-40 bg-surface-900/50 md:hidden"
+            aria-label="Close sidebar"
+          />
+        )}
       <aside
         className={clsx(
           'border-r border-surface-200 bg-white flex flex-col shrink-0 transition-[width,transform] duration-200 overflow-hidden z-50',
@@ -114,6 +117,7 @@ export default function EmployeeLayout() {
           <Outlet />
         </div>
       </main>
+      </div>
     </div>
   )
 }

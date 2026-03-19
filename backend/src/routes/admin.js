@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs'
 import { query } from '../config/db.js'
 import { authMiddleware, requireAdmin } from '../middleware/auth.js'
 import { computeSSEmployeeBiWeekly, computeTaxForPeriod } from '../lib/drPayrollRules.js'
+import { createNotification } from './notifications.js'
 
 const router = express.Router()
 
@@ -193,16 +194,33 @@ router.get('/attendance', async (req, res) => {
     )
 
     const existingKeys = new Set(records.map((r) => `${r.employeeId}-${r.date}`))
+    const approvedLeaveKeys = new Set()
+    const leaveRangeRows = []
     for (const leave of approvedLeaves.rows) {
       const startDate = leave.start_date_str?.slice(0, 10)
       const endDate = leave.end_date_str?.slice(0, 10)
       if (!startDate || !endDate) continue
+      const clippedStart = startDate > leaveFrom ? startDate : leaveFrom
+      const clippedEnd = endDate < leaveTo ? endDate : leaveTo
+      leaveRangeRows.push({
+        id: `leave-${leave.id}`,
+        employeeId: leave.user_id,
+        employeeName: leave.user_name,
+        date: `${clippedStart} - ${clippedEnd}`,
+        clockIn: null,
+        clockOut: null,
+        regularHours: 0,
+        overtimeHours: 0,
+        nightHours: 0,
+        status: 'absent',
+      })
       const days = listDateStrings(
-        startDate > leaveFrom ? startDate : leaveFrom,
-        endDate < leaveTo ? endDate : leaveTo
+        clippedStart,
+        clippedEnd
       )
       for (const dateStr of days) {
         const key = `${leave.user_id}-${dateStr}`
+        approvedLeaveKeys.add(key)
         if (existingKeys.has(key)) continue
         existingKeys.add(key)
         records.push({
@@ -215,10 +233,29 @@ router.get('/attendance', async (req, res) => {
           regularHours: 0,
           overtimeHours: 0,
           nightHours: 0,
-          status: 'leave',
+          status: 'absent',
         })
       }
     }
+
+    // Approved leave dates should be treated as absent in attendance and carry no worked time.
+    records = records.map((r) => {
+      const key = `${r.employeeId}-${r.date}`
+      if (!approvedLeaveKeys.has(key)) return r
+      return {
+        ...r,
+        clockIn: null,
+        clockOut: null,
+        regularHours: 0,
+        overtimeHours: 0,
+        nightHours: 0,
+        status: 'absent',
+      }
+    })
+
+    // Show approved leave as one row per leave request (start - end), not one row per leave day.
+    records = records.filter((r) => !approvedLeaveKeys.has(`${r.employeeId}-${r.date}`))
+    records.push(...leaveRangeRows)
 
     // Include ABSENT rows only when filtering explicitly by "absent".
     // Here "absent" means employees who had NO attendance activity at all in the range.
@@ -330,6 +367,42 @@ router.patch('/leave-requests/:id', async (req, res) => {
       return res.status(404).json({ error: 'Not found' })
     }
     const r = result.rows[0]
+
+    try {
+      await query(
+        `INSERT INTO notifications (user_id, type, title, message, data)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [
+          r.user_id,
+          status === 'approved' ? 'leave_request_approved' : 'leave_request_rejected',
+          status === 'approved' ? 'Leave Approved' : 'Leave Rejected',
+          `Your ${r.leave_type} leave request from ${r.start_date_str?.slice(0, 10) ?? ''} to ${r.end_date_str?.slice(0, 10) ?? ''} was ${status}.`,
+          JSON.stringify({
+            leaveRequestId: r.id,
+            status,
+            reviewedBy: req.user.id,
+            reviewedNote: reviewedNote ? String(reviewedNote).trim() : null,
+          }),
+        ]
+      )
+    } catch (notifyErr) {
+      // Fallback for older notification table versions missing JSONB data column.
+      if (notifyErr?.code === '42703') {
+        await query(
+          `INSERT INTO notifications (user_id, type, title, message)
+           VALUES ($1, $2, $3, $4)`,
+          [
+            r.user_id,
+            status === 'approved' ? 'leave_request_approved' : 'leave_request_rejected',
+            status === 'approved' ? 'Leave Approved' : 'Leave Rejected',
+            `Your ${r.leave_type} leave request from ${r.start_date_str?.slice(0, 10) ?? ''} to ${r.end_date_str?.slice(0, 10) ?? ''} was ${status}.`,
+          ]
+        )
+      } else {
+        console.error('Failed to create employee leave decision notification:', notifyErr)
+      }
+    }
+
     res.json({
       id: r.id,
       employeeId: r.user_id,
@@ -441,6 +514,97 @@ function getHourlyRate(salaryType, baseSalary, workingDaysPerMonth, hoursPerDay)
   return n
 }
 
+function timeToMinutes(value) {
+  if (!value) return null
+  const parts = String(value).split(':')
+  if (parts.length < 2) return null
+  const h = parseInt(parts[0], 10)
+  const m = parseInt(parts[1], 10)
+  if (Number.isNaN(h) || Number.isNaN(m)) return null
+  return (h * 60) + m
+}
+
+function shiftMinutes(startTime, endTime) {
+  const start = timeToMinutes(startTime)
+  const end = timeToMinutes(endTime)
+  if (start == null || end == null) return 0
+  const diff = end - start
+  if (diff === 0) return 0
+  if (diff > 0) return diff
+  return (24 * 60 - start) + end
+}
+
+// GET /api/admin/holidays?from=YYYY-MM-DD&to=YYYY-MM-DD
+router.get('/holidays', async (req, res) => {
+  try {
+    const { from, to } = req.query
+    const params = []
+    let sql = `SELECT id, holiday_date::text AS holiday_date_str, name, is_paid FROM holidays WHERE 1=1`
+    if (from) {
+      params.push(from)
+      sql += ` AND holiday_date >= $${params.length}::date`
+    }
+    if (to) {
+      params.push(to)
+      sql += ` AND holiday_date <= $${params.length}::date`
+    }
+    sql += ' ORDER BY holiday_date ASC'
+    const result = await query(sql, params)
+    res.json(result.rows.map((r) => ({
+      id: r.id,
+      date: r.holiday_date_str ? r.holiday_date_str.slice(0, 10) : null,
+      name: r.name,
+      isPaid: !!r.is_paid,
+    })))
+  } catch (err) {
+    console.error('Admin list holidays error:', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// POST /api/admin/holidays
+router.post('/holidays', async (req, res) => {
+  try {
+    const { date, name, isPaid = true } = req.body
+    if (!date || !name) {
+      return res.status(400).json({ error: 'Bad request', message: 'date and name are required' })
+    }
+    const result = await query(
+      `INSERT INTO holidays (holiday_date, name, is_paid)
+       VALUES ($1::date, $2, $3)
+       ON CONFLICT (holiday_date) DO UPDATE
+       SET name = EXCLUDED.name,
+           is_paid = EXCLUDED.is_paid,
+           updated_at = NOW()
+       RETURNING id, holiday_date::text AS holiday_date_str, name, is_paid`,
+      [date, String(name).trim(), Boolean(isPaid)]
+    )
+    const r = result.rows[0]
+    res.status(201).json({
+      id: r.id,
+      date: r.holiday_date_str ? r.holiday_date_str.slice(0, 10) : null,
+      name: r.name,
+      isPaid: !!r.is_paid,
+    })
+  } catch (err) {
+    console.error('Admin create holiday error:', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// DELETE /api/admin/holidays/:id
+router.delete('/holidays/:id', async (req, res) => {
+  try {
+    const { id } = req.params
+    const result = await query('DELETE FROM holidays WHERE id = $1 RETURNING id', [id])
+    if (!result.rows.length) return res.status(404).json({ error: 'Not found' })
+    res.status(204).send()
+  } catch (err) {
+    console.error('Admin delete holiday error:', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
 // GET /api/admin/settings
 router.get('/settings', async (req, res) => {
   try {
@@ -524,6 +688,15 @@ router.get('/payroll', async (req, res) => {
     const { from, to } = req.query
     const toDate = to || new Date().toISOString().slice(0, 10)
     const fromDate = from || new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+    const holidayRows = await query(
+      `SELECT holiday_date::text AS holiday_date_str
+       FROM holidays
+       WHERE is_paid = TRUE
+         AND holiday_date >= $1::date
+         AND holiday_date <= $2::date`,
+      [fromDate, toDate]
+    )
+    const holidayDates = new Set(holidayRows.rows.map((r) => r.holiday_date_str?.slice(0, 10)).filter(Boolean))
     const employees = await query(
       `SELECT u.id, u.name,
               COALESCE(e.salary_type, u.salary_type) AS salary_type,
@@ -565,8 +738,30 @@ router.get('/payroll', async (req, res) => {
     const payroll = []
     let totalRegularPay = 0, totalOt35Pay = 0, totalOt100Pay = 0, totalNightPay = 0
     let totalRegularHours = 0, totalOt35Hours = 0, totalOt100Hours = 0, totalNightHours = 0
+    let totalHolidayScheduledHours = 0, totalHolidayWorkedHours = 0, totalHolidayPay = 0
     let totalAdditions = 0, totalDeductions = 0, totalGovDeductions = 0, totalNetPay = 0
     for (const emp of employees.rows) {
+      const approvedLeavesForEmployee = await query(
+        `SELECT start_date::text AS start_date_str, end_date::text AS end_date_str
+         FROM leave_requests
+         WHERE user_id = $1
+           AND status = 'approved'
+           AND start_date <= $3::date
+           AND end_date >= $2::date`,
+        [emp.id, fromDate, toDate]
+      )
+      const approvedLeaveDateSet = new Set()
+      for (const leave of approvedLeavesForEmployee.rows) {
+        const startDate = leave.start_date_str?.slice(0, 10)
+        const endDate = leave.end_date_str?.slice(0, 10)
+        if (!startDate || !endDate) continue
+        const days = listDateStrings(
+          startDate > fromDate ? startDate : fromDate,
+          endDate < toDate ? endDate : toDate
+        )
+        for (const d of days) approvedLeaveDateSet.add(d)
+      }
+
       const sessionsResult = await query(
         `SELECT (clock_in AT TIME ZONE 'UTC')::date AS date,
                 regular_minutes, overtime_minutes, night_minutes
@@ -581,7 +776,7 @@ router.get('/payroll', async (req, res) => {
         regular_minutes: r.regular_minutes ?? 0,
         overtime_minutes: r.overtime_minutes ?? 0,
         night_minutes: r.night_minutes ?? 0,
-      }))
+      })).filter((s) => s.date && !approvedLeaveDateSet.has(s.date))
       const { regularMinutes, ot35Minutes, ot100Minutes } = computePayrollBuckets(sessions)
       const nightMinutes = sessions.reduce((sum, s) => sum + (s.night_minutes || 0), 0)
       const regularHours = Math.round((regularMinutes / 60) * 10) / 10
@@ -590,11 +785,55 @@ router.get('/payroll', async (req, res) => {
       const nightHours = Math.round((nightMinutes / 60) * 10) / 10
       const totalHours = regularHours + ot35Hours + ot100Hours + nightHours
       const rate = getHourlyRate(emp.salary_type, emp.base_salary, settings.workingDaysPerMonth, settings.hoursPerDay)
+
+      const workedMinutesByDate = new Map()
+      for (const s of sessions) {
+        if (!s.date) continue
+        const mins = (s.regular_minutes || 0) + (s.overtime_minutes || 0) + (s.night_minutes || 0)
+        workedMinutesByDate.set(s.date, (workedMinutesByDate.get(s.date) || 0) + mins)
+      }
+
+      const holidayAssignmentsResult = await query(
+        `SELECT a.date::text AS date_str,
+                COALESCE(a.override_start_time, s.start_time) AS start_time,
+                COALESCE(a.override_end_time, s.end_time) AS end_time
+         FROM schedule_assignments a
+         JOIN shifts s ON s.id = a.shift_id
+         WHERE a.user_id = $1
+           AND a.date >= $2::date
+           AND a.date <= $3::date`,
+        [emp.id, fromDate, toDate]
+      )
+      const scheduledHolidayMinutesByDate = new Map()
+      for (const row of holidayAssignmentsResult.rows) {
+        const dateKey = row.date_str ? row.date_str.slice(0, 10) : null
+        if (!dateKey || !holidayDates.has(dateKey)) continue
+        if (approvedLeaveDateSet.has(dateKey)) continue
+        const mins = shiftMinutes(row.start_time, row.end_time)
+        scheduledHolidayMinutesByDate.set(dateKey, (scheduledHolidayMinutesByDate.get(dateKey) || 0) + mins)
+      }
+
+      let holidayScheduledMinutes = 0
+      let holidayWorkedMinutes = 0
+      let holidayBaseTopUpMinutes = 0
+      for (const dateKey of holidayDates) {
+        if (approvedLeaveDateSet.has(dateKey)) continue
+        const scheduled = scheduledHolidayMinutesByDate.get(dateKey) || 0
+        const worked = workedMinutesByDate.get(dateKey) || 0
+        holidayScheduledMinutes += scheduled
+        holidayWorkedMinutes += worked
+        holidayBaseTopUpMinutes += Math.max(0, scheduled - worked)
+      }
+
+      const holidayBaseTopUpPay = (holidayBaseTopUpMinutes / 60) * rate
+      const holidayPremiumPay = (holidayWorkedMinutes / 60) * rate
+      const holidayPay = holidayBaseTopUpPay + holidayPremiumPay
+
       const regularPay = regularHours * rate
       const ot35Pay = ot35Hours * rate * settings.otMultiplier
       const ot100Pay = ot100Hours * rate * OT_100_MULTIPLIER
       const nightPay = nightHours * rate * settings.nightMultiplier
-      const grossPay = regularPay + ot35Pay + ot100Pay + nightPay
+      const grossPay = regularPay + ot35Pay + ot100Pay + nightPay + holidayPay
       const items = lineItemsByUser[emp.id] || []
       let additionsTotal = 0
       let deductionsTotal = 0
@@ -630,6 +869,9 @@ router.get('/payroll', async (req, res) => {
       totalOt35Hours += ot35Hours
       totalOt100Hours += ot100Hours
       totalNightHours += nightHours
+      totalHolidayScheduledHours += holidayScheduledMinutes / 60
+      totalHolidayWorkedHours += holidayWorkedMinutes / 60
+      totalHolidayPay += holidayPay
       totalAdditions += additionsTotal
       totalDeductions += deductionsTotal
       totalGovDeductions += govTotal
@@ -648,6 +890,9 @@ router.get('/payroll', async (req, res) => {
         ot35Pay: Math.round(ot35Pay * 100) / 100,
         ot100Pay: Math.round(ot100Pay * 100) / 100,
         nightPay: Math.round(nightPay * 100) / 100,
+        holidayScheduledHours: Math.round((holidayScheduledMinutes / 60) * 10) / 10,
+        holidayWorkedHours: Math.round((holidayWorkedMinutes / 60) * 10) / 10,
+        holidayPay: Math.round(holidayPay * 100) / 100,
         totalPay: Math.round(grossPay * 100) / 100,
         lineItems: items,
         additionsTotal: Math.round(additionsTotal * 100) / 100,
@@ -669,11 +914,14 @@ router.get('/payroll', async (req, res) => {
         totalOt35Hours: Math.round(totalOt35Hours * 10) / 10,
         totalOt100Hours: Math.round(totalOt100Hours * 10) / 10,
         totalNightHours: Math.round(totalNightHours * 10) / 10,
+        totalHolidayScheduledHours: Math.round(totalHolidayScheduledHours * 10) / 10,
+        totalHolidayWorkedHours: Math.round(totalHolidayWorkedHours * 10) / 10,
+        totalHolidayPay: Math.round(totalHolidayPay * 100) / 100,
         totalRegularPay: Math.round(totalRegularPay * 100) / 100,
         totalOt35Pay: Math.round(totalOt35Pay * 100) / 100,
         totalOt100Pay: Math.round(totalOt100Pay * 100) / 100,
         totalNightPay: Math.round(totalNightPay * 100) / 100,
-        totalPay: Math.round((totalRegularPay + totalOt35Pay + totalOt100Pay + totalNightPay) * 100) / 100,
+        totalPay: Math.round((totalRegularPay + totalOt35Pay + totalOt100Pay + totalNightPay + totalHolidayPay) * 100) / 100,
         totalAdditions: Math.round(totalAdditions * 100) / 100,
         totalDeductions: Math.round(totalDeductions * 100) / 100,
         totalGovDeductions: Math.round(totalGovDeductions * 100) / 100,
@@ -1184,7 +1432,10 @@ router.get('/schedule', async (req, res) => {
     const toDate = to || fromDate
     const result = await query(
       `SELECT a.id, a.client_id, a.user_id, a.shift_id, a.date::text AS date_str,
-              u.name AS user_name, s.name AS shift_name, s.start_time AS shift_start, s.end_time AS shift_end
+              a.override_start_time, a.override_end_time,
+              u.name AS user_name, s.name AS shift_name,
+              COALESCE(a.override_start_time, s.start_time) AS shift_start,
+              COALESCE(a.override_end_time, s.end_time) AS shift_end
        FROM schedule_assignments a
        JOIN users u ON u.id = a.user_id
        JOIN shifts s ON s.id = a.shift_id
@@ -1201,6 +1452,8 @@ router.get('/schedule', async (req, res) => {
       shiftName: r.shift_name,
       shiftStart: r.shift_start,
       shiftEnd: r.shift_end,
+      overrideStart: r.override_start_time,
+      overrideEnd: r.override_end_time,
       date: r.date_str ? r.date_str.slice(0, 10) : null,
     })))
   } catch (err) {
@@ -1212,23 +1465,76 @@ router.get('/schedule', async (req, res) => {
 // POST /api/admin/schedule
 router.post('/schedule', async (req, res) => {
   try {
-    const { clientId, userId, shiftId, date } = req.body
+    const { clientId, userId, shiftId, date, overrideStartTime, overrideEndTime } = req.body
     if (!clientId || !userId || !shiftId || !date) {
       return res.status(400).json({ error: 'Bad request', message: 'clientId, userId, shiftId, date are required' })
     }
+    const hasStartOverride = overrideStartTime != null && String(overrideStartTime).trim() !== ''
+    const hasEndOverride = overrideEndTime != null && String(overrideEndTime).trim() !== ''
+    if (hasStartOverride !== hasEndOverride) {
+      return res.status(400).json({ error: 'Bad request', message: 'Provide both overrideStartTime and overrideEndTime or leave both empty' })
+    }
+    const startOverride = hasStartOverride ? String(overrideStartTime).slice(0, 5) : null
+    const endOverride = hasEndOverride ? String(overrideEndTime).slice(0, 5) : null
+    
+    // Fetch existing assignment to check if it's an update
+    const checkExisting = await query(
+      `SELECT id FROM schedule_assignments WHERE client_id = $1 AND user_id = $2 AND date = $3::date`,
+      [clientId, userId, date]
+    )
+    const isUpdate = checkExisting.rows.length > 0
+
     const result = await query(
-      `INSERT INTO schedule_assignments (client_id, user_id, shift_id, date)
-       VALUES ($1, $2, $3, $4::date)
-       ON CONFLICT (client_id, user_id, date) DO UPDATE SET shift_id = $3
-       RETURNING id, client_id, user_id, shift_id, date::text AS date_str`,
-      [clientId, userId, shiftId, date]
+      `INSERT INTO schedule_assignments (client_id, user_id, shift_id, date, override_start_time, override_end_time)
+       VALUES ($1, $2, $3, $4::date, $5::time, $6::time)
+       ON CONFLICT (client_id, user_id, date) DO UPDATE SET
+         shift_id = EXCLUDED.shift_id,
+         override_start_time = EXCLUDED.override_start_time,
+         override_end_time = EXCLUDED.override_end_time
+       RETURNING id, client_id, user_id, shift_id, date::text AS date_str, override_start_time, override_end_time`,
+      [clientId, userId, shiftId, date, startOverride, endOverride]
     )
     const r = result.rows[0]
+    
+    // Fetch details for notification
+    const detailsRes = await query(
+      `SELECT u.name AS user_name, c.name AS client_name, s.name AS shift_name, s.start_time, s.end_time
+       FROM users u, clients c, shifts s
+       WHERE u.id = $1 AND c.id = $2 AND s.id = $3`,
+      [userId, clientId, shiftId]
+    )
+    
+    if (detailsRes.rows.length > 0) {
+      const { user_name, client_name, shift_name, start_time, end_time } = detailsRes.rows[0]
+      const timeDisplay = hasStartOverride 
+        ? `${startOverride}-${endOverride}` 
+        : `${start_time}-${end_time}`
+      const title = isUpdate ? 'Schedule Updated' : 'New Shift Assigned'
+      const message = `${shift_name} shift at ${client_name} on ${date} (${timeDisplay})`
+      
+      await createNotification(
+        userId,
+        isUpdate ? 'schedule_updated' : 'schedule_assigned',
+        title,
+        message,
+        {
+          clientId,
+          shiftId,
+          date,
+          hasOverride: hasStartOverride,
+          overrideStart: startOverride,
+          overrideEnd: endOverride,
+        }
+      )
+    }
+    
     res.status(201).json({
       id: r.id,
       clientId: r.client_id,
       userId: r.user_id,
       shiftId: r.shift_id,
+      overrideStart: r.override_start_time,
+      overrideEnd: r.override_end_time,
       date: r.date_str ? r.date_str.slice(0, 10) : null,
     })
   } catch (err) {

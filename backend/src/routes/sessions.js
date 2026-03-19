@@ -1,6 +1,7 @@
 import express from 'express'
 import { query } from '../config/db.js'
 import { authMiddleware } from '../middleware/auth.js'
+import { createNotification } from './notifications.js'
 
 const router = express.Router()
 const REGULAR_MINUTES_PER_DAY = 8 * 60 // 480
@@ -211,7 +212,9 @@ router.get('/my-schedule', async (req, res) => {
     const toDate = to || fromDate
     const result = await query(
       `SELECT a.id, a.date::text AS date_str,
-              c.name AS client_name, s.name AS shift_name, s.start_time, s.end_time
+              c.name AS client_name, s.name AS shift_name,
+              COALESCE(a.override_start_time, s.start_time) AS start_time,
+              COALESCE(a.override_end_time, s.end_time) AS end_time
        FROM schedule_assignments a
        JOIN clients c ON c.id = a.client_id
        JOIN shifts s ON s.id = a.shift_id
@@ -300,6 +303,31 @@ router.post('/leave-requests', async (req, res) => {
       [req.user.id, type, startDate, endDate, reason ? String(reason).trim() : null]
     )
     const r = result.rows[0]
+
+    const admins = await query(
+      `SELECT id
+       FROM users
+       WHERE role = 'admin'`
+    )
+    await Promise.all(
+      admins.rows.map((admin) =>
+        createNotification(
+          admin.id,
+          'leave_request_submitted',
+          'New Leave Request',
+          `${req.user.name} requested ${type} leave from ${startDate} to ${endDate}`,
+          {
+            leaveRequestId: r.id,
+            employeeId: req.user.id,
+            employeeName: req.user.name,
+            leaveType: type,
+            startDate,
+            endDate,
+          }
+        )
+      )
+    )
+
     res.status(201).json({
       id: r.id,
       leaveType: r.leave_type,

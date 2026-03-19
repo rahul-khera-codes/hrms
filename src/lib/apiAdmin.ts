@@ -68,6 +68,9 @@ export interface PayrollEmployeeRow {
   ot35Hours: number
   ot100Hours: number
   nightHours: number
+  holidayScheduledHours?: number
+  holidayWorkedHours?: number
+  holidayPay?: number
   totalHours: number
   regularPay: number
   ot35Pay: number
@@ -94,6 +97,9 @@ export interface PayrollResponse {
     totalOt35Hours: number
     totalOt100Hours: number
     totalNightHours: number
+    totalHolidayScheduledHours?: number
+    totalHolidayWorkedHours?: number
+    totalHolidayPay?: number
     totalRegularPay: number
     totalOt35Pay: number
     totalOt100Pay: number
@@ -113,6 +119,31 @@ export interface PayrollResponse {
 export async function getPayroll(params: { from: string; to: string }): Promise<PayrollResponse> {
   const search = new URLSearchParams({ from: params.from, to: params.to })
   return api<PayrollResponse>(`/api/admin/payroll?${search}`)
+}
+
+export interface HolidayItem {
+  id: string
+  date: string | null
+  name: string
+  isPaid: boolean
+}
+
+export async function getHolidays(params?: { from?: string; to?: string }): Promise<HolidayItem[]> {
+  const q = new URLSearchParams()
+  if (params?.from) q.set('from', params.from)
+  if (params?.to) q.set('to', params.to)
+  return api<HolidayItem[]>(`/api/admin/holidays${q.toString() ? `?${q.toString()}` : ''}`)
+}
+
+export async function createHoliday(data: { date: string; name: string; isPaid?: boolean }): Promise<HolidayItem> {
+  return api<HolidayItem>('/api/admin/holidays', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
+export async function deleteHoliday(id: string): Promise<void> {
+  return api(`/api/admin/holidays/${id}`, { method: 'DELETE' })
 }
 
 export async function updateEmployeeSalary(
@@ -223,6 +254,8 @@ export interface ScheduleAssignment {
   shiftName: string
   shiftStart: string
   shiftEnd: string
+  overrideStart?: string | null
+  overrideEnd?: string | null
   date: string
 }
 
@@ -304,7 +337,14 @@ export async function getSchedule(params: { clientId: string; from: string; to: 
   return api<ScheduleAssignment[]>(`/api/admin/schedule?${search}`)
 }
 
-export async function createScheduleAssignment(data: { clientId: string; userId: string; shiftId: string; date: string }): Promise<ScheduleAssignment> {
+export async function createScheduleAssignment(data: {
+  clientId: string
+  userId: string
+  shiftId: string
+  date: string
+  overrideStartTime?: string
+  overrideEndTime?: string
+}): Promise<ScheduleAssignment> {
   return api<ScheduleAssignment>('/api/admin/schedule', { method: 'POST', body: JSON.stringify(data) })
 }
 

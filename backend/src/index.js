@@ -4,6 +4,7 @@ import cors from 'cors'
 import authRoutes from './routes/auth.js'
 import sessionsRoutes from './routes/sessions.js'
 import adminRoutes from './routes/admin.js'
+import notificationsRoutes from './routes/notifications.js'
 import pool from './config/db.js'
 
 const app = express()
@@ -15,6 +16,7 @@ app.use(express.json())
 app.use('/api/auth', authRoutes)
 app.use('/api/sessions', sessionsRoutes)
 app.use('/api/admin', adminRoutes)
+app.use('/api/notifications', notificationsRoutes)
 
 app.get('/health', (_req, res) => {
   res.json({ ok: true })
@@ -131,6 +133,23 @@ try {
     )
   `)
   await pool.query('CREATE INDEX IF NOT EXISTS idx_schedule_assignments_client_date ON schedule_assignments (client_id, date)')
+  try {
+    await pool.query('ALTER TABLE schedule_assignments ADD COLUMN IF NOT EXISTS override_start_time TIME')
+    await pool.query('ALTER TABLE schedule_assignments ADD COLUMN IF NOT EXISTS override_end_time TIME')
+  } catch (e) {
+    if (e.code !== '42701') throw e
+  }
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS holidays (
+      id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      holiday_date DATE NOT NULL UNIQUE,
+      name        VARCHAR(255) NOT NULL,
+      is_paid     BOOLEAN NOT NULL DEFAULT TRUE,
+      created_at  TIMESTAMPTZ DEFAULT NOW(),
+      updated_at  TIMESTAMPTZ DEFAULT NOW()
+    )
+  `)
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_holidays_date ON holidays (holiday_date)')
   await pool.query(`
     CREATE TABLE IF NOT EXISTS leave_requests (
       id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -178,6 +197,28 @@ try {
     )
   `)
   await pool.query('CREATE INDEX IF NOT EXISTS idx_payroll_gov_deductions_user_period ON payroll_government_deductions (user_id, period_from, period_to)')
+  
+  // Notifications table for employee alerts
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS notifications (
+      id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id    UUID NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+      type       VARCHAR(50) NOT NULL,
+      title      VARCHAR(255) NOT NULL,
+      message    TEXT NOT NULL,
+      data       JSONB DEFAULT NULL,
+      is_read    BOOLEAN DEFAULT FALSE,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `)
+  await pool.query('ALTER TABLE notifications ADD COLUMN IF NOT EXISTS data JSONB DEFAULT NULL')
+  await pool.query('ALTER TABLE notifications ADD COLUMN IF NOT EXISTS is_read BOOLEAN DEFAULT FALSE')
+  await pool.query('ALTER TABLE notifications ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()')
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications (user_id)')
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_notifications_is_read ON notifications (is_read)')
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications (created_at DESC)')
+  
   try {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS payroll_periods (

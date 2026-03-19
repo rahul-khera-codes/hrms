@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { CalendarDays, Clock, Building2 } from 'lucide-react'
 import { getMySchedule, type MyScheduleEntry } from '@/lib/apiEmployee'
 import { format, addDays, startOfWeek, parseISO } from 'date-fns'
+import AdminSelect from '@/components/AdminSelect'
 
 function formatTime(t: string) {
   if (!t) return '—'
@@ -13,6 +14,8 @@ export default function EmployeeMySchedule() {
   const [entries, setEntries] = useState<MyScheduleEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [clientFilter, setClientFilter] = useState('all')
+  const [shiftFilter, setShiftFilter] = useState('all')
   const [weekStart, setWeekStart] = useState(() => {
     const d = startOfWeek(new Date(), { weekStartsOn: 1 })
     return format(d, 'yyyy-MM-dd')
@@ -66,6 +69,15 @@ export default function EmployeeMySchedule() {
 
   const weekDates = Array.from({ length: 7 }, (_, i) => addDays(parseISO(weekStart), i))
 
+  const clientOptions = Array.from(new Set(entries.map((e) => e.clientName).filter(Boolean))).sort((a, b) => a.localeCompare(b))
+  const shiftOptions = Array.from(new Set(entries.map((e) => e.shiftName).filter(Boolean))).sort((a, b) => a.localeCompare(b))
+
+  const filteredEntries = entries.filter((entry) => {
+    const byClient = clientFilter === 'all' || entry.clientName === clientFilter
+    const byShift = shiftFilter === 'all' || entry.shiftName === shiftFilter
+    return byClient && byShift
+  })
+
   return (
     <div className="space-y-6 overflow-x-hidden">
       <div>
@@ -90,6 +102,33 @@ export default function EmployeeMySchedule() {
         </div>
       </div>
 
+      <div className="rounded-xl border border-surface-200/80 bg-white p-4 shadow-sm">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label className="label">Filter by client</label>
+            <AdminSelect
+              value={clientFilter}
+              onChange={(val) => setClientFilter(val)}
+              options={[
+                { value: 'all', label: 'All clients' },
+                ...clientOptions.map((name) => ({ value: name, label: name })),
+              ]}
+            />
+          </div>
+          <div>
+            <label className="label">Filter by shift</label>
+            <AdminSelect
+              value={shiftFilter}
+              onChange={(val) => setShiftFilter(val)}
+              options={[
+                { value: 'all', label: 'All shifts' },
+                ...shiftOptions.map((name) => ({ value: name, label: name })),
+              ]}
+            />
+          </div>
+        </div>
+      </div>
+
       {error && (
         <p className="text-sm text-red-600" role="alert">{error}</p>
       )}
@@ -100,9 +139,13 @@ export default function EmployeeMySchedule() {
         <div className="rounded-xl border border-surface-200/80 bg-white p-8 text-center text-surface-500 text-sm">
           No shifts assigned for this week.
         </div>
+      ) : filteredEntries.length === 0 ? (
+        <div className="rounded-xl border border-surface-200/80 bg-white p-8 text-center text-surface-500 text-sm">
+          No shifts match the selected filters.
+        </div>
       ) : (
         <ul className="p-3 sm:p-4 grid grid-cols-1 gap-3">
-          {entries.map((e) => (
+          {filteredEntries.map((e) => (
             <li
               key={e.id}
               className="flex items-center gap-4 p-4 sm:p-5 rounded-xl border border-surface-200/80 bg-white transition-all hover:shadow-md hover:border-brand-200/80 min-w-0"
