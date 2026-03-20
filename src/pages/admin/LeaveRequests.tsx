@@ -157,7 +157,7 @@ export default function AdminLeaveRequests() {
             {rows.map((r) => (
               <li
                 key={r.id}
-                className="flex items-center gap-4 p-4 sm:p-5 rounded-xl border border-surface-200/80 bg-white transition-all hover:shadow-md hover:border-brand-200/80"
+                className="flex flex-col sm:flex-row sm:items-center gap-4 p-4 sm:p-5 rounded-xl border border-surface-200/80 bg-white transition-all hover:shadow-md hover:border-brand-200/80"
               >
                 <div className="w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center shrink-0">
                   <CalendarCheck2 className="w-5 h-5 text-brand-600" />
@@ -170,7 +170,7 @@ export default function AdminLeaveRequests() {
                   {r.reason ? <p className="text-xs text-surface-500 mt-0.5">Reason: {r.reason}</p> : null}
                   {r.reviewedNote ? <p className="text-xs text-surface-500 mt-0.5">Note: {r.reviewedNote}</p> : null}
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto">
                   <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${statusColors[r.status] || 'bg-surface-100 text-surface-600'}`}>
                     {r.status}
                   </span>
@@ -220,7 +220,7 @@ export default function AdminLeaveRequests() {
               />
             </div>
 
-            <div className="mt-5 flex justify-end gap-2">
+            <div className="mt-5 flex flex-col-reverse sm:flex-row justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setReviewingId(null)}

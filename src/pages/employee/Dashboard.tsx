@@ -294,31 +294,47 @@ export default function EmployeeDashboard() {
           <h2 className="text-sm sm:text-base font-semibold text-surface-900 mb-0.5 sm:mb-1">Hours breakdown</h2>
           <p className="text-xs sm:text-sm text-surface-500 mb-4 sm:mb-6">This period by type</p>
           {pieData.length > 0 ? (
-            <div className="h-52 sm:h-64 min-h-[12rem]">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={pieData}
-                    cx="60%"
-                    cy="50%"
-                    innerRadius={48}
-                    outerRadius={68}
-                    paddingAngle={2}
-                    dataKey="value"
-                    nameKey="name"
-                    label={({ name, value }) => `${name} ${formatCompactDuration(Number(value) || 0)}`}
-                    labelLine={false}
-                  >
-                    {pieData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    formatter={(value: number) => [formatDuration(value), 'Duration']}
-                    contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0' }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
+            <div className="space-y-4">
+              <div className="h-52 sm:h-64 min-h-[12rem]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={pieData}
+                      cx="60%"
+                      cy="50%"
+                      innerRadius={48}
+                      outerRadius={68}
+                      paddingAngle={2}
+                      dataKey="value"
+                      nameKey="name"
+                      label={({ name, value }) => `${name} ${formatCompactDuration(Number(value) || 0)}`}
+                      labelLine={false}
+                    >
+                      {pieData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      formatter={(value: number) => [formatDuration(value), 'Duration']}
+                      contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0' }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="flex flex-wrap gap-3 pt-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 rounded" style={{ backgroundColor: '#14b8a6' }} />
+                  <span className="text-xs sm:text-sm text-surface-700 font-medium">Regular</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 rounded" style={{ backgroundColor: '#f59e0b' }} />
+                  <span className="text-xs sm:text-sm text-surface-700 font-medium">Overtime</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 rounded" style={{ backgroundColor: '#6366f1' }} />
+                  <span className="text-xs sm:text-sm text-surface-700 font-medium">Night</span>
+                </div>
+              </div>
             </div>
           ) : (
             <div className="h-52 sm:h-64 flex items-center justify-center text-surface-400 text-xs sm:text-sm">

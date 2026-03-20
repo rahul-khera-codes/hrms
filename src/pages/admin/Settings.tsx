@@ -26,6 +26,7 @@ export default function AdminSettings() {
   const [holidayName, setHolidayName] = useState('')
   const [holidayPaid, setHolidayPaid] = useState(true)
   const [holidaySaving, setHolidaySaving] = useState(false)
+  const [showAddHolidayForm, setShowAddHolidayForm] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -67,11 +68,21 @@ export default function AdminSettings() {
       })
       setHolidays((prev) => [...prev.filter((h) => h.date !== created.date), created].sort((a, b) => (a.date || '').localeCompare(b.date || '')))
       setHolidayName('')
+      setHolidayDate('')
+      setHolidayPaid(true)
+      setShowAddHolidayForm(false)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to save holiday')
     } finally {
       setHolidaySaving(false)
     }
+  }
+
+  function handleCancelAddHoliday() {
+    setHolidayDate('')
+    setHolidayName('')
+    setHolidayPaid(true)
+    setShowAddHolidayForm(false)
   }
 
   async function handleDeleteHoliday(id: string) {
@@ -139,48 +150,69 @@ export default function AdminSettings() {
         <p className="text-xs sm:text-sm text-surface-500 mb-4 sm:mb-6">
           Used by payroll holiday pay rules (scheduled pay + 100% premium for worked holiday hours).
         </p>
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 mb-4">
-          <div>
-            <label className="label">Date</label>
-            <input
-              type="date"
-              className="input w-full rounded-xl min-h-[2.75rem]"
-              value={holidayDate}
-              onChange={(e) => setHolidayDate(e.target.value)}
-            />
+        
+        {!showAddHolidayForm ? (
+          <button
+            type="button"
+            onClick={() => setShowAddHolidayForm(true)}
+            className="btn-primary rounded-xl min-h-[2.75rem] px-6 mb-4"
+          >
+            + Add holiday
+          </button>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 mb-4 p-4 sm:p-6 border border-surface-200 rounded-xl bg-surface-50/50">
+            <div>
+              <label className="label">Date</label>
+              <input
+                type="date"
+                className="input w-full rounded-xl min-h-[2.75rem]"
+                value={holidayDate}
+                onChange={(e) => setHolidayDate(e.target.value)}
+                autoFocus
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="label">Name</label>
+              <input
+                type="text"
+                className="input w-full rounded-xl min-h-[2.75rem]"
+                value={holidayName}
+                onChange={(e) => setHolidayName(e.target.value)}
+                placeholder="e.g. Independence Day"
+              />
+            </div>
+            <div>
+              <label className="label">Type</label>
+              <AdminSelect
+                value={holidayPaid ? 'paid' : 'unpaid'}
+                onChange={(val) => setHolidayPaid(val === 'paid')}
+                options={[
+                  { value: 'paid', label: 'Paid holiday' },
+                  { value: 'unpaid', label: 'Unpaid holiday' },
+                ]}
+              />
+            </div>
+            <div className="sm:col-span-4 flex flex-col-reverse sm:flex-row gap-3 justify-end">
+              <button
+                type="button"
+                onClick={handleCancelAddHoliday}
+                className="btn-secondary rounded-xl min-h-[2.75rem] px-6"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleAddHoliday}
+                disabled={holidaySaving || !holidayDate || !holidayName.trim()}
+                className="btn-primary rounded-xl min-h-[2.75rem] px-6 disabled:opacity-60"
+              >
+                {holidaySaving ? 'Saving…' : 'Save holiday'}
+              </button>
+            </div>
           </div>
-          <div className="sm:col-span-2">
-            <label className="label">Name</label>
-            <input
-              type="text"
-              className="input w-full rounded-xl min-h-[2.75rem]"
-              value={holidayName}
-              onChange={(e) => setHolidayName(e.target.value)}
-              placeholder="e.g. Independence Day"
-            />
-          </div>
-          <div>
-            <label className="label">Type</label>
-            <AdminSelect
-              value={holidayPaid ? 'paid' : 'unpaid'}
-              onChange={(val) => setHolidayPaid(val === 'paid')}
-              options={[
-                { value: 'paid', label: 'Paid holiday' },
-                { value: 'unpaid', label: 'Unpaid holiday' },
-              ]}
-            />
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={handleAddHoliday}
-          disabled={holidaySaving || !holidayDate || !holidayName.trim()}
-          className="btn-primary rounded-xl min-h-[2.75rem] px-4 disabled:opacity-60"
-        >
-          {holidaySaving ? 'Saving…' : 'Add / Update holiday'}
-        </button>
-        <div className="mt-4 rounded-xl border border-surface-200/80 overflow-hidden">
-          <table className="w-full text-sm">
+        )}
+        <div className="mt-4 rounded-xl border border-surface-200/80 overflow-x-auto">
+          <table className="w-full min-w-[560px] text-sm">
             <thead className="bg-surface-50">
               <tr>
                 <th className="py-2 px-3 text-left">Date</th>

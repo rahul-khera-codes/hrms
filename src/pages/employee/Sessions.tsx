@@ -186,27 +186,27 @@ export default function EmployeeSessions() {
       </div>
 
       {sessions.length > 0 && (
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <p className="text-xs sm:text-sm text-surface-500">
             Showing {pageStart + 1}-{Math.min(pageStart + SESSIONS_PER_PAGE, sessions.length)} of {sessions.length}
           </p>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 w-full sm:w-auto">
             <button
               type="button"
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
               disabled={safeCurrentPage === 1}
-              className="btn-secondary rounded-xl min-h-[2.5rem] px-3 disabled:opacity-50"
+              className="btn-secondary rounded-xl min-h-[2.5rem] px-3 disabled:opacity-50 flex-1 sm:flex-none"
             >
               Previous
             </button>
-            <span className="text-xs sm:text-sm text-surface-600 min-w-[80px] text-center">
+            <span className="text-xs sm:text-sm text-surface-600 min-w-[80px] text-center flex-none">
               Page {safeCurrentPage} / {totalPages}
             </span>
             <button
               type="button"
               onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
               disabled={safeCurrentPage === totalPages}
-              className="btn-secondary rounded-xl min-h-[2.5rem] px-3 disabled:opacity-50"
+              className="btn-secondary rounded-xl min-h-[2.5rem] px-3 disabled:opacity-50 flex-1 sm:flex-none"
             >
               Next
             </button>

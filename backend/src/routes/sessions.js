@@ -287,13 +287,13 @@ router.post('/leave-requests', async (req, res) => {
       `SELECT id
        FROM leave_requests
        WHERE user_id = $1
-         AND status != 'rejected'
+         AND status = 'approved'
          AND NOT (end_date < $2::date OR start_date > $3::date)
        LIMIT 1`,
       [req.user.id, startDate, endDate]
     )
     if (overlap.rows.length > 0) {
-      return res.status(409).json({ error: 'Conflict', message: 'Overlapping leave request exists' })
+      return res.status(409).json({ error: 'Conflict', message: 'You have an approved leave during this period' })
     }
 
     const result = await query(

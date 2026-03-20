@@ -86,7 +86,7 @@ export default function EmployeeMySchedule() {
       </div>
 
       <div className="rounded-xl border border-surface-200/80 bg-white p-4 shadow-sm">
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3">
           <button type="button" onClick={prevWeek} className="p-2 rounded-xl border border-surface-200 hover:bg-surface-50" aria-label="Previous week">
             ←
           </button>
@@ -148,7 +148,7 @@ export default function EmployeeMySchedule() {
           {filteredEntries.map((e) => (
             <li
               key={e.id}
-              className="flex items-center gap-4 p-4 sm:p-5 rounded-xl border border-surface-200/80 bg-white transition-all hover:shadow-md hover:border-brand-200/80 min-w-0"
+              className="flex flex-col sm:flex-row sm:items-center gap-4 p-4 sm:p-5 rounded-xl border border-surface-200/80 bg-white transition-all hover:shadow-md hover:border-brand-200/80 min-w-0"
             >
               <div className="w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center shrink-0">
                 <CalendarDays className="w-5 h-5 text-brand-600" />
@@ -160,7 +160,7 @@ export default function EmployeeMySchedule() {
                   {e.clientName}
                 </p>
               </div>
-              <div className="flex items-center gap-3 text-xs sm:text-sm shrink-0">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-xs sm:text-sm shrink-0 self-start sm:self-auto">
                 <span className="text-surface-600">{e.date ? format(parseISO(e.date), 'EEE, d MMM') : '—'}</span>
                 <span className="flex items-center gap-1 text-surface-700">
                   <Clock className="w-4 h-4" />

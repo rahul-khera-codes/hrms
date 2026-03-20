@@ -14,7 +14,7 @@ router.get('/my-notifications', async (req, res) => {
       `SELECT id, type, title, message, data, is_read, created_at
        FROM notifications
        WHERE user_id = $1
-         AND type LIKE 'leave_%'
+         AND (type LIKE 'leave_%' OR type LIKE 'schedule_%')
        ORDER BY created_at DESC
        LIMIT 50`,
       [userId]
@@ -35,7 +35,7 @@ router.get('/unread-count', async (req, res) => {
        FROM notifications
        WHERE user_id = $1
          AND is_read = FALSE
-         AND type LIKE 'leave_%'`,
+         AND (type LIKE 'leave_%' OR type LIKE 'schedule_%')`,
       [userId]
     )
     res.json({ unreadCount: parseInt(result.rows[0].count, 10) })

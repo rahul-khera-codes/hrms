@@ -20,9 +20,9 @@ export function Navbar() {
     const fetchNotifications = async () => {
       try {
         const notifs = await fetchMyNotifications()
-        const leaveOnly = notifs.filter((n) => n.type.startsWith('leave_'))
-        setNotifications(leaveOnly)
-        setUnreadCount(leaveOnly.filter((n) => !n.is_read).length)
+        const filtered = notifs.filter((n) => n.type.startsWith('leave_') || n.type.startsWith('schedule_'))
+        setNotifications(filtered)
+        setUnreadCount(filtered.filter((n) => !n.is_read).length)
       } catch (err) {
         console.error('Failed to fetch notifications:', err)
       }
@@ -117,8 +117,8 @@ export function Navbar() {
   }
 
   return (
-    <div className="flex items-center justify-between bg-white border-b border-gray-200 px-6 py-3 shadow-sm">
-      <div className="text-xl font-semibold text-gray-800">HRMS</div>
+    <div className="flex items-center justify-between gap-3 bg-white border-b border-gray-200 px-3 sm:px-6 py-3 shadow-sm">
+      <div className="text-lg sm:text-xl font-semibold text-gray-800 truncate">HRMS</div>
 
       <div ref={notificationWrapRef} className="relative">
         <button
@@ -134,7 +134,7 @@ export function Navbar() {
         </button>
 
         {showNotifications && (
-          <div className="absolute right-0 mt-2 w-96 bg-white rounded-lg shadow-2xl z-50 max-h-96 overflow-hidden flex flex-col">
+          <div className="absolute right-0 mt-2 w-[min(24rem,calc(100vw-1rem))] sm:w-96 bg-white rounded-lg shadow-2xl z-50 max-h-96 overflow-hidden flex flex-col">
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b bg-gray-50">
               <h3 className="text-lg font-semibold text-gray-800">Notifications</h3>
@@ -161,7 +161,12 @@ export function Navbar() {
                   {notifications.map((notif) => (
                     <div
                       key={notif.id}
-                      className={`px-4 py-3 hover:bg-gray-50 transition-colors ${
+                      onClick={() => {
+                        if (!notif.is_read) {
+                          handleMarkAsRead(notif.id)
+                        }
+                      }}
+                      className={`px-4 py-3 hover:bg-gray-50 transition-colors cursor-pointer ${
                         !notif.is_read ? 'bg-blue-50' : ''
                       }`}
                     >
@@ -184,7 +189,10 @@ export function Navbar() {
                         <div className="flex items-center gap-1 flex-shrink-0">
                           {!notif.is_read && (
                             <button
-                              onClick={() => handleMarkAsRead(notif.id)}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleMarkAsRead(notif.id)
+                              }}
                               className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
                               title="Mark as read"
                             >
@@ -192,7 +200,10 @@ export function Navbar() {
                             </button>
                           )}
                           <button
-                            onClick={() => handleDelete(notif.id)}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleDelete(notif.id)
+                            }}
                             className="p-1 text-gray-400 hover:text-red-600 transition-colors"
                             title="Delete"
                           >

@@ -433,7 +433,7 @@ export default function AdminEmployees() {
             {paginatedEmployees.map((emp) => (
               <li
                 key={emp.id}
-                className="flex items-center gap-4 p-4 sm:p-5 rounded-xl border border-surface-200/80 bg-white transition-all hover:shadow-md hover:border-brand-200/80"
+                className="flex flex-col sm:flex-row sm:items-center gap-4 p-4 sm:p-5 rounded-xl border border-surface-200/80 bg-white transition-all hover:shadow-md hover:border-brand-200/80"
               >
                 <div className="w-10 h-10 rounded-xl bg-surface-100 flex items-center justify-center shrink-0">
                   <Users className="w-5 h-5 text-surface-600" />
@@ -457,7 +457,7 @@ export default function AdminEmployees() {
                     </p>
                   ) : null}
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 self-end sm:self-auto">
                   <button type="button" onClick={() => openEdit(emp)} className="p-2 rounded-lg text-surface-500 hover:bg-surface-100" title="Edit">
                     <Pencil className="w-4 h-4" />
                   </button>
@@ -469,27 +469,27 @@ export default function AdminEmployees() {
       </div>
 
       {filteredEmployees.length > 0 && (
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <p className="text-xs sm:text-sm text-surface-500">
             Showing {pageStart + 1}-{Math.min(pageStart + EMPLOYEES_PER_PAGE, filteredEmployees.length)} of {filteredEmployees.length}
           </p>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 w-full sm:w-auto">
             <button
               type="button"
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
               disabled={safeCurrentPage === 1}
-              className="btn-secondary rounded-xl min-h-[2.5rem] px-3 disabled:opacity-50"
+              className="btn-secondary rounded-xl min-h-[2.5rem] px-3 disabled:opacity-50 flex-1 sm:flex-none"
             >
               Previous
             </button>
-            <span className="text-xs sm:text-sm text-surface-600 min-w-[80px] text-center">
+            <span className="text-xs sm:text-sm text-surface-600 min-w-[80px] text-center flex-none">
               Page {safeCurrentPage} / {totalPages}
             </span>
             <button
               type="button"
               onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
               disabled={safeCurrentPage === totalPages}
-              className="btn-secondary rounded-xl min-h-[2.5rem] px-3 disabled:opacity-50"
+              className="btn-secondary rounded-xl min-h-[2.5rem] px-3 disabled:opacity-50 flex-1 sm:flex-none"
             >
               Next
             </button>
@@ -623,7 +623,7 @@ export default function AdminEmployees() {
                 </>
               )}
             </div>
-            <div className="mt-6 flex gap-3 justify-end">
+            <div className="mt-6 flex flex-col-reverse sm:flex-row gap-3 justify-end">
               <button type="button" onClick={() => setModal(null)} className="btn-secondary rounded-xl min-h-[2.75rem] px-4">Cancel</button>
               <button
                 type="button"

@@ -24,6 +24,8 @@ export default function AdminSelect({
 }: AdminSelectProps) {
   const [open, setOpen] = useState(false)
   const wrapperRef = useRef<HTMLDivElement | null>(null)
+  const buttonRef = useRef<HTMLButtonElement | null>(null)
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 })
   const selected = options.find((o) => o.value === value)
 
   useEffect(() => {
@@ -36,6 +38,17 @@ export default function AdminSelect({
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
+
+  useEffect(() => {
+    if (open && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect()
+      setDropdownPosition({
+        top: rect.bottom + window.scrollY,
+        left: rect.left + window.scrollX,
+        width: rect.width,
+      })
+    }
+  }, [open])
 
   const baseClass =
     'relative inline-block text-sm ' + (disabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer')
@@ -50,6 +63,7 @@ export default function AdminSelect({
   return (
     <div ref={wrapperRef} className={baseClass}>
       <button
+        ref={buttonRef}
         type="button"
         className={buttonClass}
         onClick={() => !disabled && setOpen((o) => !o)}
@@ -76,7 +90,14 @@ export default function AdminSelect({
         </span>
       </button>
       {open && !disabled && (
-        <div className="absolute z-30 mt-1 w-full rounded-xl border border-surface-200 bg-white shadow-lg max-h-60 overflow-auto">
+        <div
+          className="fixed z-50 rounded-xl border border-surface-200 bg-white shadow-lg max-h-60 overflow-auto"
+          style={{
+            top: `${dropdownPosition.top}px`,
+            left: `${dropdownPosition.left}px`,
+            width: `${dropdownPosition.width}px`,
+          }}
+        >
           <ul className="py-1 text-sm" role="listbox">
             {options.map((opt) => {
               const isActive = opt.value === value

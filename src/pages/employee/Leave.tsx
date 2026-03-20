@@ -327,7 +327,7 @@ export default function EmployeeLeave() {
           <button
             type="submit"
             disabled={saving}
-            className="btn-primary rounded-xl min-h-[2.75rem] px-4 inline-flex items-center gap-2 disabled:opacity-60"
+            className="btn-primary rounded-xl min-h-[2.75rem] px-4 inline-flex items-center justify-center gap-2 w-full sm:w-auto disabled:opacity-60"
           >
             <Send className="w-4 h-4" />
             {saving ? 'Submitting…' : 'Submit request'}
@@ -349,7 +349,7 @@ export default function EmployeeLeave() {
             {requests.map((r) => (
               <li
                 key={r.id}
-                className="flex items-center gap-4 p-4 sm:p-5 rounded-xl border border-surface-200/80 bg-white transition-all hover:shadow-md hover:border-brand-200/80"
+                className="flex flex-col sm:flex-row sm:items-center gap-4 p-4 sm:p-5 rounded-xl border border-surface-200/80 bg-white transition-all hover:shadow-md hover:border-brand-200/80"
               >
                 <div className="w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center shrink-0">
                   <CalendarCheck2 className="w-5 h-5 text-brand-600" />
@@ -365,7 +365,7 @@ export default function EmployeeLeave() {
                     <p className="text-xs text-surface-500 mt-0.5">Note: {r.reviewedNote}</p>
                   ) : null}
                 </div>
-                <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${statusColors[r.status] || 'bg-surface-100 text-surface-600'}`}>
+                <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium self-start sm:self-auto ${statusColors[r.status] || 'bg-surface-100 text-surface-600'}`}>
                   {r.status}
                 </span>
               </li>

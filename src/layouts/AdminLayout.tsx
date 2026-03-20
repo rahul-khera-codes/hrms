@@ -37,16 +37,17 @@ const nav = [
 export default function AdminLayout() {
   const { user, logout } = useAuth()
   const [collapsed, setCollapsed] = useState(false)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   return (
     <div className="h-screen overflow-hidden bg-surface-50 flex flex-col">
       <Navbar />
       <div className="flex-1 min-w-0 flex overflow-hidden">
         {/* Backdrop: only on small screens when sidebar is expanded */}
-        {!collapsed && (
+        {mobileMenuOpen && (
           <button
             type="button"
-            onClick={() => setCollapsed(true)}
+            onClick={() => setMobileMenuOpen(false)}
             className="fixed inset-0 z-40 bg-surface-900/50 md:hidden"
             aria-label="Close sidebar"
           />
@@ -54,8 +55,10 @@ export default function AdminLayout() {
       <aside
         className={clsx(
           'border-r border-surface-200 bg-white flex flex-col shrink-0 transition-[width,transform] duration-200 overflow-hidden z-50',
-          'md:relative md:z-auto',
-          collapsed ? 'w-[4.5rem]' : 'w-64 max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:shadow-xl max-md:w-64'
+          'fixed inset-y-0 left-0 w-64 shadow-xl -translate-x-full md:relative md:shadow-none md:translate-x-0',
+          mobileMenuOpen && 'translate-x-0',
+          collapsed && 'md:w-[4.5rem]',
+          !collapsed && 'md:w-64'
         )}
       >
         <div className={clsx('border-b border-surface-100 flex items-center', collapsed ? 'p-3 justify-center' : 'p-4 sm:p-6')}>
@@ -91,7 +94,7 @@ export default function AdminLayout() {
               key={to}
               to={to}
               end={to === '/admin/dashboard'}
-              onClick={() => { if (typeof window !== 'undefined' && window.innerWidth < 768) setCollapsed(true) }}
+              onClick={() => { if (typeof window !== 'undefined' && window.innerWidth < 768) setMobileMenuOpen(false) }}
               className={({ isActive }) =>
                 clsx(
                   'flex items-center rounded-lg text-sm font-medium transition-colors',
@@ -136,6 +139,14 @@ export default function AdminLayout() {
       </aside>
       <main className="flex-1 min-w-0 overflow-auto">
         <div className="max-w-6xl mx-auto p-4 sm:p-6 md:p-8">
+          <button
+            type="button"
+            onClick={() => setMobileMenuOpen(true)}
+            className="md:hidden inline-flex items-center gap-2 rounded-lg border border-surface-200 bg-white px-3 py-2 text-sm font-medium text-surface-700 mb-4"
+          >
+            <PanelLeft className="w-4 h-4" />
+            Menu
+          </button>
           <Outlet />
         </div>
       </main>
