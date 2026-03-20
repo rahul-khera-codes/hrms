@@ -52,7 +52,7 @@ export default function AdminPayrollCalendar() {
   }
 
   return (
-    <div className="space-y-6 sm:space-y-8 overflow-x-hidden">
+    <div className="space-y-6 sm:space-y-8">
       <div>
         <h1 className="text-xl sm:text-2xl font-semibold text-surface-900 tracking-tight">Payroll calendar</h1>
         <p className="text-surface-500 mt-1 text-xs sm:text-sm">Bi-weekly periods (DR) or pick a week on the calendar.</p>
@@ -64,7 +64,7 @@ export default function AdminPayrollCalendar() {
           Bi-weekly periods
         </h2>
         <p className="text-xs sm:text-sm text-surface-500 mb-4">Pay periods and pay dates per TSS calendar. Run payroll for a period.</p>
-        <div className="flex items-center gap-2 mb-4">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-4">
           <label className="label mb-0">Year</label>
           <div className="w-28">
             <AdminSelect
@@ -81,7 +81,7 @@ export default function AdminPayrollCalendar() {
           <div className="p-6 text-center text-surface-500 text-sm rounded-xl bg-surface-50/80 border border-surface-100">No bi-weekly periods loaded for this year. Use the calendar below to pick a week.</div>
         ) : (
           <div className="overflow-x-auto max-h-[320px] overflow-y-auto border border-surface-100 rounded-xl">
-            <table className="w-full text-sm border-collapse">
+            <table className="w-full min-w-[620px] text-sm border-collapse">
               <thead className="sticky top-0 bg-surface-50">
                 <tr>
                   <th className="py-3 px-4 text-left font-medium text-surface-700">Cycle</th>
@@ -114,11 +114,11 @@ export default function AdminPayrollCalendar() {
         )}
       </div>
 
-      <div className="rounded-xl sm:rounded-2xl border border-surface-200/80 bg-white p-5 sm:p-6 shadow-sm">
+      <div className="rounded-xl sm:rounded-2xl border border-surface-200/80 bg-white p-5 sm:p-6 shadow-sm min-w-0">
         <h2 className="text-base sm:text-lg font-bold text-surface-900 mb-0.5">Or pick a week on the calendar</h2>
         <p className="text-sm text-surface-500 mb-5">Select a week to set the pay period, then run payroll.</p>
 
-        <div className="flex items-center justify-between mb-5">
+        <div className="flex items-center justify-between gap-2 mb-5">
           <button
             type="button"
             onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
@@ -127,7 +127,7 @@ export default function AdminPayrollCalendar() {
           >
             <ChevronLeft className="w-5 h-5" />
           </button>
-          <p className="text-lg font-semibold text-surface-900 tabular-nums">{format(currentMonth, 'MMMM yyyy')}</p>
+          <p className="text-base sm:text-lg font-semibold text-surface-900 tabular-nums text-center">{format(currentMonth, 'MMMM yyyy')}</p>
           <button
             type="button"
             onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
@@ -139,7 +139,7 @@ export default function AdminPayrollCalendar() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full border-collapse" role="grid" aria-label="Calendar">
+          <table className="w-full min-w-[420px] border-collapse" role="grid" aria-label="Calendar">
             <thead>
               <tr>
                 {weekDayNames.map((day) => (
@@ -197,7 +197,7 @@ export default function AdminPayrollCalendar() {
             <button
               type="button"
               onClick={runPayroll}
-              className="btn-primary flex items-center justify-center gap-2 rounded-xl min-h-[2.75rem] px-4 mt-3 transition-all duration-200 hover:shadow-md active:scale-[0.98]"
+              className="btn-primary flex items-center justify-center gap-2 rounded-xl min-h-[2.75rem] px-4 mt-3 w-full sm:w-auto transition-all duration-200 hover:shadow-md active:scale-[0.98]"
             >
               <Calculator className="w-4 h-4 shrink-0" />
               Run payroll for this period

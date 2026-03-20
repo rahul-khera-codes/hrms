@@ -84,7 +84,7 @@ export default function AdminSchedule() {
   }
 
   return (
-    <div className="space-y-6 sm:space-y-8 overflow-x-hidden">
+    <div className="space-y-6 sm:space-y-8">
       <div>
         <h1 className="text-xl sm:text-2xl font-semibold text-surface-900 tracking-tight">Schedule</h1>
         <p className="text-surface-500 mt-1 text-xs sm:text-sm">Assign employees to shifts per BPO client by week.</p>
@@ -103,13 +103,13 @@ export default function AdminSchedule() {
               ]}
             />
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center justify-between sm:justify-start gap-2 w-full sm:w-auto">
             <button type="button" onClick={prevWeek} className="p-2 rounded-xl border border-surface-200 hover:bg-surface-50" aria-label="Previous week">
               <ChevronLeft className="w-5 h-5 text-surface-600" />
             </button>
-            <div className="flex items-center gap-2 min-w-[200px] justify-center">
+            <div className="flex items-center gap-2 min-w-0 justify-center flex-1 sm:flex-none sm:min-w-[200px]">
               <CalendarIcon className="w-5 h-5 text-surface-500" />
-              <span className="text-sm font-medium text-surface-900">
+              <span className="text-sm font-medium text-surface-900 text-center">
                 {format(weekDates[0], 'd MMM')} – {format(weekDates[6], 'd MMM yyyy')}
               </span>
             </div>
@@ -133,13 +133,14 @@ export default function AdminSchedule() {
           Loading schedule…
         </div>
       ) : (
-        <div className="rounded-xl sm:rounded-2xl border border-surface-200/80 bg-white shadow-sm overflow-x-auto">
-          <table className="w-full text-left text-sm border-collapse min-w-[600px]">
+        <div className="rounded-xl sm:rounded-2xl border border-surface-200/80 bg-white shadow-sm min-w-0">
+          <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm border-collapse min-w-[780px]">
             <thead>
               <tr className="border-b border-surface-200 bg-surface-50/80">
-                <th className="py-3 px-3 font-medium text-surface-700 sticky left-0 bg-surface-50/80 z-10 min-w-[120px]">Employee</th>
+                <th className="py-3 px-3 font-medium text-surface-700 md:sticky md:left-0 bg-surface-50/80 md:z-10 min-w-[140px]">Employee</th>
                 {weekDates.map((d) => (
-                  <th key={d.toISOString()} className="py-3 px-2 font-medium text-surface-700 text-center whitespace-nowrap">
+                  <th key={d.toISOString()} className="py-3 px-2 font-medium text-surface-700 text-center whitespace-nowrap min-w-[90px]">
                     {WEEKDAY_LABELS[d.getDay() === 0 ? 6 : d.getDay() - 1]}
                     <br />
                     <span className="text-xs font-normal text-surface-500">{format(d, 'd')}</span>
@@ -155,14 +156,14 @@ export default function AdminSchedule() {
               ) : (
                 employees.map((emp) => (
                   <tr key={emp.id} className="border-b border-surface-100 hover:bg-surface-50/50">
-                    <td className="py-2 px-3 font-medium text-surface-900 sticky left-0 bg-white z-10">{emp.name}</td>
+                    <td className="py-2 px-3 font-medium text-surface-900 md:sticky md:left-0 bg-white md:z-10 min-w-[140px]">{emp.name}</td>
                     {weekDates.map((d) => {
                       const dateStr = format(d, 'yyyy-MM-dd')
                       const a = getAssignment(emp.id, dateStr)
                       const key = `${emp.id}-${dateStr}`
                       const isUpdating = updating === key
                       return (
-                        <td key={dateStr} className="py-1 px-1 align-middle">
+                        <td key={dateStr} className="py-1 px-1 align-middle min-w-[90px]">
                           <AdminSelect
                             value={a?.shiftId ?? ''}
                             onChange={(val) => handleCellChange(emp.id, dateStr, val)}
@@ -171,7 +172,7 @@ export default function AdminSchedule() {
                               ...shifts.map((s) => ({ value: s.id, label: s.name })),
                             ]}
                             disabled={isUpdating}
-                            className="text-xs min-h-[2rem]"
+                            className="text-xs min-h-[2rem] w-full"
                           />
                         </td>
                       )
@@ -181,6 +182,7 @@ export default function AdminSchedule() {
               )}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>

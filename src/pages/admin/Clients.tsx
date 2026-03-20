@@ -113,7 +113,7 @@ export default function AdminClients() {
             {clients.map((c) => (
               <li
                 key={c.id}
-                className="flex items-center gap-4 p-4 sm:p-5 rounded-xl border border-surface-200/80 bg-white transition-all hover:shadow-md hover:border-brand-200/80"
+                className="flex flex-col sm:flex-row sm:items-center gap-4 p-4 sm:p-5 rounded-xl border border-surface-200/80 bg-white transition-all hover:shadow-md hover:border-brand-200/80"
               >
                 <div className="w-10 h-10 rounded-xl bg-surface-100 flex items-center justify-center shrink-0">
                   <Building2 className="w-5 h-5 text-surface-600" />
@@ -122,7 +122,7 @@ export default function AdminClients() {
                   <p className="font-medium text-surface-900">{c.name}</p>
                   {c.code && <p className="text-xs text-surface-500 mt-0.5">{c.code}</p>}
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 self-end sm:self-auto">
                   <button type="button" onClick={() => openEdit(c)} className="p-2 rounded-lg text-surface-500 hover:bg-surface-100" title="Edit">
                     <Pencil className="w-4 h-4" />
                   </button>
@@ -150,7 +150,7 @@ export default function AdminClients() {
                 <input type="text" className="input w-full rounded-xl min-h-[2.75rem]" value={code} onChange={(e) => setCode(e.target.value)} placeholder="e.g. BPO-01" />
               </div>
             </div>
-            <div className="mt-6 flex gap-3 justify-end">
+            <div className="mt-6 flex flex-col-reverse sm:flex-row gap-3 justify-end">
               <button type="button" onClick={() => setModal(null)} className="btn-secondary rounded-xl min-h-[2.75rem] px-4">Cancel</button>
               <button type="button" onClick={handleSave} disabled={saving || !name.trim()} className="btn-primary rounded-xl min-h-[2.75rem] px-4 disabled:opacity-60">
                 {saving ? 'Saving…' : 'Save'}
