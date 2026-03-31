@@ -1,10 +1,11 @@
 import { query } from '../config/db.js'
 import { computeSSEmployeeBiWeekly, computeTaxForPeriod } from './drPayrollRules.js'
 
+const WEEKLY_44_THRESHOLD = 44
 const OT_35_CAP_HOURS_PER_WEEK = 19
 const WEEKLY_63_THRESHOLD = 63
 const OT_100_MULTIPLIER = 2
-const WORK_DAY_JS = [1, 2, 3, 4, 5]
+const BIWEEKLY_OT35_CAP_HOURS = 38
 
 export function listDateStrings(fromDate, toDate) {
   const dates = []
@@ -25,12 +26,28 @@ function getWeekMondayKey(dateStr) {
   return d.toISOString().slice(0, 10)
 }
 
-function isWorkday(dateStr) {
+/**
+ * Check if a date is a scheduled workday for the employee.
+ * scheduledDates is a Set of date strings where the employee has schedule assignments.
+ * If no schedule data exists, fall back to Mon-Fri.
+ */
+function isScheduledWorkday(dateStr, scheduledDates) {
+  if (scheduledDates && scheduledDates.size > 0) {
+    return scheduledDates.has(dateStr)
+  }
   const d = new Date(dateStr + 'T12:00:00Z')
-  return WORK_DAY_JS.includes(d.getUTCDay())
+  return [1, 2, 3, 4, 5].includes(d.getUTCDay())
 }
 
-function computePayrollBuckets(sessions) {
+/**
+ * Compute OT buckets per week with:
+ * - Schedule-based rest day detection
+ * - 44hr/week threshold for OT35
+ * - 63hr/week threshold for OT100
+ * - 19hr/week cap on OT35
+ * - 38hr bi-weekly cap on OT35
+ */
+function computePayrollBuckets(sessions, scheduledDates) {
   const byWeek = new Map()
   for (const s of sessions) {
     const dateStr = s.date
@@ -40,9 +57,11 @@ function computePayrollBuckets(sessions) {
       byWeek.set(weekKey, { regularMinutes: 0, restDayMinutes: 0, totalMinutes: 0 })
     }
     const row = byWeek.get(weekKey)
-    const sessionMinutes = (s.regular_minutes || 0) + (s.overtime_minutes || 0) + (s.night_minutes || 0)
+    // Night minutes overlap with regular/OT (same hours, just flagged for the 15% premium).
+    // Total session duration = regular + overtime only (night is a subset, not additive).
+    const sessionMinutes = (s.regular_minutes || 0) + (s.overtime_minutes || 0)
     row.totalMinutes += sessionMinutes
-    if (isWorkday(dateStr)) {
+    if (isScheduledWorkday(dateStr, scheduledDates)) {
       row.regularMinutes += s.regular_minutes || 0
     } else {
       row.restDayMinutes += sessionMinutes
@@ -55,11 +74,22 @@ function computePayrollBuckets(sessions) {
     const totalHrs = row.totalMinutes / 60
     const regularHrs = row.regularMinutes / 60
     const restDayHrs = row.restDayMinutes / 60
+    // OT100: rest day hours + anything beyond 63hrs/week
     const ot100Hrs = restDayHrs + Math.max(0, totalHrs - WEEKLY_63_THRESHOLD)
-    const ot35Hrs = Math.min(OT_35_CAP_HOURS_PER_WEEK, Math.max(0, totalHrs - regularHrs - ot100Hrs))
+    // OT35: hours beyond 44hrs/week (on workdays) that aren't OT100, capped at 19hrs/week
+    const workdayHrs = totalHrs - restDayHrs
+    const ot35FromThreshold = Math.max(0, workdayHrs - WEEKLY_44_THRESHOLD)
+    const ot35FromRemaining = Math.max(0, totalHrs - regularHrs - ot100Hrs)
+    const ot35Hrs = Math.min(OT_35_CAP_HOURS_PER_WEEK, Math.max(ot35FromThreshold, ot35FromRemaining))
     regularMinutes += row.regularMinutes
     ot35Minutes += Math.round(ot35Hrs * 60)
     ot100Minutes += Math.round(ot100Hrs * 60)
+  }
+  // Bi-weekly cap: OT35 cannot exceed 38 hours per pay period
+  const ot35Hours = ot35Minutes / 60
+  if (ot35Hours > BIWEEKLY_OT35_CAP_HOURS) {
+    const excessMinutes = Math.round((ot35Hours - BIWEEKLY_OT35_CAP_HOURS) * 60)
+    ot35Minutes -= excessMinutes
   }
   return { regularMinutes, ot35Minutes, ot100Minutes }
 }
@@ -138,19 +168,35 @@ export async function buildPayrollEmployeeRow(
     overtime_minutes: r.overtime_minutes ?? 0,
     night_minutes: r.night_minutes ?? 0,
   })).filter((s) => s.date && !approvedLeaveDateSet.has(s.date))
-  const { regularMinutes, ot35Minutes, ot100Minutes } = computePayrollBuckets(sessions)
+
+  // Fetch schedule assignments to determine scheduled workdays vs rest days
+  const scheduleResult = await query(
+    `SELECT a.date::text AS date_str
+     FROM schedule_assignments a
+     WHERE a.user_id = $1
+       AND a.date >= $2::date
+       AND a.date <= $3::date`,
+    [emp.id, fromDate, toDate]
+  )
+  const scheduledDates = new Set(
+    scheduleResult.rows.map((r) => r.date_str ? r.date_str.slice(0, 10) : '').filter(Boolean)
+  )
+
+  const { regularMinutes, ot35Minutes, ot100Minutes } = computePayrollBuckets(sessions, scheduledDates)
   const nightMinutes = sessions.reduce((sum, s) => sum + (s.night_minutes || 0), 0)
   const regularHours = Math.round((regularMinutes / 60) * 10) / 10
   const ot35Hours = Math.round((ot35Minutes / 60) * 10) / 10
   const ot100Hours = Math.round((ot100Minutes / 60) * 10) / 10
   const nightHours = Math.round((nightMinutes / 60) * 10) / 10
-  const totalHours = regularHours + ot35Hours + ot100Hours + nightHours
+  // Night hours are already counted inside regular/OT — totalHours should not double-count
+  const totalHours = regularHours + ot35Hours + ot100Hours
   const rate = getHourlyRate(emp.salary_type, emp.base_salary, settings.workingDaysPerMonth, settings.hoursPerDay)
 
   const workedMinutesByDate = new Map()
   for (const s of sessions) {
     if (!s.date) continue
-    const mins = (s.regular_minutes || 0) + (s.overtime_minutes || 0) + (s.night_minutes || 0)
+    // Night is a subset of regular+OT, not additive
+    const mins = (s.regular_minutes || 0) + (s.overtime_minutes || 0)
     workedMinutesByDate.set(s.date, (workedMinutesByDate.get(s.date) || 0) + mins)
   }
 
@@ -186,9 +232,15 @@ export async function buildPayrollEmployeeRow(
     holidayBaseTopUpMinutes += Math.max(0, scheduled - worked)
   }
 
+  // Holiday pay: all scheduled employees get base pay for their shift.
+  // Those who actually work get an ADDITIONAL 100% of hourly rate per worked hour (double day).
+  // holidayBaseTopUpPay covers the scheduled-but-not-worked portion at 1x rate
+  // holidayWorkedBasePay covers the scheduled portion for worked hours at 1x rate
+  // holidayWorkedPremiumPay is the extra 100% premium for actually working
   const holidayBaseTopUpPay = (holidayBaseTopUpMinutes / 60) * rate
-  const holidayPremiumPay = (holidayWorkedMinutes / 60) * rate
-  const holidayPay = holidayBaseTopUpPay + holidayPremiumPay
+  const holidayWorkedBasePay = (holidayWorkedMinutes / 60) * rate
+  const holidayWorkedPremiumPay = (holidayWorkedMinutes / 60) * rate
+  const holidayPay = holidayBaseTopUpPay + holidayWorkedBasePay + holidayWorkedPremiumPay
 
   const leavePayRows = await query(
     `SELECT start_date::text AS sd, end_date::text AS ed, COALESCE(leave_payable_amount, 0) AS amt
@@ -219,7 +271,11 @@ export async function buildPayrollEmployeeRow(
   const regularPay = regularHours * rate
   const ot35Pay = ot35Hours * rate * settings.otMultiplier
   const ot100Pay = ot100Hours * rate * OT_100_MULTIPLIER
-  const nightPay = nightHours * rate * settings.nightMultiplier
+  // Night differential is the EXTRA premium only (e.g., 0.15 for 15%).
+  // Night hours are already counted in regular/OT pay above.
+  // nightMultiplier from settings is stored as 1.15, so subtract 1 to get just the premium.
+  const nightDiffRate = settings.nightMultiplier - 1
+  const nightPay = nightHours * rate * nightDiffRate
   const grossPay = regularPay + ot35Pay + ot100Pay + nightPay + holidayPay + leavePayTotal
   const items = lineItemsByUser[emp.id] || []
   let additionsTotal = 0

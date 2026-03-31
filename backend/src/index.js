@@ -53,6 +53,29 @@ try {
   `)
   await pool.query('CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions (user_id)')
   await pool.query('CREATE INDEX IF NOT EXISTS idx_sessions_clock_in ON sessions (clock_in)')
+  // Attendance module columns on sessions table
+  try {
+    await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS shift_start TIMESTAMPTZ`)
+    await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS shift_end TIMESTAMPTZ`)
+    await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS location VARCHAR(20)`)
+    await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS stage VARCHAR(20)`)
+    await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS task VARCHAR(50)`)
+    await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS status_override VARCHAR(30)`)
+    await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS pay_type VARCHAR(20) DEFAULT 'Regular'`)
+    await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS bill_type VARCHAR(20) DEFAULT 'Regular'`)
+    await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS comments TEXT`)
+    await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS scheduled_minutes INTEGER DEFAULT 0`)
+    await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS actual_minutes INTEGER DEFAULT 0`)
+    await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS dbt_minutes INTEGER DEFAULT 0`)
+    await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS holiday_name VARCHAR(100)`)
+    await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS reg_hours DECIMAL(8,2) DEFAULT 0`)
+    await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS n15_hours DECIMAL(8,2) DEFAULT 0`)
+    await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS x35_hours DECIMAL(8,2) DEFAULT 0`)
+    await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS x100_hours DECIMAL(8,2) DEFAULT 0`)
+    await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS hol_hours DECIMAL(8,2) DEFAULT 0`)
+  } catch (e) {
+    if (e.code !== '42701') console.warn('sessions attendance columns migration:', e.message)
+  }
   try {
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS salary_type VARCHAR(10) DEFAULT 'hourly'`)
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS base_salary DECIMAL(12,2) DEFAULT 0`)
@@ -112,6 +135,23 @@ try {
       updated_at TIMESTAMPTZ DEFAULT NOW()
     )
   `)
+  // Engagement details columns on employees table (must be after clients table exists)
+  try {
+    await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS cmid INTEGER`)
+    await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS harmony_id VARCHAR(20)`)
+    await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS contract_type VARCHAR(20) DEFAULT 'employee'`)
+    await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS hire_date DATE`)
+    await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS location VARCHAR(20)`)
+    await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS department VARCHAR(50)`)
+    await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS primary_client_id UUID REFERENCES clients(id) ON DELETE SET NULL`)
+    await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS job_title VARCHAR(50)`)
+    await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS reports_to UUID REFERENCES users(id) ON DELETE SET NULL`)
+    await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS contract_status VARCHAR(20) DEFAULT 'active'`)
+    await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS termination_date DATE`)
+    await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_employees_cmid ON employees (cmid) WHERE cmid IS NOT NULL`)
+  } catch (e) {
+    if (e.code !== '42701') console.warn('employees engagement columns migration:', e.message)
+  }
   await pool.query(`
     CREATE TABLE IF NOT EXISTS shifts (
       id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -184,8 +224,22 @@ try {
     await pool.query(`ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS leave_daily_hours DECIMAL(8,2)`)
     await pool.query(`ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS leave_daily_salary DECIMAL(14,4)`)
     await pool.query(`ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS leave_payable_amount DECIMAL(14,2)`)
+    await pool.query(`ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS leave_category VARCHAR(32)`)
+    await pool.query(`ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS return_date DATE`)
+    await pool.query(`ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS start_time TIME`)
+    await pool.query(`ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS end_time TIME`)
+    await pool.query(`ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS return_time TIME`)
   } catch (e) {
     if (e.code !== '42701') console.warn('leave_requests pay columns migration:', e.message)
+  }
+  try {
+    await pool.query(`ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS hourly_rate_input DECIMAL(14,4)`)
+    await pool.query(`ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS daily_hours_input DECIMAL(8,2)`)
+    await pool.query(`ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS monthly_rate_input DECIMAL(14,2)`)
+    await pool.query(`ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS asset_deactivation VARCHAR(255)`)
+    await pool.query(`ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS payroll_cycle_code VARCHAR(20)`)
+  } catch (e) {
+    if (e.code !== '42701') console.warn('leave_requests admin create columns migration:', e.message)
   }
   await pool.query(`
     CREATE TABLE IF NOT EXISTS payroll_line_items (

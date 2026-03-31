@@ -11,30 +11,26 @@ import { createNotification } from './notifications.js'
 const router = express.Router()
 
 /**
- * Map aggregated row (one per employee per day) to AttendanceRecord shape.
- * clockIn = first punch of day, clockOut = last punch of day.
+ * Map attendance row to full AttendanceRecord with all client-required fields.
  */
 function toAttendanceRecord(row) {
-  const clockIn = row.first_clock_in
-  const clockOut = row.last_clock_out
+  const clockIn = row.first_clock_in || row.clock_in
+  const clockOut = row.last_clock_out || row.clock_out
   const hasActive = row.has_active_session
-  const status = hasActive ? 'active' : 'present'
   const regularMinutes = Number(row.regular_minutes ?? 0)
   const overtimeMinutes = Number(row.overtime_minutes ?? 0)
   const nightMinutes = Number(row.night_minutes ?? 0)
-  const preciseTotalMinutes = Number(row.precise_total_minutes)
-  const allBucketsZero = regularMinutes === 0 && overtimeMinutes === 0 && nightMinutes === 0
+  const preciseTotalMinutes = Number(row.precise_total_minutes || 0)
 
   let regularHours = regularMinutes / 60
   let overtimeHours = overtimeMinutes / 60
   let nightHours = nightMinutes / 60
 
-  // For normal day sessions (no OT/Night), use exact elapsed duration so admin matches employee-side totals.
   if (!hasActive && overtimeMinutes === 0 && nightMinutes === 0 && Number.isFinite(preciseTotalMinutes) && preciseTotalMinutes > 0) {
     regularHours = preciseTotalMinutes / 60
   }
 
-  // Fallback for very short sessions that persisted as zero minute buckets.
+  const allBucketsZero = regularMinutes === 0 && overtimeMinutes === 0 && nightMinutes === 0
   if (!hasActive && allBucketsZero && clockIn && clockOut) {
     const startMs = new Date(clockIn).getTime()
     const endMs = new Date(clockOut).getTime()
@@ -42,18 +38,85 @@ function toAttendanceRecord(row) {
       regularHours = (endMs - startMs) / 3600000
     }
   }
+
   const date = row.date ?? (clockIn ? new Date(clockIn).toISOString().slice(0, 10) : '')
+
+  // Auto-detect status from shift vs clock comparison
+  let autoStatus = hasActive ? 'active' : 'present'
+  const shiftStart = row.shift_start || null
+  const shiftEnd = row.shift_end || null
+  if (!hasActive && clockIn && shiftStart) {
+    const clockInMs = new Date(clockIn).getTime()
+    const shiftStartMs = new Date(shiftStart).getTime()
+    const shiftEndMs = shiftEnd ? new Date(shiftEnd).getTime() : null
+    const clockOutMs = clockOut ? new Date(clockOut).getTime() : null
+    const lateThreshold = 5 * 60 * 1000 // 5 minutes
+    const isLate = clockInMs - shiftStartMs > lateThreshold
+    const isEarlyOut = clockOutMs && shiftEndMs && (shiftEndMs - clockOutMs > lateThreshold)
+    if (isLate && isEarlyOut) autoStatus = 'late_in_early_out'
+    else if (isLate) autoStatus = 'late_in'
+    else if (isEarlyOut) autoStatus = 'early_out'
+  }
+  if (!clockIn && !hasActive) autoStatus = 'absent'
+
+  const status = row.status_override || autoStatus
+
+  // Scheduled hours (shift end - shift start)
+  let scheduledHours = Number(row.scheduled_minutes ?? 0) / 60
+  if (scheduledHours === 0 && shiftStart && shiftEnd) {
+    scheduledHours = (new Date(shiftEnd).getTime() - new Date(shiftStart).getTime()) / 3600000
+  }
+
+  // Actual hours (clock out - clock in)
+  let actualHours = Number(row.actual_minutes ?? 0) / 60
+  if (actualHours === 0 && clockIn && clockOut) {
+    actualHours = (new Date(clockOut).getTime() - new Date(clockIn).getTime()) / 3600000
+  }
+
+  // DBT: Deductible Break Time — 15 min per 2 hrs, 30 min per 4 hrs
+  // Dominican law: for 8hr shift = 1hr break, 4.5hr = 30min, etc.
+  let dbtHours = Number(row.dbt_minutes ?? 0) / 60
+  if (dbtHours === 0 && actualHours > 0) {
+    if (actualHours >= 8) dbtHours = 1
+    else if (actualHours >= 6) dbtHours = 0.75
+    else if (actualHours >= 4) dbtHours = 0.5
+    else if (actualHours >= 2) dbtHours = 0.25
+    else dbtHours = 0
+  }
+
   return {
     id: row.id,
+    sessionId: row.session_id || row.id,
     employeeId: row.user_id,
     employeeName: row.user_name ?? '',
     date,
+    shiftStart: shiftStart || null,
+    shiftEnd: shiftEnd || null,
     clockIn: clockIn || null,
     clockOut: clockOut || null,
+    location: row.location || null,
+    stage: row.stage || null,
+    reportsTo: row.reports_to_name || null,
+    task: row.task || null,
+    status,
+    payType: row.pay_type || 'Regular',
+    billType: row.bill_type || 'Regular',
+    scheduledHours: Math.round(scheduledHours * 100) / 100,
+    actualHours: Math.round(actualHours * 100) / 100,
+    dbtHours: Math.round(dbtHours * 100) / 100,
+    holidayName: row.holiday_name || null,
+    regHours: row.reg_hours != null ? Number(row.reg_hours) : Math.round(regularHours * 100) / 100,
+    n15Hours: row.n15_hours != null ? Number(row.n15_hours) : Math.round(nightHours * 100) / 100,
+    x35Hours: row.x35_hours != null ? Number(row.x35_hours) : Math.round(overtimeHours * 100) / 100,
+    x100Hours: row.x100_hours != null ? Number(row.x100_hours) : 0,
+    holHours: row.hol_hours != null ? Number(row.hol_hours) : 0,
+    comments: row.comments || '',
+    accountName: row.account_name || null,
+    employeeCmid: row.employee_cmid != null ? Number(row.employee_cmid) : null,
+    // Keep old fields for backward compatibility
     regularHours,
     overtimeHours,
     nightHours,
-    status,
   }
 }
 
@@ -120,24 +183,38 @@ router.get('/dashboard', async (req, res) => {
 })
 
 // GET /api/admin/attendance?from=YYYY-MM-DD&to=YYYY-MM-DD&search=&status=
-// Returns one row per employee per day with total hours (first clock-in, last clock-out).
+// Returns one row per session (individual clock-in/out) with all attendance fields.
 router.get('/attendance', async (req, res) => {
   try {
     const { from, to, search, status: statusFilter } = req.query
     let sql = `
       SELECT
+        s.id AS session_id,
         u.id AS user_id,
         u.name AS user_name,
         (s.clock_in AT TIME ZONE 'UTC')::date AS date,
-        MIN(s.clock_in) AS first_clock_in,
-        MAX(s.clock_out) AS last_clock_out,
-        COALESCE(SUM(s.regular_minutes), 0)::int AS regular_minutes,
-        COALESCE(SUM(s.overtime_minutes), 0)::int AS overtime_minutes,
-        COALESCE(SUM(s.night_minutes), 0)::int AS night_minutes,
-        COALESCE(SUM(CASE WHEN s.clock_out IS NOT NULL THEN EXTRACT(EPOCH FROM (s.clock_out - s.clock_in)) / 60.0 ELSE 0 END), 0) AS precise_total_minutes,
-        BOOL_OR(s.clock_out IS NULL) AS has_active_session
+        s.clock_in AS first_clock_in,
+        s.clock_out AS last_clock_out,
+        COALESCE(s.regular_minutes, 0)::int AS regular_minutes,
+        COALESCE(s.overtime_minutes, 0)::int AS overtime_minutes,
+        COALESCE(s.night_minutes, 0)::int AS night_minutes,
+        CASE WHEN s.clock_out IS NOT NULL THEN EXTRACT(EPOCH FROM (s.clock_out - s.clock_in)) / 60.0 ELSE 0 END AS precise_total_minutes,
+        (s.clock_out IS NULL) AS has_active_session,
+        s.shift_start, s.shift_end,
+        COALESCE(s.location, e.location) AS location,
+        COALESCE(s.stage, 'Production') AS stage,
+        s.task, s.status_override, s.pay_type, s.bill_type, s.comments,
+        s.scheduled_minutes, s.actual_minutes, s.dbt_minutes,
+        s.holiday_name,
+        s.reg_hours, s.n15_hours, s.x35_hours, s.x100_hours, s.hol_hours,
+        mgr.name AS reports_to_name,
+        c.name AS account_name,
+        e.cmid AS employee_cmid
       FROM sessions s
       JOIN users u ON u.id = s.user_id AND u.role = 'employee'
+      LEFT JOIN employees e ON e.user_id = u.id
+      LEFT JOIN users mgr ON mgr.id = e.reports_to
+      LEFT JOIN clients c ON c.id = e.primary_client_id
       WHERE 1=1
     `
     const params = []
@@ -154,14 +231,13 @@ router.get('/attendance', async (req, res) => {
       sql += ` AND u.name ILIKE $${params.length}`
     }
     sql += `
-      GROUP BY u.id, u.name, (s.clock_in AT TIME ZONE 'UTC')::date
-      ORDER BY date DESC, u.name
+      ORDER BY s.clock_in DESC
       LIMIT 500
     `
     const result = await query(sql, params)
     let records = result.rows.map((row) => {
       const dateStr = row.date ? new Date(row.date).toISOString().slice(0, 10) : ''
-      return toAttendanceRecord({ ...row, id: `${row.user_id}-${dateStr}` })
+      return toAttendanceRecord({ ...row, id: row.session_id || `${row.user_id}-${dateStr}`, date: dateStr })
     })
 
     const today = new Date().toISOString().slice(0, 10)
@@ -291,6 +367,214 @@ router.get('/attendance', async (req, res) => {
   }
 })
 
+// PATCH /api/admin/attendance/:sessionId — admin edits attendance record fields
+router.patch('/attendance/:sessionId', async (req, res) => {
+  try {
+    const { sessionId } = req.params
+    const {
+      statusOverride, payType, billType, task, stage,
+      location, comments, shiftStart, shiftEnd
+    } = req.body
+
+    const session = await query('SELECT id FROM sessions WHERE id = $1', [sessionId])
+    if (!session.rows.length) {
+      return res.status(404).json({ error: 'Not found', message: 'Session not found' })
+    }
+
+    const updates = []
+    const params = []
+    let i = 1
+
+    if (statusOverride !== undefined) { updates.push(`status_override = $${i++}`); params.push(statusOverride || null) }
+    if (payType !== undefined) { updates.push(`pay_type = $${i++}`); params.push(payType || 'Regular') }
+    if (billType !== undefined) { updates.push(`bill_type = $${i++}`); params.push(billType || 'Regular') }
+    if (task !== undefined) { updates.push(`task = $${i++}`); params.push(task || null) }
+    if (stage !== undefined) { updates.push(`stage = $${i++}`); params.push(stage || null) }
+    if (location !== undefined) { updates.push(`location = $${i++}`); params.push(location || null) }
+    if (comments !== undefined) { updates.push(`comments = $${i++}`); params.push(comments || null) }
+    if (shiftStart !== undefined) { updates.push(`shift_start = $${i++}`); params.push(shiftStart || null) }
+    if (shiftEnd !== undefined) { updates.push(`shift_end = $${i++}`); params.push(shiftEnd || null) }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'Bad request', message: 'No fields to update' })
+    }
+
+    params.push(sessionId)
+    await query(`UPDATE sessions SET ${updates.join(', ')} WHERE id = $${i}`, params)
+
+    // Re-fetch the updated record with joins
+    const updated = await query(
+      `SELECT s.id AS session_id, u.id AS user_id, u.name AS user_name,
+              (s.clock_in AT TIME ZONE 'UTC')::date AS date,
+              s.clock_in AS first_clock_in, s.clock_out AS last_clock_out,
+              COALESCE(s.regular_minutes, 0)::int AS regular_minutes,
+              COALESCE(s.overtime_minutes, 0)::int AS overtime_minutes,
+              COALESCE(s.night_minutes, 0)::int AS night_minutes,
+              CASE WHEN s.clock_out IS NOT NULL THEN EXTRACT(EPOCH FROM (s.clock_out - s.clock_in)) / 60.0 ELSE 0 END AS precise_total_minutes,
+              (s.clock_out IS NULL) AS has_active_session,
+              s.shift_start, s.shift_end,
+              COALESCE(s.location, e.location) AS location,
+              COALESCE(s.stage, 'Production') AS stage,
+              s.task, s.status_override, s.pay_type, s.bill_type, s.comments,
+              s.scheduled_minutes, s.actual_minutes, s.dbt_minutes, s.holiday_name,
+              s.reg_hours, s.n15_hours, s.x35_hours, s.x100_hours, s.hol_hours,
+              mgr.name AS reports_to_name, c.name AS account_name, e.cmid AS employee_cmid
+       FROM sessions s
+       JOIN users u ON u.id = s.user_id
+       LEFT JOIN employees e ON e.user_id = u.id
+       LEFT JOIN users mgr ON mgr.id = e.reports_to
+       LEFT JOIN clients c ON c.id = e.primary_client_id
+       WHERE s.id = $1`,
+      [sessionId]
+    )
+    if (!updated.rows.length) {
+      return res.status(404).json({ error: 'Not found' })
+    }
+    const row = updated.rows[0]
+    const dateStr = row.date ? new Date(row.date).toISOString().slice(0, 10) : ''
+    res.json(toAttendanceRecord({ ...row, id: row.session_id, date: dateStr }))
+  } catch (err) {
+    console.error('Admin update attendance error:', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// POST /api/admin/leave-requests — admin creates leave on behalf of employee
+router.post('/leave-requests', async (req, res) => {
+  try {
+    const {
+      employeeId, leaveType, leaveCategory, calculationType,
+      payableDays, hourlyRate, dailyHours, monthlyRate,
+      associateDaysOff, startDate, endDate, returnDate,
+      startTime, endTime, returnTime,
+      assetDeactivation, payrollCycleCode, reason
+    } = req.body
+
+    if (!employeeId || !startDate || !endDate) {
+      return res.status(400).json({ error: 'Bad request', message: 'employeeId, startDate and endDate are required' })
+    }
+
+    const type = leaveType === 'paid' ? 'paid' : 'unpaid'
+    const category = leaveCategory || null
+    const calcType = calculationType && ['non_payable', 'hourly_salary', 'monthly_salary'].includes(calculationType)
+      ? calculationType : 'non_payable'
+
+    // Compute pay snapshot
+    const empResult = await query(
+      `SELECT COALESCE(e.salary_type, u.salary_type) AS salary_type,
+              COALESCE(e.base_salary, u.base_salary) AS base_salary
+       FROM users u LEFT JOIN employees e ON e.user_id = u.id WHERE u.id = $1`,
+      [employeeId]
+    )
+    const emp = empResult.rows[0]
+    const settings = await getSettings()
+
+    let dailySalary = 0
+    let payableAmount = 0
+    const pd = Math.max(0, Number(payableDays) || 0)
+
+    if (calcType === 'hourly_salary') {
+      const hr = Number(hourlyRate) || 0
+      const dh = Number(dailyHours) || 0
+      dailySalary = hr * dh
+      payableAmount = Math.round(dailySalary * pd * 100) / 100
+    } else if (calcType === 'monthly_salary') {
+      const mr = Number(monthlyRate) || 0
+      dailySalary = mr / (settings.workingDaysPerMonth || 23.83)
+      payableAmount = Math.round(dailySalary * pd * 100) / 100
+    }
+    dailySalary = Math.round(dailySalary * 10000) / 10000
+
+    // Determine hourly rate for snapshot
+    const salaryType = emp?.salary_type === 'monthly' ? 'monthly' : 'hourly'
+    const baseSalary = Number(emp?.base_salary) || 0
+    const snapshotHourlyRate = salaryType === 'monthly'
+      ? baseSalary / (settings.workingDaysPerMonth || 23.83) / (settings.hoursPerDay || 8)
+      : baseSalary
+
+    const assocStr = Array.isArray(associateDaysOff)
+      ? associateDaysOff.map(d => String(d).trim()).filter(Boolean).join(', ') || null
+      : (associateDaysOff || null)
+    const assetStr = Array.isArray(assetDeactivation)
+      ? assetDeactivation.filter(Boolean).join(', ') || null
+      : (assetDeactivation || null)
+
+    const result = await query(
+      `INSERT INTO leave_requests (
+         user_id, leave_type, start_date, end_date, reason, status,
+         leave_category, leave_calculation_type, leave_associate_days_off,
+         return_date, start_time, end_time, return_time,
+         leave_payable_days, leave_hourly_rate, leave_daily_hours, leave_daily_salary, leave_payable_amount,
+         hourly_rate_input, daily_hours_input, monthly_rate_input,
+         asset_deactivation, payroll_cycle_code,
+         reviewed_by, reviewed_at
+       ) VALUES (
+         $1, $2, $3::date, $4::date, $5, 'approved',
+         $6, $7, $8,
+         $9::date, $10::time, $11::time, $12::time,
+         $13, $14, $15, $16, $17,
+         $18, $19, $20,
+         $21, $22,
+         $23, NOW()
+       )
+       RETURNING id, leave_type, start_date::text AS start_date_str, end_date::text AS end_date_str,
+         reason, status, created_at, leave_category, leave_calculation_type, leave_associate_days_off,
+         return_date::text AS return_date_str, start_time::text, end_time::text, return_time::text,
+         leave_payable_days, leave_payable_amount, leave_daily_salary,
+         hourly_rate_input, daily_hours_input, monthly_rate_input,
+         asset_deactivation, payroll_cycle_code`,
+      [
+        employeeId, type, startDate, endDate, reason ? String(reason).trim() : null,
+        category, calcType, assocStr,
+        returnDate || null, startTime || null, endTime || null, returnTime || null,
+        pd, Math.round(snapshotHourlyRate * 10000) / 10000, Number(dailyHours) || settings.hoursPerDay, dailySalary, payableAmount,
+        Number(hourlyRate) || null, Number(dailyHours) || null, Number(monthlyRate) || null,
+        assetStr, payrollCycleCode || null,
+        req.user.id
+      ]
+    )
+    const r = result.rows[0]
+
+    // Send notification to employee
+    try {
+      await query(
+        `INSERT INTO notifications (user_id, type, title, message, data) VALUES ($1, $2, $3, $4, $5)`,
+        [employeeId, 'leave_request_approved', 'Leave Created',
+         `A ${type} leave has been created for you from ${startDate} to ${endDate}.`,
+         JSON.stringify({ leaveRequestId: r.id, leaveType: type, startDate, endDate })]
+      )
+    } catch(_) {}
+
+    res.status(201).json({
+      id: r.id,
+      leaveType: r.leave_type,
+      startDate: r.start_date_str?.slice(0, 10) ?? null,
+      endDate: r.end_date_str?.slice(0, 10) ?? null,
+      reason: r.reason || '',
+      status: r.status,
+      createdAt: r.created_at,
+      leaveCategory: r.leave_category || null,
+      calculationType: r.leave_calculation_type || null,
+      associateDaysOff: r.leave_associate_days_off || null,
+      returnDate: r.return_date_str?.slice(0, 10) ?? null,
+      startTime: r.start_time || null,
+      endTime: r.end_time || null,
+      returnTime: r.return_time || null,
+      payableDays: r.leave_payable_days != null ? Number(r.leave_payable_days) : null,
+      payableAmount: r.leave_payable_amount != null ? Number(r.leave_payable_amount) : null,
+      dailySalary: r.leave_daily_salary != null ? Number(r.leave_daily_salary) : null,
+      hourlyRateInput: r.hourly_rate_input != null ? Number(r.hourly_rate_input) : null,
+      dailyHoursInput: r.daily_hours_input != null ? Number(r.daily_hours_input) : null,
+      monthlyRateInput: r.monthly_rate_input != null ? Number(r.monthly_rate_input) : null,
+      assetDeactivation: r.asset_deactivation || null,
+      payrollCycleCode: r.payroll_cycle_code || null,
+    })
+  } catch (err) {
+    console.error('Admin create leave request error:', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
 // GET /api/admin/leave-requests?status=pending|approved|rejected|all
 router.get('/leave-requests', async (req, res) => {
   try {
@@ -304,7 +588,13 @@ router.get('/leave-requests', async (req, res) => {
               reviewer.name AS reviewed_by_name,
               lr.reviewed_note, lr.reviewed_at, lr.created_at,
               lr.leave_calculation_type, lr.leave_associate_days_off,
-              lr.leave_payable_days, lr.leave_payable_amount
+              lr.leave_payable_days, lr.leave_payable_amount,
+              lr.leave_category,
+              lr.return_date::text AS return_date_str,
+              lr.start_time::text, lr.end_time::text, lr.return_time::text,
+              lr.hourly_rate_input, lr.daily_hours_input, lr.monthly_rate_input,
+              lr.asset_deactivation, lr.payroll_cycle_code,
+              lr.leave_daily_salary
        FROM leave_requests lr
        JOIN users u ON u.id = lr.user_id
        LEFT JOIN users reviewer ON reviewer.id = lr.reviewed_by
@@ -333,6 +623,17 @@ router.get('/leave-requests', async (req, res) => {
       leaveAssociateDaysOff: r.leave_associate_days_off || null,
       leavePayableDays: r.leave_payable_days != null ? Number(r.leave_payable_days) : null,
       leavePayableAmount: r.leave_payable_amount != null ? Number(r.leave_payable_amount) : null,
+      leaveCategory: r.leave_category || null,
+      returnDate: r.return_date_str?.slice(0, 10) ?? null,
+      startTime: r.start_time || null,
+      endTime: r.end_time || null,
+      returnTime: r.return_time || null,
+      hourlyRateInput: r.hourly_rate_input != null ? Number(r.hourly_rate_input) : null,
+      dailyHoursInput: r.daily_hours_input != null ? Number(r.daily_hours_input) : null,
+      monthlyRateInput: r.monthly_rate_input != null ? Number(r.monthly_rate_input) : null,
+      assetDeactivation: r.asset_deactivation || null,
+      payrollCycleCode: r.payroll_cycle_code || null,
+      dailySalary: r.leave_daily_salary != null ? Number(r.leave_daily_salary) : null,
     })))
   } catch (err) {
     console.error('Admin list leave requests error:', err)
@@ -346,7 +647,10 @@ router.get('/leave-requests/:id/review-context', async (req, res) => {
     const { id } = req.params
     const lr = await query(
       `SELECT lr.id, lr.user_id, lr.leave_type, lr.status,
-              lr.start_date::text AS start_date_str, lr.end_date::text AS end_date_str, lr.reason
+              lr.start_date::text AS start_date_str, lr.end_date::text AS end_date_str, lr.reason,
+              lr.leave_category, lr.leave_calculation_type, lr.leave_associate_days_off,
+              lr.return_date::text AS return_date_str,
+              lr.start_time::text, lr.end_time::text, lr.return_time::text
        FROM leave_requests lr
        WHERE lr.id = $1`,
       [id]
@@ -385,6 +689,13 @@ router.get('/leave-requests/:id/review-context', async (req, res) => {
         endDate,
         reason: row.reason || '',
         status: row.status,
+        leaveCategory: row.leave_category || null,
+        calculationType: row.leave_calculation_type || null,
+        associateDaysOff: row.leave_associate_days_off || null,
+        returnDate: row.return_date_str?.slice(0, 10) ?? null,
+        startTime: row.start_time || null,
+        endTime: row.end_time || null,
+        returnTime: row.return_time || null,
       },
       employee: {
         salaryType,
@@ -444,7 +755,8 @@ router.patch('/leave-requests/:id', async (req, res) => {
          WHERE id = $3 AND status = 'pending'
          RETURNING id, user_id, leave_type, start_date::text AS start_date_str, end_date::text AS end_date_str,
                    reason, status, reviewed_note, reviewed_at, created_at,
-                   leave_calculation_type, leave_associate_days_off, leave_payable_days, leave_payable_amount`,
+                   leave_calculation_type, leave_associate_days_off, leave_payable_days, leave_payable_amount,
+                   leave_category, return_date::text AS return_date_str, start_time::text, end_time::text, return_time::text`,
         [req.user.id, noteVal, id]
       )
       if (!result.rows.length) {
@@ -534,7 +846,8 @@ router.patch('/leave-requests/:id', async (req, res) => {
        WHERE id = $10 AND status = 'pending'
        RETURNING id, user_id, leave_type, start_date::text AS start_date_str, end_date::text AS end_date_str,
                  reason, status, reviewed_note, reviewed_at, created_at,
-                 leave_calculation_type, leave_associate_days_off, leave_payable_days, leave_payable_amount`,
+                 leave_calculation_type, leave_associate_days_off, leave_payable_days, leave_payable_amount,
+                 leave_category, return_date::text AS return_date_str, start_time::text, end_time::text, return_time::text`,
       [
         req.user.id,
         noteVal,
@@ -612,6 +925,11 @@ function mapLeaveRowToJson(r) {
     leaveAssociateDaysOff: r.leave_associate_days_off || null,
     leavePayableDays: r.leave_payable_days != null ? Number(r.leave_payable_days) : null,
     leavePayableAmount: r.leave_payable_amount != null ? Number(r.leave_payable_amount) : null,
+    leaveCategory: r.leave_category || null,
+    returnDate: r.return_date_str?.slice(0, 10) ?? null,
+    startTime: r.start_time || null,
+    endTime: r.end_time || null,
+    returnTime: r.return_time || null,
   }
 }
 
@@ -1099,7 +1417,9 @@ router.get('/payroll/periods', async (req, res) => {
 router.patch('/employees/:id', async (req, res) => {
   try {
     const { id } = req.params
-    const { name, email, password, salaryType, baseSalary } = req.body
+    const { name, email, password, salaryType, baseSalary,
+            cmid, contractType, hireDate, location, department,
+            primaryClientId, jobTitle, reportsTo, contractStatus, terminationDate } = req.body
     const emp = await query(
       "SELECT id FROM users WHERE id = $1 AND role = 'employee'",
       [id]
@@ -1139,21 +1459,71 @@ router.patch('/employees/:id', async (req, res) => {
       await query(`UPDATE users SET ${updates.join(', ')}, updated_at = NOW() WHERE id = $${i}`, params)
     }
 
-    if (st !== undefined || sal !== undefined) {
-      await query(
-        `INSERT INTO employees (user_id, salary_type, base_salary, updated_at)
-         VALUES ($1, $2, $3, NOW())
-         ON CONFLICT (user_id) DO UPDATE SET salary_type = $2, base_salary = $3, updated_at = NOW()`,
-        [id, st ?? 'hourly', sal ?? 0]
-      )
+    const cmidVal = cmid !== undefined ? (cmid != null && Number.isInteger(Number(cmid)) ? Number(cmid) : null) : undefined
+    const harmonyIdVal = cmidVal !== undefined ? (cmidVal != null ? `HRM-${String(cmidVal).padStart(5, '0')}` : null) : undefined
+    const contractTypeVal = contractType !== undefined ? (contractType === 'contractor' ? 'contractor' : 'employee') : undefined
+    const contractStatusVal = contractStatus !== undefined ? (['active', 'terminated', 'suspended'].includes(contractStatus) ? contractStatus : 'active') : undefined
+    const termDateVal = contractStatusVal === 'terminated' && terminationDate ? terminationDate : (contractStatusVal && contractStatusVal !== 'terminated' ? null : undefined)
+
+    // Build the employees upsert with all engagement fields
+    const empFields = {
+      salary_type: st,
+      base_salary: sal,
+      cmid: cmidVal,
+      harmony_id: harmonyIdVal,
+      contract_type: contractTypeVal,
+      hire_date: hireDate !== undefined ? (hireDate || null) : undefined,
+      location: location !== undefined ? (location || null) : undefined,
+      department: department !== undefined ? (department || null) : undefined,
+      primary_client_id: primaryClientId !== undefined ? (primaryClientId || null) : undefined,
+      job_title: jobTitle !== undefined ? (jobTitle || null) : undefined,
+      reports_to: reportsTo !== undefined ? (reportsTo || null) : undefined,
+      contract_status: contractStatusVal,
+      termination_date: termDateVal,
+    }
+
+    // Filter only defined fields
+    const definedFields = Object.entries(empFields).filter(([, v]) => v !== undefined)
+    if (definedFields.length > 0) {
+      // Always upsert into employees table
+      const currentEmp = await query('SELECT * FROM employees WHERE user_id = $1', [id])
+      if (currentEmp.rows.length === 0) {
+        // Insert new
+        const cols = ['user_id', ...definedFields.map(([k]) => k)]
+        const vals = [id, ...definedFields.map(([, v]) => v)]
+        const placeholders = vals.map((_, idx) => {
+          const col = cols[idx]
+          if (['hire_date', 'termination_date'].includes(col)) return `$${idx + 1}::date`
+          if (['primary_client_id', 'reports_to'].includes(col)) return `$${idx + 1}::uuid`
+          return `$${idx + 1}`
+        })
+        await query(`INSERT INTO employees (${cols.join(', ')}) VALUES (${placeholders.join(', ')})`, vals)
+      } else {
+        // Update existing
+        const setClauses = definedFields.map(([k], idx) => {
+          if (['hire_date', 'termination_date'].includes(k)) return `${k} = $${idx + 1}::date`
+          if (['primary_client_id', 'reports_to'].includes(k)) return `${k} = $${idx + 1}::uuid`
+          return `${k} = $${idx + 1}`
+        })
+        setClauses.push('updated_at = NOW()')
+        const vals = [...definedFields.map(([, v]) => v), id]
+        await query(`UPDATE employees SET ${setClauses.join(', ')} WHERE user_id = $${vals.length}`, vals)
+      }
     }
 
     const updated = await query(
       `SELECT u.id, u.name, u.email,
               COALESCE(e.salary_type, u.salary_type) AS salary_type,
-              COALESCE(e.base_salary, u.base_salary) AS base_salary
+              COALESCE(e.base_salary, u.base_salary) AS base_salary,
+              e.cmid, e.harmony_id, e.contract_type, e.hire_date::text AS hire_date,
+              e.location, e.department, e.primary_client_id, e.job_title,
+              e.reports_to, e.contract_status, e.termination_date::text AS termination_date,
+              c.name AS primary_client_name,
+              mgr.name AS reports_to_name
        FROM users u
        LEFT JOIN employees e ON e.user_id = u.id
+       LEFT JOIN clients c ON c.id = e.primary_client_id
+       LEFT JOIN users mgr ON mgr.id = e.reports_to
        WHERE u.id = $1`,
       [id]
     )
@@ -1164,6 +1534,19 @@ router.patch('/employees/:id', async (req, res) => {
       email: row.email || '',
       salaryType: row.salary_type || 'hourly',
       baseSalary: row.base_salary != null ? Number(row.base_salary) : 0,
+      cmid: row.cmid != null ? Number(row.cmid) : null,
+      harmonyId: row.harmony_id || null,
+      contractType: row.contract_type || 'employee',
+      hireDate: row.hire_date?.slice(0, 10) ?? null,
+      location: row.location || null,
+      department: row.department || null,
+      primaryClientId: row.primary_client_id || null,
+      primaryClientName: row.primary_client_name || null,
+      jobTitle: row.job_title || null,
+      reportsTo: row.reports_to || null,
+      reportsToName: row.reports_to_name || null,
+      contractStatus: row.contract_status || 'active',
+      terminationDate: row.termination_date?.slice(0, 10) ?? null,
     })
   } catch (err) {
     console.error('Update employee error:', err)
@@ -1194,7 +1577,7 @@ router.get('/reports/summary', async (req, res) => {
     const regularHours = (row?.regular_minutes ?? 0) / 60
     const overtimeHours = (row?.overtime_minutes ?? 0) / 60
     const nightHours = (row?.night_minutes ?? 0) / 60
-    const totalHours = regularHours + overtimeHours + nightHours
+    const totalHours = regularHours + overtimeHours
     res.json({
       period: `${fromDate} – ${toDate}`,
       regularHours: Math.round(regularHours * 10) / 10,
@@ -1216,9 +1599,16 @@ router.get('/employees', async (req, res) => {
     const result = await query(
       `SELECT u.id, u.name, u.email,
               COALESCE(e.salary_type, u.salary_type) AS salary_type,
-              COALESCE(e.base_salary, u.base_salary) AS base_salary
+              COALESCE(e.base_salary, u.base_salary) AS base_salary,
+              e.cmid, e.harmony_id, e.contract_type, e.hire_date::text AS hire_date,
+              e.location, e.department, e.primary_client_id, e.job_title,
+              e.reports_to, e.contract_status, e.termination_date::text AS termination_date,
+              c.name AS primary_client_name,
+              mgr.name AS reports_to_name
        FROM users u
        LEFT JOIN employees e ON e.user_id = u.id
+       LEFT JOIN clients c ON c.id = e.primary_client_id
+       LEFT JOIN users mgr ON mgr.id = e.reports_to
        WHERE u.role = 'employee'
        ORDER BY u.name`
     )
@@ -1228,6 +1618,19 @@ router.get('/employees', async (req, res) => {
       email: r.email || '',
       salaryType: r.salary_type || 'hourly',
       baseSalary: r.base_salary != null ? Number(r.base_salary) : 0,
+      cmid: r.cmid != null ? Number(r.cmid) : null,
+      harmonyId: r.harmony_id || null,
+      contractType: r.contract_type || 'employee',
+      hireDate: r.hire_date?.slice(0, 10) ?? null,
+      location: r.location || null,
+      department: r.department || null,
+      primaryClientId: r.primary_client_id || null,
+      primaryClientName: r.primary_client_name || null,
+      jobTitle: r.job_title || null,
+      reportsTo: r.reports_to || null,
+      reportsToName: r.reports_to_name || null,
+      contractStatus: r.contract_status || 'active',
+      terminationDate: r.termination_date?.slice(0, 10) ?? null,
     })))
   } catch (err) {
     console.error('Admin list employees error:', err)
@@ -1238,7 +1641,9 @@ router.get('/employees', async (req, res) => {
 // POST /api/admin/employees - create employee (admin only)
 router.post('/employees', requireAdmin, async (req, res) => {
   try {
-    const { name, email, password, salaryType, baseSalary } = req.body
+    const { name, email, password, salaryType, baseSalary,
+            cmid, contractType, hireDate, location, department,
+            primaryClientId, jobTitle, reportsTo, contractStatus, terminationDate } = req.body
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     if (!name || String(name).trim() === '') {
       return res.status(400).json({ error: 'Validation failed', message: 'Name is required' })
@@ -1263,18 +1668,53 @@ router.post('/employees', requireAdmin, async (req, res) => {
       [String(email).trim().toLowerCase(), String(name).trim(), password_hash, st, sal]
     )
     const u = createdUser.rows[0]
+    const contractTypeVal = contractType === 'contractor' ? 'contractor' : 'employee'
+    const contractStatusVal = ['active', 'terminated', 'suspended'].includes(contractStatus) ? contractStatus : 'active'
+    const cmidVal = cmid != null && Number.isInteger(Number(cmid)) ? Number(cmid) : null
+    const harmonyIdVal = cmidVal != null ? `HRM-${String(cmidVal).padStart(5, '0')}` : null
+    const termDateVal = contractStatusVal === 'terminated' && terminationDate ? terminationDate : null
     await query(
-      `INSERT INTO employees (user_id, salary_type, base_salary)
-       VALUES ($1, $2, $3)
-       ON CONFLICT (user_id) DO UPDATE SET salary_type = $2, base_salary = $3, updated_at = NOW()`,
-      [u.id, st, sal]
+      `INSERT INTO employees (user_id, salary_type, base_salary, cmid, harmony_id, contract_type, hire_date, location, department, primary_client_id, job_title, reports_to, contract_status, termination_date)
+       VALUES ($1, $2, $3, $4, $5, $6, $7::date, $8, $9, $10::uuid, $11, $12::uuid, $13, $14::date)
+       ON CONFLICT (user_id) DO UPDATE SET salary_type = $2, base_salary = $3, cmid = $4, harmony_id = $5, contract_type = $6, hire_date = $7::date, location = $8, department = $9, primary_client_id = $10::uuid, job_title = $11, reports_to = $12::uuid, contract_status = $13, termination_date = $14::date, updated_at = NOW()`,
+      [u.id, st, sal, cmidVal, harmonyIdVal, contractTypeVal, hireDate || null, location || null, department || null, primaryClientId || null, jobTitle || null, reportsTo || null, contractStatusVal, termDateVal]
     )
+    const created = await query(
+      `SELECT u.id, u.name, u.email,
+              COALESCE(e.salary_type, u.salary_type) AS salary_type,
+              COALESCE(e.base_salary, u.base_salary) AS base_salary,
+              e.cmid, e.harmony_id, e.contract_type, e.hire_date::text AS hire_date,
+              e.location, e.department, e.primary_client_id, e.job_title,
+              e.reports_to, e.contract_status, e.termination_date::text AS termination_date,
+              c.name AS primary_client_name,
+              mgr.name AS reports_to_name
+       FROM users u
+       LEFT JOIN employees e ON e.user_id = u.id
+       LEFT JOIN clients c ON c.id = e.primary_client_id
+       LEFT JOIN users mgr ON mgr.id = e.reports_to
+       WHERE u.id = $1`,
+      [u.id]
+    )
+    const row = created.rows[0]
     res.status(201).json({
-      id: u.id,
-      name: u.name,
-      email: u.email,
-      salaryType: st,
-      baseSalary: sal,
+      id: row.id,
+      name: row.name,
+      email: row.email || '',
+      salaryType: row.salary_type || 'hourly',
+      baseSalary: row.base_salary != null ? Number(row.base_salary) : 0,
+      cmid: row.cmid != null ? Number(row.cmid) : null,
+      harmonyId: row.harmony_id || null,
+      contractType: row.contract_type || 'employee',
+      hireDate: row.hire_date?.slice(0, 10) ?? null,
+      location: row.location || null,
+      department: row.department || null,
+      primaryClientId: row.primary_client_id || null,
+      primaryClientName: row.primary_client_name || null,
+      jobTitle: row.job_title || null,
+      reportsTo: row.reports_to || null,
+      reportsToName: row.reports_to_name || null,
+      contractStatus: row.contract_status || 'active',
+      terminationDate: row.termination_date?.slice(0, 10) ?? null,
     })
   } catch (err) {
     console.error('Admin create employee error:', err)

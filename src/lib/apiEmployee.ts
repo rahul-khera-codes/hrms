@@ -28,6 +28,12 @@ export interface LeaveRequestItem {
   leaveCalculationType?: string | null
   leavePayableDays?: number | null
   leavePayableAmount?: number | null
+  leaveCategory?: string | null
+  associateDaysOff?: string | null
+  returnDate?: string | null
+  startTime?: string | null
+  endTime?: string | null
+  returnTime?: string | null
 }
 
 export async function getMyLeaveRequests(): Promise<LeaveRequestItem[]> {
@@ -39,6 +45,13 @@ export async function createLeaveRequest(data: {
   startDate: string
   endDate: string
   reason?: string
+  leaveCategory?: string
+  calculationType?: string
+  associateDaysOff?: string[]
+  returnDate?: string
+  startTime?: string
+  endTime?: string
+  returnTime?: string
 }): Promise<LeaveRequestItem> {
   return api<LeaveRequestItem>('/api/sessions/leave-requests', {
     method: 'POST',

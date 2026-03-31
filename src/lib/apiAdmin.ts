@@ -35,6 +35,26 @@ export async function getAdminAttendance(
   return data
 }
 
+export async function updateAttendanceRecord(
+  sessionId: string,
+  data: {
+    statusOverride?: string | null
+    payType?: string
+    billType?: string
+    task?: string | null
+    stage?: string | null
+    location?: string | null
+    comments?: string | null
+    shiftStart?: string | null
+    shiftEnd?: string | null
+  }
+): Promise<AttendanceRecord> {
+  return api<AttendanceRecord>(`/api/admin/attendance/${sessionId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  })
+}
+
 export interface ReportsSummaryResponse {
   period: string
   regularHours: number
@@ -300,6 +320,19 @@ export interface EmployeeRecord {
   email: string
   salaryType: string
   baseSalary: number
+  cmid?: number | null
+  harmonyId?: string | null
+  contractType?: string | null
+  hireDate?: string | null
+  location?: string | null
+  department?: string | null
+  primaryClientId?: string | null
+  primaryClientName?: string | null
+  jobTitle?: string | null
+  reportsTo?: string | null
+  reportsToName?: string | null
+  contractStatus?: string | null
+  terminationDate?: string | null
 }
 
 export async function getEmployees(): Promise<EmployeeRecord[]> {
@@ -312,6 +345,16 @@ export async function createEmployee(data: {
   password: string
   salaryType?: 'hourly' | 'monthly'
   baseSalary?: number
+  cmid?: number | null
+  contractType?: string
+  hireDate?: string
+  location?: string
+  department?: string
+  primaryClientId?: string
+  jobTitle?: string
+  reportsTo?: string
+  contractStatus?: string
+  terminationDate?: string
 }): Promise<EmployeeRecord> {
   return api<EmployeeRecord>('/api/admin/employees', {
     method: 'POST',
@@ -321,7 +364,23 @@ export async function createEmployee(data: {
 
 export async function updateEmployee(
   id: string,
-  data: { name?: string; email?: string; password?: string; salaryType?: 'hourly' | 'monthly'; baseSalary?: number }
+  data: {
+    name?: string
+    email?: string
+    password?: string
+    salaryType?: 'hourly' | 'monthly'
+    baseSalary?: number
+    cmid?: number | null
+    contractType?: string
+    hireDate?: string
+    location?: string
+    department?: string
+    primaryClientId?: string
+    jobTitle?: string
+    reportsTo?: string
+    contractStatus?: string
+    terminationDate?: string
+  }
 ): Promise<EmployeeRecord> {
   return api<EmployeeRecord>(`/api/admin/employees/${id}`, {
     method: 'PATCH',
@@ -399,6 +458,17 @@ export interface AdminLeaveRequest {
   leaveAssociateDaysOff?: string | null
   leavePayableDays?: number | null
   leavePayableAmount?: number | null
+  leaveCategory?: string | null
+  returnDate?: string | null
+  startTime?: string | null
+  endTime?: string | null
+  returnTime?: string | null
+  hourlyRateInput?: number | null
+  dailyHoursInput?: number | null
+  monthlyRateInput?: number | null
+  assetDeactivation?: string | null
+  payrollCycleCode?: string | null
+  dailySalary?: number | null
 }
 
 export interface LeaveReviewContext {
@@ -411,6 +481,13 @@ export interface LeaveReviewContext {
     endDate: string
     reason: string
     status: 'pending'
+    leaveCategory?: string | null
+    calculationType?: string | null
+    associateDaysOff?: string | null
+    returnDate?: string | null
+    startTime?: string | null
+    endTime?: string | null
+    returnTime?: string | null
   }
   employee: { salaryType: 'hourly' | 'monthly'; baseSalary: number }
   settings: { workingDaysPerMonth: number; hoursPerDay: number }
@@ -440,6 +517,32 @@ export async function reviewAdminLeaveRequest(
 ): Promise<AdminLeaveRequest> {
   return api<AdminLeaveRequest>(`/api/admin/leave-requests/${id}`, {
     method: 'PATCH',
+    body: JSON.stringify(data),
+  })
+}
+
+export async function createAdminLeaveRequest(data: {
+  employeeId: string
+  leaveType: 'paid' | 'unpaid'
+  leaveCategory?: string
+  calculationType: 'non_payable' | 'hourly_salary' | 'monthly_salary'
+  payableDays?: number
+  hourlyRate?: number
+  dailyHours?: number
+  monthlyRate?: number
+  associateDaysOff?: string[]
+  startDate: string
+  endDate: string
+  returnDate?: string
+  startTime?: string
+  endTime?: string
+  returnTime?: string
+  assetDeactivation?: string[]
+  payrollCycleCode?: string
+  reason?: string
+}): Promise<AdminLeaveRequest> {
+  return api<AdminLeaveRequest>('/api/admin/leave-requests', {
+    method: 'POST',
     body: JSON.stringify(data),
   })
 }

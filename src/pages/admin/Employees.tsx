@@ -71,6 +71,54 @@ export default function AdminEmployees() {
   const [currentPage, setCurrentPage] = useState(1)
   const [saving, setSaving] = useState(false)
   const [activeEmployees, setActiveEmployees] = useState<Set<string>>(new Set())
+  const [cmid, setCmid] = useState('')
+  const [contractType, setContractType] = useState<string>('employee')
+  const [hireDate, setHireDate] = useState('')
+  const [location, setLocation] = useState('')
+  const [department, setDepartment] = useState('')
+  const [primaryClientId, setPrimaryClientId] = useState('')
+  const [jobTitle, setJobTitle] = useState('')
+  const [reportsTo, setReportsTo] = useState('')
+  const [contractStatus, setContractStatus] = useState<string>('active')
+  const [terminationDate, setTerminationDate] = useState('')
+
+  const contractTypeOptions = [
+    { value: 'employee', label: 'Employee' },
+    { value: 'contractor', label: 'Contractor' },
+  ]
+
+  const locationOptions = [
+    { value: '', label: 'Select location' },
+    { value: 'DO-SDQ1', label: 'DO-SDQ1' },
+    { value: 'DO-SDQ2', label: 'DO-SDQ2' },
+  ]
+
+  const departmentOptions = [
+    { value: '', label: 'Select department' },
+    { value: 'Operations', label: 'Operations' },
+    { value: 'HR', label: 'HR' },
+    { value: 'Finance', label: 'Finance' },
+    { value: 'IT', label: 'IT' },
+    { value: 'Sales', label: 'Sales' },
+    { value: 'Support', label: 'Support' },
+  ]
+
+  const jobTitleOptions = [
+    { value: '', label: 'Select job title' },
+    { value: 'Agent', label: 'Agent' },
+    { value: 'Team Lead', label: 'Team Lead' },
+    { value: 'Supervisor', label: 'Supervisor' },
+    { value: 'Manager', label: 'Manager' },
+    { value: 'Director', label: 'Director' },
+    { value: 'Analyst', label: 'Analyst' },
+    { value: 'Specialist', label: 'Specialist' },
+  ]
+
+  const contractStatusOptions = [
+    { value: 'active', label: 'Active' },
+    { value: 'terminated', label: 'Terminated' },
+    { value: 'suspended', label: 'Suspended' },
+  ]
 
   async function loadAssignments(clientList: Client[]) {
     if (clientList.length === 0) {
@@ -244,6 +292,16 @@ export default function AdminEmployees() {
     setAssignmentStartTime('')
     setAssignmentEndTime('')
     setAssignmentDate(format(new Date(), 'yyyy-MM-dd'))
+    setCmid('')
+    setContractType('employee')
+    setHireDate('')
+    setLocation('')
+    setDepartment('')
+    setPrimaryClientId('')
+    setJobTitle('')
+    setReportsTo('')
+    setContractStatus('active')
+    setTerminationDate('')
     setModal('add')
   }
 
@@ -260,6 +318,16 @@ export default function AdminEmployees() {
     setAssignmentStartTime(assignment ? String(assignment.shiftStart).slice(0, 5) : '')
     setAssignmentEndTime(assignment ? String(assignment.shiftEnd).slice(0, 5) : '')
     setAssignmentDate(assignment?.date ?? format(new Date(), 'yyyy-MM-dd'))
+    setCmid(emp.cmid != null ? String(emp.cmid) : '')
+    setContractType(emp.contractType || 'employee')
+    setHireDate(emp.hireDate || '')
+    setLocation(emp.location || '')
+    setDepartment(emp.department || '')
+    setPrimaryClientId(emp.primaryClientId || '')
+    setJobTitle(emp.jobTitle || '')
+    setReportsTo(emp.reportsTo || '')
+    setContractStatus(emp.contractStatus || 'active')
+    setTerminationDate(emp.terminationDate || '')
     setModal('edit')
   }
 
@@ -311,6 +379,16 @@ export default function AdminEmployees() {
           password,
           salaryType,
           baseSalary: baseSalary ? parseFloat(baseSalary) : 0,
+          cmid: cmid ? parseInt(cmid, 10) : null,
+          contractType,
+          hireDate: hireDate || undefined,
+          location: location || undefined,
+          department: department || undefined,
+          primaryClientId: primaryClientId || undefined,
+          jobTitle: jobTitle || undefined,
+          reportsTo: reportsTo || undefined,
+          contractStatus,
+          terminationDate: contractStatus === 'terminated' ? terminationDate || undefined : undefined,
         })
         if (assignedClientId && assignedShiftId) {
           try {
@@ -337,6 +415,16 @@ export default function AdminEmployees() {
           ...(password ? { password } : {}),
           salaryType,
           baseSalary: baseSalary ? parseFloat(baseSalary) : 0,
+          cmid: cmid ? parseInt(cmid, 10) : null,
+          contractType,
+          hireDate: hireDate || undefined,
+          location: location || undefined,
+          department: department || undefined,
+          primaryClientId: primaryClientId || undefined,
+          jobTitle: jobTitle || undefined,
+          reportsTo: reportsTo || undefined,
+          contractStatus,
+          terminationDate: contractStatus === 'terminated' ? terminationDate || undefined : undefined,
         })
         if (assignedClientId && assignedShiftId) {
           await createScheduleAssignment({
@@ -451,6 +539,23 @@ export default function AdminEmployees() {
                   <p className="text-xs text-surface-500 mt-0.5">
                     {emp.salaryType === 'monthly' ? 'Monthly' : 'Hourly'} · {emp.salaryType === 'monthly' ? emp.baseSalary.toLocaleString() : emp.baseSalary.toFixed(2)}
                   </p>
+                  {emp.contractStatus && (
+                    <p className="text-xs text-surface-500 mt-0.5">
+                      {emp.contractType === 'contractor' ? 'Contractor' : 'Employee'}
+                      {emp.harmonyId ? ` · ${emp.harmonyId}` : ''}
+                      {emp.location ? ` · ${emp.location}` : ''}
+                      {emp.department ? ` · ${emp.department}` : ''}
+                      {emp.jobTitle ? ` · ${emp.jobTitle}` : ''}
+                      {' · '}
+                      <span className={
+                        emp.contractStatus === 'active' ? 'text-emerald-600' :
+                        emp.contractStatus === 'terminated' ? 'text-red-600' :
+                        'text-amber-600'
+                      }>
+                        {emp.contractStatus.charAt(0).toUpperCase() + emp.contractStatus.slice(1)}
+                      </span>
+                    </p>
+                  )}
                   {assignmentByEmployee[emp.id] ? (
                     <p className="text-xs text-brand-600 mt-0.5 truncate">
                       {assignmentByEmployee[emp.id].clientName} · {assignmentByEmployee[emp.id].shiftName} ({formatShiftTimeRange(assignmentByEmployee[emp.id].shiftStart, assignmentByEmployee[emp.id].shiftEnd)}) · {assignmentByEmployee[emp.id].date}
@@ -546,6 +651,128 @@ export default function AdminEmployees() {
                   />
                 </div>
               )}
+              {/* Engagement Details Section */}
+              <div className="border-t border-surface-200 pt-4 mt-4">
+                <p className="text-xs font-semibold uppercase tracking-wider text-surface-500 mb-3">Engagement Details</p>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="label">CMID</label>
+                      <input
+                        type="number"
+                        min={0}
+                        step={1}
+                        className="input w-full rounded-xl min-h-[2.75rem]"
+                        value={cmid}
+                        onChange={(e) => setCmid(e.target.value)}
+                        placeholder="e.g. 1001"
+                      />
+                    </div>
+                    <div>
+                      <label className="label">Harmony ID</label>
+                      <input
+                        type="text"
+                        className="input w-full rounded-xl min-h-[2.75rem] bg-surface-50 text-surface-500"
+                        value={cmid ? `HRM-${cmid.padStart(5, '0')}` : ''}
+                        readOnly
+                        disabled
+                        placeholder="Auto-calculated from CMID"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="label">Contract Type</label>
+                      <AdminSelect
+                        value={contractType}
+                        onChange={(val) => setContractType(val)}
+                        options={contractTypeOptions}
+                      />
+                    </div>
+                    <div>
+                      <label className="label">Hire Date</label>
+                      <input
+                        type="date"
+                        className="input w-full rounded-xl min-h-[2.75rem]"
+                        value={hireDate}
+                        onChange={(e) => setHireDate(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="label">Location</label>
+                      <AdminSelect
+                        value={location}
+                        onChange={(val) => setLocation(val)}
+                        options={locationOptions}
+                      />
+                    </div>
+                    <div>
+                      <label className="label">Department</label>
+                      <AdminSelect
+                        value={department}
+                        onChange={(val) => setDepartment(val)}
+                        options={departmentOptions}
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="label">Primary Account</label>
+                    <AdminSelect
+                      value={primaryClientId}
+                      onChange={(val) => setPrimaryClientId(val)}
+                      options={[
+                        { value: '', label: 'Select client' },
+                        ...clients.map((c) => ({ value: c.id, label: c.name })),
+                      ]}
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="label">Job Title</label>
+                      <AdminSelect
+                        value={jobTitle}
+                        onChange={(val) => setJobTitle(val)}
+                        options={jobTitleOptions}
+                      />
+                    </div>
+                    <div>
+                      <label className="label">Reports To</label>
+                      <AdminSelect
+                        value={reportsTo}
+                        onChange={(val) => setReportsTo(val)}
+                        options={[
+                          { value: '', label: 'Select supervisor' },
+                          ...employees.filter((e) => e.id !== editing?.id).map((e) => ({ value: e.id, label: e.name })),
+                        ]}
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="label">Contract Status</label>
+                    <AdminSelect
+                      value={contractStatus}
+                      onChange={(val) => {
+                        setContractStatus(val)
+                        if (val !== 'terminated') setTerminationDate('')
+                      }}
+                      options={contractStatusOptions}
+                    />
+                  </div>
+                  {contractStatus === 'terminated' && (
+                    <div>
+                      <label className="label">Termination Date</label>
+                      <input
+                        type="date"
+                        className="input w-full rounded-xl min-h-[2.75rem]"
+                        value={terminationDate}
+                        onChange={(e) => setTerminationDate(e.target.value)}
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
               <div>
                 <label className="label">Salary type</label>
                 <AdminSelect

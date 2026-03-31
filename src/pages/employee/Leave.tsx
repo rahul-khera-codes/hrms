@@ -9,23 +9,39 @@ const statusColors: Record<string, string> = {
   rejected: 'bg-red-100 text-red-700',
 }
 
-type LeaveCategory = 'marriage' | 'bereavement' | 'time_off' | 'maternity' | 'paternity' | 'medical_license'
+type LeaveCategory = 'marriage' | 'bereavement' | 'time_off' | 'maternity' | 'paternity' | 'medical_license' | 'vacation'
 const leaveCategoryOptions: Array<{ value: LeaveCategory; label: string }> = [
-  { value: 'marriage', label: 'Marriage' },
-  { value: 'bereavement', label: 'Bereavement' },
-  { value: 'time_off', label: 'Time Off' },
-  { value: 'maternity', label: 'Maternity' },
-  { value: 'paternity', label: 'Paternity' },
-  { value: 'medical_license', label: 'Medical License' },
+  { value: 'vacation', label: 'Vacaciones' },
+  { value: 'marriage', label: 'Matrimonio' },
+  { value: 'bereavement', label: 'Duelo' },
+  { value: 'time_off', label: 'Tiempo Libre' },
+  { value: 'maternity', label: 'Maternidad' },
+  { value: 'paternity', label: 'Paternidad' },
+  { value: 'medical_license', label: 'Licencia Médica' },
 ]
 
-function toDateTimeLocalInputValue(date: Date) {
-  const offsetMs = date.getTimezoneOffset() * 60000
-  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16)
+type CalcType = 'non_payable' | 'hourly_salary' | 'monthly_salary'
+const calcTypeOptions: Array<{ value: CalcType; label: string }> = [
+  { value: 'non_payable', label: 'Non Payable' },
+  { value: 'hourly_salary', label: 'Hourly Salary' },
+  { value: 'monthly_salary', label: 'Monthly Salary' },
+]
+
+const DAYS_OF_WEEK = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const
+
+const CATEGORY_LABELS: Record<string, string> = {
+  vacation: 'Vacaciones',
+  marriage: 'Matrimonio',
+  bereavement: 'Duelo',
+  time_off: 'Tiempo Libre',
+  maternity: 'Maternidad',
+  paternity: 'Paternidad',
+  medical_license: 'Licencia Médica',
 }
 
 function splitDateTimeValue(date: Date) {
-  const value = toDateTimeLocalInputValue(date)
+  const offsetMs = date.getTimezoneOffset() * 60000
+  const value = new Date(date.getTime() - offsetMs).toISOString().slice(0, 16)
   return {
     date: value.slice(0, 10),
     time: value.slice(11, 16),
@@ -37,6 +53,8 @@ export default function EmployeeLeave() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [leaveCategory, setLeaveCategory] = useState<LeaveCategory>('time_off')
+  const [calculationType, setCalculationType] = useState<CalcType>('non_payable')
+  const [daysOff, setDaysOff] = useState<string[]>(['Sun', 'Sat'])
   const initialDateTime = splitDateTimeValue(new Date())
   const [startDate, setStartDate] = useState(initialDateTime.date)
   const [startTime, setStartTime] = useState(initialDateTime.time)
@@ -90,6 +108,12 @@ export default function EmployeeLeave() {
 
   const pendingCount = useMemo(() => requests.filter((r) => r.status === 'pending').length, [requests])
 
+  function toggleDayOff(day: string) {
+    setDaysOff((prev) =>
+      prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]
+    )
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (startDate < todayDate || endDate < todayDate || returnDate < todayDate) {
@@ -118,18 +142,18 @@ export default function EmployeeLeave() {
     setSaving(true)
     try {
       const leaveType = leaveCategory === 'time_off' ? 'unpaid' : 'paid'
-      const baseReason = reason.trim()
-      const details = [
-        `Leave Type: ${leaveCategoryOptions.find((opt) => opt.value === leaveCategory)?.label ?? 'Time Off'}`,
-        `Start DateTime: ${startDateTimeValue}`,
-        `End DateTime: ${endDateTimeValue}`,
-        `Return DateTime: ${returnDateTimeValue}`,
-      ].join(' | ')
       await createLeaveRequest({
         leaveType,
         startDate,
         endDate,
-        reason: [baseReason, details].filter(Boolean).join(' || ') || undefined,
+        reason: reason.trim() || undefined,
+        leaveCategory,
+        calculationType,
+        associateDaysOff: daysOff,
+        returnDate,
+        startTime,
+        endTime,
+        returnTime,
       })
       setReason('')
       setNotice('Leave request submitted.')
@@ -159,6 +183,7 @@ export default function EmployeeLeave() {
         <h2 className="text-sm sm:text-base font-semibold text-surface-900 mb-4">New leave request</h2>
         <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {/* Leave Type */}
             <div className="sm:col-span-2">
               <label className="label">Leave Type</label>
               <AdminSelect
@@ -167,8 +192,55 @@ export default function EmployeeLeave() {
                 options={leaveCategoryOptions.map((opt) => ({ value: opt.value, label: opt.label }))}
               />
             </div>
+
+            {/* Calculation Type — toggle buttons */}
+            <div className="sm:col-span-2">
+              <label className="label">Calculation</label>
+              <div className="flex gap-0 rounded-xl overflow-hidden border border-surface-200">
+                {calcTypeOptions.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setCalculationType(opt.value)}
+                    className={`flex-1 px-3 py-2.5 text-xs sm:text-sm font-medium transition-colors ${
+                      calculationType === opt.value
+                        ? 'bg-brand-600 text-white'
+                        : 'bg-surface-50 text-surface-600 hover:bg-surface-100'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Associate Days Off — multi-select chips */}
+            <div className="sm:col-span-2">
+              <label className="label">Associate Days Off</label>
+              <div className="flex flex-wrap gap-2">
+                {DAYS_OF_WEEK.map((day) => (
+                  <button
+                    key={day}
+                    type="button"
+                    onClick={() => toggleDayOff(day)}
+                    className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium border transition-colors ${
+                      daysOff.includes(day)
+                        ? 'bg-brand-600 text-white border-brand-600'
+                        : 'bg-white text-surface-600 border-surface-200 hover:bg-surface-50'
+                    }`}
+                  >
+                    {day}
+                  </button>
+                ))}
+              </div>
+              {daysOff.length > 0 && (
+                <p className="text-xs text-surface-500 mt-1">{daysOff.join(', ')}</p>
+              )}
+            </div>
+
+            {/* Start Date & Time */}
             <div>
-              <label className="label">Start Date</label>
+              <label className="label">Start Date & Time</label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <div className="relative">
                   <Calendar className="w-4 h-4 text-surface-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -191,8 +263,10 @@ export default function EmployeeLeave() {
                 </div>
               </div>
             </div>
+
+            {/* End Date & Time */}
             <div>
-              <label className="label">End Date</label>
+              <label className="label">End Date & Time</label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <div className="relative">
                   <Calendar className="w-4 h-4 text-surface-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -215,8 +289,10 @@ export default function EmployeeLeave() {
                 </div>
               </div>
             </div>
+
+            {/* Return Date & Time */}
             <div className="sm:col-span-2">
-              <label className="label">Return Date</label>
+              <label className="label">Return Date & Time</label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <div className="relative">
                   <Calendar className="w-4 h-4 text-surface-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -240,6 +316,7 @@ export default function EmployeeLeave() {
               </div>
             </div>
           </div>
+
           <div>
             <label className="label">Reason (optional)</label>
             <textarea
@@ -256,7 +333,7 @@ export default function EmployeeLeave() {
             className="btn-primary rounded-xl min-h-[2.75rem] px-4 inline-flex items-center justify-center gap-2 w-full sm:w-auto disabled:opacity-60"
           >
             <Send className="w-4 h-4" />
-            {saving ? 'Submitting…' : 'Submit request'}
+            {saving ? 'Submitting...' : 'Submit request'}
           </button>
         </form>
       </div>
@@ -267,7 +344,7 @@ export default function EmployeeLeave() {
           <p className="text-xs sm:text-sm text-surface-500 mt-1">Pending: {pendingCount}</p>
         </div>
         {loading ? (
-          <div className="p-8 text-center text-surface-500 text-sm">Loading…</div>
+          <div className="p-8 text-center text-surface-500 text-sm">Loading...</div>
         ) : requests.length === 0 ? (
           <div className="p-8 text-center text-surface-500 text-sm">No leave requests yet.</div>
         ) : (
@@ -283,11 +360,14 @@ export default function EmployeeLeave() {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-surface-900">
                     {r.startDate} - {r.endDate}
+                    {r.leaveCategory ? ` · ${CATEGORY_LABELS[r.leaveCategory] || r.leaveCategory}` : ''}
                   </p>
                   <p className="text-xs text-surface-500 mt-0.5">
                     {r.leaveType === 'paid' ? 'Paid leave' : 'Unpaid leave'}
-                    {r.reason ? ` · ${r.reason}` : ''}
+                    {r.associateDaysOff ? ` · Days off: ${r.associateDaysOff}` : ''}
+                    {r.returnDate ? ` · Return: ${r.returnDate}` : ''}
                   </p>
+                  {r.reason ? <p className="text-xs text-surface-500 mt-0.5">{r.reason}</p> : null}
                   {r.status === 'approved' &&
                   r.leavePayableAmount != null &&
                   r.leavePayableAmount > 0 ? (

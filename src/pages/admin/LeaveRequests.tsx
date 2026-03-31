@@ -1,11 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
-import { CalendarCheck2, Lock } from 'lucide-react'
+import { CalendarCheck2, Lock, Plus, Calendar, Clock3 } from 'lucide-react'
 import {
   getAdminLeaveRequests,
   getLeaveReviewContext,
   reviewAdminLeaveRequest,
+  createAdminLeaveRequest,
+  getEmployees,
+  getPayrollPeriods,
   type AdminLeaveRequest,
   type LeaveReviewContext,
+  type EmployeeRecord,
+  type PayrollPeriod,
 } from '@/lib/apiAdmin'
 import AdminSelect from '@/components/AdminSelect'
 
@@ -16,6 +21,29 @@ const statusColors: Record<string, string> = {
 }
 
 type LeaveCalcType = 'non_payable' | 'hourly_salary' | 'monthly_salary'
+
+const CATEGORY_LABELS: Record<string, string> = {
+  marriage: 'Matrimonio',
+  bereavement: 'Duelo',
+  time_off: 'Tiempo Libre',
+  maternity: 'Maternidad',
+  paternity: 'Paternidad',
+  medical_license: 'Licencia Médica',
+  vacation: 'Vacaciones',
+}
+
+const leaveCategoryOptions = [
+  { value: 'marriage', label: 'Matrimonio' },
+  { value: 'bereavement', label: 'Duelo' },
+  { value: 'time_off', label: 'Tiempo Libre' },
+  { value: 'maternity', label: 'Maternidad' },
+  { value: 'paternity', label: 'Paternidad' },
+  { value: 'medical_license', label: 'Licencia Médica' },
+  { value: 'vacation', label: 'Vacaciones' },
+]
+
+const assetOptions = ['Access Card', 'Uber', 'O-365', 'G-Suite']
+const DAYS_OF_WEEK = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 function hourlyRateFromEmployee(
   salaryType: 'hourly' | 'monthly',
@@ -79,6 +107,29 @@ export default function AdminLeaveRequests() {
   const [payableDaysInput, setPayableDaysInput] = useState('0')
   const [saving, setSaving] = useState(false)
 
+  // New leave creation states
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [employees, setEmployees] = useState<EmployeeRecord[]>([])
+  const [payrollPeriods, setPayrollPeriods] = useState<PayrollPeriod[]>([])
+  const [createEmployeeId, setCreateEmployeeId] = useState('')
+  const [createLeaveCategory, setCreateLeaveCategory] = useState('time_off')
+  const [createCalcType, setCreateCalcType] = useState<'non_payable' | 'hourly_salary' | 'monthly_salary'>('non_payable')
+  const [createPayableDays, setCreatePayableDays] = useState('')
+  const [createHourlyRate, setCreateHourlyRate] = useState('')
+  const [createDailyHours, setCreateDailyHours] = useState('')
+  const [createMonthlyRate, setCreateMonthlyRate] = useState('')
+  const [createDaysOff, setCreateDaysOff] = useState<string[]>(['Sun', 'Sat'])
+  const [createStartDate, setCreateStartDate] = useState('')
+  const [createStartTime, setCreateStartTime] = useState('08:00')
+  const [createEndDate, setCreateEndDate] = useState('')
+  const [createEndTime, setCreateEndTime] = useState('17:00')
+  const [createReturnDate, setCreateReturnDate] = useState('')
+  const [createReturnTime, setCreateReturnTime] = useState('08:00')
+  const [createAssetDeactivation, setCreateAssetDeactivation] = useState<string[]>([])
+  const [createPayrollCycleCode, setCreatePayrollCycleCode] = useState('')
+  const [createReason, setCreateReason] = useState('')
+  const [createSaving, setCreateSaving] = useState(false)
+
   async function load(showLoader = true) {
     if (showLoader) setLoading(true)
     try {
@@ -98,6 +149,8 @@ export default function AdminLeaveRequests() {
 
   useEffect(() => {
     load(true)
+    getEmployees().then(setEmployees).catch(() => {})
+    getPayrollPeriods().then(setPayrollPeriods).catch(() => {})
 
     const handleVisibilityChange = () => {
       if (document.hidden) return
@@ -149,6 +202,89 @@ export default function AdminLeaveRequests() {
     )
   }, [reviewContext, calculationType, payableDaysInput])
 
+  const createPreview = useMemo(() => {
+    if (createCalcType === 'non_payable') return { dailySalary: 0, payableAmount: 0 }
+    const pd = parseFloat(createPayableDays) || 0
+    let dailySalary = 0
+    if (createCalcType === 'hourly_salary') {
+      dailySalary = (parseFloat(createHourlyRate) || 0) * (parseFloat(createDailyHours) || 0)
+    } else if (createCalcType === 'monthly_salary') {
+      dailySalary = (parseFloat(createMonthlyRate) || 0) / 23.83
+    }
+    return {
+      dailySalary: Math.round(dailySalary * 100) / 100,
+      payableAmount: Math.round(dailySalary * pd * 100) / 100,
+    }
+  }, [createCalcType, createPayableDays, createHourlyRate, createDailyHours, createMonthlyRate])
+
+  const calendarDays = useMemo(() => {
+    if (!createStartDate || !createEndDate) return 0
+    const start = new Date(createStartDate + 'T12:00:00')
+    const end = new Date(createEndDate + 'T12:00:00')
+    if (isNaN(start.getTime()) || isNaN(end.getTime()) || end < start) return 0
+    let count = 0
+    const d = new Date(start)
+    while (d <= end) { count++; d.setDate(d.getDate() + 1) }
+    return count
+  }, [createStartDate, createEndDate])
+
+  async function handleCreateLeave() {
+    if (!createEmployeeId || !createStartDate || !createEndDate) {
+      setNotice('Employee, start date, and end date are required.')
+      return
+    }
+    setCreateSaving(true)
+    try {
+      const leaveType = createLeaveCategory === 'time_off' ? 'unpaid' : 'paid'
+      await createAdminLeaveRequest({
+        employeeId: createEmployeeId,
+        leaveType,
+        leaveCategory: createLeaveCategory,
+        calculationType: createCalcType,
+        payableDays: createCalcType !== 'non_payable' ? parseFloat(createPayableDays) || 0 : 0,
+        hourlyRate: createCalcType === 'hourly_salary' ? parseFloat(createHourlyRate) || 0 : undefined,
+        dailyHours: createCalcType === 'hourly_salary' ? parseFloat(createDailyHours) || 0 : undefined,
+        monthlyRate: createCalcType === 'monthly_salary' ? parseFloat(createMonthlyRate) || 0 : undefined,
+        associateDaysOff: createDaysOff,
+        startDate: createStartDate,
+        endDate: createEndDate,
+        returnDate: createReturnDate || undefined,
+        startTime: createStartTime || undefined,
+        endTime: createEndTime || undefined,
+        returnTime: createReturnTime || undefined,
+        assetDeactivation: createAssetDeactivation.length > 0 ? createAssetDeactivation : undefined,
+        payrollCycleCode: createCalcType !== 'non_payable' && createPayrollCycleCode ? createPayrollCycleCode : undefined,
+        reason: createReason.trim() || undefined,
+      })
+      setNotice('Leave created successfully.')
+      setShowCreateModal(false)
+      // Reset form
+      setCreateEmployeeId('')
+      setCreateLeaveCategory('time_off')
+      setCreateCalcType('non_payable')
+      setCreatePayableDays('')
+      setCreateHourlyRate('')
+      setCreateDailyHours('')
+      setCreateMonthlyRate('')
+      setCreateDaysOff(['Sun', 'Sat'])
+      setCreateStartDate('')
+      setCreateStartTime('08:00')
+      setCreateEndDate('')
+      setCreateEndTime('17:00')
+      setCreateReturnDate('')
+      setCreateReturnTime('08:00')
+      setCreateAssetDeactivation([])
+      setCreatePayrollCycleCode('')
+      setCreateReason('')
+      await load(false)
+    } catch (err: unknown) {
+      const msg = err && typeof err === 'object' && 'message' in err ? String((err as Error).message) : 'Failed to create leave.'
+      setNotice(msg)
+    } finally {
+      setCreateSaving(false)
+    }
+  }
+
   function openReview(row: AdminLeaveRequest) {
     setReviewingId(row.id)
     setReviewStatus('approved')
@@ -160,6 +296,8 @@ export default function AdminLeaveRequests() {
         setReviewContext(ctx)
         if (ctx.leave.leaveType === 'unpaid') {
           setCalculationType('non_payable')
+        } else if (ctx.leave.calculationType && ['non_payable', 'hourly_salary', 'monthly_salary'].includes(ctx.leave.calculationType)) {
+          setCalculationType(ctx.leave.calculationType as LeaveCalcType)
         } else {
           setCalculationType(
             ctx.defaultCalculationType === 'monthly_salary' ? 'monthly_salary' : 'hourly_salary'
@@ -233,9 +371,19 @@ export default function AdminLeaveRequests() {
         </div>
       )}
 
-      <div>
-        <h1 className="text-xl sm:text-2xl font-semibold text-surface-900 tracking-tight">Leave requests</h1>
-        <p className="text-surface-500 mt-1 text-xs sm:text-sm">Review and approve employee leave requests.</p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-semibold text-surface-900 tracking-tight">Leave requests</h1>
+          <p className="text-surface-500 mt-1 text-xs sm:text-sm">Review and approve employee leave requests.</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowCreateModal(true)}
+          className="btn-primary flex items-center justify-center gap-2 rounded-xl min-h-[2.75rem]"
+        >
+          <Plus className="w-4 h-4" />
+          New Leave
+        </button>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
@@ -292,6 +440,7 @@ export default function AdminLeaveRequests() {
                   <p className="text-sm font-medium text-surface-900">{r.employeeName}</p>
                   <p className="text-xs text-surface-500 mt-0.5">
                     {r.startDate} - {r.endDate} · {r.leaveType === 'paid' ? 'Paid leave' : 'Unpaid leave'}
+                    {r.leaveCategory ? ` · ${CATEGORY_LABELS[r.leaveCategory] || r.leaveCategory}` : ''}
                   </p>
                   {r.reason ? <p className="text-xs text-surface-500 mt-0.5">Reason: {r.reason}</p> : null}
                   {r.reviewedNote ? <p className="text-xs text-surface-500 mt-0.5">Note: {r.reviewedNote}</p> : null}
@@ -321,6 +470,253 @@ export default function AdminLeaveRequests() {
         )}
       </div>
 
+      {showCreateModal && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center p-4">
+          <button type="button" className="absolute inset-0 bg-black/40" onClick={() => setShowCreateModal(false)} aria-label="Close" />
+          <div className="relative z-10 w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl border border-surface-200 bg-white p-5 shadow-xl">
+            <h2 className="text-base font-semibold text-surface-900">New Leave</h2>
+            <p className="mt-1 text-sm text-surface-500">Create a leave on behalf of an employee.</p>
+
+            <div className="mt-4 space-y-4">
+              {/* Employee Selection */}
+              <div>
+                <label className="label">Employee</label>
+                <AdminSelect
+                  value={createEmployeeId}
+                  onChange={(val) => setCreateEmployeeId(val)}
+                  options={[
+                    { value: '', label: 'Select employee' },
+                    ...employees.map((e) => ({ value: e.id, label: e.name })),
+                  ]}
+                />
+              </div>
+
+              {/* Leave Type */}
+              <div>
+                <label className="label">Leave Type</label>
+                <AdminSelect
+                  value={createLeaveCategory}
+                  onChange={(val) => setCreateLeaveCategory(val)}
+                  options={leaveCategoryOptions}
+                />
+              </div>
+
+              {/* Calculation Type - toggle buttons */}
+              <div>
+                <label className="label">Calculation</label>
+                <div className="flex gap-0 rounded-xl overflow-hidden border border-surface-200">
+                  {([
+                    { value: 'non_payable' as const, label: 'Non Payable' },
+                    { value: 'hourly_salary' as const, label: 'Hourly Salary' },
+                    { value: 'monthly_salary' as const, label: 'Monthly Salary' },
+                  ]).map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setCreateCalcType(opt.value)}
+                      className={`flex-1 px-3 py-2.5 text-xs sm:text-sm font-medium transition-colors ${
+                        createCalcType === opt.value
+                          ? 'bg-brand-600 text-white'
+                          : 'bg-surface-50 text-surface-600 hover:bg-surface-100'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Conditional: Payable Days (shown when hourly or monthly) */}
+              {createCalcType !== 'non_payable' && (
+                <div>
+                  <label className="label">Payable Days</label>
+                  <input
+                    type="number" min={0} max={366} step={0.5}
+                    className="input w-full rounded-xl"
+                    value={createPayableDays}
+                    onChange={(e) => setCreatePayableDays(e.target.value)}
+                    placeholder="Number of payable days"
+                  />
+                </div>
+              )}
+
+              {/* Conditional: Hourly Rate + Daily Hours (shown when hourly) */}
+              {createCalcType === 'hourly_salary' && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="label">Hourly Rate</label>
+                    <input
+                      type="number" min={0} step={0.01}
+                      className="input w-full rounded-xl"
+                      value={createHourlyRate}
+                      onChange={(e) => setCreateHourlyRate(e.target.value)}
+                      placeholder="e.g. 150"
+                    />
+                  </div>
+                  <div>
+                    <label className="label">Daily Hours</label>
+                    <input
+                      type="number" min={0} max={24} step={0.5}
+                      className="input w-full rounded-xl"
+                      value={createDailyHours}
+                      onChange={(e) => setCreateDailyHours(e.target.value)}
+                      placeholder="e.g. 8"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Conditional: Monthly Rate (shown when monthly) */}
+              {createCalcType === 'monthly_salary' && (
+                <div>
+                  <label className="label">Monthly Rate</label>
+                  <input
+                    type="number" min={0} step={100}
+                    className="input w-full rounded-xl"
+                    value={createMonthlyRate}
+                    onChange={(e) => setCreateMonthlyRate(e.target.value)}
+                    placeholder="e.g. 50000"
+                  />
+                </div>
+              )}
+
+              {/* Days Off */}
+              <div>
+                <label className="label">Days Off</label>
+                <div className="flex flex-wrap gap-2">
+                  {DAYS_OF_WEEK.map((day) => (
+                    <button
+                      key={day} type="button"
+                      onClick={() => setCreateDaysOff((prev) => prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day])}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                        createDaysOff.includes(day) ? 'bg-brand-600 text-white border-brand-600' : 'bg-white text-surface-600 border-surface-200 hover:bg-surface-50'
+                      }`}
+                    >
+                      {day}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Dates */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="label">Start Date & Time</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="relative">
+                      <Calendar className="w-4 h-4 text-surface-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <input type="date" value={createStartDate} onChange={(e) => setCreateStartDate(e.target.value)} className="input w-full rounded-xl pl-9" />
+                    </div>
+                    <div className="relative">
+                      <Clock3 className="w-4 h-4 text-surface-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <input type="time" value={createStartTime} onChange={(e) => setCreateStartTime(e.target.value)} className="input w-full rounded-xl pl-9" />
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <label className="label">End Date & Time</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="relative">
+                      <Calendar className="w-4 h-4 text-surface-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <input type="date" value={createEndDate} onChange={(e) => setCreateEndDate(e.target.value)} className="input w-full rounded-xl pl-9" />
+                    </div>
+                    <div className="relative">
+                      <Clock3 className="w-4 h-4 text-surface-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <input type="time" value={createEndTime} onChange={(e) => setCreateEndTime(e.target.value)} className="input w-full rounded-xl pl-9" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Calendar Days (auto-calc) */}
+              <div>
+                <label className="label">Calendar Days</label>
+                <input type="text" className="input w-full rounded-xl bg-surface-50 text-surface-500" value={calendarDays > 0 ? calendarDays : ''} readOnly disabled placeholder="Auto-calculated" />
+              </div>
+
+              {/* Return Date */}
+              <div>
+                <label className="label">Return Date & Time</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="relative">
+                    <Calendar className="w-4 h-4 text-surface-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input type="date" value={createReturnDate} onChange={(e) => setCreateReturnDate(e.target.value)} className="input w-full rounded-xl pl-9" />
+                  </div>
+                  <div className="relative">
+                    <Clock3 className="w-4 h-4 text-surface-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input type="time" value={createReturnTime} onChange={(e) => setCreateReturnTime(e.target.value)} className="input w-full rounded-xl pl-9" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Asset Deactivation */}
+              <div>
+                <label className="label">Asset Deactivation</label>
+                <div className="flex flex-wrap gap-2">
+                  {assetOptions.map((asset) => (
+                    <button
+                      key={asset} type="button"
+                      onClick={() => setCreateAssetDeactivation((prev) => prev.includes(asset) ? prev.filter((a) => a !== asset) : [...prev, asset])}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                        createAssetDeactivation.includes(asset) ? 'bg-brand-600 text-white border-brand-600' : 'bg-white text-surface-600 border-surface-200 hover:bg-surface-50'
+                      }`}
+                    >
+                      {asset}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Conditional: Daily Salary + Payable Amount + Payroll Cycle (shown when payable) */}
+              {createCalcType !== 'non_payable' && (
+                <>
+                  <div className="rounded-xl border border-surface-200 p-3 space-y-2 text-sm bg-surface-50/50">
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <span className="text-surface-500">Daily Salary</span>
+                      <span className="tabular-nums text-right font-medium">${createPreview.dailySalary.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      <span className="text-surface-500 font-medium">Payable Amount</span>
+                      <span className="tabular-nums text-right font-semibold text-surface-900">${createPreview.payableAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="label">Payroll Cycle</label>
+                    <AdminSelect
+                      value={createPayrollCycleCode}
+                      onChange={(val) => setCreatePayrollCycleCode(val)}
+                      options={[
+                        { value: '', label: 'Select payroll cycle' },
+                        ...payrollPeriods.map((p) => ({ value: p.cycleCode, label: `${p.cycleCode} (${p.periodFrom} - ${p.periodTo})` })),
+                      ]}
+                    />
+                  </div>
+                </>
+              )}
+
+              {/* Reason */}
+              <div>
+                <label className="label">Reason (optional)</label>
+                <textarea value={createReason} onChange={(e) => setCreateReason(e.target.value)} rows={2} className="input w-full rounded-xl" placeholder="Short reason" />
+              </div>
+            </div>
+
+            <div className="mt-5 flex flex-col-reverse sm:flex-row justify-end gap-2">
+              <button type="button" onClick={() => setShowCreateModal(false)} className="btn-secondary rounded-xl px-4 py-2" disabled={createSaving}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleCreateLeave()}
+                className="btn-primary rounded-xl px-4 py-2"
+                disabled={createSaving || !createEmployeeId || !createStartDate || !createEndDate}
+              >
+                {createSaving ? 'Saving...' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {reviewingId && (
         <div className="fixed inset-0 z-40 flex items-center justify-center p-4">
           <button
@@ -345,16 +741,40 @@ export default function AdminLeaveRequests() {
                     <span className="text-surface-500">Employee:</span>{' '}
                     <span className="font-medium text-surface-900">{reviewContext.leave.employeeName}</span>
                   </p>
+                  {reviewContext.leave.leaveCategory ? (
+                    <p>
+                      <span className="text-surface-500">Leave Type:</span>{' '}
+                      {CATEGORY_LABELS[reviewContext.leave.leaveCategory] || reviewContext.leave.leaveCategory}
+                    </p>
+                  ) : null}
                   <p>
                     <span className="text-surface-500">Period:</span>{' '}
                     <span className="tabular-nums">
-                      {reviewContext.leave.startDate} → {reviewContext.leave.endDate}
+                      {reviewContext.leave.startDate}{reviewContext.leave.startTime ? ` ${reviewContext.leave.startTime}` : ''} → {reviewContext.leave.endDate}{reviewContext.leave.endTime ? ` ${reviewContext.leave.endTime}` : ''}
                     </span>
                   </p>
+                  {reviewContext.leave.returnDate ? (
+                    <p>
+                      <span className="text-surface-500">Return:</span>{' '}
+                      <span className="tabular-nums">{reviewContext.leave.returnDate}{reviewContext.leave.returnTime ? ` ${reviewContext.leave.returnTime}` : ''}</span>
+                    </p>
+                  ) : null}
                   <p>
                     <span className="text-surface-500">Type:</span>{' '}
                     {reviewContext.leave.leaveType === 'paid' ? 'Paid' : 'Unpaid'}
                   </p>
+                  {reviewContext.leave.associateDaysOff ? (
+                    <p>
+                      <span className="text-surface-500">Days Off:</span>{' '}
+                      {reviewContext.leave.associateDaysOff}
+                    </p>
+                  ) : null}
+                  {reviewContext.leave.calculationType ? (
+                    <p>
+                      <span className="text-surface-500">Requested Calculation:</span>{' '}
+                      {reviewContext.leave.calculationType === 'non_payable' ? 'Non Payable' : reviewContext.leave.calculationType === 'hourly_salary' ? 'Hourly Salary' : 'Monthly Salary'}
+                    </p>
+                  ) : null}
                   <p>
                     <span className="text-surface-500">Salary:</span>{' '}
                     {reviewContext.employee.salaryType} · base ${reviewContext.employee.baseSalary.toFixed(2)}

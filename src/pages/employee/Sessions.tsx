@@ -57,7 +57,7 @@ export default function EmployeeSessions() {
       regularDuration: formatDuration(regularMin),
       overtimeDuration: formatDuration(overtimeMin),
       nightDuration: formatDuration(nightMin),
-      totalDuration: formatDuration(regularMin + overtimeMin + nightMin),
+      totalDuration: formatDuration(regularMin + overtimeMin),
     }
   }, [sessions])
 

@@ -22,8 +22,19 @@ async function getNightWindow() {
 
 /**
  * Minutes between start and end that fall in night window: configurable (default 9:00 PM - 7:00 AM).
+ * Midnight rule (DR labor law): if the shift extends to or past midnight (i.e., clock-out is on a
+ * different calendar day than clock-in), the ENTIRE shift is paid at the night differential rate.
+ * If night hours fall only between 9PM and 11:59PM (same day), only those hours get the differential.
  */
 function getNightMinutesBetween(start, end, nightStartHour, nightEndHour) {
+  const totalMinutes = (end.getTime() - start.getTime()) / 60000
+
+  // Check if shift crosses midnight: clock-out date differs from clock-in date
+  const startDay = start.getFullYear() * 10000 + start.getMonth() * 100 + start.getDate()
+  const endDay = end.getFullYear() * 10000 + end.getMonth() * 100 + end.getDate()
+  const shiftCrossesMidnight = endDay > startDay
+
+  // Count actual night seconds within the night window
   let nightSeconds = 0
   const endMs = end.getTime()
   let t = start.getTime()
@@ -31,8 +42,15 @@ function getNightMinutesBetween(start, end, nightStartHour, nightEndHour) {
   while (t < endMs) {
     const d = new Date(t)
     const hour = d.getHours()
-    if (hour >= nightStartHour || hour < nightEndHour) nightSeconds += 1
+    if (hour >= nightStartHour || hour < nightEndHour) {
+      nightSeconds += 1
+    }
     t += oneSecMs
+  }
+
+  // If shift crosses midnight AND has any night hours, entire shift gets night differential
+  if (shiftCrossesMidnight && nightSeconds > 0) {
+    return totalMinutes
   }
   return nightSeconds / 60
 }
@@ -91,15 +109,66 @@ router.post('/clock-out', async (req, res) => {
     const { start: nightStart, end: nightEnd } = await getNightWindow()
     const totalMinutes = (clockOut - clockIn) / 60000
     const nightMinutes = getNightMinutesBetween(clockIn, clockOut, nightStart, nightEnd)
-    const dayMinutes = totalMinutes - nightMinutes
-    const regularMinutes = Math.round(Math.min(Math.max(0, dayMinutes), REGULAR_MINUTES_PER_DAY))
-    const overtimeMinutes = Math.round(Math.max(0, dayMinutes - REGULAR_MINUTES_PER_DAY))
+    // Night hours are classified as regular/OT based on total shift duration.
+    // Night differential (+15%) is an ADDITIONAL premium on top of regular/OT pay.
+    const regularMinutes = Math.round(Math.min(Math.max(0, totalMinutes), REGULAR_MINUTES_PER_DAY))
+    const overtimeMinutes = Math.round(Math.max(0, totalMinutes - REGULAR_MINUTES_PER_DAY))
     const roundedNightMinutes = Math.round(nightMinutes)
     await query(
       `UPDATE sessions SET clock_out = $1, regular_minutes = $2, overtime_minutes = $3, night_minutes = $4
        WHERE id = $5`,
       [clockOut.toISOString(), regularMinutes, overtimeMinutes, roundedNightMinutes, active.rows[0].id]
     )
+    // Auto-populate shift and holiday data
+    try {
+      const clockInDate = clockIn.toISOString().slice(0, 10)
+      // Get scheduled shift for this employee on this date
+      const shiftResult = await query(
+        `SELECT COALESCE(a.override_start_time, s.start_time) AS start_time,
+                COALESCE(a.override_end_time, s.end_time) AS end_time
+         FROM schedule_assignments a
+         JOIN shifts s ON s.id = a.shift_id
+         WHERE a.user_id = $1 AND a.date = $2::date
+         LIMIT 1`,
+        [userId, clockInDate]
+      )
+      if (shiftResult.rows.length > 0) {
+        const shift = shiftResult.rows[0]
+        const shiftStartTs = `${clockInDate}T${String(shift.start_time).slice(0, 5)}:00`
+        const shiftEndTs = `${clockInDate}T${String(shift.end_time).slice(0, 5)}:00`
+        await query(
+          `UPDATE sessions SET shift_start = $1, shift_end = $2 WHERE id = $3`,
+          [shiftStartTs, shiftEndTs, active.rows[0].id]
+        )
+      }
+      // Check if date is a holiday
+      const holidayResult = await query(
+        `SELECT name FROM holidays WHERE holiday_date = $1::date AND is_paid = TRUE LIMIT 1`,
+        [clockInDate]
+      )
+      if (holidayResult.rows.length > 0) {
+        await query(
+          `UPDATE sessions SET holiday_name = $1 WHERE id = $2`,
+          [holidayResult.rows[0].name, active.rows[0].id]
+        )
+      }
+      // Calculate and store scheduled/actual/dbt minutes
+      const actualMins = Math.round(totalMinutes)
+      let dbtMins = 0
+      if (actualMins >= 480) dbtMins = 60
+      else if (actualMins >= 360) dbtMins = 45
+      else if (actualMins >= 240) dbtMins = 30
+      else if (actualMins >= 120) dbtMins = 15
+      const schedMins = shiftResult.rows.length > 0
+        ? Math.round((new Date(`${clockInDate}T${String(shiftResult.rows[0].end_time).slice(0, 5)}:00`).getTime() - new Date(`${clockInDate}T${String(shiftResult.rows[0].start_time).slice(0, 5)}:00`).getTime()) / 60000)
+        : 0
+      await query(
+        `UPDATE sessions SET scheduled_minutes = $1, actual_minutes = $2, dbt_minutes = $3 WHERE id = $4`,
+        [schedMins > 0 ? schedMins : 0, actualMins, dbtMins, active.rows[0].id]
+      )
+    } catch (e) {
+      console.warn('Auto-populate shift/holiday data failed:', e.message)
+    }
     const result = await query(
       'SELECT id, clock_in, clock_out, regular_minutes, overtime_minutes, night_minutes FROM sessions WHERE id = $1',
       [active.rows[0].id]
@@ -177,16 +246,17 @@ router.get('/summary', async (req, res) => {
       const clockOut = new Date(row.clock_out)
       const totalMinutes = (clockOut - clockIn) / 60000
       const rowNightMinutes = getNightMinutesBetween(clockIn, clockOut, nightStart, nightEnd)
-      const rowDayMinutes = totalMinutes - rowNightMinutes
-      regularMinutes += Math.min(Math.max(0, rowDayMinutes), REGULAR_MINUTES_PER_DAY)
-      overtimeMinutes += Math.max(0, rowDayMinutes - REGULAR_MINUTES_PER_DAY)
+      // Night hours are part of regular/OT — differential is just the extra +15%
+      regularMinutes += Math.min(Math.max(0, totalMinutes), REGULAR_MINUTES_PER_DAY)
+      overtimeMinutes += Math.max(0, totalMinutes - REGULAR_MINUTES_PER_DAY)
       nightMinutes += rowNightMinutes
     }
-    const totalMinutes = regularMinutes + overtimeMinutes + nightMinutes
+    const totalMinutes = regularMinutes + overtimeMinutes
     const regularHours = regularMinutes / 60
     const overtimeHours = overtimeMinutes / 60
     const nightHours = nightMinutes / 60
-    const totalHours = regularHours + overtimeHours + nightHours
+    // totalHours = regular + OT (night hours are already included in these, not additive)
+    const totalHours = regularHours + overtimeHours
     const period = `${fromDate} – ${toDate}`
     res.json({
       period,
@@ -247,7 +317,10 @@ router.get('/leave-requests', async (req, res) => {
               lr.reason, lr.status, lr.reviewed_note, lr.reviewed_at,
               reviewer.name AS reviewed_by_name,
               lr.created_at,
-              lr.leave_calculation_type, lr.leave_payable_days, lr.leave_payable_amount
+              lr.leave_calculation_type, lr.leave_payable_days, lr.leave_payable_amount,
+              lr.leave_category, lr.leave_associate_days_off,
+              lr.return_date::text AS return_date_str,
+              lr.start_time::text, lr.end_time::text, lr.return_time::text
        FROM leave_requests lr
        LEFT JOIN users reviewer ON reviewer.id = lr.reviewed_by
        WHERE lr.user_id = $1
@@ -268,6 +341,12 @@ router.get('/leave-requests', async (req, res) => {
       leaveCalculationType: r.leave_calculation_type || null,
       leavePayableDays: r.leave_payable_days != null ? Number(r.leave_payable_days) : null,
       leavePayableAmount: r.leave_payable_amount != null ? Number(r.leave_payable_amount) : null,
+      leaveCategory: r.leave_category || null,
+      associateDaysOff: r.leave_associate_days_off || null,
+      returnDate: r.return_date_str?.slice(0, 10) ?? null,
+      startTime: r.start_time || null,
+      endTime: r.end_time || null,
+      returnTime: r.return_time || null,
     })))
   } catch (err) {
     console.error('List leave requests error:', err)
@@ -278,7 +357,11 @@ router.get('/leave-requests', async (req, res) => {
 // POST /api/sessions/leave-requests
 router.post('/leave-requests', async (req, res) => {
   try {
-    const { leaveType = 'unpaid', startDate, endDate, reason } = req.body
+    const {
+      leaveType = 'unpaid', startDate, endDate, reason,
+      leaveCategory, calculationType, associateDaysOff,
+      returnDate, startTime, endTime, returnTime,
+    } = req.body
     if (!startDate || !endDate) {
       return res.status(400).json({ error: 'Bad request', message: 'startDate and endDate are required' })
     }
@@ -303,11 +386,28 @@ router.post('/leave-requests', async (req, res) => {
       return res.status(409).json({ error: 'Conflict', message: 'You have an approved leave during this period' })
     }
 
+    const assocStr = Array.isArray(associateDaysOff)
+      ? associateDaysOff.map((d) => String(d).trim()).filter(Boolean).join(', ') || null
+      : null
+    const calcType = calculationType && ['non_payable', 'hourly_salary', 'monthly_salary'].includes(calculationType)
+      ? calculationType
+      : null
+
     const result = await query(
-      `INSERT INTO leave_requests (user_id, leave_type, start_date, end_date, reason, status)
-       VALUES ($1, $2, $3::date, $4::date, $5, 'pending')
-       RETURNING id, leave_type, start_date::text AS start_date_str, end_date::text AS end_date_str, reason, status, created_at`,
-      [req.user.id, type, startDate, endDate, reason ? String(reason).trim() : null]
+      `INSERT INTO leave_requests (user_id, leave_type, start_date, end_date, reason, status,
+         leave_category, leave_calculation_type, leave_associate_days_off,
+         return_date, start_time, end_time, return_time)
+       VALUES ($1, $2, $3::date, $4::date, $5, 'pending',
+         $6, $7, $8,
+         $9::date, $10::time, $11::time, $12::time)
+       RETURNING id, leave_type, start_date::text AS start_date_str, end_date::text AS end_date_str,
+         reason, status, created_at, leave_category, leave_calculation_type, leave_associate_days_off,
+         return_date::text AS return_date_str, start_time::text, end_time::text, return_time::text`,
+      [
+        req.user.id, type, startDate, endDate, reason ? String(reason).trim() : null,
+        leaveCategory || null, calcType, assocStr,
+        returnDate || null, startTime || null, endTime || null, returnTime || null,
+      ]
     )
     const r = result.rows[0]
 
@@ -343,6 +443,13 @@ router.post('/leave-requests', async (req, res) => {
       reason: r.reason || '',
       status: r.status,
       createdAt: r.created_at,
+      leaveCategory: r.leave_category || null,
+      calculationType: r.leave_calculation_type || null,
+      associateDaysOff: r.leave_associate_days_off || null,
+      returnDate: r.return_date_str?.slice(0, 10) ?? null,
+      startTime: r.start_time || null,
+      endTime: r.end_time || null,
+      returnTime: r.return_time || null,
     })
   } catch (err) {
     console.error('Create leave request error:', err)

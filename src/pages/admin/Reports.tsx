@@ -88,7 +88,7 @@ export default function AdminReports() {
         formatDurationFromHours(r.regularHours),
         formatDurationFromHours(r.overtimeHours),
         formatDurationFromHours(r.nightHours),
-        formatDurationFromHours(r.regularHours + r.overtimeHours + r.nightHours),
+        formatDurationFromHours(r.regularHours + r.overtimeHours),
         r.status,
       ])
       const csv = [headers.join(','), ...rows.map((row) => row.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(','))].join('\n')
@@ -214,7 +214,7 @@ export default function AdminReports() {
                     <td className="px-3 py-2.5 sm:px-5 sm:py-3.5 text-xs sm:text-sm font-medium text-surface-900 truncate max-w-[100px] sm:max-w-none rounded-l-xl">{r.employeeName}</td>
                     <td className="px-3 py-2.5 sm:px-5 sm:py-3.5 text-xs sm:text-sm text-surface-700 tabular-nums whitespace-nowrap">{r.date}</td>
                     <td className="px-3 py-2.5 sm:px-5 sm:py-3.5 text-xs sm:text-sm text-surface-700 tabular-nums">
-                      {formatDurationFromHours(r.regularHours + r.overtimeHours + r.nightHours)}
+                      {formatDurationFromHours(r.regularHours + r.overtimeHours)}
                     </td>
                     <td className="px-3 py-2.5 sm:px-5 sm:py-3.5 rounded-r-xl">
                       <span className={`inline-flex items-center px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-medium ${statusColors[r.status] ?? 'bg-surface-100 text-surface-600'}`}>

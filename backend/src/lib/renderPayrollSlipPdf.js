@@ -157,7 +157,7 @@ function drawPayrollLayout(doc, row, settings, fromDate, toDate) {
     ['Regular pay', money(row.regularPay)],
     ['OT pay (× OT multiplier)', money(row.ot35Pay)],
     ['OT 100% pay (×2)', money(row.ot100Pay)],
-    ['Night pay (× night multiplier)', money(row.nightPay)],
+    ['Night differential (+15% premium)', money(row.nightPay)],
     ['Holiday pay', money(row.holidayPay)],
   ]
   if (Number(row.leavePay) > 0) {

@@ -23,15 +23,37 @@ export interface PayrollSummary {
 
 export interface AttendanceRecord {
   id: string
+  sessionId?: string
   employeeId: string
   employeeName: string
+  employeeCmid?: number | null
+  accountName?: string | null
   date: string
+  shiftStart?: string | null
+  shiftEnd?: string | null
   clockIn: string
   clockOut: string | null
+  location?: string | null
+  stage?: string | null
+  reportsTo?: string | null
+  task?: string | null
+  status: string
+  payType?: string
+  billType?: string
+  scheduledHours?: number
+  actualHours?: number
+  dbtHours?: number
+  holidayName?: string | null
+  regHours?: number
+  n15Hours?: number
+  x35Hours?: number
+  x100Hours?: number
+  holHours?: number
+  comments?: string
+  // Backward compatibility
   regularHours: number
   overtimeHours: number
   nightHours: number
-  status: 'present' | 'absent' | 'leave' | 'adjusted' | 'active'
 }
 
 export interface PayrollRule {
