@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Clock, Moon, TrendingUp, Save, Plug, Calendar } from 'lucide-react'
+import { Clock, Moon, TrendingUp, Save, Plug, Calendar, Banknote } from 'lucide-react'
 import { createHoliday, deleteHoliday, getHolidays, getSettings, updateSettings, type HolidayItem } from '@/lib/apiAdmin'
 import AdminSelect from '@/components/AdminSelect'
 
@@ -21,6 +21,7 @@ export default function AdminSettings() {
   const [nightMultiplier, setNightMultiplier] = useState('1.15')
   const [nightShiftStartHour, setNightShiftStartHour] = useState(21)
   const [nightShiftEndHour, setNightShiftEndHour] = useState(7)
+  const [defaultBaseSalary, setDefaultBaseSalary] = useState('0')
   const [holidays, setHolidays] = useState<HolidayItem[]>([])
   const [holidayDate, setHolidayDate] = useState('')
   const [holidayName, setHolidayName] = useState('')
@@ -40,6 +41,7 @@ export default function AdminSettings() {
         setNightMultiplier(String(data.nightMultiplier))
         setNightShiftStartHour(data.nightShiftStartHour)
         setNightShiftEndHour(data.nightShiftEndHour)
+        setDefaultBaseSalary(String(data.defaultBaseSalary ?? 0))
       })
       .catch((e: unknown) => {
         if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load settings')
@@ -101,8 +103,13 @@ export default function AdminSettings() {
     const hd = parseFloat(hoursPerDay)
     const ot = parseFloat(otMultiplier)
     const night = parseFloat(nightMultiplier)
+    const dbs = parseFloat(defaultBaseSalary)
     if (Number.isNaN(wd) || wd <= 0 || Number.isNaN(hd) || hd <= 0 || Number.isNaN(ot) || ot < 1 || Number.isNaN(night) || night < 1) {
       setError('Please enter valid numbers (working days & hours > 0, multipliers ≥ 1).')
+      return
+    }
+    if (Number.isNaN(dbs) || dbs < 0) {
+      setError('Default base salary must be a number ≥ 0.')
       return
     }
     setSaving(true)
@@ -114,6 +121,7 @@ export default function AdminSettings() {
         nightMultiplier: night,
         nightShiftStartHour,
         nightShiftEndHour,
+        defaultBaseSalary: dbs,
       })
       setSuccess(true)
       setTimeout(() => setSuccess(false), 3000)
@@ -254,6 +262,25 @@ export default function AdminSettings() {
           Define how regular, overtime, and night hours are calculated. Used for payroll and for converting monthly salary to hourly.
         </p>
         <div className="space-y-3 sm:space-y-4">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-lg sm:rounded-xl border border-surface-200/80">
+            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-emerald-50 flex items-center justify-center shrink-0">
+              <Banknote className="w-5 h-5 text-emerald-700" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-medium text-surface-900 text-sm sm:text-base">Default base salary</p>
+              <p className="text-xs sm:text-sm text-surface-500">
+                Company default reference ($). Individual employee rates are still set in Employees.
+              </p>
+            </div>
+            <input
+              type="number"
+              min={0}
+              step={0.01}
+              className="input w-full sm:w-24 text-right rounded-xl min-h-[2.75rem] tabular-nums"
+              value={defaultBaseSalary}
+              onChange={(e) => setDefaultBaseSalary(e.target.value)}
+            />
+          </div>
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-lg sm:rounded-xl border border-surface-200/80">
             <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-surface-100 flex items-center justify-center shrink-0">
               <Calendar className="w-5 h-5 text-surface-600" />

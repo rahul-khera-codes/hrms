@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, useEffect } from 'react'
 import { format, subDays, startOfDay } from 'date-fns'
-import { Clock, Play, Square, TrendingUp, Moon, Zap, Calendar } from 'lucide-react'
+import { Clock, Play, Square, TrendingUp, Moon, Zap, Calendar, FileDown, Eye, X, History } from 'lucide-react'
 import {
   PieChart,
   Pie,
@@ -13,7 +13,18 @@ import {
   Tooltip,
 } from 'recharts'
 import type { ClockSession, PayrollSummary } from '@/types'
-import { getActiveSession, getSessions, getSummary, clockIn as apiClockIn, clockOut as apiClockOut } from '@/lib/apiSessions'
+import {
+  getActiveSession,
+  getSessions,
+  getSummary,
+  clockIn as apiClockIn,
+  clockOut as apiClockOut,
+  downloadMyPayrollSlipPdf,
+  fetchMyPayrollSlipPdfBlob,
+  listMyPayrollSlips,
+  downloadStoredPayslipPdf,
+} from '@/lib/apiSessions'
+import AdminDatePicker from '@/components/AdminDatePicker'
 
 const HOURS_COLORS = {
   regular: '#14b8a6',
@@ -74,6 +85,16 @@ export default function EmployeeDashboard() {
   const [summary, setSummary] = useState<PayrollSummary | null>(null)
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(false)
+  const [slipFrom, setSlipFrom] = useState(() => format(subDays(new Date(), 14), 'yyyy-MM-dd'))
+  const [slipTo, setSlipTo] = useState(() => format(new Date(), 'yyyy-MM-dd'))
+  const [slipLoading, setSlipLoading] = useState(false)
+  const [slipError, setSlipError] = useState<string | null>(null)
+  const [slipPreviewUrl, setSlipPreviewUrl] = useState<string | null>(null)
+  const [slipPreviewLoading, setSlipPreviewLoading] = useState(false)
+  const [savedSlips, setSavedSlips] = useState<
+    { id: string; periodFrom: string; periodTo: string; savedAt: string }[]
+  >([])
+  const [savedSlipsLoading, setSavedSlipsLoading] = useState(false)
 
   const fetchData = useCallback(async () => {
     try {
@@ -97,6 +118,33 @@ export default function EmployeeDashboard() {
   useEffect(() => {
     fetchData()
   }, [fetchData])
+
+  const reloadSavedSlips = useCallback(async () => {
+    setSavedSlipsLoading(true)
+    try {
+      const list = await listMyPayrollSlips()
+      setSavedSlips(list)
+    } catch {
+      setSavedSlips([])
+    } finally {
+      setSavedSlipsLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (loading) return
+    void reloadSavedSlips()
+  }, [loading, reloadSavedSlips])
+
+  useEffect(() => {
+    return () => {
+      if (slipPreviewUrl) URL.revokeObjectURL(slipPreviewUrl)
+    }
+  }, [slipPreviewUrl])
+
+  useEffect(() => {
+    setSlipPreviewUrl(null)
+  }, [slipFrom, slipTo])
 
   const [now, setNow] = useState(() => new Date())
 
@@ -152,6 +200,33 @@ export default function EmployeeDashboard() {
       await fetchData()
     } finally {
       setActionLoading(false)
+    }
+  }
+
+  async function handlePreviewPaySlip() {
+    setSlipError(null)
+    setSlipPreviewLoading(true)
+    try {
+      const blob = await fetchMyPayrollSlipPdfBlob({ from: slipFrom, to: slipTo })
+      const url = URL.createObjectURL(blob)
+      setSlipPreviewUrl(url)
+    } catch (e: unknown) {
+      setSlipError(e instanceof Error ? e.message : 'Failed to load pay slip preview')
+    } finally {
+      setSlipPreviewLoading(false)
+    }
+  }
+
+  async function handleDownloadPaySlip() {
+    setSlipError(null)
+    setSlipLoading(true)
+    try {
+      await downloadMyPayrollSlipPdf({ from: slipFrom, to: slipTo })
+      await reloadSavedSlips()
+    } catch (e: unknown) {
+      setSlipError(e instanceof Error ? e.message : 'Failed to download pay slip')
+    } finally {
+      setSlipLoading(false)
     }
   }
 
@@ -285,6 +360,126 @@ export default function EmployeeDashboard() {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {!loading && (
+        <div className="mt-4 rounded-xl sm:rounded-2xl border border-surface-200/80 bg-white p-4 sm:p-6 shadow-sm">
+          <h3 className="text-sm font-semibold text-surface-900">Pay slip (PDF)</h3>
+          <p className="text-xs text-surface-500 mt-1">
+            Preview or download your payroll slip for any period (matches admin payroll calculation).
+          </p>
+          <div className="mt-3 flex flex-col sm:flex-row flex-wrap gap-3 items-stretch sm:items-end">
+            <div className="min-w-0 flex-1 sm:flex-initial">
+              <label className="label">From</label>
+              <div className="sm:w-40">
+                <AdminDatePicker value={slipFrom} onChange={(v) => setSlipFrom(v)} />
+              </div>
+            </div>
+            <div className="min-w-0 flex-1 sm:flex-initial">
+              <label className="label">To</label>
+              <div className="sm:w-40">
+                <AdminDatePicker value={slipTo} onChange={(v) => setSlipTo(v)} />
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handlePreviewPaySlip}
+              disabled={slipPreviewLoading || slipFrom > slipTo}
+              className="inline-flex items-center justify-center gap-2 rounded-xl min-h-[2.75rem] px-4 w-full sm:w-auto border border-surface-300 bg-white text-surface-800 hover:bg-surface-50 font-medium disabled:opacity-60"
+            >
+              {slipPreviewLoading ? (
+                <span className="w-4 h-4 border-2 border-surface-600 border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <Eye className="w-4 h-4 shrink-0" />
+              )}
+              Preview
+            </button>
+            <button
+              type="button"
+              onClick={handleDownloadPaySlip}
+              disabled={slipLoading || slipFrom > slipTo}
+              className="btn-primary inline-flex items-center justify-center gap-2 rounded-xl min-h-[2.75rem] px-4 w-full sm:w-auto disabled:opacity-60"
+            >
+              {slipLoading ? (
+                <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <FileDown className="w-4 h-4 shrink-0" />
+              )}
+              Download PDF
+            </button>
+          </div>
+          {slipPreviewUrl && (
+            <div className="mt-4 rounded-lg border border-surface-200 bg-surface-50 overflow-hidden">
+              <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-surface-200 bg-white">
+                <p className="text-xs text-surface-500">Preview</p>
+                <button
+                  type="button"
+                  onClick={() => setSlipPreviewUrl(null)}
+                  className="inline-flex items-center justify-center rounded-lg p-1.5 text-surface-500 hover:text-surface-900 hover:bg-surface-100 transition-colors"
+                  aria-label="Close preview"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <iframe
+                title="Payroll slip preview"
+                src={slipPreviewUrl}
+                className="w-full min-h-[20rem] h-[min(70vh,40rem)] bg-white"
+              />
+            </div>
+          )}
+          {slipError && (
+            <p className="mt-2 text-sm text-red-600" role="alert">{slipError}</p>
+          )}
+
+          <div className="mt-6 pt-4 border-t border-surface-200">
+            <div className="flex items-center gap-2 mb-2">
+              <History className="w-4 h-4 text-surface-500 shrink-0" />
+              <h4 className="text-sm font-semibold text-surface-900">Saved payslips</h4>
+            </div>
+            <p className="text-xs text-surface-500 mb-3">
+              Each PDF you download is stored here by pay period so you can open it again.
+            </p>
+            {savedSlipsLoading ? (
+              <div className="flex items-center gap-2 text-xs text-surface-500">
+                <span className="w-4 h-4 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
+                Loading…
+              </div>
+            ) : savedSlips.length === 0 ? (
+              <p className="text-xs text-surface-500">No saved payslips yet — download a PDF above to add one.</p>
+            ) : (
+              <ul className="space-y-2">
+                {savedSlips.map((s) => (
+                  <li
+                    key={s.id}
+                    className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded-lg border border-surface-200 bg-surface-50/80 px-3 py-2.5"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-surface-900 tabular-nums">
+                        {s.periodFrom} → {s.periodTo}
+                      </p>
+                      <p className="text-xs text-surface-500">
+                        Saved {format(new Date(s.savedAt), 'MMM d, yyyy h:mm a')}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void downloadStoredPayslipPdf(s).catch(() => {
+                          /* ignore */
+                        })
+                      }}
+                      className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-surface-300 bg-white px-3 py-1.5 text-xs font-medium text-surface-800 hover:bg-surface-100 shrink-0"
+                    >
+                      <FileDown className="w-3.5 h-3.5" />
+                      Download
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </div>
       )}

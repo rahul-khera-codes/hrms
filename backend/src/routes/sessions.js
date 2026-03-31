@@ -2,6 +2,9 @@ import express from 'express'
 import { query } from '../config/db.js'
 import { authMiddleware } from '../middleware/auth.js'
 import { createNotification } from './notifications.js'
+import { getSettings } from '../lib/payrollSettings.js'
+import { buildPayrollEmployeeRow } from '../lib/payrollEmployeeRow.js'
+import { renderPayrollSlipPdf } from '../lib/renderPayrollSlipPdf.js'
 
 const router = express.Router()
 const REGULAR_MINUTES_PER_DAY = 8 * 60 // 480
@@ -243,7 +246,8 @@ router.get('/leave-requests', async (req, res) => {
       `SELECT lr.id, lr.leave_type, lr.start_date::text AS start_date_str, lr.end_date::text AS end_date_str,
               lr.reason, lr.status, lr.reviewed_note, lr.reviewed_at,
               reviewer.name AS reviewed_by_name,
-              lr.created_at
+              lr.created_at,
+              lr.leave_calculation_type, lr.leave_payable_days, lr.leave_payable_amount
        FROM leave_requests lr
        LEFT JOIN users reviewer ON reviewer.id = lr.reviewed_by
        WHERE lr.user_id = $1
@@ -261,6 +265,9 @@ router.get('/leave-requests', async (req, res) => {
       reviewedAt: r.reviewed_at,
       reviewedByName: r.reviewed_by_name || '',
       createdAt: r.created_at,
+      leaveCalculationType: r.leave_calculation_type || null,
+      leavePayableDays: r.leave_payable_days != null ? Number(r.leave_payable_days) : null,
+      leavePayableAmount: r.leave_payable_amount != null ? Number(r.leave_payable_amount) : null,
     })))
   } catch (err) {
     console.error('List leave requests error:', err)
@@ -339,6 +346,143 @@ router.post('/leave-requests', async (req, res) => {
     })
   } catch (err) {
     console.error('Create leave request error:', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// GET /api/sessions/payroll-slips — list saved payslip PDFs for logged-in employee
+router.get('/payroll-slips', async (req, res) => {
+  try {
+    const userId = req.user.id
+    const roleCheck = await query(`SELECT role FROM users WHERE id = $1`, [userId])
+    if (!roleCheck.rows.length || roleCheck.rows[0].role !== 'employee') {
+      return res.json([])
+    }
+    const result = await query(
+      `SELECT id, period_from::text AS period_from, period_to::text AS period_to, created_at
+       FROM employee_payslip_snapshots
+       WHERE user_id = $1
+       ORDER BY created_at DESC
+       LIMIT 100`,
+      [userId]
+    )
+    const rows = result.rows.map((r) => ({
+      id: r.id,
+      periodFrom: r.period_from?.slice(0, 10) ?? '',
+      periodTo: r.period_to?.slice(0, 10) ?? '',
+      savedAt: r.created_at,
+    }))
+    res.json(rows)
+  } catch (err) {
+    console.error('List payroll slips error:', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// GET /api/sessions/payroll-slips/:id — download a saved PDF (same employee only)
+router.get('/payroll-slips/:id', async (req, res) => {
+  try {
+    const userId = req.user.id
+    const { id } = req.params
+    const result = await query(
+      `SELECT pdf_data, period_from::text AS period_from, period_to::text AS period_to
+       FROM employee_payslip_snapshots
+       WHERE id = $1 AND user_id = $2`,
+      [id, userId]
+    )
+    if (!result.rows.length) {
+      return res.status(404).json({ error: 'Not found', message: 'Payslip not found' })
+    }
+    const row = result.rows[0]
+    const fromStr = row.period_from?.slice(0, 10) ?? 'from'
+    const toStr = row.period_to?.slice(0, 10) ?? 'to'
+    res.setHeader('Content-Type', 'application/pdf')
+    res.setHeader('Content-Disposition', `attachment; filename="payroll-slip-${fromStr}-to-${toStr}.pdf"`)
+    res.send(row.pdf_data)
+  } catch (err) {
+    console.error('Download saved payroll slip error:', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// GET /api/sessions/payroll-slip.pdf?from=YYYY-MM-DD&to=YYYY-MM-DD — logged-in employee only
+router.get('/payroll-slip.pdf', async (req, res) => {
+  try {
+    const { from, to } = req.query
+    if (!from || !to) {
+      return res.status(400).json({ error: 'Bad request', message: 'from and to are required' })
+    }
+    const fromDate = String(from)
+    const toDate = String(to)
+    const userId = req.user.id
+    const empResult = await query(
+      `SELECT u.id, u.name,
+              COALESCE(e.salary_type, u.salary_type) AS salary_type,
+              COALESCE(e.base_salary, u.base_salary) AS base_salary
+       FROM users u
+       LEFT JOIN employees e ON e.user_id = u.id
+       WHERE u.id = $1 AND u.role = 'employee'`,
+      [userId]
+    )
+    if (!empResult.rows.length) {
+      return res.status(403).json({ error: 'Forbidden', message: 'Pay slip is only available for employees' })
+    }
+    const emp = empResult.rows[0]
+    const settings = await getSettings()
+    const holidayRows = await query(
+      `SELECT holiday_date::text AS holiday_date_str
+       FROM holidays
+       WHERE is_paid = TRUE
+         AND holiday_date >= $1::date
+         AND holiday_date <= $2::date`,
+      [fromDate, toDate]
+    )
+    const holidayDates = new Set(holidayRows.rows.map((r) => r.holiday_date_str?.slice(0, 10)).filter(Boolean))
+    const lineItemsRows = await query(
+      `SELECT id, user_id, type, label, amount FROM payroll_line_items
+       WHERE period_from = $1::date AND period_to = $2::date AND user_id = $3`,
+      [fromDate, toDate, userId]
+    )
+    const lineItemsByUser = { [userId]: [] }
+    for (const r of lineItemsRows.rows) {
+      lineItemsByUser[userId].push({
+        id: r.id,
+        type: r.type,
+        label: r.label || '',
+        amount: Number(r.amount),
+      })
+    }
+    const govRows = await query(
+      `SELECT user_id, social_security, tax, infotep FROM payroll_government_deductions
+       WHERE period_from = $1::date AND period_to = $2::date AND user_id = $3`,
+      [fromDate, toDate, userId]
+    )
+    const govDeductionsByUser = {}
+    for (const r of govRows.rows) {
+      govDeductionsByUser[r.user_id] = {
+        socialSecurity: Number(r.social_security),
+        tax: Number(r.tax),
+        infotep: Number(r.infotep),
+      }
+    }
+    const row = await buildPayrollEmployeeRow(emp, settings, fromDate, toDate, holidayDates, lineItemsByUser, govDeductionsByUser)
+    const pdfBuffer = await renderPayrollSlipPdf(row, settings, fromDate, toDate)
+    const persist = req.query.persist === '1' || req.query.persist === 'true'
+    if (persist) {
+      await query(
+        `INSERT INTO employee_payslip_snapshots (user_id, period_from, period_to, pdf_data)
+         VALUES ($1::uuid, $2::date, $3::date, $4)
+         ON CONFLICT (user_id, period_from, period_to)
+         DO UPDATE SET pdf_data = EXCLUDED.pdf_data, created_at = NOW()`,
+        [userId, fromDate, toDate, pdfBuffer]
+      )
+    }
+    const safeName = String(row.employeeName || 'employee').replace(/[^a-zA-Z0-9-_]/g, '_')
+    res.setHeader('Content-Type', 'application/pdf')
+    res.setHeader('Content-Disposition', `attachment; filename="payroll-slip-${safeName}-${fromDate}-to-${toDate}.pdf"`)
+    res.send(pdfBuffer)
+  } catch (err) {
+    console.error('Employee payroll slip PDF error:', err)
     res.status(500).json({ error: 'Internal server error' })
   }
 })

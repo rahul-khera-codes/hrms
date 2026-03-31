@@ -2,7 +2,10 @@ import express from 'express'
 import bcrypt from 'bcryptjs'
 import { query } from '../config/db.js'
 import { authMiddleware, requireAdmin } from '../middleware/auth.js'
-import { computeSSEmployeeBiWeekly, computeTaxForPeriod } from '../lib/drPayrollRules.js'
+import { getSettings } from '../lib/payrollSettings.js'
+import { buildPayrollEmployeeRow, listDateStrings } from '../lib/payrollEmployeeRow.js'
+import { computeLeavePaySnapshot, countInclusiveCalendarDays } from '../lib/leavePayComputation.js'
+import { renderPayrollSlipPdf } from '../lib/renderPayrollSlipPdf.js'
 import { createNotification } from './notifications.js'
 
 const router = express.Router()
@@ -52,17 +55,6 @@ function toAttendanceRecord(row) {
     nightHours,
     status,
   }
-}
-
-function listDateStrings(fromDate, toDate) {
-  const dates = []
-  const cur = new Date(`${fromDate}T12:00:00Z`)
-  const end = new Date(`${toDate}T12:00:00Z`)
-  while (cur <= end) {
-    dates.push(cur.toISOString().slice(0, 10))
-    cur.setUTCDate(cur.getUTCDate() + 1)
-  }
-  return dates
 }
 
 router.use(authMiddleware)
@@ -310,7 +302,9 @@ router.get('/leave-requests', async (req, res) => {
               lr.end_date::text AS end_date_str,
               lr.reason, lr.status,
               reviewer.name AS reviewed_by_name,
-              lr.reviewed_note, lr.reviewed_at, lr.created_at
+              lr.reviewed_note, lr.reviewed_at, lr.created_at,
+              lr.leave_calculation_type, lr.leave_associate_days_off,
+              lr.leave_payable_days, lr.leave_payable_amount
        FROM leave_requests lr
        JOIN users u ON u.id = lr.user_id
        LEFT JOIN users reviewer ON reviewer.id = lr.reviewed_by
@@ -335,9 +329,76 @@ router.get('/leave-requests', async (req, res) => {
       reviewedNote: r.reviewed_note || '',
       reviewedAt: r.reviewed_at,
       createdAt: r.created_at,
+      leaveCalculationType: r.leave_calculation_type || null,
+      leaveAssociateDaysOff: r.leave_associate_days_off || null,
+      leavePayableDays: r.leave_payable_days != null ? Number(r.leave_payable_days) : null,
+      leavePayableAmount: r.leave_payable_amount != null ? Number(r.leave_payable_amount) : null,
     })))
   } catch (err) {
     console.error('Admin list leave requests error:', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// GET /api/admin/leave-requests/:id/review-context — pending leave + employee salary + settings (admin review modal)
+router.get('/leave-requests/:id/review-context', async (req, res) => {
+  try {
+    const { id } = req.params
+    const lr = await query(
+      `SELECT lr.id, lr.user_id, lr.leave_type, lr.status,
+              lr.start_date::text AS start_date_str, lr.end_date::text AS end_date_str, lr.reason
+       FROM leave_requests lr
+       WHERE lr.id = $1`,
+      [id]
+    )
+    if (!lr.rows.length) {
+      return res.status(404).json({ error: 'Not found', message: 'Leave request not found' })
+    }
+    const row = lr.rows[0]
+    if (row.status !== 'pending') {
+      return res.status(400).json({ error: 'Bad request', message: 'Only pending requests can be opened for review' })
+    }
+    const empResult = await query(
+      `SELECT u.name AS user_name,
+              COALESCE(e.salary_type, u.salary_type) AS salary_type,
+              COALESCE(e.base_salary, u.base_salary) AS base_salary
+       FROM users u
+       LEFT JOIN employees e ON e.user_id = u.id
+       WHERE u.id = $1`,
+      [row.user_id]
+    )
+    const emp = empResult.rows[0]
+    const settings = await getSettings()
+    const startDate = row.start_date_str?.slice(0, 10) ?? ''
+    const endDate = row.end_date_str?.slice(0, 10) ?? ''
+    const suggestedPayableDays = countInclusiveCalendarDays(startDate, endDate)
+    const salaryType = emp?.salary_type === 'monthly' ? 'monthly' : 'hourly'
+    const defaultCalculationType = salaryType === 'monthly' ? 'monthly_salary' : 'hourly_salary'
+
+    res.json({
+      leave: {
+        id: row.id,
+        employeeId: row.user_id,
+        employeeName: emp?.user_name || '',
+        leaveType: row.leave_type,
+        startDate,
+        endDate,
+        reason: row.reason || '',
+        status: row.status,
+      },
+      employee: {
+        salaryType,
+        baseSalary: Number(emp?.base_salary) || 0,
+      },
+      settings: {
+        workingDaysPerMonth: settings.workingDaysPerMonth,
+        hoursPerDay: settings.hoursPerDay,
+      },
+      suggestedPayableDays,
+      defaultCalculationType,
+    })
+  } catch (err) {
+    console.error('Admin leave review context error:', err)
     res.status(500).json({ error: 'Internal server error' })
   }
 })
@@ -346,192 +407,212 @@ router.get('/leave-requests', async (req, res) => {
 router.patch('/leave-requests/:id', async (req, res) => {
   try {
     const { id } = req.params
-    const { status, reviewedNote } = req.body
+    const { status, reviewedNote, calculationType, associateDaysOff, payableDays } = req.body
     if (!['approved', 'rejected'].includes(String(status))) {
       return res.status(400).json({ error: 'Bad request', message: 'status must be approved or rejected' })
     }
 
-    const result = await query(
-      `UPDATE leave_requests
-       SET status = $1,
-           reviewed_by = $2,
-           reviewed_note = $3,
-           reviewed_at = NOW(),
-           updated_at = NOW()
-       WHERE id = $4
-       RETURNING id, user_id, leave_type, start_date::text AS start_date_str, end_date::text AS end_date_str,
-                 reason, status, reviewed_note, reviewed_at, created_at`,
-      [status, req.user.id, reviewedNote ? String(reviewedNote).trim() : null, id]
+    const pending = await query(
+      `SELECT lr.id, lr.user_id, lr.leave_type,
+              lr.start_date::text AS start_date_str, lr.end_date::text AS end_date_str, lr.reason
+       FROM leave_requests lr
+       WHERE lr.id = $1 AND lr.status = 'pending'`,
+      [id]
     )
-    if (!result.rows.length) {
-      return res.status(404).json({ error: 'Not found' })
+    if (!pending.rows.length) {
+      return res.status(404).json({ error: 'Not found', message: 'Leave request not found or already reviewed' })
     }
-    const r = result.rows[0]
+    const row = pending.rows[0]
 
-    try {
-      await query(
-        `INSERT INTO notifications (user_id, type, title, message, data)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [
-          r.user_id,
-          status === 'approved' ? 'leave_request_approved' : 'leave_request_rejected',
-          status === 'approved' ? 'Leave Approved' : 'Leave Rejected',
-          `Your ${r.leave_type} leave request from ${r.start_date_str?.slice(0, 10) ?? ''} to ${r.end_date_str?.slice(0, 10) ?? ''} was ${status}.`,
-          JSON.stringify({
-            leaveRequestId: r.id,
-            status,
-            reviewedBy: req.user.id,
-            reviewedNote: reviewedNote ? String(reviewedNote).trim() : null,
-          }),
-        ]
+    const noteVal = reviewedNote ? String(reviewedNote).trim() : null
+
+    if (status === 'rejected') {
+      const result = await query(
+        `UPDATE leave_requests
+         SET status = 'rejected',
+             reviewed_by = $1,
+             reviewed_note = $2,
+             reviewed_at = NOW(),
+             updated_at = NOW(),
+             leave_calculation_type = NULL,
+             leave_associate_days_off = NULL,
+             leave_payable_days = NULL,
+             leave_hourly_rate = NULL,
+             leave_daily_hours = NULL,
+             leave_daily_salary = NULL,
+             leave_payable_amount = NULL
+         WHERE id = $3 AND status = 'pending'
+         RETURNING id, user_id, leave_type, start_date::text AS start_date_str, end_date::text AS end_date_str,
+                   reason, status, reviewed_note, reviewed_at, created_at,
+                   leave_calculation_type, leave_associate_days_off, leave_payable_days, leave_payable_amount`,
+        [req.user.id, noteVal, id]
       )
-    } catch (notifyErr) {
-      // Fallback for older notification table versions missing JSONB data column.
-      if (notifyErr?.code === '42703') {
-        await query(
-          `INSERT INTO notifications (user_id, type, title, message)
-           VALUES ($1, $2, $3, $4)`,
-          [
-            r.user_id,
-            status === 'approved' ? 'leave_request_approved' : 'leave_request_rejected',
-            status === 'approved' ? 'Leave Approved' : 'Leave Rejected',
-            `Your ${r.leave_type} leave request from ${r.start_date_str?.slice(0, 10) ?? ''} to ${r.end_date_str?.slice(0, 10) ?? ''} was ${status}.`,
-          ]
-        )
+      if (!result.rows.length) {
+        return res.status(404).json({ error: 'Not found', message: 'Leave request not found or already reviewed' })
+      }
+      const r = result.rows[0]
+      await sendLeaveDecisionNotification(r, req.user.id, 'rejected', noteVal)
+      return res.json(mapLeaveRowToJson(r))
+    }
+
+    const empResult = await query(
+      `SELECT COALESCE(e.salary_type, u.salary_type) AS salary_type,
+              COALESCE(e.base_salary, u.base_salary) AS base_salary
+       FROM users u
+       LEFT JOIN employees e ON e.user_id = u.id
+       WHERE u.id = $1`,
+      [row.user_id]
+    )
+    const emp = empResult.rows[0]
+    const settings = await getSettings()
+    const salaryType = emp?.salary_type === 'monthly' ? 'monthly' : 'hourly'
+    const baseSalary = Number(emp?.base_salary) || 0
+
+    let assocStr = null
+    if (associateDaysOff != null) {
+      if (Array.isArray(associateDaysOff)) {
+        assocStr = associateDaysOff.map((d) => String(d).trim()).filter(Boolean).join(', ') || null
       } else {
-        console.error('Failed to create employee leave decision notification:', notifyErr)
+        const s = String(associateDaysOff).trim()
+        assocStr = s || null
       }
     }
 
-    res.json({
-      id: r.id,
-      employeeId: r.user_id,
-      leaveType: r.leave_type,
-      startDate: r.start_date_str?.slice(0, 10) ?? null,
-      endDate: r.end_date_str?.slice(0, 10) ?? null,
-      reason: r.reason || '',
-      status: r.status,
-      reviewedNote: r.reviewed_note || '',
-      reviewedAt: r.reviewed_at,
-      createdAt: r.created_at,
-    })
+    let leaveCalcType
+    let leavePayableDaysNum
+    let snap
+
+    if (row.leave_type === 'unpaid') {
+      leaveCalcType = 'non_payable'
+      leavePayableDaysNum = 0
+      snap = computeLeavePaySnapshot({
+        salaryType,
+        baseSalary,
+        workingDaysPerMonth: settings.workingDaysPerMonth,
+        hoursPerDay: settings.hoursPerDay,
+        calculationType: 'non_payable',
+        payableDays: 0,
+      })
+    } else {
+      const ct = String(calculationType || '')
+      if (!['non_payable', 'hourly_salary', 'monthly_salary'].includes(ct)) {
+        return res.status(400).json({
+          error: 'Bad request',
+          message: 'calculationType must be non_payable, hourly_salary, or monthly_salary for paid leave',
+        })
+      }
+      const pd = Number(payableDays)
+      if (!Number.isFinite(pd) || pd < 0 || pd > 366) {
+        return res.status(400).json({ error: 'Bad request', message: 'payableDays must be a number from 0 to 366' })
+      }
+      leaveCalcType = ct
+      leavePayableDaysNum = Math.round(pd * 100) / 100
+      snap = computeLeavePaySnapshot({
+        salaryType,
+        baseSalary,
+        workingDaysPerMonth: settings.workingDaysPerMonth,
+        hoursPerDay: settings.hoursPerDay,
+        calculationType: ct,
+        payableDays: pd,
+      })
+    }
+
+    const result = await query(
+      `UPDATE leave_requests
+       SET status = 'approved',
+           reviewed_by = $1,
+           reviewed_note = $2,
+           reviewed_at = NOW(),
+           updated_at = NOW(),
+           leave_calculation_type = $3,
+           leave_associate_days_off = $4,
+           leave_payable_days = $5,
+           leave_hourly_rate = $6,
+           leave_daily_hours = $7,
+           leave_daily_salary = $8,
+           leave_payable_amount = $9
+       WHERE id = $10 AND status = 'pending'
+       RETURNING id, user_id, leave_type, start_date::text AS start_date_str, end_date::text AS end_date_str,
+                 reason, status, reviewed_note, reviewed_at, created_at,
+                 leave_calculation_type, leave_associate_days_off, leave_payable_days, leave_payable_amount`,
+      [
+        req.user.id,
+        noteVal,
+        leaveCalcType,
+        assocStr,
+        leavePayableDaysNum,
+        snap.hourlyRate,
+        snap.dailyHours,
+        snap.dailySalary,
+        snap.payableAmount,
+        id,
+      ]
+    )
+    if (!result.rows.length) {
+      return res.status(404).json({ error: 'Not found', message: 'Leave request not found or already reviewed' })
+    }
+    const r = result.rows[0]
+    await sendLeaveDecisionNotification(r, req.user.id, 'approved', noteVal)
+    res.json(mapLeaveRowToJson(r))
   } catch (err) {
     console.error('Admin review leave request error:', err)
     res.status(500).json({ error: 'Internal server error' })
   }
 })
 
-// Callmax: monthly salary → hourly = monthly / 23.83 / 8. OT 35% extra (1.35x), night 15% extra (1.15x).
-const DEFAULT_WORKING_DAYS_PER_MONTH = 23.83
-const DEFAULT_HOURS_PER_DAY = 8
-const DEFAULT_OT_MULTIPLIER = 1.35
-const DEFAULT_NIGHT_MULTIPLIER = 1.15
-// Callmax: 35% OT capped at 19h/week (38 bi-weekly); hours beyond 63/week = 100% extra; rest-day work = 100% extra.
-const OT_35_CAP_HOURS_PER_WEEK = 19
-const WEEKLY_63_THRESHOLD = 63
-const OT_100_MULTIPLIER = 2
-// Monday=1 .. Friday=5 (JavaScript getDay(): 0=Sun, 1=Mon, ..., 6=Sat)
-const WORK_DAY_JS = [1, 2, 3, 4, 5]
-
-/** Returns YYYY-MM-DD of Monday of the week containing the given date string. */
-function getWeekMondayKey(dateStr) {
-  const d = new Date(dateStr + 'T12:00:00Z')
-  const day = d.getUTCDay()
-  const back = day === 0 ? 6 : day - 1
-  d.setUTCDate(d.getUTCDate() - back)
-  return d.toISOString().slice(0, 10)
-}
-
-function isWorkday(dateStr) {
-  const d = new Date(dateStr + 'T12:00:00Z')
-  return WORK_DAY_JS.includes(d.getUTCDay())
-}
-
-/**
- * Callmax rules: per week — regular (workday first 8h), OT 35% (same-day OT, cap 19h), OT 100% (rest-day + beyond 63h).
- * sessions: array of { date, regular_minutes, overtime_minutes, night_minutes } (date = YYYY-MM-DD).
- */
-function computePayrollBuckets(sessions) {
-  const byWeek = new Map()
-  for (const s of sessions) {
-    const dateStr = s.date
-    if (!dateStr) continue
-    const weekKey = getWeekMondayKey(dateStr)
-    if (!byWeek.has(weekKey)) {
-      byWeek.set(weekKey, { regularMinutes: 0, restDayMinutes: 0, totalMinutes: 0 })
-    }
-    const row = byWeek.get(weekKey)
-    const sessionMinutes = (s.regular_minutes || 0) + (s.overtime_minutes || 0) + (s.night_minutes || 0)
-    row.totalMinutes += sessionMinutes
-    if (isWorkday(dateStr)) {
-      row.regularMinutes += s.regular_minutes || 0
+async function sendLeaveDecisionNotification(r, reviewerId, status, reviewedNote) {
+  try {
+    await query(
+      `INSERT INTO notifications (user_id, type, title, message, data)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [
+        r.user_id,
+        status === 'approved' ? 'leave_request_approved' : 'leave_request_rejected',
+        status === 'approved' ? 'Leave Approved' : 'Leave Rejected',
+        `Your ${r.leave_type} leave request from ${r.start_date_str?.slice(0, 10) ?? ''} to ${r.end_date_str?.slice(0, 10) ?? ''} was ${status}.`,
+        JSON.stringify({
+          leaveRequestId: r.id,
+          status,
+          reviewedBy: reviewerId,
+          reviewedNote,
+        }),
+      ]
+    )
+  } catch (notifyErr) {
+    if (notifyErr?.code === '42703') {
+      await query(
+        `INSERT INTO notifications (user_id, type, title, message)
+         VALUES ($1, $2, $3, $4)`,
+        [
+          r.user_id,
+          status === 'approved' ? 'leave_request_approved' : 'leave_request_rejected',
+          status === 'approved' ? 'Leave Approved' : 'Leave Rejected',
+          `Your ${r.leave_type} leave request from ${r.start_date_str?.slice(0, 10) ?? ''} to ${r.end_date_str?.slice(0, 10) ?? ''} was ${status}.`,
+        ]
+      )
     } else {
-      row.restDayMinutes += sessionMinutes
+      console.error('Failed to create employee leave decision notification:', notifyErr)
     }
   }
-  let regularMinutes = 0
-  let ot35Minutes = 0
-  let ot100Minutes = 0
-  for (const row of byWeek.values()) {
-    const totalHrs = row.totalMinutes / 60
-    const regularHrs = row.regularMinutes / 60
-    const restDayHrs = row.restDayMinutes / 60
-    const ot100Hrs = restDayHrs + Math.max(0, totalHrs - WEEKLY_63_THRESHOLD)
-    const ot35Hrs = Math.min(OT_35_CAP_HOURS_PER_WEEK, Math.max(0, totalHrs - regularHrs - ot100Hrs))
-    regularMinutes += row.regularMinutes
-    ot35Minutes += Math.round(ot35Hrs * 60)
-    ot100Minutes += Math.round(ot100Hrs * 60)
-  }
-  return { regularMinutes, ot35Minutes, ot100Minutes }
 }
 
-async function getSettings() {
-  const result = await query('SELECT * FROM settings WHERE id = 1')
-  const row = result.rows[0]
-  if (!row) {
-    return {
-      workingDaysPerMonth: DEFAULT_WORKING_DAYS_PER_MONTH,
-      hoursPerDay: DEFAULT_HOURS_PER_DAY,
-      otMultiplier: DEFAULT_OT_MULTIPLIER,
-      nightMultiplier: DEFAULT_NIGHT_MULTIPLIER,
-      nightShiftStartHour: 21,
-      nightShiftEndHour: 7,
-    }
-  }
+function mapLeaveRowToJson(r) {
   return {
-    workingDaysPerMonth: Number(row.working_days_per_month) || DEFAULT_WORKING_DAYS_PER_MONTH,
-    hoursPerDay: Number(row.hours_per_day) || DEFAULT_HOURS_PER_DAY,
-    otMultiplier: Number(row.ot_multiplier) || DEFAULT_OT_MULTIPLIER,
-    nightMultiplier: Number(row.night_multiplier) || DEFAULT_NIGHT_MULTIPLIER,
-    nightShiftStartHour: Number(row.night_shift_start_hour) ?? 21,
-    nightShiftEndHour: Number(row.night_shift_end_hour) ?? 7,
+    id: r.id,
+    employeeId: r.user_id,
+    leaveType: r.leave_type,
+    startDate: r.start_date_str?.slice(0, 10) ?? null,
+    endDate: r.end_date_str?.slice(0, 10) ?? null,
+    reason: r.reason || '',
+    status: r.status,
+    reviewedNote: r.reviewed_note || '',
+    reviewedAt: r.reviewed_at,
+    createdAt: r.created_at,
+    leaveCalculationType: r.leave_calculation_type || null,
+    leaveAssociateDaysOff: r.leave_associate_days_off || null,
+    leavePayableDays: r.leave_payable_days != null ? Number(r.leave_payable_days) : null,
+    leavePayableAmount: r.leave_payable_amount != null ? Number(r.leave_payable_amount) : null,
   }
-}
-
-function getHourlyRate(salaryType, baseSalary, workingDaysPerMonth, hoursPerDay) {
-  const n = Number(baseSalary) || 0
-  if (salaryType === 'monthly') return n / workingDaysPerMonth / hoursPerDay
-  return n
-}
-
-function timeToMinutes(value) {
-  if (!value) return null
-  const parts = String(value).split(':')
-  if (parts.length < 2) return null
-  const h = parseInt(parts[0], 10)
-  const m = parseInt(parts[1], 10)
-  if (Number.isNaN(h) || Number.isNaN(m)) return null
-  return (h * 60) + m
-}
-
-function shiftMinutes(startTime, endTime) {
-  const start = timeToMinutes(startTime)
-  const end = timeToMinutes(endTime)
-  if (start == null || end == null) return 0
-  const diff = end - start
-  if (diff === 0) return 0
-  if (diff > 0) return diff
-  return (24 * 60 - start) + end
 }
 
 // GET /api/admin/holidays?from=YYYY-MM-DD&to=YYYY-MM-DD
@@ -616,6 +697,7 @@ router.get('/settings', async (req, res) => {
       nightMultiplier: s.nightMultiplier,
       nightShiftStartHour: s.nightShiftStartHour,
       nightShiftEndHour: s.nightShiftEndHour,
+      defaultBaseSalary: s.defaultBaseSalary ?? 0,
     })
   } catch (err) {
     console.error('Admin get settings error:', err)
@@ -633,6 +715,7 @@ router.patch('/settings', async (req, res) => {
       nightMultiplier,
       nightShiftStartHour,
       nightShiftEndHour,
+      defaultBaseSalary,
     } = req.body
     const wd = workingDaysPerMonth != null ? Math.max(0.1, Number(workingDaysPerMonth)) : null
     const hd = hoursPerDay != null ? Math.max(0.1, Number(hoursPerDay)) : null
@@ -640,6 +723,10 @@ router.patch('/settings', async (req, res) => {
     const night = nightMultiplier != null ? Math.max(1, Number(nightMultiplier)) : null
     const startH = nightShiftStartHour != null ? Math.min(23, Math.max(0, parseInt(nightShiftStartHour, 10))) : null
     const endH = nightShiftEndHour != null ? Math.min(23, Math.max(0, parseInt(nightShiftEndHour, 10))) : null
+    const dbs =
+      defaultBaseSalary != null && Number.isFinite(Number(defaultBaseSalary))
+        ? Math.max(0, Number(defaultBaseSalary))
+        : null
     const updates = []
     const params = []
     let i = 1
@@ -649,6 +736,7 @@ router.patch('/settings', async (req, res) => {
     if (night != null) { updates.push(`night_multiplier = $${i++}`); params.push(night) }
     if (startH != null) { updates.push(`night_shift_start_hour = $${i++}`); params.push(startH) }
     if (endH != null) { updates.push(`night_shift_end_hour = $${i++}`); params.push(endH) }
+    if (dbs != null) { updates.push(`default_base_salary = $${i++}`); params.push(dbs) }
     if (updates.length === 0) {
       const s = await getSettings()
       return res.json({
@@ -658,6 +746,7 @@ router.patch('/settings', async (req, res) => {
         nightMultiplier: s.nightMultiplier,
         nightShiftStartHour: s.nightShiftStartHour,
         nightShiftEndHour: s.nightShiftEndHour,
+        defaultBaseSalary: s.defaultBaseSalary ?? 0,
       })
     }
     updates.push('updated_at = NOW()')
@@ -674,6 +763,7 @@ router.patch('/settings', async (req, res) => {
       nightMultiplier: s.nightMultiplier,
       nightShiftStartHour: s.nightShiftStartHour,
       nightShiftEndHour: s.nightShiftEndHour,
+      defaultBaseSalary: s.defaultBaseSalary ?? 0,
     })
   } catch (err) {
     console.error('Admin update settings error:', err)
@@ -739,170 +829,27 @@ router.get('/payroll', async (req, res) => {
     let totalRegularPay = 0, totalOt35Pay = 0, totalOt100Pay = 0, totalNightPay = 0
     let totalRegularHours = 0, totalOt35Hours = 0, totalOt100Hours = 0, totalNightHours = 0
     let totalHolidayScheduledHours = 0, totalHolidayWorkedHours = 0, totalHolidayPay = 0
+    let totalLeavePay = 0
     let totalAdditions = 0, totalDeductions = 0, totalGovDeductions = 0, totalNetPay = 0
     for (const emp of employees.rows) {
-      const approvedLeavesForEmployee = await query(
-        `SELECT start_date::text AS start_date_str, end_date::text AS end_date_str
-         FROM leave_requests
-         WHERE user_id = $1
-           AND status = 'approved'
-           AND start_date <= $3::date
-           AND end_date >= $2::date`,
-        [emp.id, fromDate, toDate]
-      )
-      const approvedLeaveDateSet = new Set()
-      for (const leave of approvedLeavesForEmployee.rows) {
-        const startDate = leave.start_date_str?.slice(0, 10)
-        const endDate = leave.end_date_str?.slice(0, 10)
-        if (!startDate || !endDate) continue
-        const days = listDateStrings(
-          startDate > fromDate ? startDate : fromDate,
-          endDate < toDate ? endDate : toDate
-        )
-        for (const d of days) approvedLeaveDateSet.add(d)
-      }
-
-      const sessionsResult = await query(
-        `SELECT (clock_in AT TIME ZONE 'UTC')::date AS date,
-                regular_minutes, overtime_minutes, night_minutes
-         FROM sessions WHERE user_id = $1 AND clock_out IS NOT NULL
-           AND (clock_in AT TIME ZONE 'UTC')::date >= $2::date
-           AND (clock_in AT TIME ZONE 'UTC')::date <= $3::date
-         ORDER BY clock_in`,
-        [emp.id, fromDate, toDate]
-      )
-      const sessions = sessionsResult.rows.map((r) => ({
-        date: r.date ? new Date(r.date).toISOString().slice(0, 10) : '',
-        regular_minutes: r.regular_minutes ?? 0,
-        overtime_minutes: r.overtime_minutes ?? 0,
-        night_minutes: r.night_minutes ?? 0,
-      })).filter((s) => s.date && !approvedLeaveDateSet.has(s.date))
-      const { regularMinutes, ot35Minutes, ot100Minutes } = computePayrollBuckets(sessions)
-      const nightMinutes = sessions.reduce((sum, s) => sum + (s.night_minutes || 0), 0)
-      const regularHours = Math.round((regularMinutes / 60) * 10) / 10
-      const ot35Hours = Math.round((ot35Minutes / 60) * 10) / 10
-      const ot100Hours = Math.round((ot100Minutes / 60) * 10) / 10
-      const nightHours = Math.round((nightMinutes / 60) * 10) / 10
-      const totalHours = regularHours + ot35Hours + ot100Hours + nightHours
-      const rate = getHourlyRate(emp.salary_type, emp.base_salary, settings.workingDaysPerMonth, settings.hoursPerDay)
-
-      const workedMinutesByDate = new Map()
-      for (const s of sessions) {
-        if (!s.date) continue
-        const mins = (s.regular_minutes || 0) + (s.overtime_minutes || 0) + (s.night_minutes || 0)
-        workedMinutesByDate.set(s.date, (workedMinutesByDate.get(s.date) || 0) + mins)
-      }
-
-      const holidayAssignmentsResult = await query(
-        `SELECT a.date::text AS date_str,
-                COALESCE(a.override_start_time, s.start_time) AS start_time,
-                COALESCE(a.override_end_time, s.end_time) AS end_time
-         FROM schedule_assignments a
-         JOIN shifts s ON s.id = a.shift_id
-         WHERE a.user_id = $1
-           AND a.date >= $2::date
-           AND a.date <= $3::date`,
-        [emp.id, fromDate, toDate]
-      )
-      const scheduledHolidayMinutesByDate = new Map()
-      for (const row of holidayAssignmentsResult.rows) {
-        const dateKey = row.date_str ? row.date_str.slice(0, 10) : null
-        if (!dateKey || !holidayDates.has(dateKey)) continue
-        if (approvedLeaveDateSet.has(dateKey)) continue
-        const mins = shiftMinutes(row.start_time, row.end_time)
-        scheduledHolidayMinutesByDate.set(dateKey, (scheduledHolidayMinutesByDate.get(dateKey) || 0) + mins)
-      }
-
-      let holidayScheduledMinutes = 0
-      let holidayWorkedMinutes = 0
-      let holidayBaseTopUpMinutes = 0
-      for (const dateKey of holidayDates) {
-        if (approvedLeaveDateSet.has(dateKey)) continue
-        const scheduled = scheduledHolidayMinutesByDate.get(dateKey) || 0
-        const worked = workedMinutesByDate.get(dateKey) || 0
-        holidayScheduledMinutes += scheduled
-        holidayWorkedMinutes += worked
-        holidayBaseTopUpMinutes += Math.max(0, scheduled - worked)
-      }
-
-      const holidayBaseTopUpPay = (holidayBaseTopUpMinutes / 60) * rate
-      const holidayPremiumPay = (holidayWorkedMinutes / 60) * rate
-      const holidayPay = holidayBaseTopUpPay + holidayPremiumPay
-
-      const regularPay = regularHours * rate
-      const ot35Pay = ot35Hours * rate * settings.otMultiplier
-      const ot100Pay = ot100Hours * rate * OT_100_MULTIPLIER
-      const nightPay = nightHours * rate * settings.nightMultiplier
-      const grossPay = regularPay + ot35Pay + ot100Pay + nightPay + holidayPay
-      const items = lineItemsByUser[emp.id] || []
-      let additionsTotal = 0
-      let deductionsTotal = 0
-      for (const it of items) {
-        if (it.type === 'bonus' || it.type === 'incentive') {
-          additionsTotal += it.amount
-        } else {
-          deductionsTotal += Math.abs(it.amount)
-        }
-      }
-      const hasGovOverride = !!govDeductionsByUser[emp.id]
-      let socialSecurity = 0
-      let tax = 0
-      const infotep = hasGovOverride ? govDeductionsByUser[emp.id].infotep : 0
-      if (hasGovOverride) {
-        socialSecurity = govDeductionsByUser[emp.id].socialSecurity
-        tax = govDeductionsByUser[emp.id].tax
-      } else {
-        socialSecurity = computeSSEmployeeBiWeekly(regularPay)
-        const periodTaxable = grossPay + additionsTotal - deductionsTotal
-        tax = computeTaxForPeriod(periodTaxable, true)
-      }
-      socialSecurity = Math.round(socialSecurity * 100) / 100
-      tax = Math.round(tax * 100) / 100
-      const infotepRounded = Math.round(infotep * 100) / 100
-      const govTotal = socialSecurity + tax + infotepRounded
-      const netPay = Math.round((grossPay + additionsTotal - deductionsTotal - govTotal) * 100) / 100
-      totalRegularPay += regularPay
-      totalOt35Pay += ot35Pay
-      totalOt100Pay += ot100Pay
-      totalNightPay += nightPay
-      totalRegularHours += regularHours
-      totalOt35Hours += ot35Hours
-      totalOt100Hours += ot100Hours
-      totalNightHours += nightHours
-      totalHolidayScheduledHours += holidayScheduledMinutes / 60
-      totalHolidayWorkedHours += holidayWorkedMinutes / 60
-      totalHolidayPay += holidayPay
-      totalAdditions += additionsTotal
-      totalDeductions += deductionsTotal
-      totalGovDeductions += govTotal
-      totalNetPay += netPay
-      payroll.push({
-        employeeId: emp.id,
-        employeeName: emp.name,
-        salaryType: emp.salary_type,
-        hourlyRate: Math.round(rate * 100) / 100,
-        regularHours,
-        ot35Hours,
-        ot100Hours,
-        nightHours,
-        totalHours,
-        regularPay: Math.round(regularPay * 100) / 100,
-        ot35Pay: Math.round(ot35Pay * 100) / 100,
-        ot100Pay: Math.round(ot100Pay * 100) / 100,
-        nightPay: Math.round(nightPay * 100) / 100,
-        holidayScheduledHours: Math.round((holidayScheduledMinutes / 60) * 10) / 10,
-        holidayWorkedHours: Math.round((holidayWorkedMinutes / 60) * 10) / 10,
-        holidayPay: Math.round(holidayPay * 100) / 100,
-        totalPay: Math.round(grossPay * 100) / 100,
-        lineItems: items,
-        additionsTotal: Math.round(additionsTotal * 100) / 100,
-        deductionsTotal: Math.round(deductionsTotal * 100) / 100,
-        socialSecurity,
-        tax,
-        infotep: infotepRounded,
-        netPay,
-        govAutoCalculated: !hasGovOverride,
-      })
+      const row = await buildPayrollEmployeeRow(emp, settings, fromDate, toDate, holidayDates, lineItemsByUser, govDeductionsByUser)
+      totalRegularPay += row.regularPay
+      totalOt35Pay += row.ot35Pay
+      totalOt100Pay += row.ot100Pay
+      totalNightPay += row.nightPay
+      totalRegularHours += row.regularHours
+      totalOt35Hours += row.ot35Hours
+      totalOt100Hours += row.ot100Hours
+      totalNightHours += row.nightHours
+      totalHolidayScheduledHours += row.holidayScheduledHours ?? 0
+      totalHolidayWorkedHours += row.holidayWorkedHours ?? 0
+      totalHolidayPay += row.holidayPay ?? 0
+      totalLeavePay += row.leavePay ?? 0
+      totalAdditions += row.additionsTotal ?? 0
+      totalDeductions += row.deductionsTotal ?? 0
+      totalGovDeductions += (row.socialSecurity ?? 0) + (row.tax ?? 0) + (row.infotep ?? 0)
+      totalNetPay += row.netPay ?? 0
+      payroll.push(row)
     }
     res.json({
       period: `${fromDate} – ${toDate}`,
@@ -917,11 +864,12 @@ router.get('/payroll', async (req, res) => {
         totalHolidayScheduledHours: Math.round(totalHolidayScheduledHours * 10) / 10,
         totalHolidayWorkedHours: Math.round(totalHolidayWorkedHours * 10) / 10,
         totalHolidayPay: Math.round(totalHolidayPay * 100) / 100,
+        totalLeavePay: Math.round(totalLeavePay * 100) / 100,
         totalRegularPay: Math.round(totalRegularPay * 100) / 100,
         totalOt35Pay: Math.round(totalOt35Pay * 100) / 100,
         totalOt100Pay: Math.round(totalOt100Pay * 100) / 100,
         totalNightPay: Math.round(totalNightPay * 100) / 100,
-        totalPay: Math.round((totalRegularPay + totalOt35Pay + totalOt100Pay + totalNightPay + totalHolidayPay) * 100) / 100,
+        totalPay: Math.round((totalRegularPay + totalOt35Pay + totalOt100Pay + totalNightPay + totalHolidayPay + totalLeavePay) * 100) / 100,
         totalAdditions: Math.round(totalAdditions * 100) / 100,
         totalDeductions: Math.round(totalDeductions * 100) / 100,
         totalGovDeductions: Math.round(totalGovDeductions * 100) / 100,
@@ -934,6 +882,79 @@ router.get('/payroll', async (req, res) => {
     })
   } catch (err) {
     console.error('Admin payroll error:', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// GET /api/admin/payroll/slip.pdf?employeeId=&from=YYYY-MM-DD&to=YYYY-MM-DD
+router.get('/payroll/slip.pdf', async (req, res) => {
+  try {
+    const { employeeId, from, to } = req.query
+    if (!employeeId || !from || !to) {
+      return res.status(400).json({ error: 'Bad request', message: 'employeeId, from, and to are required' })
+    }
+    const fromDate = String(from)
+    const toDate = String(to)
+    const settings = await getSettings()
+    const holidayRows = await query(
+      `SELECT holiday_date::text AS holiday_date_str
+       FROM holidays
+       WHERE is_paid = TRUE
+         AND holiday_date >= $1::date
+         AND holiday_date <= $2::date`,
+      [fromDate, toDate]
+    )
+    const holidayDates = new Set(holidayRows.rows.map((r) => r.holiday_date_str?.slice(0, 10)).filter(Boolean))
+    const empResult = await query(
+      `SELECT u.id, u.name,
+              COALESCE(e.salary_type, u.salary_type) AS salary_type,
+              COALESCE(e.base_salary, u.base_salary) AS base_salary
+       FROM users u
+       LEFT JOIN employees e ON e.user_id = u.id
+       WHERE u.id = $1 AND u.role = 'employee'`,
+      [employeeId]
+    )
+    if (!empResult.rows.length) {
+      return res.status(404).json({ error: 'Not found', message: 'Employee not found' })
+    }
+    const emp = empResult.rows[0]
+    const lineItemsRows = await query(
+      `SELECT id, user_id, type, label, amount FROM payroll_line_items
+       WHERE period_from = $1::date AND period_to = $2::date`,
+      [fromDate, toDate]
+    )
+    const lineItemsByUser = {}
+    for (const r of lineItemsRows.rows) {
+      const uid = r.user_id
+      if (!lineItemsByUser[uid]) lineItemsByUser[uid] = []
+      lineItemsByUser[uid].push({
+        id: r.id,
+        type: r.type,
+        label: r.label || '',
+        amount: Number(r.amount),
+      })
+    }
+    const govRows = await query(
+      `SELECT user_id, social_security, tax, infotep FROM payroll_government_deductions
+       WHERE period_from = $1::date AND period_to = $2::date`,
+      [fromDate, toDate]
+    )
+    const govDeductionsByUser = {}
+    for (const r of govRows.rows) {
+      govDeductionsByUser[r.user_id] = {
+        socialSecurity: Number(r.social_security),
+        tax: Number(r.tax),
+        infotep: Number(r.infotep),
+      }
+    }
+    const row = await buildPayrollEmployeeRow(emp, settings, fromDate, toDate, holidayDates, lineItemsByUser, govDeductionsByUser)
+    const pdfBuffer = await renderPayrollSlipPdf(row, settings, fromDate, toDate)
+    const safeName = String(row.employeeName || 'employee').replace(/[^a-zA-Z0-9-_]/g, '_')
+    res.setHeader('Content-Type', 'application/pdf')
+    res.setHeader('Content-Disposition', `attachment; filename="payroll-slip-${safeName}-${fromDate}-to-${toDate}.pdf"`)
+    res.send(pdfBuffer)
+  } catch (err) {
+    console.error('Admin payroll slip PDF error:', err)
     res.status(500).json({ error: 'Internal server error' })
   }
 })

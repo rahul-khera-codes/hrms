@@ -25,6 +25,9 @@ export interface LeaveRequestItem {
   reviewedAt?: string | null
   reviewedByName?: string
   createdAt?: string
+  leaveCalculationType?: string | null
+  leavePayableDays?: number | null
+  leavePayableAmount?: number | null
 }
 
 export async function getMyLeaveRequests(): Promise<LeaveRequestItem[]> {

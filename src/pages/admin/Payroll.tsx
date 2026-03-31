@@ -1,13 +1,14 @@
 import { useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { format, subDays } from 'date-fns'
-import { Download, Calculator, Calendar, Clock, TrendingUp, DollarSign, Moon, Settings2, Plus, Trash2, ChevronDown, List } from 'lucide-react'
+import { Download, Calculator, Calendar, Clock, TrendingUp, DollarSign, Moon, Settings2, Plus, Trash2, ChevronDown, List, FileDown } from 'lucide-react'
 import {
   getPayroll,
   updateEmployeeSalary,
   createPayrollLineItem,
   deletePayrollLineItem,
   setPayrollDeductions,
+  downloadPayrollSlipPdf,
   type PayrollResponse,
   type PayrollEmployeeRow,
 } from '@/lib/apiAdmin'
@@ -22,6 +23,8 @@ function PayrollRow({
   onAddItem,
   onSaveDeductions,
   onDeleteLineItem,
+  onDownloadPdf,
+  pdfDownloading,
   deductionSaving,
 }: {
   row: PayrollEmployeeRow
@@ -31,6 +34,8 @@ function PayrollRow({
   onAddItem: (type: 'bonus' | 'incentive' | 'deduction' | 'passthrough_credit') => void
   onSaveDeductions: (row: PayrollEmployeeRow, ss: number, tax: number, infotep: number) => void
   onDeleteLineItem: (id: string) => void
+  onDownloadPdf: () => void | Promise<void>
+  pdfDownloading: boolean
   deductionSaving: boolean
 }) {
   const [showItemDropdown, setShowItemDropdown] = useState(false)
@@ -250,9 +255,24 @@ function PayrollRow({
         </div>
       </td>
       <td className="py-3.5 px-4">
-        <button type="button" onClick={onEditSalary} className="p-2 rounded-lg text-surface-500 hover:bg-surface-100 hover:text-surface-700" title="Edit salary">
-          <Settings2 className="w-4 h-4" />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={onDownloadPdf}
+            disabled={pdfDownloading}
+            className="p-2 rounded-lg text-surface-500 hover:bg-surface-100 hover:text-brand-600 disabled:opacity-50"
+            title="Download PDF pay slip"
+          >
+            {pdfDownloading ? (
+              <span className="inline-block w-4 h-4 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <FileDown className="w-4 h-4" />
+            )}
+          </button>
+          <button type="button" onClick={onEditSalary} className="p-2 rounded-lg text-surface-500 hover:bg-surface-100 hover:text-surface-700" title="Edit salary">
+            <Settings2 className="w-4 h-4" />
+          </button>
+        </div>
       </td>
     </tr>
   )
@@ -277,6 +297,7 @@ export default function AdminPayroll() {
   const [itemAmount, setItemAmount] = useState('')
   const [savingItem, setSavingItem] = useState(false)
   const [deductionSaving, setDeductionSaving] = useState<string | null>(null)
+  const [pdfLoadingEmployeeId, setPdfLoadingEmployeeId] = useState<string | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
 
   useEffect(() => {
@@ -380,6 +401,23 @@ export default function AdminPayroll() {
       if (payroll) await handleCalculate()
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to delete item')
+    }
+  }
+
+  async function handleDownloadPaySlip(employeeId: string) {
+    if (!payroll) return
+    setPdfLoadingEmployeeId(employeeId)
+    setError(null)
+    try {
+      await downloadPayrollSlipPdf({
+        employeeId,
+        from: payroll.from,
+        to: payroll.to,
+      })
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to download pay slip')
+    } finally {
+      setPdfLoadingEmployeeId(null)
     }
   }
 
@@ -642,7 +680,7 @@ export default function AdminPayroll() {
                   <th className="py-3 px-4 font-semibold text-surface-700 text-center whitespace-nowrap">INFOTEP</th>
                   <th className="py-3 px-4 font-semibold text-surface-700 text-center whitespace-nowrap">Net pay</th>
                   <th className="py-3 px-4 font-semibold text-surface-700 whitespace-nowrap">Items</th>
-                  <th className="py-3 px-4 w-10" aria-label="Edit salary" />
+                  <th className="py-3 px-4 w-24" aria-label="PDF and edit salary">Slip</th>
                 </tr>
               </thead>
               <tbody>
@@ -661,6 +699,8 @@ export default function AdminPayroll() {
                     }}
                     onSaveDeductions={handleSaveDeductions}
                     onDeleteLineItem={handleDeleteLineItem}
+                    onDownloadPdf={() => handleDownloadPaySlip(row.employeeId)}
+                    pdfDownloading={pdfLoadingEmployeeId === row.employeeId}
                     deductionSaving={deductionSaving === row.employeeId}
                   />
                 ))}

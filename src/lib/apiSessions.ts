@@ -1,6 +1,8 @@
 import type { ClockSession } from '@/types'
 import type { PayrollSummary } from '@/types'
-import { api } from './api'
+import { api, getToken } from './api'
+
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000'
 
 export interface SessionsSummaryResponse {
   period: string
@@ -44,4 +46,65 @@ export async function clockIn(): Promise<ClockSession> {
 
 export async function clockOut(): Promise<ClockSession> {
   return api<ClockSession>('/api/sessions/clock-out', { method: 'POST' })
+}
+
+/** Fetch PDF payroll slip for the logged-in employee. Set persist to save a copy to payslip history (download). */
+export async function fetchMyPayrollSlipPdfBlob(params: {
+  from: string
+  to: string
+  persist?: boolean
+}): Promise<Blob> {
+  const token = getToken()
+  const search = new URLSearchParams({ from: params.from, to: params.to })
+  if (params.persist) search.set('persist', '1')
+  const res = await fetch(`${API_BASE}/api/sessions/payroll-slip.pdf?${search}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  })
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as { message?: string }
+    throw new Error(data.message || 'Failed to load PDF')
+  }
+  return res.blob()
+}
+
+/** Download PDF payroll slip for the logged-in employee (also adds/updates history for this period). */
+export async function downloadMyPayrollSlipPdf(params: { from: string; to: string }): Promise<void> {
+  const blob = await fetchMyPayrollSlipPdfBlob({ from: params.from, to: params.to, persist: true })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `payroll-slip-${params.from}-to-${params.to}.pdf`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+export interface PayslipHistoryItem {
+  id: string
+  periodFrom: string
+  periodTo: string
+  savedAt: string
+}
+
+/** List saved payslip PDFs (per period) for the logged-in employee. */
+export async function listMyPayrollSlips(): Promise<PayslipHistoryItem[]> {
+  return api<PayslipHistoryItem[]>('/api/sessions/payroll-slips')
+}
+
+/** Download a previously saved payslip PDF by id. */
+export async function downloadStoredPayslipPdf(item: PayslipHistoryItem): Promise<void> {
+  const token = getToken()
+  const res = await fetch(`${API_BASE}/api/sessions/payroll-slips/${item.id}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  })
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as { message?: string }
+    throw new Error(data.message || 'Failed to download saved payslip')
+  }
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `payroll-slip-${item.periodFrom}-to-${item.periodTo}.pdf`
+  a.click()
+  URL.revokeObjectURL(url)
 }

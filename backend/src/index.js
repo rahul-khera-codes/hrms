@@ -96,6 +96,13 @@ try {
     VALUES (1, 23.83, 8, 1.35, 1.15, 21, 7)
     ON CONFLICT (id) DO NOTHING
   `)
+  try {
+    await pool.query(
+      `ALTER TABLE settings ADD COLUMN IF NOT EXISTS default_base_salary DECIMAL(12,2) NOT NULL DEFAULT 0`
+    )
+  } catch (e) {
+    if (e.code !== '42701') console.warn('settings.default_base_salary migration:', e.message)
+  }
   await pool.query(`
     CREATE TABLE IF NOT EXISTS clients (
       id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -169,6 +176,17 @@ try {
   `)
   await pool.query('CREATE INDEX IF NOT EXISTS idx_leave_requests_user_dates ON leave_requests (user_id, start_date, end_date)')
   await pool.query('CREATE INDEX IF NOT EXISTS idx_leave_requests_status ON leave_requests (status)')
+  try {
+    await pool.query(`ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS leave_calculation_type VARCHAR(32)`)
+    await pool.query(`ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS leave_associate_days_off VARCHAR(128)`)
+    await pool.query(`ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS leave_payable_days DECIMAL(10,2)`)
+    await pool.query(`ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS leave_hourly_rate DECIMAL(14,4)`)
+    await pool.query(`ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS leave_daily_hours DECIMAL(8,2)`)
+    await pool.query(`ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS leave_daily_salary DECIMAL(14,4)`)
+    await pool.query(`ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS leave_payable_amount DECIMAL(14,2)`)
+  } catch (e) {
+    if (e.code !== '42701') console.warn('leave_requests pay columns migration:', e.message)
+  }
   await pool.query(`
     CREATE TABLE IF NOT EXISTS payroll_line_items (
       id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -197,7 +215,21 @@ try {
     )
   `)
   await pool.query('CREATE INDEX IF NOT EXISTS idx_payroll_gov_deductions_user_period ON payroll_government_deductions (user_id, period_from, period_to)')
-  
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS employee_payslip_snapshots (
+      id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id      UUID NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+      period_from  DATE NOT NULL,
+      period_to    DATE NOT NULL,
+      pdf_data     BYTEA NOT NULL,
+      created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE (user_id, period_from, period_to)
+    )
+  `)
+  await pool.query(
+    'CREATE INDEX IF NOT EXISTS idx_employee_payslip_snapshots_user_created ON employee_payslip_snapshots (user_id, created_at DESC)'
+  )
+
   // Notifications table for employee alerts
   await pool.query(`
     CREATE TABLE IF NOT EXISTS notifications (

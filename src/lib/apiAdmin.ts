@@ -1,5 +1,7 @@
 import type { AttendanceRecord } from '@/types'
-import { api } from './api'
+import { api, getToken } from './api'
+
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000'
 
 export interface AdminDashboardResponse {
   totalEmployees: number
@@ -71,6 +73,7 @@ export interface PayrollEmployeeRow {
   holidayScheduledHours?: number
   holidayWorkedHours?: number
   holidayPay?: number
+  leavePay?: number
   totalHours: number
   regularPay: number
   ot35Pay: number
@@ -100,6 +103,7 @@ export interface PayrollResponse {
     totalHolidayScheduledHours?: number
     totalHolidayWorkedHours?: number
     totalHolidayPay?: number
+    totalLeavePay?: number
     totalRegularPay: number
     totalOt35Pay: number
     totalOt100Pay: number
@@ -119,6 +123,30 @@ export interface PayrollResponse {
 export async function getPayroll(params: { from: string; to: string }): Promise<PayrollResponse> {
   const search = new URLSearchParams({ from: params.from, to: params.to })
   return api<PayrollResponse>(`/api/admin/payroll?${search}`)
+}
+
+/** Download PDF payroll slip for one employee (admin). */
+export async function downloadPayrollSlipPdf(params: { employeeId: string; from: string; to: string }): Promise<void> {
+  const token = getToken()
+  const search = new URLSearchParams({
+    employeeId: params.employeeId,
+    from: params.from,
+    to: params.to,
+  })
+  const res = await fetch(`${API_BASE}/api/admin/payroll/slip.pdf?${search}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  })
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as { message?: string }
+    throw new Error(data.message || 'Failed to download PDF')
+  }
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `payroll-slip-${params.from}-to-${params.to}.pdf`
+  a.click()
+  URL.revokeObjectURL(url)
 }
 
 export interface HolidayItem {
@@ -215,6 +243,8 @@ export interface SettingsResponse {
   nightMultiplier: number
   nightShiftStartHour: number
   nightShiftEndHour: number
+  /** Company default reference amount (USD); per-employee pay is still set under Employees. */
+  defaultBaseSalary: number
 }
 
 export async function getSettings(): Promise<SettingsResponse> {
@@ -365,6 +395,27 @@ export interface AdminLeaveRequest {
   reviewedNote?: string
   reviewedAt?: string | null
   createdAt?: string
+  leaveCalculationType?: string | null
+  leaveAssociateDaysOff?: string | null
+  leavePayableDays?: number | null
+  leavePayableAmount?: number | null
+}
+
+export interface LeaveReviewContext {
+  leave: {
+    id: string
+    employeeId: string
+    employeeName: string
+    leaveType: 'paid' | 'unpaid'
+    startDate: string
+    endDate: string
+    reason: string
+    status: 'pending'
+  }
+  employee: { salaryType: 'hourly' | 'monthly'; baseSalary: number }
+  settings: { workingDaysPerMonth: number; hoursPerDay: number }
+  suggestedPayableDays: number
+  defaultCalculationType: 'hourly_salary' | 'monthly_salary'
 }
 
 export async function getAdminLeaveRequests(status: 'all' | 'pending' | 'approved' | 'rejected' = 'all'): Promise<AdminLeaveRequest[]> {
@@ -373,9 +424,19 @@ export async function getAdminLeaveRequests(status: 'all' | 'pending' | 'approve
   return api<AdminLeaveRequest[]>(`/api/admin/leave-requests${q.toString() ? `?${q.toString()}` : ''}`)
 }
 
+export async function getLeaveReviewContext(id: string): Promise<LeaveReviewContext> {
+  return api<LeaveReviewContext>(`/api/admin/leave-requests/${id}/review-context`)
+}
+
 export async function reviewAdminLeaveRequest(
   id: string,
-  data: { status: 'approved' | 'rejected'; reviewedNote?: string }
+  data: {
+    status: 'approved' | 'rejected'
+    reviewedNote?: string
+    calculationType?: 'non_payable' | 'hourly_salary' | 'monthly_salary'
+    associateDaysOff?: string[]
+    payableDays?: number
+  }
 ): Promise<AdminLeaveRequest> {
   return api<AdminLeaveRequest>(`/api/admin/leave-requests/${id}`, {
     method: 'PATCH',
