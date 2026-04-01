@@ -439,6 +439,8 @@ export default function AdminEmployees() {
         }
       }
       setModal(null)
+      setClientFilter('all')
+      setShiftFilter('all')
       await load()
       await loadAssignments(clients)
     } catch (e: unknown) {

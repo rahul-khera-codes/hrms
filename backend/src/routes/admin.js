@@ -183,33 +183,44 @@ router.get('/dashboard', async (req, res) => {
 })
 
 // GET /api/admin/attendance?from=YYYY-MM-DD&to=YYYY-MM-DD&search=&status=
-// Returns one row per session (individual clock-in/out) with all attendance fields.
+// Returns one row per employee per day (aggregated) with all attendance fields.
 router.get('/attendance', async (req, res) => {
   try {
     const { from, to, search, status: statusFilter } = req.query
     let sql = `
       SELECT
-        s.id AS session_id,
         u.id AS user_id,
         u.name AS user_name,
         (s.clock_in AT TIME ZONE 'UTC')::date AS date,
-        s.clock_in AS first_clock_in,
-        s.clock_out AS last_clock_out,
-        COALESCE(s.regular_minutes, 0)::int AS regular_minutes,
-        COALESCE(s.overtime_minutes, 0)::int AS overtime_minutes,
-        COALESCE(s.night_minutes, 0)::int AS night_minutes,
-        CASE WHEN s.clock_out IS NOT NULL THEN EXTRACT(EPOCH FROM (s.clock_out - s.clock_in)) / 60.0 ELSE 0 END AS precise_total_minutes,
-        (s.clock_out IS NULL) AS has_active_session,
-        s.shift_start, s.shift_end,
-        COALESCE(s.location, e.location) AS location,
-        COALESCE(s.stage, 'Production') AS stage,
-        s.task, s.status_override, s.pay_type, s.bill_type, s.comments,
-        s.scheduled_minutes, s.actual_minutes, s.dbt_minutes,
-        s.holiday_name,
-        s.reg_hours, s.n15_hours, s.x35_hours, s.x100_hours, s.hol_hours,
-        mgr.name AS reports_to_name,
-        c.name AS account_name,
-        e.cmid AS employee_cmid
+        MIN(s.clock_in) AS first_clock_in,
+        MAX(s.clock_out) AS last_clock_out,
+        COALESCE(SUM(s.regular_minutes), 0)::int AS regular_minutes,
+        COALESCE(SUM(s.overtime_minutes), 0)::int AS overtime_minutes,
+        COALESCE(SUM(s.night_minutes), 0)::int AS night_minutes,
+        COALESCE(SUM(CASE WHEN s.clock_out IS NOT NULL THEN EXTRACT(EPOCH FROM (s.clock_out - s.clock_in)) / 60.0 ELSE 0 END), 0) AS precise_total_minutes,
+        BOOL_OR(s.clock_out IS NULL) AS has_active_session,
+        MIN(s.shift_start) AS shift_start,
+        MAX(s.shift_end) AS shift_end,
+        MAX(COALESCE(s.location, e.location)) AS location,
+        MAX(COALESCE(s.stage, 'Production')) AS stage,
+        MAX(s.task) AS task,
+        MAX(s.status_override) AS status_override,
+        MAX(s.pay_type) AS pay_type,
+        MAX(s.bill_type) AS bill_type,
+        STRING_AGG(DISTINCT s.comments, '; ') FILTER (WHERE s.comments IS NOT NULL AND s.comments != '') AS comments,
+        COALESCE(SUM(s.scheduled_minutes), 0)::int AS scheduled_minutes,
+        COALESCE(SUM(s.actual_minutes), 0)::int AS actual_minutes,
+        MAX(s.dbt_minutes) AS dbt_minutes,
+        MAX(s.holiday_name) AS holiday_name,
+        COALESCE(SUM(s.reg_hours), 0) AS reg_hours,
+        COALESCE(SUM(s.n15_hours), 0) AS n15_hours,
+        COALESCE(SUM(s.x35_hours), 0) AS x35_hours,
+        COALESCE(SUM(s.x100_hours), 0) AS x100_hours,
+        COALESCE(SUM(s.hol_hours), 0) AS hol_hours,
+        MAX(mgr.name) AS reports_to_name,
+        MAX(c.name) AS account_name,
+        MAX(e.cmid) AS employee_cmid,
+        (ARRAY_AGG(s.id ORDER BY s.clock_in DESC))[1] AS session_id
       FROM sessions s
       JOIN users u ON u.id = s.user_id AND u.role = 'employee'
       LEFT JOIN employees e ON e.user_id = u.id
@@ -231,7 +242,8 @@ router.get('/attendance', async (req, res) => {
       sql += ` AND u.name ILIKE $${params.length}`
     }
     sql += `
-      ORDER BY s.clock_in DESC
+      GROUP BY u.id, u.name, (s.clock_in AT TIME ZONE 'UTC')::date
+      ORDER BY date DESC, u.name
       LIMIT 500
     `
     const result = await query(sql, params)

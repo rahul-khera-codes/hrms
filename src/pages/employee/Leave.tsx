@@ -20,13 +20,6 @@ const leaveCategoryOptions: Array<{ value: LeaveCategory; label: string }> = [
   { value: 'medical_license', label: 'Licencia Médica' },
 ]
 
-type CalcType = 'non_payable' | 'hourly_salary' | 'monthly_salary'
-const calcTypeOptions: Array<{ value: CalcType; label: string }> = [
-  { value: 'non_payable', label: 'Non Payable' },
-  { value: 'hourly_salary', label: 'Hourly Salary' },
-  { value: 'monthly_salary', label: 'Monthly Salary' },
-]
-
 const DAYS_OF_WEEK = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -53,7 +46,6 @@ export default function EmployeeLeave() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [leaveCategory, setLeaveCategory] = useState<LeaveCategory>('time_off')
-  const [calculationType, setCalculationType] = useState<CalcType>('non_payable')
   const [daysOff, setDaysOff] = useState<string[]>(['Sun', 'Sat'])
   const initialDateTime = splitDateTimeValue(new Date())
   const [startDate, setStartDate] = useState(initialDateTime.date)
@@ -148,7 +140,6 @@ export default function EmployeeLeave() {
         endDate,
         reason: reason.trim() || undefined,
         leaveCategory,
-        calculationType,
         associateDaysOff: daysOff,
         returnDate,
         startTime,
@@ -191,27 +182,6 @@ export default function EmployeeLeave() {
                 onChange={(val) => setLeaveCategory(val as LeaveCategory)}
                 options={leaveCategoryOptions.map((opt) => ({ value: opt.value, label: opt.label }))}
               />
-            </div>
-
-            {/* Calculation Type — toggle buttons */}
-            <div className="sm:col-span-2">
-              <label className="label">Calculation</label>
-              <div className="flex gap-0 rounded-xl overflow-hidden border border-surface-200">
-                {calcTypeOptions.map((opt) => (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    onClick={() => setCalculationType(opt.value)}
-                    className={`flex-1 px-3 py-2.5 text-xs sm:text-sm font-medium transition-colors ${
-                      calculationType === opt.value
-                        ? 'bg-brand-600 text-white'
-                        : 'bg-surface-50 text-surface-600 hover:bg-surface-100'
-                    }`}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
             </div>
 
             {/* Associate Days Off — multi-select chips */}
