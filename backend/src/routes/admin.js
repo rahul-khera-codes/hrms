@@ -97,44 +97,39 @@ function toAttendanceRecord(row) {
   const isHoliday = !!holidayName
 
   let regHours = 0
-  let n15Hours = Math.round(nightHours * 100) / 100
+  // N15 = night hours but capped to net hours (can never exceed what was actually worked after DBT)
+  let n15Hours = Math.round(Math.min(nightHours, netHours) * 100) / 100
   let x35Hours = 0
   let x100Hours = 0
   let holHours = 0
 
   if (payType === 'DNP') {
-    // Do Not Pay — all zeros
+    // Do Not Pay — all zeros, including n15
+    n15Hours = 0
   } else if (payType === 'X100%') {
-    // 100% overtime — all net hours go to x100
-    x100Hours = netHours
-    if (isHoliday) {
-      // Client rule: X100% on holiday = just X100%, no separate holiday pay (max is 100%)
-      holHours = 0
-    }
+    // 100% overtime — all net hours go to x100, no double-pay for holiday
+    x100Hours = Math.round(netHours * 100) / 100
+    holHours = 0
   } else if (payType === 'X35%') {
-    // 35% overtime — regular hours up to 8, rest is OT35
+    // Explicit OT35 override — hours up to 8 are REG, rest is X35
     regHours = Math.min(netHours, 8)
     x35Hours = Math.max(0, netHours - 8)
   } else {
-    // Regular pay
+    // Regular pay — REG capped at 8h, overflow goes to X35
     regHours = Math.min(netHours, 8)
-    // Any hours beyond 8 on a regular pay day are still counted
     if (netHours > 8) {
       x35Hours = netHours - 8
     }
   }
 
-  // Holiday: if it's a holiday and pay is Regular, employee gets scheduled hours as base
+  // Holiday pay: applies when payType is Regular or X35% (not X100%, not DNP)
+  // HOL = scheduled hours on that holiday date; employee also keeps REG for hours worked
   if (isHoliday && payType !== 'DNP' && payType !== 'X100%') {
-    if (scheduledHours > 0) {
-      holHours = scheduledHours
-      // If they also worked, they get their actual hours + holiday base
-      if (actualHours > 0) {
-        regHours = Math.min(netHours, 8)
-      } else {
-        // Scheduled but didn't work — still get paid the scheduled hours
-        regHours = scheduledHours
-      }
+    holHours = scheduledHours > 0 ? scheduledHours : (actualHours > 0 ? Math.min(netHours, 8) : 0)
+    // If clocked in: REG = net hours capped at 8
+    // If absent on holiday: REG = scheduled hours (paid for scheduled hours)
+    if (actualHours <= 0 && scheduledHours > 0) {
+      regHours = scheduledHours
     }
   }
 
@@ -275,11 +270,12 @@ router.get('/attendance', async (req, res) => {
         MAX(e.cmid) AS employee_cmid,
         (ARRAY_AGG(s.id ORDER BY s.clock_in DESC))[1] AS session_id,
         -- Dynamic shift lookup from schedule_assignments (backfills null shift_start/end)
+        -- Force UTC so comparison with clock_in (stored as UTC) is timezone-correct
         MIN(
-          ((s.clock_in AT TIME ZONE 'UTC')::date || 'T' || COALESCE(sa_shift.override_start, sh.start_time)::text)::timestamptz
+          (((s.clock_in AT TIME ZONE 'UTC')::date || 'T' || COALESCE(sa_shift.override_start, sh.start_time)::text)::timestamp AT TIME ZONE 'UTC')
         ) FILTER (WHERE sh.start_time IS NOT NULL) AS dynamic_shift_start,
         MAX(
-          ((s.clock_in AT TIME ZONE 'UTC')::date || 'T' || COALESCE(sa_shift.override_end, sh.end_time)::text)::timestamptz
+          (((s.clock_in AT TIME ZONE 'UTC')::date || 'T' || COALESCE(sa_shift.override_end, sh.end_time)::text)::timestamp AT TIME ZONE 'UTC')
         ) FILTER (WHERE sh.end_time IS NOT NULL) AS dynamic_shift_end,
         -- Dynamic holiday lookup from holidays table
         MAX(h.name) AS dynamic_holiday_name
