@@ -12,6 +12,7 @@ const router = express.Router()
 
 /**
  * Map attendance row to full AttendanceRecord with all client-required fields.
+ * Dynamically calculates hour classification from session data + pay type + holiday.
  */
 function toAttendanceRecord(row) {
   const clockIn = row.first_clock_in || row.clock_in
@@ -41,10 +42,15 @@ function toAttendanceRecord(row) {
 
   const date = row.date ?? (clockIn ? new Date(clockIn).toISOString().slice(0, 10) : '')
 
+  // Use dynamic shift lookup (from schedule_assignments JOIN) or stored values
+  const shiftStart = row.dynamic_shift_start || row.shift_start || null
+  const shiftEnd = row.dynamic_shift_end || row.shift_end || null
+
+  // Use dynamic holiday lookup or stored value
+  const holidayName = row.dynamic_holiday_name || row.holiday_name || null
+
   // Auto-detect status from shift vs clock comparison
   let autoStatus = hasActive ? 'active' : 'present'
-  const shiftStart = row.shift_start || null
-  const shiftEnd = row.shift_end || null
   if (!hasActive && clockIn && shiftStart) {
     const clockInMs = new Date(clockIn).getTime()
     const shiftStartMs = new Date(shiftStart).getTime()
@@ -62,26 +68,74 @@ function toAttendanceRecord(row) {
   const status = row.status_override || autoStatus
 
   // Scheduled hours (shift end - shift start)
-  let scheduledHours = Number(row.scheduled_minutes ?? 0) / 60
-  if (scheduledHours === 0 && shiftStart && shiftEnd) {
+  let scheduledHours = 0
+  if (shiftStart && shiftEnd) {
     scheduledHours = (new Date(shiftEnd).getTime() - new Date(shiftStart).getTime()) / 3600000
+    if (scheduledHours < 0) scheduledHours += 24 // overnight shift
+  } else if (Number(row.scheduled_minutes ?? 0) > 0) {
+    scheduledHours = Number(row.scheduled_minutes) / 60
   }
 
   // Actual hours (clock out - clock in)
-  let actualHours = Number(row.actual_minutes ?? 0) / 60
-  if (actualHours === 0 && clockIn && clockOut) {
+  let actualHours = 0
+  if (clockIn && clockOut) {
     actualHours = (new Date(clockOut).getTime() - new Date(clockIn).getTime()) / 3600000
+  } else if (Number(row.actual_minutes ?? 0) > 0) {
+    actualHours = Number(row.actual_minutes) / 60
   }
 
-  // DBT: Deductible Break Time — 15 min per 2 hrs, 30 min per 4 hrs
-  // Dominican law: for 8hr shift = 1hr break, 4.5hr = 30min, etc.
-  let dbtHours = Number(row.dbt_minutes ?? 0) / 60
-  if (dbtHours === 0 && actualHours > 0) {
-    if (actualHours >= 8) dbtHours = 1
-    else if (actualHours >= 6) dbtHours = 0.75
-    else if (actualHours >= 4) dbtHours = 0.5
-    else if (actualHours >= 2) dbtHours = 0.25
-    else dbtHours = 0
+  // DBT: Deductible Break Time — Dominican law
+  let dbtHours = 0
+  if (actualHours >= 8) dbtHours = 1
+  else if (actualHours >= 6) dbtHours = 0.75
+  else if (actualHours >= 4) dbtHours = 0.5
+  else if (actualHours >= 2) dbtHours = 0.25
+
+  // --- Dynamic hour classification based on pay type and data ---
+  const payType = row.pay_type || 'Regular'
+  const netHours = Math.max(0, actualHours - dbtHours)
+  const isHoliday = !!holidayName
+
+  let regHours = 0
+  let n15Hours = Math.round(nightHours * 100) / 100
+  let x35Hours = 0
+  let x100Hours = 0
+  let holHours = 0
+
+  if (payType === 'DNP') {
+    // Do Not Pay — all zeros
+  } else if (payType === 'X100%') {
+    // 100% overtime — all net hours go to x100
+    x100Hours = netHours
+    if (isHoliday) {
+      // Client rule: X100% on holiday = just X100%, no separate holiday pay (max is 100%)
+      holHours = 0
+    }
+  } else if (payType === 'X35%') {
+    // 35% overtime — regular hours up to 8, rest is OT35
+    regHours = Math.min(netHours, 8)
+    x35Hours = Math.max(0, netHours - 8)
+  } else {
+    // Regular pay
+    regHours = Math.min(netHours, 8)
+    // Any hours beyond 8 on a regular pay day are still counted
+    if (netHours > 8) {
+      x35Hours = netHours - 8
+    }
+  }
+
+  // Holiday: if it's a holiday and pay is Regular, employee gets scheduled hours as base
+  if (isHoliday && payType !== 'DNP' && payType !== 'X100%') {
+    if (scheduledHours > 0) {
+      holHours = scheduledHours
+      // If they also worked, they get their actual hours + holiday base
+      if (actualHours > 0) {
+        regHours = Math.min(netHours, 8)
+      } else {
+        // Scheduled but didn't work — still get paid the scheduled hours
+        regHours = scheduledHours
+      }
+    }
   }
 
   return {
@@ -99,21 +153,20 @@ function toAttendanceRecord(row) {
     reportsTo: row.reports_to_name || null,
     task: row.task || null,
     status,
-    payType: row.pay_type || 'Regular',
+    payType,
     billType: row.bill_type || 'Regular',
     scheduledHours: Math.round(scheduledHours * 100) / 100,
     actualHours: Math.round(actualHours * 100) / 100,
     dbtHours: Math.round(dbtHours * 100) / 100,
-    holidayName: row.holiday_name || null,
-    regHours: row.reg_hours != null ? Number(row.reg_hours) : Math.round(regularHours * 100) / 100,
-    n15Hours: row.n15_hours != null ? Number(row.n15_hours) : Math.round(nightHours * 100) / 100,
-    x35Hours: row.x35_hours != null ? Number(row.x35_hours) : Math.round(overtimeHours * 100) / 100,
-    x100Hours: row.x100_hours != null ? Number(row.x100_hours) : 0,
-    holHours: row.hol_hours != null ? Number(row.hol_hours) : 0,
+    holidayName,
+    regHours: Math.round(regHours * 100) / 100,
+    n15Hours,
+    x35Hours: Math.round(x35Hours * 100) / 100,
+    x100Hours: Math.round(x100Hours * 100) / 100,
+    holHours: Math.round(holHours * 100) / 100,
     comments: row.comments || '',
     accountName: row.account_name || null,
     employeeCmid: row.employee_cmid != null ? Number(row.employee_cmid) : null,
-    // Keep old fields for backward compatibility
     regularHours,
     overtimeHours,
     nightHours,
@@ -220,12 +273,31 @@ router.get('/attendance', async (req, res) => {
         MAX(mgr.name) AS reports_to_name,
         MAX(c.name) AS account_name,
         MAX(e.cmid) AS employee_cmid,
-        (ARRAY_AGG(s.id ORDER BY s.clock_in DESC))[1] AS session_id
+        (ARRAY_AGG(s.id ORDER BY s.clock_in DESC))[1] AS session_id,
+        -- Dynamic shift lookup from schedule_assignments (backfills null shift_start/end)
+        MIN(
+          ((s.clock_in AT TIME ZONE 'UTC')::date || 'T' || COALESCE(sa_shift.override_start, sh.start_time)::text)::timestamptz
+        ) FILTER (WHERE sh.start_time IS NOT NULL) AS dynamic_shift_start,
+        MAX(
+          ((s.clock_in AT TIME ZONE 'UTC')::date || 'T' || COALESCE(sa_shift.override_end, sh.end_time)::text)::timestamptz
+        ) FILTER (WHERE sh.end_time IS NOT NULL) AS dynamic_shift_end,
+        -- Dynamic holiday lookup from holidays table
+        MAX(h.name) AS dynamic_holiday_name
       FROM sessions s
       JOIN users u ON u.id = s.user_id AND u.role = 'employee'
       LEFT JOIN employees e ON e.user_id = u.id
       LEFT JOIN users mgr ON mgr.id = e.reports_to
       LEFT JOIN clients c ON c.id = e.primary_client_id
+      LEFT JOIN LATERAL (
+        SELECT a.shift_id,
+               a.override_start_time AS override_start,
+               a.override_end_time AS override_end
+        FROM schedule_assignments a
+        WHERE a.user_id = u.id AND a.date = (s.clock_in AT TIME ZONE 'UTC')::date
+        LIMIT 1
+      ) sa_shift ON true
+      LEFT JOIN shifts sh ON sh.id = sa_shift.shift_id
+      LEFT JOIN holidays h ON h.holiday_date = (s.clock_in AT TIME ZONE 'UTC')::date AND h.is_paid = TRUE
       WHERE 1=1
     `
     const params = []
