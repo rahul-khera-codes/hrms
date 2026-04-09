@@ -365,8 +365,8 @@ router.get('/attendance', async (req, res) => {
     const leaveFrom = boundFrom <= boundTo ? boundFrom : boundTo
     const leaveTo = boundFrom <= boundTo ? boundTo : boundFrom
 
-    const approvedLeaves = await query(
-      `SELECT lr.id, lr.user_id, u.name AS user_name,
+    const leaveParams = [leaveFrom, leaveTo]
+    let leaveSql = `SELECT lr.id, lr.user_id, u.name AS user_name,
               lr.start_date::text AS start_date_str,
               lr.end_date::text AS end_date_str
        FROM leave_requests lr
@@ -374,10 +374,13 @@ router.get('/attendance', async (req, res) => {
        WHERE u.role = 'employee'
          AND lr.status = 'approved'
          AND lr.start_date <= $2::date
-         AND lr.end_date >= $1::date
-       ORDER BY u.name, lr.start_date`,
-      [leaveFrom, leaveTo]
-    )
+         AND lr.end_date >= $1::date`
+    if (search && String(search).trim()) {
+      leaveParams.push(`%${String(search).trim()}%`)
+      leaveSql += ` AND u.name ILIKE $${leaveParams.length}`
+    }
+    leaveSql += ` ORDER BY u.name, lr.start_date`
+    const approvedLeaves = await query(leaveSql, leaveParams)
 
     const existingKeys = new Set(records.map((r) => `${r.employeeId}-${r.date}`))
     const approvedLeaveKeys = new Set()
@@ -446,7 +449,14 @@ router.get('/attendance', async (req, res) => {
     // Include ABSENT rows only when filtering explicitly by "absent".
     // Here "absent" means employees who had NO attendance activity at all in the range.
     if (statusFilter === 'absent' && from && to) {
-      const employeesResult = await query("SELECT id, name FROM users WHERE role = 'employee' ORDER BY name")
+      let absentSql = "SELECT id, name FROM users WHERE role = 'employee'"
+      const absentParams = []
+      if (search && String(search).trim()) {
+        absentParams.push(`%${String(search).trim()}%`)
+        absentSql += ` AND name ILIKE $${absentParams.length}`
+      }
+      absentSql += ' ORDER BY name'
+      const employeesResult = await query(absentSql, absentParams)
       const employees = employeesResult.rows || []
       const hadActivity = new Set(records.map((r) => r.employeeId))
       const fromDate = new Date(`${from}T12:00:00Z`)
