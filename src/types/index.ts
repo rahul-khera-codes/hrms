@@ -41,13 +41,15 @@ export interface AttendanceRecord {
   payType?: string
   billType?: string
   scheduledHours?: number
+  sdbtHours?: number
   actualHours?: number
+  adbtHours?: number
   dbtHours?: number
-  holidayName?: string | null
   regHours?: number
   n15Hours?: number
   x35Hours?: number
   x100Hours?: number
+  hdyHours?: number
   holHours?: number
   comments?: string
   // Backward compatibility

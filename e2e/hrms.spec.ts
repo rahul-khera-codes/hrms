@@ -537,13 +537,16 @@ test.describe('Admin - Attendance Module API', () => {
       expect(r).toHaveProperty('payType')
       expect(r).toHaveProperty('billType')
       expect(r).toHaveProperty('scheduledHours')
+      expect(r).toHaveProperty('sdbtHours')
       expect(r).toHaveProperty('actualHours')
-      expect(r).toHaveProperty('dbtHours')
-      expect(r).toHaveProperty('holidayName')
+      expect(r).toHaveProperty('adbtHours')
       expect(r).toHaveProperty('regHours')
       expect(r).toHaveProperty('n15Hours')
       expect(r).toHaveProperty('x35Hours')
       expect(r).toHaveProperty('x100Hours')
+      expect(r).toHaveProperty('hdyHours')
+      // Backward compatibility
+      expect(r).toHaveProperty('dbtHours')
       expect(r).toHaveProperty('holHours')
       expect(r).toHaveProperty('comments')
     }

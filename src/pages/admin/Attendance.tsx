@@ -24,7 +24,7 @@ const STATUS_OPTIONS = [
   'Review',
 ] as const
 
-const PAY_OPTIONS = ['Regular', 'X35%', 'X100%', 'DNP'] as const
+const PAY_OPTIONS = ['Regular', 'X35%', 'X100%', 'Holiday', 'DNP'] as const
 const BILL_OPTIONS = ['Regular', 'Premium', 'Holiday', 'DNB', 'Review'] as const
 const STAGE_OPTIONS = ['Production', 'Nesting', 'Training'] as const
 const TASK_OPTIONS = [
@@ -190,7 +190,6 @@ export default function AdminAttendance() {
       'Clock In',
       'Shift End',
       'Clock Out',
-      'Location',
       'Stage',
       'Reports To',
       'Task',
@@ -198,14 +197,14 @@ export default function AdminAttendance() {
       'Pay',
       'Bill',
       'SCH',
+      'SDBT',
       'ACT',
-      'DBT',
-      'HOLIDAY?',
+      'ADBT',
       'REG',
       'N15%',
       'X35%',
       'X100%',
-      'HOL',
+      'HDY',
       'Comments',
     ]
     const rows = records.map((r) => [
@@ -217,7 +216,6 @@ export default function AdminAttendance() {
       fmtTime(r.clockIn),
       fmtTime(r.shiftEnd),
       fmtTime(r.clockOut),
-      r.location ?? '',
       r.stage ?? '',
       r.reportsTo ?? '',
       r.task ?? '',
@@ -225,14 +223,14 @@ export default function AdminAttendance() {
       r.payType ?? '',
       r.billType ?? '',
       fmtHours(r.scheduledHours),
+      fmtHours(r.sdbtHours),
       fmtHours(r.actualHours),
-      fmtHours(r.dbtHours),
-      r.holidayName ?? '',
+      fmtHours(r.adbtHours),
       fmtHours(r.regHours),
       fmtHours(r.n15Hours),
       fmtHours(r.x35Hours),
       fmtHours(r.x100Hours),
-      fmtHours(r.holHours),
+      fmtHours(r.hdyHours),
       r.comments ?? '',
     ])
     const csv = [
@@ -270,9 +268,12 @@ export default function AdminAttendance() {
     const timeOff = records.filter(
       (r) => r.status.toLowerCase() === 'time off',
     ).length
-    const totalSch = records.reduce((a, r) => a + (r.scheduledHours ?? 0), 0)
-    const totalAct = records.reduce((a, r) => a + (r.actualHours ?? 0), 0)
-    return { total, present, absent, late, timeOff, totalSch, totalAct }
+    const totalReg = records.reduce((a, r) => a + (r.regHours ?? 0), 0)
+    const totalN15 = records.reduce((a, r) => a + (r.n15Hours ?? 0), 0)
+    const totalX35 = records.reduce((a, r) => a + (r.x35Hours ?? 0), 0)
+    const totalX100 = records.reduce((a, r) => a + (r.x100Hours ?? 0), 0)
+    const totalHdy = records.reduce((a, r) => a + (r.hdyHours ?? 0), 0)
+    return { total, present, absent, late, timeOff, totalReg, totalN15, totalX35, totalX100, totalHdy }
   }, [records])
 
   // -----------------------------------------------------------------------
@@ -334,7 +335,7 @@ export default function AdminAttendance() {
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 xl:grid-cols-10 gap-3 sm:gap-4">
         <SummaryCard label="Records" value={summary.total} />
         <SummaryCard
           label="Present"
@@ -349,14 +350,29 @@ export default function AdminAttendance() {
           color="sky"
         />
         <SummaryCard
-          label="SCH Hours"
-          value={fmtHours(summary.totalSch)}
+          label="REG"
+          value={fmtHours(summary.totalReg)}
           color="emerald"
         />
         <SummaryCard
-          label="ACT Hours"
-          value={fmtHours(summary.totalAct)}
+          label="N15%"
+          value={fmtHours(summary.totalN15)}
           color="indigo"
+        />
+        <SummaryCard
+          label="X35%"
+          value={fmtHours(summary.totalX35)}
+          color="amber"
+        />
+        <SummaryCard
+          label="X100%"
+          value={fmtHours(summary.totalX100)}
+          color="red"
+        />
+        <SummaryCard
+          label="HDY"
+          value={fmtHours(summary.totalHdy)}
+          color="sky"
         />
       </div>
 
@@ -386,7 +402,6 @@ export default function AdminAttendance() {
                     'Clock In',
                     'Shift End',
                     'Clock Out',
-                    'Location',
                     'Stage',
                     'Reports To',
                     'Task',
@@ -394,14 +409,14 @@ export default function AdminAttendance() {
                     'Pay',
                     'Bill',
                     'SCH',
+                    'SDBT',
                     'ACT',
-                    'DBT',
-                    'HOLIDAY?',
+                    'ADBT',
                     'REG',
                     'N15%',
                     'X35%',
                     'X100%',
-                    'HOL',
+                    'HDY',
                     'Comments',
                   ].map((col) => (
                     <th
@@ -452,10 +467,6 @@ export default function AdminAttendance() {
                       <td className="px-2 py-1.5 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">
                         {fmtTime(r.clockOut)}
                       </td>
-                      {/* Location */}
-                      <td className="px-2 py-1.5 text-xs text-surface-700 whitespace-nowrap">
-                        {r.location ?? ''}
-                      </td>
                       {/* Stage (editable) */}
                       <td className="px-2 py-1.5 whitespace-nowrap">
                         <InlineSelect
@@ -505,23 +516,17 @@ export default function AdminAttendance() {
                       <td className="px-2 py-1.5 text-xs text-surface-700 tabular-nums whitespace-nowrap text-right">
                         {fmtHours(r.scheduledHours)}
                       </td>
+                      {/* SDBT */}
+                      <td className="px-2 py-1.5 text-xs text-surface-700 tabular-nums whitespace-nowrap text-right">
+                        {fmtHours(r.sdbtHours)}
+                      </td>
                       {/* ACT */}
                       <td className="px-2 py-1.5 text-xs text-surface-700 tabular-nums whitespace-nowrap text-right">
                         {fmtHours(r.actualHours)}
                       </td>
-                      {/* DBT */}
+                      {/* ADBT */}
                       <td className="px-2 py-1.5 text-xs text-surface-700 tabular-nums whitespace-nowrap text-right">
-                        {fmtHours(r.dbtHours)}
-                      </td>
-                      {/* HOLIDAY? */}
-                      <td className="px-2 py-1.5 text-xs whitespace-nowrap">
-                        {r.holidayName ? (
-                          <span className="text-red-600 font-medium">
-                            {r.holidayName}
-                          </span>
-                        ) : (
-                          ''
-                        )}
+                        {fmtHours(r.adbtHours)}
                       </td>
                       {/* REG */}
                       <td className="px-2 py-1.5 text-xs text-surface-700 tabular-nums whitespace-nowrap text-right">
@@ -539,9 +544,9 @@ export default function AdminAttendance() {
                       <td className="px-2 py-1.5 text-xs text-surface-700 tabular-nums whitespace-nowrap text-right">
                         {fmtHours(r.x100Hours)}
                       </td>
-                      {/* HOL */}
+                      {/* HDY */}
                       <td className="px-2 py-1.5 text-xs text-surface-700 tabular-nums whitespace-nowrap text-right">
-                        {fmtHours(r.holHours)}
+                        {fmtHours(r.hdyHours)}
                       </td>
                       {/* Comments (editable) */}
                       <td className="px-2 py-1.5 whitespace-nowrap">
