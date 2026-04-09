@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { format, subDays } from 'date-fns'
-import { Search, Download } from 'lucide-react'
+import { Search, Download, X } from 'lucide-react'
 import { getAdminAttendance, updateAttendanceRecord } from '@/lib/apiAdmin'
 import type { AttendanceRecord } from '@/types'
 import AdminDatePicker from '@/components/AdminDatePicker'
@@ -75,6 +75,24 @@ function fmtTime(dateStr: string | null | undefined): string {
   }
 }
 
+function fmtDateTime(dateStr: string | null | undefined): string {
+  if (!dateStr) return ''
+  try {
+    return format(new Date(dateStr), 'MM/dd HH:mm')
+  } catch {
+    return ''
+  }
+}
+
+function fmtFullDateTime(dateStr: string | null | undefined): string {
+  if (!dateStr) return ''
+  try {
+    return format(new Date(dateStr), 'yyyy-MM-dd hh:mm a')
+  } catch {
+    return ''
+  }
+}
+
 function fmtDate(dateStr: string | null | undefined): string {
   if (!dateStr) return ''
   try {
@@ -100,6 +118,7 @@ export default function AdminAttendance() {
   const [dateFrom, setDateFrom] = useState(() => format(subDays(new Date(), 7), 'yyyy-MM-dd'))
   const [dateTo, setDateTo] = useState(() => format(new Date(), 'yyyy-MM-dd'))
   const [savingId, setSavingId] = useState<string | null>(null)
+  const [detailRecord, setDetailRecord] = useState<AttendanceRecord | null>(null)
 
   // -----------------------------------------------------------------------
   // Fetch
@@ -389,7 +408,7 @@ export default function AdminAttendance() {
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto" onClick={(e) => { if ((e.target as HTMLElement).closest('select, input')) e.stopPropagation() }}>
             <table className="min-w-[2000px] w-full text-left border-collapse">
               {/* Header */}
               <thead className="sticky top-0 z-10 bg-surface-50">
@@ -437,7 +456,8 @@ export default function AdminAttendance() {
                   return (
                     <tr
                       key={sid}
-                      className={`border-b border-surface-100 hover:bg-surface-50/60 transition-colors ${isSaving ? 'opacity-60' : ''}`}
+                      className={`border-b border-surface-100 hover:bg-surface-50/60 transition-colors cursor-pointer ${isSaving ? 'opacity-60' : ''}`}
+                      onClick={() => setDetailRecord(r)}
                     >
                       {/* EID */}
                       <td className="px-2 py-1.5 text-xs text-surface-700 tabular-nums whitespace-nowrap">
@@ -453,22 +473,22 @@ export default function AdminAttendance() {
                       </td>
                       {/* Shift Start */}
                       <td className="px-2 py-1.5 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">
-                        {fmtTime(r.shiftStart)}
+                        {fmtDateTime(r.shiftStart)}
                       </td>
                       {/* Clock In */}
                       <td className="px-2 py-1.5 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">
-                        {fmtTime(r.clockIn)}
+                        {fmtDateTime(r.clockIn)}
                       </td>
                       {/* Shift End */}
                       <td className="px-2 py-1.5 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">
-                        {fmtTime(r.shiftEnd)}
+                        {fmtDateTime(r.shiftEnd)}
                       </td>
                       {/* Clock Out */}
                       <td className="px-2 py-1.5 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">
-                        {fmtTime(r.clockOut)}
+                        {fmtDateTime(r.clockOut)}
                       </td>
                       {/* Stage (editable) */}
-                      <td className="px-2 py-1.5 whitespace-nowrap">
+                      <td className="px-2 py-1.5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                         <InlineSelect
                           value={r.stage ?? ''}
                           options={STAGE_OPTIONS}
@@ -480,7 +500,7 @@ export default function AdminAttendance() {
                         {r.reportsTo ?? ''}
                       </td>
                       {/* Task (editable) */}
-                      <td className="px-2 py-1.5 whitespace-nowrap">
+                      <td className="px-2 py-1.5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                         <InlineSelect
                           value={r.task ?? ''}
                           options={TASK_OPTIONS}
@@ -488,7 +508,7 @@ export default function AdminAttendance() {
                         />
                       </td>
                       {/* Status (editable) */}
-                      <td className="px-2 py-1.5 whitespace-nowrap">
+                      <td className="px-2 py-1.5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                         <InlineSelect
                           value={r.status}
                           options={STATUS_OPTIONS}
@@ -497,7 +517,7 @@ export default function AdminAttendance() {
                         />
                       </td>
                       {/* Pay (editable) */}
-                      <td className="px-2 py-1.5 whitespace-nowrap">
+                      <td className="px-2 py-1.5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                         <InlineSelect
                           value={r.payType ?? ''}
                           options={PAY_OPTIONS}
@@ -505,7 +525,7 @@ export default function AdminAttendance() {
                         />
                       </td>
                       {/* Bill (editable) */}
-                      <td className="px-2 py-1.5 whitespace-nowrap">
+                      <td className="px-2 py-1.5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                         <InlineSelect
                           value={r.billType ?? ''}
                           options={BILL_OPTIONS}
@@ -549,7 +569,7 @@ export default function AdminAttendance() {
                         {fmtHours(r.hdyHours)}
                       </td>
                       {/* Comments (editable) */}
-                      <td className="px-2 py-1.5 whitespace-nowrap">
+                      <td className="px-2 py-1.5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                         <InlineInput
                           value={r.comments ?? ''}
                           onSave={(v) => handleFieldUpdate(r, 'comments', v)}
@@ -563,6 +583,134 @@ export default function AdminAttendance() {
           </div>
         )}
       </div>
+
+      {/* Detail Modal */}
+      {detailRecord && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center p-4">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/40"
+            onClick={() => setDetailRecord(null)}
+            aria-label="Close"
+          />
+          <div className="relative z-10 w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl border border-surface-200 bg-white p-5 shadow-xl">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-base font-semibold text-surface-900">Attendance Details</h2>
+              <button type="button" onClick={() => setDetailRecord(null)} className="p-1 rounded-lg hover:bg-surface-100 transition-colors">
+                <X className="w-5 h-5 text-surface-500" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {/* Employee Info */}
+              <div className="rounded-xl border border-surface-200 bg-surface-50/80 p-3">
+                <p className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-2">Employee</p>
+                <div className="grid grid-cols-2 gap-1.5 text-sm">
+                  <span className="text-surface-500">Name</span>
+                  <span className="font-medium text-surface-900">{detailRecord.employeeName}</span>
+                  <span className="text-surface-500">EID</span>
+                  <span className="tabular-nums text-surface-900">{detailRecord.employeeCmid ?? '-'}</span>
+                  <span className="text-surface-500">Account</span>
+                  <span className="text-surface-900">{detailRecord.accountName ?? '-'}</span>
+                </div>
+              </div>
+
+              {/* Shift */}
+              <div className="rounded-xl border border-surface-200 bg-surface-50/80 p-3">
+                <p className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-2">Shift</p>
+                <div className="grid grid-cols-2 gap-1.5 text-sm">
+                  <span className="text-surface-500">Start</span>
+                  <span className="tabular-nums text-surface-900">{fmtFullDateTime(detailRecord.shiftStart)}</span>
+                  <span className="text-surface-500">End</span>
+                  <span className="tabular-nums text-surface-900">{fmtFullDateTime(detailRecord.shiftEnd)}</span>
+                </div>
+              </div>
+
+              {/* Clock */}
+              <div className="rounded-xl border border-surface-200 bg-surface-50/80 p-3">
+                <p className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-2">Clock</p>
+                <div className="grid grid-cols-2 gap-1.5 text-sm">
+                  <span className="text-surface-500">In</span>
+                  <span className="tabular-nums text-surface-900">{fmtFullDateTime(detailRecord.clockIn)}</span>
+                  <span className="text-surface-500">Out</span>
+                  <span className="tabular-nums text-surface-900">{fmtFullDateTime(detailRecord.clockOut)}</span>
+                </div>
+              </div>
+
+              {/* Hours */}
+              <div className="rounded-xl border border-surface-200 bg-surface-50/80 p-3">
+                <p className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-2">Hours</p>
+                <div className="grid grid-cols-2 gap-1.5 text-sm">
+                  <span className="text-surface-500">SCH</span>
+                  <span className="tabular-nums text-surface-900">{fmtHours(detailRecord.scheduledHours)}</span>
+                  <span className="text-surface-500">SDBT</span>
+                  <span className="tabular-nums text-surface-900">{fmtHours(detailRecord.sdbtHours)}</span>
+                  <span className="text-surface-500">ACT</span>
+                  <span className="tabular-nums text-surface-900">{fmtHours(detailRecord.actualHours)}</span>
+                  <span className="text-surface-500">ADBT</span>
+                  <span className="tabular-nums text-surface-900">{fmtHours(detailRecord.adbtHours)}</span>
+                </div>
+              </div>
+
+              {/* Classification */}
+              <div className="rounded-xl border border-surface-200 bg-surface-50/80 p-3">
+                <p className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-2">Classification</p>
+                <div className="grid grid-cols-2 gap-1.5 text-sm">
+                  <span className="text-surface-500">REG</span>
+                  <span className="tabular-nums text-surface-900">{fmtHours(detailRecord.regHours)}</span>
+                  <span className="text-surface-500">N15%</span>
+                  <span className="tabular-nums text-surface-900">{fmtHours(detailRecord.n15Hours)}</span>
+                  <span className="text-surface-500">X35%</span>
+                  <span className="tabular-nums text-surface-900">{fmtHours(detailRecord.x35Hours)}</span>
+                  <span className="text-surface-500">X100%</span>
+                  <span className="tabular-nums text-surface-900">{fmtHours(detailRecord.x100Hours)}</span>
+                  <span className="text-surface-500">HDY</span>
+                  <span className="tabular-nums text-surface-900">{fmtHours(detailRecord.hdyHours)}</span>
+                </div>
+              </div>
+
+              {/* Meta */}
+              <div className="rounded-xl border border-surface-200 bg-surface-50/80 p-3">
+                <p className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-2">Meta</p>
+                <div className="grid grid-cols-2 gap-1.5 text-sm">
+                  <span className="text-surface-500">Stage</span>
+                  <span className="text-surface-900">{detailRecord.stage ?? '-'}</span>
+                  <span className="text-surface-500">Reports To</span>
+                  <span className="text-surface-900">{detailRecord.reportsTo ?? '-'}</span>
+                  <span className="text-surface-500">Task</span>
+                  <span className="text-surface-900">{detailRecord.task ?? '-'}</span>
+                  <span className="text-surface-500">Status</span>
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${statusColors[detailRecord.status] || 'bg-surface-100 text-surface-600'}`}>
+                    {detailRecord.status}
+                  </span>
+                  <span className="text-surface-500">Pay</span>
+                  <span className="text-surface-900">{detailRecord.payType ?? '-'}</span>
+                  <span className="text-surface-500">Bill</span>
+                  <span className="text-surface-900">{detailRecord.billType ?? '-'}</span>
+                </div>
+              </div>
+
+              {/* Comments */}
+              {detailRecord.comments && (
+                <div className="rounded-xl border border-surface-200 bg-surface-50/80 p-3">
+                  <p className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-2">Comments</p>
+                  <p className="text-sm text-surface-900">{detailRecord.comments}</p>
+                </div>
+              )}
+            </div>
+
+            <div className="mt-5 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setDetailRecord(null)}
+                className="btn-secondary rounded-xl px-4 py-2"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
