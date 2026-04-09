@@ -23,6 +23,7 @@ function toAttendanceRecord(row) {
   const nightMinutes = Number(row.night_minutes ?? 0)
   const preciseTotalMinutes = Number(row.precise_total_minutes || 0)
 
+  // Backward-compatible legacy hours
   let regularHours = regularMinutes / 60
   let overtimeHours = overtimeMinutes / 60
   let nightHours = nightMinutes / 60
@@ -46,9 +47,6 @@ function toAttendanceRecord(row) {
   const shiftStart = row.dynamic_shift_start || row.shift_start || null
   const shiftEnd = row.dynamic_shift_end || row.shift_end || null
 
-  // Use dynamic holiday lookup or stored value
-  const holidayName = row.dynamic_holiday_name || row.holiday_name || null
-
   // Auto-detect status from shift vs clock comparison
   let autoStatus = hasActive ? 'active' : 'present'
   if (!hasActive && clockIn && shiftStart) {
@@ -67,7 +65,7 @@ function toAttendanceRecord(row) {
 
   const status = row.status_override || autoStatus
 
-  // Scheduled hours (shift end - shift start)
+  // --- SCH: Scheduled hours (ShiftEnd - ShiftStart) ---
   let scheduledHours = 0
   if (shiftStart && shiftEnd) {
     scheduledHours = (new Date(shiftEnd).getTime() - new Date(shiftStart).getTime()) / 3600000
@@ -76,7 +74,15 @@ function toAttendanceRecord(row) {
     scheduledHours = Number(row.scheduled_minutes) / 60
   }
 
-  // Actual hours (clock out - clock in)
+  // --- SDBT: Scheduled Deductible Break Time ---
+  // IFS(SCH<4, 0, SCH<8, 0.5, SCH<12, 1, SCH>=12, 1.5)
+  let sdbtHours = 0
+  if (scheduledHours >= 12) sdbtHours = 1.5
+  else if (scheduledHours >= 8) sdbtHours = 1
+  else if (scheduledHours >= 4) sdbtHours = 0.5
+  // else sdbtHours = 0 (SCH < 4)
+
+  // --- ACT: Actual hours (ClockOut - ClockIn) ---
   let actualHours = 0
   if (clockIn && clockOut) {
     actualHours = (new Date(clockOut).getTime() - new Date(clockIn).getTime()) / 3600000
@@ -84,54 +90,83 @@ function toAttendanceRecord(row) {
     actualHours = Number(row.actual_minutes) / 60
   }
 
-  // DBT: Deductible Break Time — Dominican law
-  let dbtHours = 0
-  if (actualHours >= 8) dbtHours = 1
-  else if (actualHours >= 6) dbtHours = 0.75
-  else if (actualHours >= 4) dbtHours = 0.5
-  else if (actualHours >= 2) dbtHours = 0.25
+  // --- ADBT: Actual Deductible Break Time ---
+  // IFS(ACT<4, 0, ACT<8, 0.5, ACT<12, 1, ACT>=12, 1.5)
+  let adbtHours = 0
+  if (actualHours >= 12) adbtHours = 1.5
+  else if (actualHours >= 8) adbtHours = 1
+  else if (actualHours >= 4) adbtHours = 0.5
+  // else adbtHours = 0 (ACT < 4)
 
-  // --- Dynamic hour classification based on pay type and data ---
+  // --- Pay type driven classification ---
   const payType = row.pay_type || 'Regular'
-  const netHours = Math.max(0, actualHours - dbtHours)
-  const isHoliday = !!holidayName
 
+  // --- REG: IF(Pay="Holiday", SCH-SDBT, IF(Pay="Regular", ACT-ADBT, 0)) ---
   let regHours = 0
-  // N15 = night hours but capped to net hours (can never exceed what was actually worked after DBT)
-  let n15Hours = Math.round(Math.min(nightHours, netHours) * 100) / 100
+  if (payType === 'Holiday') {
+    regHours = Math.max(0, scheduledHours - sdbtHours)
+  } else if (payType === 'Regular') {
+    regHours = Math.max(0, actualHours - adbtHours)
+  }
+
+  // --- N15%: Night differential ---
+  let n15Hours = 0
+  if (payType !== 'DNP' && clockIn && clockOut) {
+    const ciDate = new Date(clockIn)
+    const coDate = new Date(clockOut)
+    // Time-of-day as fraction of a day (0..1)
+    const clockInTime = (ciDate.getUTCHours() * 3600 + ciDate.getUTCMinutes() * 60 + ciDate.getUTCSeconds()) / 86400
+    const clockOutTime = (coDate.getUTCHours() * 3600 + coDate.getUTCMinutes() * 60 + coDate.getUTCSeconds()) / 86400
+
+    const NINE_PM = 21 / 24   // 0.875
+    const SEVEN_AM = 7 / 24   // ~0.291667
+
+    let nightRawHours = 0
+    if (clockOutTime >= NINE_PM && clockOutTime < 1) {
+      // ClockOut between 9PM and midnight
+      nightRawHours = (clockOutTime - NINE_PM) * 24
+    } else if (clockInTime >= NINE_PM && clockInTime < 1) {
+      // ClockIn between 9PM and midnight (ClockOut past midnight)
+      nightRawHours = (coDate.getTime() - ciDate.getTime()) / 3600000
+    } else if (clockOutTime >= 0 && clockOutTime <= SEVEN_AM) {
+      // ClockOut between midnight and 7AM
+      nightRawHours = (coDate.getTime() - ciDate.getTime()) / 3600000
+    } else if (clockInTime >= 0 && clockInTime <= SEVEN_AM) {
+      // ClockIn between midnight and 7AM
+      nightRawHours = (SEVEN_AM - clockInTime) * 24
+    }
+    // else nightRawHours = 0
+
+    if (nightRawHours >= 3) {
+      // Entire shift becomes night differential
+      n15Hours = Math.max(0, actualHours - adbtHours)
+    } else {
+      n15Hours = Math.max(0, nightRawHours)
+    }
+  }
+
+  // --- X35%: IF(Pay="X35%", ACT-ADBT, 0) ---
   let x35Hours = 0
+  if (payType === 'X35%') {
+    x35Hours = Math.max(0, actualHours - adbtHours)
+  }
+
+  // --- X100%: IF(Pay="X100%", ACT-ADBT, 0) ---
   let x100Hours = 0
-  let holHours = 0
-
-  if (payType === 'DNP') {
-    // Do Not Pay — all zeros, including n15
-    n15Hours = 0
-  } else if (payType === 'X100%') {
-    // 100% overtime — all net hours go to x100, no double-pay for holiday
-    x100Hours = Math.round(netHours * 100) / 100
-    holHours = 0
-  } else if (payType === 'X35%') {
-    // Explicit OT35 override — hours up to 8 are REG, rest is X35
-    regHours = Math.min(netHours, 8)
-    x35Hours = Math.max(0, netHours - 8)
-  } else {
-    // Regular pay — REG capped at 8h, overflow goes to X35
-    regHours = Math.min(netHours, 8)
-    if (netHours > 8) {
-      x35Hours = netHours - 8
-    }
+  if (payType === 'X100%') {
+    x100Hours = Math.max(0, actualHours - adbtHours)
   }
 
-  // Holiday pay: applies when payType is Regular or X35% (not X100%, not DNP)
-  // HOL = scheduled hours on that holiday date; employee also keeps REG for hours worked
-  if (isHoliday && payType !== 'DNP' && payType !== 'X100%') {
-    holHours = scheduledHours > 0 ? scheduledHours : (actualHours > 0 ? Math.min(netHours, 8) : 0)
-    // If clocked in: REG = net hours capped at 8
-    // If absent on holiday: REG = scheduled hours (paid for scheduled hours)
-    if (actualHours <= 0 && scheduledHours > 0) {
-      regHours = scheduledHours
-    }
+  // --- HDY: IF(Pay="Holiday", ACT-ADBT, 0) ---
+  let hdyHours = 0
+  if (payType === 'Holiday') {
+    hdyHours = Math.max(0, actualHours - adbtHours)
   }
+
+  // Backward-compatible dbtHours (use adbt for legacy consumers)
+  const dbtHours = adbtHours
+
+  const r2 = (v) => Math.round(v * 100) / 100
 
   return {
     id: row.id,
@@ -150,21 +185,24 @@ function toAttendanceRecord(row) {
     status,
     payType,
     billType: row.bill_type || 'Regular',
-    scheduledHours: Math.round(scheduledHours * 100) / 100,
-    actualHours: Math.round(actualHours * 100) / 100,
-    dbtHours: Math.round(dbtHours * 100) / 100,
-    holidayName,
-    regHours: Math.round(regHours * 100) / 100,
-    n15Hours,
-    x35Hours: Math.round(x35Hours * 100) / 100,
-    x100Hours: Math.round(x100Hours * 100) / 100,
-    holHours: Math.round(holHours * 100) / 100,
+    scheduledHours: r2(scheduledHours),
+    sdbtHours: r2(sdbtHours),
+    actualHours: r2(actualHours),
+    adbtHours: r2(adbtHours),
+    regHours: r2(regHours),
+    n15Hours: r2(n15Hours),
+    x35Hours: r2(x35Hours),
+    x100Hours: r2(x100Hours),
+    hdyHours: r2(hdyHours),
     comments: row.comments || '',
     accountName: row.account_name || null,
     employeeCmid: row.employee_cmid != null ? Number(row.employee_cmid) : null,
+    // Backward-compatible fields
     regularHours,
     overtimeHours,
     nightHours,
+    dbtHours: r2(dbtHours),
+    holHours: r2(hdyHours),
   }
 }
 
