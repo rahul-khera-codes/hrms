@@ -353,46 +353,22 @@ export default function AdminAttendance() {
         </div>
       </div>
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 xl:grid-cols-10 gap-3 sm:gap-4">
+      {/* Summary cards - Row 1: Counts */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
         <SummaryCard label="Records" value={summary.total} />
-        <SummaryCard
-          label="Present"
-          value={summary.present}
-          color="brand"
-        />
+        <SummaryCard label="Present" value={summary.present} color="brand" />
         <SummaryCard label="Absent" value={summary.absent} color="red" />
         <SummaryCard label="Late / Early" value={summary.late} color="amber" />
-        <SummaryCard
-          label="Time Off"
-          value={summary.timeOff}
-          color="sky"
-        />
-        <SummaryCard
-          label="REG"
-          value={fmtHours(summary.totalReg)}
-          color="emerald"
-        />
-        <SummaryCard
-          label="N15%"
-          value={fmtHours(summary.totalN15)}
-          color="indigo"
-        />
-        <SummaryCard
-          label="X35%"
-          value={fmtHours(summary.totalX35)}
-          color="amber"
-        />
-        <SummaryCard
-          label="X100%"
-          value={fmtHours(summary.totalX100)}
-          color="red"
-        />
-        <SummaryCard
-          label="HDY"
-          value={fmtHours(summary.totalHdy)}
-          color="sky"
-        />
+        <SummaryCard label="Time Off" value={summary.timeOff} color="sky" />
+      </div>
+
+      {/* Summary cards - Row 2: Hours */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+        <SummaryCard label="REG Hours" value={fmtHours(summary.totalReg)} color="brand" />
+        <SummaryCard label="N15% Hours" value={fmtHours(summary.totalN15)} color="violet" />
+        <SummaryCard label="X35% Hours" value={fmtHours(summary.totalX35)} color="amber" />
+        <SummaryCard label="X100% Hours" value={fmtHours(summary.totalX100)} color="red" />
+        <SummaryCard label="HDY Hours" value={fmtHours(summary.totalHdy)} color="emerald" />
       </div>
 
       {/* Table */}
@@ -533,39 +509,39 @@ export default function AdminAttendance() {
                         />
                       </td>
                       {/* SCH */}
-                      <td className="px-2 py-1.5 text-xs text-surface-700 tabular-nums whitespace-nowrap text-right">
+                      <td className={`px-2 py-1.5 text-xs tabular-nums whitespace-nowrap text-right ${(r.scheduledHours ?? 0) > 0 ? 'text-surface-700 font-medium' : 'text-surface-300'}`}>
                         {fmtHours(r.scheduledHours)}
                       </td>
                       {/* SDBT */}
-                      <td className="px-2 py-1.5 text-xs text-surface-700 tabular-nums whitespace-nowrap text-right">
+                      <td className={`px-2 py-1.5 text-xs tabular-nums whitespace-nowrap text-right ${(r.sdbtHours ?? 0) > 0 ? 'text-surface-700 font-medium' : 'text-surface-300'}`}>
                         {fmtHours(r.sdbtHours)}
                       </td>
                       {/* ACT */}
-                      <td className="px-2 py-1.5 text-xs text-surface-700 tabular-nums whitespace-nowrap text-right">
+                      <td className={`px-2 py-1.5 text-xs tabular-nums whitespace-nowrap text-right ${(r.actualHours ?? 0) > 0 ? 'text-surface-700 font-medium' : 'text-surface-300'}`}>
                         {fmtHours(r.actualHours)}
                       </td>
                       {/* ADBT */}
-                      <td className="px-2 py-1.5 text-xs text-surface-700 tabular-nums whitespace-nowrap text-right">
+                      <td className={`px-2 py-1.5 text-xs tabular-nums whitespace-nowrap text-right ${(r.adbtHours ?? 0) > 0 ? 'text-surface-700 font-medium' : 'text-surface-300'}`}>
                         {fmtHours(r.adbtHours)}
                       </td>
                       {/* REG */}
-                      <td className="px-2 py-1.5 text-xs text-surface-700 tabular-nums whitespace-nowrap text-right">
+                      <td className={`px-2 py-1.5 text-xs tabular-nums whitespace-nowrap text-right font-medium ${(r.regHours ?? 0) > 0 ? 'text-brand-600' : 'text-surface-300'}`}>
                         {fmtHours(r.regHours)}
                       </td>
                       {/* N15% */}
-                      <td className="px-2 py-1.5 text-xs text-surface-700 tabular-nums whitespace-nowrap text-right">
+                      <td className={`px-2 py-1.5 text-xs tabular-nums whitespace-nowrap text-right font-medium ${(r.n15Hours ?? 0) > 0 ? 'text-violet-600' : 'text-surface-300'}`}>
                         {fmtHours(r.n15Hours)}
                       </td>
                       {/* X35% */}
-                      <td className="px-2 py-1.5 text-xs text-surface-700 tabular-nums whitespace-nowrap text-right">
+                      <td className={`px-2 py-1.5 text-xs tabular-nums whitespace-nowrap text-right font-medium ${(r.x35Hours ?? 0) > 0 ? 'text-amber-600' : 'text-surface-300'}`}>
                         {fmtHours(r.x35Hours)}
                       </td>
                       {/* X100% */}
-                      <td className="px-2 py-1.5 text-xs text-surface-700 tabular-nums whitespace-nowrap text-right">
+                      <td className={`px-2 py-1.5 text-xs tabular-nums whitespace-nowrap text-right font-medium ${(r.x100Hours ?? 0) > 0 ? 'text-red-600' : 'text-surface-300'}`}>
                         {fmtHours(r.x100Hours)}
                       </td>
                       {/* HDY */}
-                      <td className="px-2 py-1.5 text-xs text-surface-700 tabular-nums whitespace-nowrap text-right">
+                      <td className={`px-2 py-1.5 text-xs tabular-nums whitespace-nowrap text-right font-medium ${(r.hdyHours ?? 0) > 0 ? 'text-emerald-600' : 'text-surface-300'}`}>
                         {fmtHours(r.hdyHours)}
                       </td>
                       {/* Comments (editable) */}
@@ -593,120 +569,135 @@ export default function AdminAttendance() {
             onClick={() => setDetailRecord(null)}
             aria-label="Close"
           />
-          <div className="relative z-10 w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl border border-surface-200 bg-white p-5 shadow-xl">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-base font-semibold text-surface-900">Attendance Details</h2>
-              <button type="button" onClick={() => setDetailRecord(null)} className="p-1 rounded-lg hover:bg-surface-100 transition-colors">
-                <X className="w-5 h-5 text-surface-500" />
+          <div className="relative z-10 w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl border border-surface-200 bg-white shadow-xl">
+            {/* Header */}
+            <div className="sticky top-0 z-10 bg-white border-b border-surface-200 px-5 py-4 rounded-t-2xl">
+              <button
+                type="button"
+                onClick={() => setDetailRecord(null)}
+                className="absolute top-3 right-3 p-1.5 rounded-lg hover:bg-surface-100 transition-colors"
+              >
+                <X className="w-5 h-5 text-surface-400" />
               </button>
+              <h2 className="text-lg font-semibold text-surface-900">{detailRecord.employeeName}</h2>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-surface-100 text-xs font-mono font-medium text-surface-600">
+                  EID {detailRecord.employeeCmid ?? '-'}
+                </span>
+                {detailRecord.accountName && (
+                  <span className="text-xs text-surface-500">{detailRecord.accountName}</span>
+                )}
+              </div>
             </div>
 
-            <div className="space-y-4">
-              {/* Employee Info */}
-              <div className="rounded-xl border border-surface-200 bg-surface-50/80 p-3">
-                <p className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-2">Employee</p>
-                <div className="grid grid-cols-2 gap-1.5 text-sm">
-                  <span className="text-surface-500">Name</span>
-                  <span className="font-medium text-surface-900">{detailRecord.employeeName}</span>
-                  <span className="text-surface-500">EID</span>
-                  <span className="tabular-nums text-surface-900">{detailRecord.employeeCmid ?? '-'}</span>
-                  <span className="text-surface-500">Account</span>
-                  <span className="text-surface-900">{detailRecord.accountName ?? '-'}</span>
-                </div>
-              </div>
-
-              {/* Shift */}
-              <div className="rounded-xl border border-surface-200 bg-surface-50/80 p-3">
-                <p className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-2">Shift</p>
-                <div className="grid grid-cols-2 gap-1.5 text-sm">
-                  <span className="text-surface-500">Start</span>
-                  <span className="tabular-nums text-surface-900">{fmtFullDateTime(detailRecord.shiftStart)}</span>
-                  <span className="text-surface-500">End</span>
-                  <span className="tabular-nums text-surface-900">{fmtFullDateTime(detailRecord.shiftEnd)}</span>
-                </div>
-              </div>
-
-              {/* Clock */}
-              <div className="rounded-xl border border-surface-200 bg-surface-50/80 p-3">
-                <p className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-2">Clock</p>
-                <div className="grid grid-cols-2 gap-1.5 text-sm">
-                  <span className="text-surface-500">In</span>
-                  <span className="tabular-nums text-surface-900">{fmtFullDateTime(detailRecord.clockIn)}</span>
-                  <span className="text-surface-500">Out</span>
-                  <span className="tabular-nums text-surface-900">{fmtFullDateTime(detailRecord.clockOut)}</span>
+            <div className="p-5 space-y-4">
+              {/* Shift & Clock - 2x2 grid */}
+              <div className="rounded-xl border border-surface-200 bg-surface-50 p-4">
+                <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider mb-3">Shift & Clock</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-lg bg-white border border-surface-100 p-2.5">
+                    <p className="text-[10px] font-medium text-surface-400 uppercase tracking-wider">Shift Start</p>
+                    <p className="text-sm font-medium text-surface-900 tabular-nums mt-0.5">{fmtFullDateTime(detailRecord.shiftStart) || '-'}</p>
+                  </div>
+                  <div className="rounded-lg bg-white border border-surface-100 p-2.5">
+                    <p className="text-[10px] font-medium text-surface-400 uppercase tracking-wider">Clock In</p>
+                    <p className="text-sm font-medium text-surface-900 tabular-nums mt-0.5">{fmtFullDateTime(detailRecord.clockIn) || '-'}</p>
+                  </div>
+                  <div className="rounded-lg bg-white border border-surface-100 p-2.5">
+                    <p className="text-[10px] font-medium text-surface-400 uppercase tracking-wider">Shift End</p>
+                    <p className="text-sm font-medium text-surface-900 tabular-nums mt-0.5">{fmtFullDateTime(detailRecord.shiftEnd) || '-'}</p>
+                  </div>
+                  <div className="rounded-lg bg-white border border-surface-100 p-2.5">
+                    <p className="text-[10px] font-medium text-surface-400 uppercase tracking-wider">Clock Out</p>
+                    <p className="text-sm font-medium text-surface-900 tabular-nums mt-0.5">{fmtFullDateTime(detailRecord.clockOut) || '-'}</p>
+                  </div>
                 </div>
               </div>
 
               {/* Hours */}
-              <div className="rounded-xl border border-surface-200 bg-surface-50/80 p-3">
-                <p className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-2">Hours</p>
-                <div className="grid grid-cols-2 gap-1.5 text-sm">
-                  <span className="text-surface-500">SCH</span>
-                  <span className="tabular-nums text-surface-900">{fmtHours(detailRecord.scheduledHours)}</span>
-                  <span className="text-surface-500">SDBT</span>
-                  <span className="tabular-nums text-surface-900">{fmtHours(detailRecord.sdbtHours)}</span>
-                  <span className="text-surface-500">ACT</span>
-                  <span className="tabular-nums text-surface-900">{fmtHours(detailRecord.actualHours)}</span>
-                  <span className="text-surface-500">ADBT</span>
-                  <span className="tabular-nums text-surface-900">{fmtHours(detailRecord.adbtHours)}</span>
+              <div className="rounded-xl border border-surface-200 bg-surface-50 p-4">
+                <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider mb-3">Hours</p>
+                {/* Row 1: SCH, SDBT, ACT, ADBT */}
+                <div className="grid grid-cols-4 gap-2 mb-2">
+                  {([
+                    { label: 'SCH', val: detailRecord.scheduledHours },
+                    { label: 'SDBT', val: detailRecord.sdbtHours },
+                    { label: 'ACT', val: detailRecord.actualHours },
+                    { label: 'ADBT', val: detailRecord.adbtHours },
+                  ] as const).map((item) => (
+                    <div key={item.label} className="text-center rounded-lg bg-white border border-surface-100 py-2 px-1">
+                      <p className="text-[10px] font-medium text-surface-400 uppercase">{item.label}</p>
+                      <p className={`text-sm font-semibold tabular-nums mt-0.5 ${(item.val ?? 0) > 0 ? 'text-surface-800' : 'text-surface-300'}`}>{fmtHours(item.val)}</p>
+                    </div>
+                  ))}
+                </div>
+                {/* Row 2: REG, N15%, X35%, X100%, HDY */}
+                <div className="grid grid-cols-5 gap-2">
+                  {([
+                    { label: 'REG', val: detailRecord.regHours, color: 'brand' },
+                    { label: 'N15%', val: detailRecord.n15Hours, color: 'violet' },
+                    { label: 'X35%', val: detailRecord.x35Hours, color: 'amber' },
+                    { label: 'X100%', val: detailRecord.x100Hours, color: 'red' },
+                    { label: 'HDY', val: detailRecord.hdyHours, color: 'emerald' },
+                  ] as const).map((item) => {
+                    const isNonZero = (item.val ?? 0) > 0
+                    const badgeBg = isNonZero
+                      ? item.color === 'brand' ? 'bg-blue-50 border-blue-200 text-blue-700'
+                        : item.color === 'violet' ? 'bg-violet-50 border-violet-200 text-violet-700'
+                        : item.color === 'amber' ? 'bg-amber-50 border-amber-200 text-amber-700'
+                        : item.color === 'red' ? 'bg-red-50 border-red-200 text-red-700'
+                        : 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                      : 'bg-white border-surface-100 text-surface-300'
+                    return (
+                      <div key={item.label} className={`text-center rounded-lg border py-2 px-1 ${badgeBg}`}>
+                        <p className="text-[10px] font-medium uppercase opacity-70">{item.label}</p>
+                        <p className="text-sm font-semibold tabular-nums mt-0.5">{fmtHours(item.val)}</p>
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
 
               {/* Classification */}
-              <div className="rounded-xl border border-surface-200 bg-surface-50/80 p-3">
-                <p className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-2">Classification</p>
-                <div className="grid grid-cols-2 gap-1.5 text-sm">
-                  <span className="text-surface-500">REG</span>
-                  <span className="tabular-nums text-surface-900">{fmtHours(detailRecord.regHours)}</span>
-                  <span className="text-surface-500">N15%</span>
-                  <span className="tabular-nums text-surface-900">{fmtHours(detailRecord.n15Hours)}</span>
-                  <span className="text-surface-500">X35%</span>
-                  <span className="tabular-nums text-surface-900">{fmtHours(detailRecord.x35Hours)}</span>
-                  <span className="text-surface-500">X100%</span>
-                  <span className="tabular-nums text-surface-900">{fmtHours(detailRecord.x100Hours)}</span>
-                  <span className="text-surface-500">HDY</span>
-                  <span className="tabular-nums text-surface-900">{fmtHours(detailRecord.hdyHours)}</span>
-                </div>
-              </div>
-
-              {/* Meta */}
-              <div className="rounded-xl border border-surface-200 bg-surface-50/80 p-3">
-                <p className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-2">Meta</p>
-                <div className="grid grid-cols-2 gap-1.5 text-sm">
-                  <span className="text-surface-500">Stage</span>
-                  <span className="text-surface-900">{detailRecord.stage ?? '-'}</span>
-                  <span className="text-surface-500">Reports To</span>
-                  <span className="text-surface-900">{detailRecord.reportsTo ?? '-'}</span>
-                  <span className="text-surface-500">Task</span>
-                  <span className="text-surface-900">{detailRecord.task ?? '-'}</span>
-                  <span className="text-surface-500">Status</span>
-                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${statusColors[detailRecord.status] || 'bg-surface-100 text-surface-600'}`}>
-                    {detailRecord.status}
-                  </span>
-                  <span className="text-surface-500">Pay</span>
-                  <span className="text-surface-900">{detailRecord.payType ?? '-'}</span>
-                  <span className="text-surface-500">Bill</span>
-                  <span className="text-surface-900">{detailRecord.billType ?? '-'}</span>
+              <div className="rounded-xl border border-surface-200 bg-surface-50 p-4">
+                <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider mb-3">Classification</p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-2.5 text-sm">
+                  <div>
+                    <p className="text-[10px] font-medium text-surface-400 uppercase">Status</p>
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium mt-0.5 ${statusColors[detailRecord.status] || 'bg-surface-100 text-surface-600'}`}>
+                      {detailRecord.status}
+                    </span>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-medium text-surface-400 uppercase">Pay</p>
+                    <p className="font-medium text-surface-900 mt-0.5">{detailRecord.payType ?? '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-medium text-surface-400 uppercase">Bill</p>
+                    <p className="font-medium text-surface-900 mt-0.5">{detailRecord.billType ?? '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-medium text-surface-400 uppercase">Stage</p>
+                    <p className="font-medium text-surface-900 mt-0.5">{detailRecord.stage ?? '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-medium text-surface-400 uppercase">Task</p>
+                    <p className="font-medium text-surface-900 mt-0.5">{detailRecord.task ?? '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-medium text-surface-400 uppercase">Reports To</p>
+                    <p className="font-medium text-surface-900 mt-0.5">{detailRecord.reportsTo ?? '-'}</p>
+                  </div>
                 </div>
               </div>
 
               {/* Comments */}
               {detailRecord.comments && (
-                <div className="rounded-xl border border-surface-200 bg-surface-50/80 p-3">
-                  <p className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-2">Comments</p>
-                  <p className="text-sm text-surface-900">{detailRecord.comments}</p>
+                <div className="rounded-xl border border-surface-200 bg-surface-50 p-4">
+                  <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider mb-2">Comments</p>
+                  <p className="text-sm text-surface-700 leading-relaxed">{detailRecord.comments}</p>
                 </div>
               )}
-            </div>
-
-            <div className="mt-5 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setDetailRecord(null)}
-                className="btn-secondary rounded-xl px-4 py-2"
-              >
-                Close
-              </button>
             </div>
           </div>
         </div>

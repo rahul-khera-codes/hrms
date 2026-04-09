@@ -555,7 +555,7 @@ export default function AdminLeaveRequests() {
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-[1600px] w-full text-left border-collapse">
-              <thead className="sticky top-0 z-10 bg-surface-50">
+              <thead className="sticky top-0 z-10 bg-surface-50 shadow-[0_1px_0_0_theme(colors.surface.200)]">
                 <tr>
                   {[
                     'Employee',
@@ -575,7 +575,7 @@ export default function AdminLeaveRequests() {
                   ].map((col) => (
                     <th
                       key={col}
-                      className="px-2 py-2 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap border-b border-surface-200"
+                      className={`px-3 py-2.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 ${['Payable Days', 'Daily Salary', 'Payable Amount'].includes(col) ? 'text-right' : ''}`}
                     >
                       {col}
                     </th>
@@ -586,29 +586,35 @@ export default function AdminLeaveRequests() {
                 {rows.map((r) => (
                   <tr
                     key={r.id}
-                    className="border-b border-surface-100 hover:bg-surface-50/60 transition-colors cursor-pointer"
+                    className="border-b border-surface-100 hover:bg-brand-50/40 transition-colors cursor-pointer group"
                     onClick={() => r.status === 'pending' ? openReview(r) : setDetailRow(r)}
                   >
-                    <td className="px-2 py-1.5 text-xs font-medium text-surface-900 whitespace-nowrap">{r.employeeName}</td>
-                    <td className="px-2 py-1.5 text-xs text-surface-700 whitespace-nowrap">{CATEGORY_LABELS[r.leaveCategory ?? ''] || r.leaveCategory || '-'}</td>
-                    <td className="px-2 py-1.5 text-xs text-surface-700 whitespace-nowrap">{r.leaveType === 'paid' ? 'Paid' : 'Unpaid'}</td>
-                    <td className="px-2 py-1.5 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">{r.startDate ?? ''}{r.startTime ? ` ${r.startTime}` : ''}</td>
-                    <td className="px-2 py-1.5 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">{r.endDate ?? ''}{r.endTime ? ` ${r.endTime}` : ''}</td>
-                    <td className="px-2 py-1.5 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">{r.returnDate ?? ''}{r.returnTime ? ` ${r.returnTime}` : ''}</td>
-                    <td className="px-2 py-1.5 text-xs text-surface-700 whitespace-nowrap">{r.leaveAssociateDaysOff ?? '-'}</td>
-                    <td className="px-2 py-1.5 text-xs text-surface-700 whitespace-nowrap">
+                    <td className="px-3 py-2 text-xs font-medium text-surface-900 whitespace-nowrap">{r.employeeName}</td>
+                    <td className="px-3 py-2 text-xs text-surface-700 whitespace-nowrap">{CATEGORY_LABELS[r.leaveCategory ?? ''] || r.leaveCategory || '-'}</td>
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${r.leaveType === 'paid' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-surface-100 text-surface-500 border border-surface-200'}`}>
+                        {r.leaveType === 'paid' ? 'Paid' : 'Unpaid'}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">{r.startDate ?? ''}{r.startTime ? ` ${r.startTime}` : ''}</td>
+                    <td className="px-3 py-2 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">{r.endDate ?? ''}{r.endTime ? ` ${r.endTime}` : ''}</td>
+                    <td className="px-3 py-2 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">{r.returnDate ?? ''}{r.returnTime ? ` ${r.returnTime}` : ''}</td>
+                    <td className="px-3 py-2 text-xs text-surface-700 whitespace-nowrap">{r.leaveAssociateDaysOff ?? '-'}</td>
+                    <td className="px-3 py-2 text-xs text-surface-700 whitespace-nowrap">
                       {r.leaveCalculationType === 'non_payable' ? 'Non Payable' : r.leaveCalculationType === 'hourly_salary' ? 'Hourly Salary' : r.leaveCalculationType === 'monthly_salary' ? 'Monthly Salary' : '-'}
                     </td>
-                    <td className="px-2 py-1.5 text-xs text-surface-700 tabular-nums whitespace-nowrap text-right">{r.leavePayableDays != null ? r.leavePayableDays : '-'}</td>
-                    <td className="px-2 py-1.5 text-xs text-surface-700 tabular-nums whitespace-nowrap text-right">{r.dailySalary != null ? `$${r.dailySalary.toFixed(2)}` : '-'}</td>
-                    <td className="px-2 py-1.5 text-xs text-surface-700 tabular-nums whitespace-nowrap text-right">{r.leavePayableAmount != null ? `$${r.leavePayableAmount.toFixed(2)}` : '-'}</td>
-                    <td className="px-2 py-1.5 whitespace-nowrap">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${statusColors[r.status] || 'bg-surface-100 text-surface-600'}`}>
+                    <td className="px-3 py-2 text-xs text-surface-700 tabular-nums whitespace-nowrap text-right">{r.leavePayableDays != null ? r.leavePayableDays : '-'}</td>
+                    <td className="px-3 py-2 text-xs text-surface-700 tabular-nums whitespace-nowrap text-right font-medium">{r.dailySalary != null ? `$${r.dailySalary.toFixed(2)}` : '-'}</td>
+                    <td className={`px-3 py-2 text-xs tabular-nums whitespace-nowrap text-right font-semibold ${r.leavePayableAmount != null && r.leavePayableAmount > 0 ? 'text-brand-700' : 'text-surface-400'}`}>
+                      {r.leavePayableAmount != null ? `$${r.leavePayableAmount.toFixed(2)}` : '-'}
+                    </td>
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize ${statusColors[r.status] || 'bg-surface-100 text-surface-600'}`}>
                         {r.status}
                       </span>
                     </td>
-                    <td className="px-2 py-1.5 text-xs text-surface-700 whitespace-nowrap">{r.payrollCycleCode ?? '-'}</td>
-                    <td className="px-2 py-1.5 text-xs text-surface-700 whitespace-nowrap max-w-[200px] truncate">{r.reason ?? '-'}</td>
+                    <td className="px-3 py-2 text-xs text-surface-700 whitespace-nowrap">{r.payrollCycleCode ?? '-'}</td>
+                    <td className="px-3 py-2 text-xs text-surface-500 whitespace-nowrap max-w-[200px] truncate">{r.reason ?? '-'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -1052,105 +1058,131 @@ export default function AdminLeaveRequests() {
             onClick={() => setDetailRow(null)}
             aria-label="Close"
           />
-          <div className="relative z-10 w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl border border-surface-200 bg-white p-5 shadow-xl">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-base font-semibold text-surface-900">Leave Request Details</h2>
-              <button type="button" onClick={() => setDetailRow(null)} className="p-1 rounded-lg hover:bg-surface-100 transition-colors">
-                <X className="w-5 h-5 text-surface-500" />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              {/* Employee & Category */}
-              <div className="rounded-xl border border-surface-200 bg-surface-50/80 p-3">
-                <p className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-2">General</p>
-                <div className="grid grid-cols-2 gap-1.5 text-sm">
-                  <span className="text-surface-500">Employee</span>
-                  <span className="font-medium text-surface-900">{detailRow.employeeName}</span>
-                  <span className="text-surface-500">Category</span>
-                  <span className="text-surface-900">{CATEGORY_LABELS[detailRow.leaveCategory ?? ''] || detailRow.leaveCategory || '-'}</span>
-                  <span className="text-surface-500">Type</span>
-                  <span className="text-surface-900">{detailRow.leaveType === 'paid' ? 'Paid' : 'Unpaid'}</span>
-                  <span className="text-surface-500">Status</span>
-                  <span>
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${statusColors[detailRow.status] || 'bg-surface-100 text-surface-600'}`}>
-                      {detailRow.status}
-                    </span>
-                  </span>
-                </div>
-              </div>
-
-              {/* Dates */}
-              <div className="rounded-xl border border-surface-200 bg-surface-50/80 p-3">
-                <p className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-2">Dates</p>
-                <div className="grid grid-cols-2 gap-1.5 text-sm">
-                  <span className="text-surface-500">Start</span>
-                  <span className="tabular-nums text-surface-900">{detailRow.startDate ?? '-'}{detailRow.startTime ? ` ${detailRow.startTime}` : ''}</span>
-                  <span className="text-surface-500">End</span>
-                  <span className="tabular-nums text-surface-900">{detailRow.endDate ?? '-'}{detailRow.endTime ? ` ${detailRow.endTime}` : ''}</span>
-                  <span className="text-surface-500">Return</span>
-                  <span className="tabular-nums text-surface-900">{detailRow.returnDate ?? '-'}{detailRow.returnTime ? ` ${detailRow.returnTime}` : ''}</span>
-                  <span className="text-surface-500">Days Off</span>
-                  <span className="text-surface-900">{detailRow.leaveAssociateDaysOff ?? '-'}</span>
-                </div>
-              </div>
-
-              {/* Pay Details */}
-              <div className="rounded-xl border border-surface-200 bg-surface-50/80 p-3">
-                <p className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-2">Pay Details</p>
-                <div className="grid grid-cols-2 gap-1.5 text-sm">
-                  <span className="text-surface-500">Calculation</span>
-                  <span className="text-surface-900">
-                    {detailRow.leaveCalculationType === 'non_payable' ? 'Non Payable' : detailRow.leaveCalculationType === 'hourly_salary' ? 'Hourly Salary' : detailRow.leaveCalculationType === 'monthly_salary' ? 'Monthly Salary' : '-'}
-                  </span>
-                  <span className="text-surface-500">Payable Days</span>
-                  <span className="tabular-nums text-surface-900">{detailRow.leavePayableDays != null ? detailRow.leavePayableDays : '-'}</span>
-                  <span className="text-surface-500">Daily Salary</span>
-                  <span className="tabular-nums text-surface-900">{detailRow.dailySalary != null ? `$${detailRow.dailySalary.toFixed(2)}` : '-'}</span>
-                  <span className="text-surface-500 font-medium">Payable Amount</span>
-                  <span className="tabular-nums font-semibold text-surface-900">{detailRow.leavePayableAmount != null ? `$${detailRow.leavePayableAmount.toFixed(2)}` : '-'}</span>
-                </div>
-              </div>
-
-              {/* Asset & Payroll */}
-              <div className="rounded-xl border border-surface-200 bg-surface-50/80 p-3">
-                <p className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-2">Other</p>
-                <div className="grid grid-cols-2 gap-1.5 text-sm">
-                  <span className="text-surface-500">Asset Deactivation</span>
-                  <span className="text-surface-900">{detailRow.assetDeactivation ?? '-'}</span>
-                  <span className="text-surface-500">Payroll Cycle</span>
-                  <span className="text-surface-900">{detailRow.payrollCycleCode ?? '-'}</span>
-                </div>
-              </div>
-
-              {/* Review Info */}
-              <div className="rounded-xl border border-surface-200 bg-surface-50/80 p-3">
-                <p className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-2">Review</p>
-                <div className="grid grid-cols-2 gap-1.5 text-sm">
-                  <span className="text-surface-500">Reviewed By</span>
-                  <span className="text-surface-900">{detailRow.reviewedByName ?? '-'}</span>
-                  <span className="text-surface-500">Review Note</span>
-                  <span className="text-surface-900">{detailRow.reviewedNote ?? '-'}</span>
-                </div>
-              </div>
-
-              {/* Reason */}
-              {detailRow.reason && (
-                <div className="rounded-xl border border-surface-200 bg-surface-50/80 p-3">
-                  <p className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-2">Reason</p>
-                  <p className="text-sm text-surface-900">{detailRow.reason}</p>
-                </div>
-              )}
-            </div>
-
-            <div className="mt-5 flex justify-end">
+          <div className="relative z-10 w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl border border-surface-200 bg-white shadow-xl">
+            {/* Header */}
+            <div className="sticky top-0 z-10 bg-white border-b border-surface-200 px-5 py-4 rounded-t-2xl">
               <button
                 type="button"
                 onClick={() => setDetailRow(null)}
-                className="btn-secondary rounded-xl px-4 py-2"
+                className="absolute top-3 right-3 p-1.5 rounded-lg hover:bg-surface-100 transition-colors"
               >
-                Close
+                <X className="w-5 h-5 text-surface-400" />
               </button>
+              <div className="flex items-center gap-3">
+                <h2 className="text-lg font-semibold text-surface-900">{detailRow.employeeName}</h2>
+                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold capitalize ${statusColors[detailRow.status] || 'bg-surface-100 text-surface-600'}`}>
+                  {detailRow.status}
+                </span>
+              </div>
+            </div>
+
+            <div className="p-5 space-y-4">
+              {/* Leave Info */}
+              <div className="rounded-xl border border-surface-200 bg-surface-50 p-4">
+                <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider mb-3">Leave Info</p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-3 text-sm">
+                  <div>
+                    <p className="text-[10px] font-medium text-surface-400 uppercase">Category</p>
+                    <p className="font-medium text-surface-900 mt-0.5">{CATEGORY_LABELS[detailRow.leaveCategory ?? ''] || detailRow.leaveCategory || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-medium text-surface-400 uppercase">Type</p>
+                    <p className="mt-0.5">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${detailRow.leaveType === 'paid' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-surface-100 text-surface-600 border border-surface-200'}`}>
+                        {detailRow.leaveType === 'paid' ? 'Paid' : 'Unpaid'}
+                      </span>
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-medium text-surface-400 uppercase">Days Off</p>
+                    <p className="font-medium text-surface-900 mt-0.5">{detailRow.leaveAssociateDaysOff ?? '-'}</p>
+                  </div>
+                  <div className="col-span-2 sm:col-span-3">
+                    <p className="text-[10px] font-medium text-surface-400 uppercase">Period</p>
+                    <p className="font-medium text-surface-900 tabular-nums mt-0.5">
+                      {detailRow.startDate ?? '-'}{detailRow.startTime ? ` ${detailRow.startTime}` : ''}
+                      <span className="text-surface-400 mx-1.5">&rarr;</span>
+                      {detailRow.endDate ?? '-'}{detailRow.endTime ? ` ${detailRow.endTime}` : ''}
+                    </p>
+                  </div>
+                  {detailRow.returnDate && (
+                    <div>
+                      <p className="text-[10px] font-medium text-surface-400 uppercase">Return Date</p>
+                      <p className="font-medium text-surface-900 tabular-nums mt-0.5">{detailRow.returnDate}{detailRow.returnTime ? ` ${detailRow.returnTime}` : ''}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Pay Details - highlighted card for payable leaves */}
+              {detailRow.leaveCalculationType !== 'non_payable' && detailRow.leavePayableAmount != null && detailRow.leavePayableAmount > 0 ? (
+                <div className="rounded-xl border border-brand-200 bg-brand-50/50 p-4">
+                  <p className="text-[10px] font-semibold text-brand-500 uppercase tracking-wider mb-3">Pay Details</p>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="rounded-lg bg-white/80 border border-brand-100 p-2.5 text-center">
+                      <p className="text-[10px] font-medium text-surface-400 uppercase">Calculation</p>
+                      <p className="text-xs font-semibold text-surface-900 mt-1">
+                        {detailRow.leaveCalculationType === 'hourly_salary' ? 'Hourly' : detailRow.leaveCalculationType === 'monthly_salary' ? 'Monthly' : '-'}
+                      </p>
+                    </div>
+                    <div className="rounded-lg bg-white/80 border border-brand-100 p-2.5 text-center">
+                      <p className="text-[10px] font-medium text-surface-400 uppercase">Payable Days</p>
+                      <p className="text-xs font-semibold text-surface-900 tabular-nums mt-1">{detailRow.leavePayableDays ?? '-'}</p>
+                    </div>
+                    <div className="rounded-lg bg-white/80 border border-brand-100 p-2.5 text-center">
+                      <p className="text-[10px] font-medium text-surface-400 uppercase">Daily Salary</p>
+                      <p className="text-xs font-semibold text-surface-900 tabular-nums mt-1">{detailRow.dailySalary != null ? `$${detailRow.dailySalary.toFixed(2)}` : '-'}</p>
+                    </div>
+                    <div className="rounded-lg bg-white/80 border border-brand-100 p-2.5 text-center">
+                      <p className="text-[10px] font-medium text-surface-400 uppercase">Payable Amount</p>
+                      <p className="text-sm font-bold text-brand-700 tabular-nums mt-1">{detailRow.leavePayableAmount != null ? `$${detailRow.leavePayableAmount.toFixed(2)}` : '-'}</p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-xl border border-surface-200 bg-surface-50 p-4">
+                  <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider mb-2">Pay Details</p>
+                  <p className="text-xs text-surface-500">
+                    {detailRow.leaveCalculationType === 'non_payable' ? 'Non Payable' : 'No pay amount recorded'}
+                  </p>
+                </div>
+              )}
+
+              {/* Additional */}
+              <div className="rounded-xl border border-surface-200 bg-surface-50 p-4">
+                <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider mb-3">Additional</p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-2.5 text-sm">
+                  <div>
+                    <p className="text-[10px] font-medium text-surface-400 uppercase">Asset Deactivation</p>
+                    <p className="font-medium text-surface-900 mt-0.5">{detailRow.assetDeactivation ?? '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-medium text-surface-400 uppercase">Payroll Cycle</p>
+                    <p className="font-medium text-surface-900 mt-0.5">{detailRow.payrollCycleCode ?? '-'}</p>
+                  </div>
+                  {detailRow.reason && (
+                    <div className="col-span-2 sm:col-span-3">
+                      <p className="text-[10px] font-medium text-surface-400 uppercase">Reason</p>
+                      <p className="text-surface-700 mt-0.5 leading-relaxed">{detailRow.reason}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Review */}
+              <div className={`rounded-xl border p-4 ${detailRow.status === 'approved' ? 'border-emerald-200 bg-emerald-50/50' : detailRow.status === 'rejected' ? 'border-red-200 bg-red-50/50' : 'border-surface-200 bg-surface-50'}`}>
+                <p className={`text-[10px] font-semibold uppercase tracking-wider mb-3 ${detailRow.status === 'approved' ? 'text-emerald-500' : detailRow.status === 'rejected' ? 'text-red-500' : 'text-surface-400'}`}>Review</p>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2.5 text-sm">
+                  <div>
+                    <p className="text-[10px] font-medium text-surface-400 uppercase">Reviewed By</p>
+                    <p className="font-medium text-surface-900 mt-0.5">{detailRow.reviewedByName ?? '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-medium text-surface-400 uppercase">Review Note</p>
+                    <p className="text-surface-700 mt-0.5">{detailRow.reviewedNote ?? '-'}</p>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
