@@ -368,36 +368,34 @@ export default function AdminLeaveRequests() {
   function exportCSV() {
     if (!rows.length) return
     const headers = [
-      'Employee',
-      'Category',
-      'Type',
+      'CMID',
+      'Employee Name',
+      'Account',
+      'Leave Type',
+      'Approval Status',
+      'Calculation',
       'Start Date',
       'End Date',
-      'Return Date',
       'Days Off',
-      'Calculation',
+      'Return Date',
       'Payable Days',
       'Daily Salary',
       'Payable Amount',
-      'Status',
-      'Payroll Cycle',
-      'Comments',
     ]
     const csvRows = rows.map((r) => [
+      r.employeeCmid != null ? String(r.employeeCmid) : '',
       r.employeeName,
+      r.accountName ?? '',
       CATEGORY_LABELS[r.leaveCategory ?? ''] || r.leaveCategory || '',
-      r.leaveType === 'paid' ? 'Paid' : 'Unpaid',
+      r.status,
+      r.leaveCalculationType === 'non_payable' ? 'Non Payable' : r.leaveCalculationType === 'hourly_salary' ? 'Hourly Salary' : r.leaveCalculationType === 'monthly_salary' ? 'Monthly Salary' : '',
       r.startDate ?? '',
       r.endDate ?? '',
-      r.returnDate ?? '',
       r.leaveAssociateDaysOff ?? '',
-      r.leaveCalculationType === 'non_payable' ? 'Non Payable' : r.leaveCalculationType === 'hourly_salary' ? 'Hourly Salary' : r.leaveCalculationType === 'monthly_salary' ? 'Monthly Salary' : '',
+      r.returnDate ?? '',
       r.leavePayableDays != null ? String(r.leavePayableDays) : '',
       r.dailySalary != null ? r.dailySalary.toFixed(2) : '',
       r.leavePayableAmount != null ? r.leavePayableAmount.toFixed(2) : '',
-      r.status,
-      r.payrollCycleCode ?? '',
-      r.reason ?? '',
     ])
     const csv = [
       headers.join(','),
@@ -558,20 +556,19 @@ export default function AdminLeaveRequests() {
               <thead className="sticky top-0 z-10 bg-surface-50 shadow-[0_1px_0_0_theme(colors.surface.200)]">
                 <tr>
                   {[
-                    'Employee',
-                    'Category',
-                    'Type',
+                    'CMID',
+                    'Employee Name',
+                    'Account',
+                    'Leave Type',
+                    'Approval Status',
+                    'Calculation',
                     'Start Date',
                     'End Date',
-                    'Return Date',
                     'Days Off',
-                    'Calculation',
+                    'Return Date',
                     'Payable Days',
                     'Daily Salary',
                     'Payable Amount',
-                    'Status',
-                    'Payroll Cycle',
-                    'Comments',
                   ].map((col) => (
                     <th
                       key={col}
@@ -589,32 +586,27 @@ export default function AdminLeaveRequests() {
                     className="border-b border-surface-100 hover:bg-brand-50/40 transition-colors cursor-pointer group"
                     onClick={() => r.status === 'pending' ? openReview(r) : setDetailRow(r)}
                   >
+                    <td className="px-3 py-2 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">{r.employeeCmid ?? '-'}</td>
                     <td className="px-3 py-2 text-xs font-medium text-surface-900 whitespace-nowrap">{r.employeeName}</td>
+                    <td className="px-3 py-2 text-xs text-surface-700 whitespace-nowrap">{r.accountName ?? '-'}</td>
                     <td className="px-3 py-2 text-xs text-surface-700 whitespace-nowrap">{CATEGORY_LABELS[r.leaveCategory ?? ''] || r.leaveCategory || '-'}</td>
-                    <td className="px-3 py-2 whitespace-nowrap">
-                      <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${r.leaveType === 'paid' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-surface-100 text-surface-500 border border-surface-200'}`}>
-                        {r.leaveType === 'paid' ? 'Paid' : 'Unpaid'}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">{r.startDate ?? ''}{r.startTime ? ` ${r.startTime}` : ''}</td>
-                    <td className="px-3 py-2 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">{r.endDate ?? ''}{r.endTime ? ` ${r.endTime}` : ''}</td>
-                    <td className="px-3 py-2 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">{r.returnDate ?? ''}{r.returnTime ? ` ${r.returnTime}` : ''}</td>
-                    <td className="px-3 py-2 text-xs text-surface-700 whitespace-nowrap">{r.leaveAssociateDaysOff ?? '-'}</td>
-                    <td className="px-3 py-2 text-xs text-surface-700 whitespace-nowrap">
-                      {r.leaveCalculationType === 'non_payable' ? 'Non Payable' : r.leaveCalculationType === 'hourly_salary' ? 'Hourly Salary' : r.leaveCalculationType === 'monthly_salary' ? 'Monthly Salary' : '-'}
-                    </td>
-                    <td className="px-3 py-2 text-xs text-surface-700 tabular-nums whitespace-nowrap text-right">{r.leavePayableDays != null ? r.leavePayableDays : '-'}</td>
-                    <td className="px-3 py-2 text-xs text-surface-700 tabular-nums whitespace-nowrap text-right font-medium">{r.dailySalary != null ? `$${r.dailySalary.toFixed(2)}` : '-'}</td>
-                    <td className={`px-3 py-2 text-xs tabular-nums whitespace-nowrap text-right font-semibold ${r.leavePayableAmount != null && r.leavePayableAmount > 0 ? 'text-brand-700' : 'text-surface-400'}`}>
-                      {r.leavePayableAmount != null ? `$${r.leavePayableAmount.toFixed(2)}` : '-'}
-                    </td>
                     <td className="px-3 py-2 whitespace-nowrap">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize ${statusColors[r.status] || 'bg-surface-100 text-surface-600'}`}>
                         {r.status}
                       </span>
                     </td>
-                    <td className="px-3 py-2 text-xs text-surface-700 whitespace-nowrap">{r.payrollCycleCode ?? '-'}</td>
-                    <td className="px-3 py-2 text-xs text-surface-500 whitespace-nowrap max-w-[200px] truncate">{r.reason ?? '-'}</td>
+                    <td className="px-3 py-2 text-xs text-surface-700 whitespace-nowrap">
+                      {r.leaveCalculationType === 'non_payable' ? 'Non Payable' : r.leaveCalculationType === 'hourly_salary' ? 'Hourly Salary' : r.leaveCalculationType === 'monthly_salary' ? 'Monthly Salary' : '-'}
+                    </td>
+                    <td className="px-3 py-2 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">{r.startDate ?? ''}{r.startTime ? ` ${r.startTime}` : ''}</td>
+                    <td className="px-3 py-2 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">{r.endDate ?? ''}{r.endTime ? ` ${r.endTime}` : ''}</td>
+                    <td className="px-3 py-2 text-xs text-surface-700 whitespace-nowrap">{r.leaveAssociateDaysOff ?? '-'}</td>
+                    <td className="px-3 py-2 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">{r.returnDate ?? ''}{r.returnTime ? ` ${r.returnTime}` : ''}</td>
+                    <td className="px-3 py-2 text-xs text-surface-700 tabular-nums whitespace-nowrap text-right">{r.leavePayableDays != null ? r.leavePayableDays : '-'}</td>
+                    <td className="px-3 py-2 text-xs text-surface-700 tabular-nums whitespace-nowrap text-right font-medium">{r.dailySalary != null ? `$${r.dailySalary.toFixed(2)}` : '-'}</td>
+                    <td className={`px-3 py-2 text-xs tabular-nums whitespace-nowrap text-right font-semibold ${r.leavePayableAmount != null && r.leavePayableAmount > 0 ? 'text-brand-700' : 'text-surface-400'}`}>
+                      {r.leavePayableAmount != null ? `$${r.leavePayableAmount.toFixed(2)}` : '-'}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -1058,9 +1050,9 @@ export default function AdminLeaveRequests() {
             onClick={() => setDetailRow(null)}
             aria-label="Close"
           />
-          <div className="relative z-10 w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl border border-surface-200 bg-white shadow-xl">
+          <div className="relative z-10 w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl border border-surface-200 bg-white shadow-xl">
             {/* Header */}
-            <div className="sticky top-0 z-10 bg-white border-b border-surface-200 px-5 py-4 rounded-t-2xl">
+            <div className="sticky top-0 z-10 bg-white border-b border-surface-200 px-6 py-4 rounded-t-2xl">
               <button
                 type="button"
                 onClick={() => setDetailRow(null)}
@@ -1074,6 +1066,16 @@ export default function AdminLeaveRequests() {
                   {detailRow.status}
                 </span>
               </div>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-surface-100 text-xs font-mono font-medium text-surface-600">
+                  CMID {detailRow.employeeCmid ?? '-'}
+                </span>
+                {detailRow.accountName && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-surface-100 text-xs font-medium text-surface-600">
+                    {detailRow.accountName}
+                  </span>
+                )}
+              </div>
             </div>
 
             <div className="p-5 space-y-4">
@@ -1082,15 +1084,13 @@ export default function AdminLeaveRequests() {
                 <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider mb-3">Leave Info</p>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-3 text-sm">
                   <div>
-                    <p className="text-[10px] font-medium text-surface-400 uppercase">Category</p>
+                    <p className="text-[10px] font-medium text-surface-400 uppercase">Leave Type</p>
                     <p className="font-medium text-surface-900 mt-0.5">{CATEGORY_LABELS[detailRow.leaveCategory ?? ''] || detailRow.leaveCategory || '-'}</p>
                   </div>
                   <div>
-                    <p className="text-[10px] font-medium text-surface-400 uppercase">Type</p>
-                    <p className="mt-0.5">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${detailRow.leaveType === 'paid' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-surface-100 text-surface-600 border border-surface-200'}`}>
-                        {detailRow.leaveType === 'paid' ? 'Paid' : 'Unpaid'}
-                      </span>
+                    <p className="text-[10px] font-medium text-surface-400 uppercase">Calculation</p>
+                    <p className="font-medium text-surface-900 mt-0.5">
+                      {detailRow.leaveCalculationType === 'non_payable' ? 'Non Payable' : detailRow.leaveCalculationType === 'hourly_salary' ? 'Hourly Salary' : detailRow.leaveCalculationType === 'monthly_salary' ? 'Monthly Salary' : '-'}
                     </p>
                   </div>
                   <div>

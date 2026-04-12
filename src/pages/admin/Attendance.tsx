@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { format, subDays } from 'date-fns'
-import { Search, Download, X } from 'lucide-react'
+import { Search, Download, X, ArrowUp, ArrowDown, Filter } from 'lucide-react'
 import { getAdminAttendance, updateAttendanceRecord } from '@/lib/apiAdmin'
 import type { AttendanceRecord } from '@/types'
 import AdminDatePicker from '@/components/AdminDatePicker'
@@ -12,16 +12,15 @@ import AdminDatePicker from '@/components/AdminDatePicker'
 const STATUS_OPTIONS = [
   'Present',
   'Absent',
-  'Late In',
-  'Early Out',
-  'Late In-Early Out',
+  'Late',
+  'Left Early',
+  'Late & Left Early',
   'Time Off',
-  'Shift Error',
-  'Technical Issue',
-  'Suspended',
+  'System Issues',
   'Terminated',
   'Prenotice',
-  'Review',
+  'Breastfeeding',
+  'REVIEW',
 ] as const
 
 const PAY_OPTIONS = ['Regular', 'X35%', 'X100%', 'Holiday', 'DNP'] as const
@@ -29,37 +28,74 @@ const BILL_OPTIONS = ['Regular', 'Premium', 'Holiday', 'DNB', 'Review'] as const
 const STAGE_OPTIONS = ['Production', 'Nesting', 'Training'] as const
 const TASK_OPTIONS = [
   'Admin',
-  'Auth. Support',
+  'Authorizations',
   'Billing Support',
-  'Contact Center',
+  'Call Center',
+  'CDPAP Prebilling',
+  'Care Manager',
   'Collections',
-  'Coord. Support',
-  'HR Support',
-  'Floater',
+  'Coord Support',
+  'Coordination',
+  'COVID Screening',
+  'Cross Training',
+  'Customer Support',
+  'Data Entry',
+  'Document Coord',
   'EVV',
-  'On Call',
+  'Floater',
+  'Flu Shot',
+  'Follow ups',
+  'Help Desk',
   'HHAX App',
+  'HR Project',
+  'HR Support',
+  'Inflowcare',
+  'Intake Support',
+  'Lead Generator',
+  'LIHTC Support',
+  'Medical Billing',
+  'Nursing Support',
+  'On Call',
+  'Operator',
+  'Pre-Billing',
+  'Property Mgmt',
+  'Receptionist',
+  'Recruitment',
+  'Sales Support',
+  'Service Follow up',
+  'Special Project',
+  'Staffing',
+  'VOC Surveys',
+  'Sales Support T1',
+  'OB Sales',
+  'Junior Trainer',
+  'Senior Trainer',
+  'Accountant',
 ] as const
 
 const statusColors: Record<string, string> = {
   Present: 'bg-emerald-100 text-emerald-700',
   Absent: 'bg-red-100 text-red-700',
-  'Late In': 'bg-amber-100 text-amber-700',
-  'Early Out': 'bg-amber-100 text-amber-700',
-  'Late In-Early Out': 'bg-amber-100 text-amber-700',
+  Late: 'bg-amber-100 text-amber-700',
+  'Left Early': 'bg-amber-100 text-amber-700',
+  'Late & Left Early': 'bg-amber-100 text-amber-700',
   'Time Off': 'bg-sky-100 text-sky-700',
-  'Shift Error': 'bg-orange-100 text-orange-700',
-  'Technical Issue': 'bg-orange-100 text-orange-700',
-  Suspended: 'bg-rose-100 text-rose-700',
+  'System Issues': 'bg-orange-100 text-orange-700',
   Terminated: 'bg-rose-100 text-rose-700',
   Prenotice: 'bg-violet-100 text-violet-700',
-  Review: 'bg-indigo-100 text-indigo-700',
+  Breastfeeding: 'bg-pink-100 text-pink-700',
+  REVIEW: 'bg-indigo-100 text-indigo-700',
   // Legacy lowercase mappings
   present: 'bg-emerald-100 text-emerald-700',
   absent: 'bg-red-100 text-red-700',
   active: 'bg-amber-100 text-amber-700',
   leave: 'bg-sky-100 text-sky-700',
   adjusted: 'bg-indigo-100 text-indigo-700',
+  // Legacy capitalized mappings
+  'Late In': 'bg-amber-100 text-amber-700',
+  'Early Out': 'bg-amber-100 text-amber-700',
+  'Late In-Early Out': 'bg-amber-100 text-amber-700',
+  Review: 'bg-indigo-100 text-indigo-700',
 }
 
 // ---------------------------------------------------------------------------
@@ -119,6 +155,12 @@ export default function AdminAttendance() {
   const [dateTo, setDateTo] = useState(() => format(new Date(), 'yyyy-MM-dd'))
   const [savingId, setSavingId] = useState<string | null>(null)
   const [detailRecord, setDetailRecord] = useState<AttendanceRecord | null>(null)
+
+  // Sort & Filter state
+  const [sortCol, setSortCol] = useState<string | null>(null)
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+  const [columnFilters, setColumnFilters] = useState<Record<string, string>>({})
+  const [filterOpen, setFilterOpen] = useState<string | null>(null)
 
   // -----------------------------------------------------------------------
   // Fetch
@@ -280,20 +322,106 @@ export default function AdminAttendance() {
       (r) => r.status.toLowerCase() === 'absent',
     ).length
     const late = records.filter((r) =>
-      ['late in', 'early out', 'late in-early out'].includes(
+      ['late', 'left early', 'late & left early', 'late in', 'early out', 'late in-early out'].includes(
         r.status.toLowerCase(),
       ),
     ).length
     const timeOff = records.filter(
       (r) => r.status.toLowerCase() === 'time off',
     ).length
+    // Payable hours
     const totalReg = records.reduce((a, r) => a + (r.regHours ?? 0), 0)
     const totalN15 = records.reduce((a, r) => a + (r.n15Hours ?? 0), 0)
     const totalX35 = records.reduce((a, r) => a + (r.x35Hours ?? 0), 0)
     const totalX100 = records.reduce((a, r) => a + (r.x100Hours ?? 0), 0)
     const totalHdy = records.reduce((a, r) => a + (r.hdyHours ?? 0), 0)
-    return { total, present, absent, late, timeOff, totalReg, totalN15, totalX35, totalX100, totalHdy }
+    const totalDnp = records.filter((r) => r.payType === 'DNP').reduce((a, r) => a + (r.actualHours ?? 0) - (r.adbtHours ?? 0), 0)
+    // Billable hours
+    const billReg = records.filter((r) => r.billType === 'Regular').reduce((a, r) => a + (r.actualHours ?? 0) - (r.adbtHours ?? 0), 0)
+    const billPremium = records.filter((r) => r.billType === 'Premium').reduce((a, r) => a + (r.actualHours ?? 0) - (r.adbtHours ?? 0), 0)
+    const billHoliday = records.filter((r) => r.billType === 'Holiday').reduce((a, r) => a + (r.actualHours ?? 0) - (r.adbtHours ?? 0), 0)
+    const billDnb = records.filter((r) => r.billType === 'DNB').reduce((a, r) => a + (r.actualHours ?? 0) - (r.adbtHours ?? 0), 0)
+    const billReview = records.filter((r) => r.billType === 'Review').reduce((a, r) => a + (r.actualHours ?? 0) - (r.adbtHours ?? 0), 0)
+    return {
+      total, present, absent, late, timeOff,
+      totalReg, totalN15, totalX35, totalX100, totalHdy, totalDnp,
+      billReg, billPremium, billHoliday, billDnb, billReview,
+    }
   }, [records])
+
+  // -----------------------------------------------------------------------
+  // Sort & Filter helpers
+  // -----------------------------------------------------------------------
+
+  const colAccessor = useCallback((r: AttendanceRecord, col: string): string | number => {
+    switch (col) {
+      case 'EID': return r.employeeCmid ?? 0
+      case 'Employee': return r.employeeName.toLowerCase()
+      case 'Account': return (r.accountName ?? '').toLowerCase()
+      case 'Shift Start': return r.shiftStart ?? ''
+      case 'Clock In': return r.clockIn ?? ''
+      case 'Shift End': return r.shiftEnd ?? ''
+      case 'Clock Out': return r.clockOut ?? ''
+      case 'Stage': return (r.stage ?? '').toLowerCase()
+      case 'Reports To': return (r.reportsTo ?? '').toLowerCase()
+      case 'Task': return (r.task ?? '').toLowerCase()
+      case 'Status': return r.status.toLowerCase()
+      case 'Pay': return (r.payType ?? '').toLowerCase()
+      case 'Bill': return (r.billType ?? '').toLowerCase()
+      case 'SCH': return r.scheduledHours ?? 0
+      case 'SDBT': return r.sdbtHours ?? 0
+      case 'ACT': return r.actualHours ?? 0
+      case 'ADBT': return r.adbtHours ?? 0
+      case 'REG': return r.regHours ?? 0
+      case 'N15%': return r.n15Hours ?? 0
+      case 'X35%': return r.x35Hours ?? 0
+      case 'X100%': return r.x100Hours ?? 0
+      case 'HDY': return r.hdyHours ?? 0
+      case 'Comments': return (r.comments ?? '').toLowerCase()
+      default: return ''
+    }
+  }, [])
+
+  const filteredAndSorted = useMemo(() => {
+    let result = [...records]
+
+    // Apply column filters
+    for (const [col, filterVal] of Object.entries(columnFilters)) {
+      if (!filterVal) continue
+      const lower = filterVal.toLowerCase()
+      result = result.filter((r) => {
+        const val = colAccessor(r, col)
+        return String(val).toLowerCase().includes(lower)
+      })
+    }
+
+    // Apply sort
+    if (sortCol) {
+      result.sort((a, b) => {
+        const aVal = colAccessor(a, sortCol)
+        const bVal = colAccessor(b, sortCol)
+        if (typeof aVal === 'number' && typeof bVal === 'number') {
+          return sortDir === 'asc' ? aVal - bVal : bVal - aVal
+        }
+        const cmp = String(aVal).localeCompare(String(bVal))
+        return sortDir === 'asc' ? cmp : -cmp
+      })
+    }
+    return result
+  }, [records, columnFilters, sortCol, sortDir, colAccessor])
+
+  function handleSort(col: string) {
+    if (sortCol === col) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortCol(col)
+      setSortDir('asc')
+    }
+  }
+
+  function handleColumnFilter(col: string, value: string) {
+    setColumnFilters((prev) => ({ ...prev, [col]: value }))
+  }
 
   // -----------------------------------------------------------------------
   // Render
@@ -362,13 +490,29 @@ export default function AdminAttendance() {
         <SummaryCard label="Time Off" value={summary.timeOff} color="sky" />
       </div>
 
-      {/* Summary cards - Row 2: Hours */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
-        <SummaryCard label="REG Hours" value={fmtHours(summary.totalReg)} color="brand" />
-        <SummaryCard label="N15% Hours" value={fmtHours(summary.totalN15)} color="violet" />
-        <SummaryCard label="X35% Hours" value={fmtHours(summary.totalX35)} color="amber" />
-        <SummaryCard label="X100% Hours" value={fmtHours(summary.totalX100)} color="red" />
-        <SummaryCard label="HDY Hours" value={fmtHours(summary.totalHdy)} color="emerald" />
+      {/* Summary cards - Row 2: Payable Hours */}
+      <div>
+        <p className="text-[10px] sm:text-xs font-semibold text-surface-500 uppercase tracking-wider mb-2">Payable Hours</p>
+        <div className="grid grid-cols-3 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
+          <SummaryCard label="Regular" value={fmtHours(summary.totalReg)} color="brand" />
+          <SummaryCard label="Night (15%)" value={fmtHours(summary.totalN15)} color="violet" />
+          <SummaryCard label="X35%" value={fmtHours(summary.totalX35)} color="amber" />
+          <SummaryCard label="X100%" value={fmtHours(summary.totalX100)} color="red" />
+          <SummaryCard label="Holiday" value={fmtHours(summary.totalHdy)} color="emerald" />
+          <SummaryCard label="DNP" value={fmtHours(summary.totalDnp)} color="surface" />
+        </div>
+      </div>
+
+      {/* Summary cards - Row 3: Billable Hours */}
+      <div>
+        <p className="text-[10px] sm:text-xs font-semibold text-surface-500 uppercase tracking-wider mb-2">Billable Hours</p>
+        <div className="grid grid-cols-3 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+          <SummaryCard label="Regular" value={fmtHours(summary.billReg)} color="brand" />
+          <SummaryCard label="Premium" value={fmtHours(summary.billPremium)} color="violet" />
+          <SummaryCard label="Holiday" value={fmtHours(summary.billHoliday)} color="emerald" />
+          <SummaryCard label="DNB" value={fmtHours(summary.billDnb)} color="surface" />
+          <SummaryCard label="Review" value={fmtHours(summary.billReview)} color="indigo" />
+        </div>
       </div>
 
       {/* Table */}
@@ -416,9 +560,39 @@ export default function AdminAttendance() {
                   ].map((col) => (
                     <th
                       key={col}
-                      className="px-2 py-2 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap border-b border-surface-200"
+                      className="px-2 py-1 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap border-b border-surface-200"
                     >
-                      {col}
+                      <div className="flex items-center gap-0.5">
+                        <button
+                          type="button"
+                          className="flex items-center gap-0.5 hover:text-surface-700 transition-colors"
+                          onClick={() => handleSort(col)}
+                        >
+                          {col}
+                          {sortCol === col && (
+                            sortDir === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          className={`p-0.5 rounded hover:bg-surface-200/60 transition-colors ${columnFilters[col] ? 'text-brand-600' : 'text-surface-400'}`}
+                          onClick={(e) => { e.stopPropagation(); setFilterOpen(filterOpen === col ? null : col) }}
+                        >
+                          <Filter className="w-2.5 h-2.5" />
+                        </button>
+                      </div>
+                      {filterOpen === col && (
+                        <div className="mt-1" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="text"
+                            value={columnFilters[col] ?? ''}
+                            onChange={(e) => handleColumnFilter(col, e.target.value)}
+                            placeholder={`Filter ${col}...`}
+                            className="w-full text-[10px] font-normal normal-case tracking-normal border border-surface-200 rounded px-1.5 py-1 bg-white focus:ring-1 focus:ring-brand-300 outline-none"
+                            autoFocus
+                          />
+                        </div>
+                      )}
                     </th>
                   ))}
                 </tr>
@@ -426,7 +600,7 @@ export default function AdminAttendance() {
 
               {/* Body */}
               <tbody>
-                {records.map((r) => {
+                {filteredAndSorted.map((r) => {
                   const sid = r.sessionId ?? r.id
                   const isSaving = savingId === sid
                   return (
@@ -560,7 +734,7 @@ export default function AdminAttendance() {
         )}
       </div>
 
-      {/* Detail Modal */}
+      {/* Detail / Edit Modal */}
       {detailRecord && (
         <div className="fixed inset-0 z-40 flex items-center justify-center p-4">
           <button
@@ -569,9 +743,9 @@ export default function AdminAttendance() {
             onClick={() => setDetailRecord(null)}
             aria-label="Close"
           />
-          <div className="relative z-10 w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl border border-surface-200 bg-white shadow-xl">
+          <div className="relative z-10 w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl border border-surface-200 bg-white shadow-xl">
             {/* Header */}
-            <div className="sticky top-0 z-10 bg-white border-b border-surface-200 px-5 py-4 rounded-t-2xl">
+            <div className="sticky top-0 z-10 bg-white border-b border-surface-200 px-6 py-4 rounded-t-2xl">
               <button
                 type="button"
                 onClick={() => setDetailRecord(null)}
@@ -582,15 +756,17 @@ export default function AdminAttendance() {
               <h2 className="text-lg font-semibold text-surface-900">{detailRecord.employeeName}</h2>
               <div className="flex items-center gap-2 mt-1">
                 <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-surface-100 text-xs font-mono font-medium text-surface-600">
-                  EID {detailRecord.employeeCmid ?? '-'}
+                  CMID {detailRecord.employeeCmid ?? '-'}
                 </span>
                 {detailRecord.accountName && (
-                  <span className="text-xs text-surface-500">{detailRecord.accountName}</span>
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-surface-100 text-xs font-medium text-surface-600">
+                    {detailRecord.accountName}
+                  </span>
                 )}
               </div>
             </div>
 
-            <div className="p-5 space-y-4">
+            <div className="p-6 space-y-5">
               {/* Shift & Clock - 2x2 grid */}
               <div className="rounded-xl border border-surface-200 bg-surface-50 p-4">
                 <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider mb-3">Shift & Clock</p>
@@ -617,7 +793,6 @@ export default function AdminAttendance() {
               {/* Hours */}
               <div className="rounded-xl border border-surface-200 bg-surface-50 p-4">
                 <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider mb-3">Hours</p>
-                {/* Row 1: SCH, SDBT, ACT, ADBT */}
                 <div className="grid grid-cols-4 gap-2 mb-2">
                   {([
                     { label: 'SCH', val: detailRecord.scheduledHours },
@@ -631,7 +806,6 @@ export default function AdminAttendance() {
                     </div>
                   ))}
                 </div>
-                {/* Row 2: REG, N15%, X35%, X100%, HDY */}
                 <div className="grid grid-cols-5 gap-2">
                   {([
                     { label: 'REG', val: detailRecord.regHours, color: 'brand' },
@@ -658,46 +832,107 @@ export default function AdminAttendance() {
                 </div>
               </div>
 
-              {/* Classification */}
+              {/* Editable Classification */}
               <div className="rounded-xl border border-surface-200 bg-surface-50 p-4">
-                <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider mb-3">Classification</p>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-2.5 text-sm">
+                <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider mb-3">Classification (Editable)</p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-3">
                   <div>
-                    <p className="text-[10px] font-medium text-surface-400 uppercase">Status</p>
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium mt-0.5 ${statusColors[detailRecord.status] || 'bg-surface-100 text-surface-600'}`}>
-                      {detailRecord.status}
-                    </span>
+                    <label className="text-[10px] font-medium text-surface-400 uppercase block mb-1">Account</label>
+                    <p className="text-sm font-medium text-surface-900">{detailRecord.accountName ?? '-'}</p>
                   </div>
                   <div>
-                    <p className="text-[10px] font-medium text-surface-400 uppercase">Pay</p>
-                    <p className="font-medium text-surface-900 mt-0.5">{detailRecord.payType ?? '-'}</p>
+                    <label className="text-[10px] font-medium text-surface-400 uppercase block mb-1">Status</label>
+                    <select
+                      value={detailRecord.status}
+                      onChange={(e) => {
+                        const val = e.target.value
+                        handleFieldUpdate(detailRecord, 'status', val)
+                        setDetailRecord({ ...detailRecord, status: val })
+                      }}
+                      className="text-sm border border-surface-200 rounded-lg px-2 py-1.5 w-full bg-white focus:ring-1 focus:ring-brand-300 outline-none"
+                    >
+                      <option value="">--</option>
+                      {STATUS_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+                    </select>
                   </div>
                   <div>
-                    <p className="text-[10px] font-medium text-surface-400 uppercase">Bill</p>
-                    <p className="font-medium text-surface-900 mt-0.5">{detailRecord.billType ?? '-'}</p>
+                    <label className="text-[10px] font-medium text-surface-400 uppercase block mb-1">Pay</label>
+                    <select
+                      value={detailRecord.payType ?? ''}
+                      onChange={(e) => {
+                        const val = e.target.value
+                        handleFieldUpdate(detailRecord, 'payType', val)
+                        setDetailRecord({ ...detailRecord, payType: val })
+                      }}
+                      className="text-sm border border-surface-200 rounded-lg px-2 py-1.5 w-full bg-white focus:ring-1 focus:ring-brand-300 outline-none"
+                    >
+                      <option value="">--</option>
+                      {PAY_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+                    </select>
                   </div>
                   <div>
-                    <p className="text-[10px] font-medium text-surface-400 uppercase">Stage</p>
-                    <p className="font-medium text-surface-900 mt-0.5">{detailRecord.stage ?? '-'}</p>
+                    <label className="text-[10px] font-medium text-surface-400 uppercase block mb-1">Bill</label>
+                    <select
+                      value={detailRecord.billType ?? ''}
+                      onChange={(e) => {
+                        const val = e.target.value
+                        handleFieldUpdate(detailRecord, 'billType', val)
+                        setDetailRecord({ ...detailRecord, billType: val })
+                      }}
+                      className="text-sm border border-surface-200 rounded-lg px-2 py-1.5 w-full bg-white focus:ring-1 focus:ring-brand-300 outline-none"
+                    >
+                      <option value="">--</option>
+                      {BILL_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+                    </select>
                   </div>
                   <div>
-                    <p className="text-[10px] font-medium text-surface-400 uppercase">Task</p>
-                    <p className="font-medium text-surface-900 mt-0.5">{detailRecord.task ?? '-'}</p>
+                    <label className="text-[10px] font-medium text-surface-400 uppercase block mb-1">Stage</label>
+                    <select
+                      value={detailRecord.stage ?? ''}
+                      onChange={(e) => {
+                        const val = e.target.value
+                        handleFieldUpdate(detailRecord, 'stage', val)
+                        setDetailRecord({ ...detailRecord, stage: val })
+                      }}
+                      className="text-sm border border-surface-200 rounded-lg px-2 py-1.5 w-full bg-white focus:ring-1 focus:ring-brand-300 outline-none"
+                    >
+                      <option value="">--</option>
+                      {STAGE_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+                    </select>
                   </div>
                   <div>
-                    <p className="text-[10px] font-medium text-surface-400 uppercase">Reports To</p>
-                    <p className="font-medium text-surface-900 mt-0.5">{detailRecord.reportsTo ?? '-'}</p>
+                    <label className="text-[10px] font-medium text-surface-400 uppercase block mb-1">Task</label>
+                    <select
+                      value={detailRecord.task ?? ''}
+                      onChange={(e) => {
+                        const val = e.target.value
+                        handleFieldUpdate(detailRecord, 'task', val)
+                        setDetailRecord({ ...detailRecord, task: val })
+                      }}
+                      className="text-sm border border-surface-200 rounded-lg px-2 py-1.5 w-full bg-white focus:ring-1 focus:ring-brand-300 outline-none"
+                    >
+                      <option value="">--</option>
+                      {TASK_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-medium text-surface-400 uppercase block mb-1">Reports To</label>
+                    <p className="text-sm font-medium text-surface-900 mt-0.5">{detailRecord.reportsTo ?? '-'}</p>
                   </div>
                 </div>
               </div>
 
-              {/* Comments */}
-              {detailRecord.comments && (
-                <div className="rounded-xl border border-surface-200 bg-surface-50 p-4">
-                  <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider mb-2">Comments</p>
-                  <p className="text-sm text-surface-700 leading-relaxed">{detailRecord.comments}</p>
-                </div>
-              )}
+              {/* Comments (editable) */}
+              <div className="rounded-xl border border-surface-200 bg-surface-50 p-4">
+                <label className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider block mb-2">Comments</label>
+                <ModalCommentInput
+                  value={detailRecord.comments ?? ''}
+                  onSave={(v) => {
+                    handleFieldUpdate(detailRecord, 'comments', v)
+                    setDetailRecord({ ...detailRecord, comments: v })
+                  }}
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -710,6 +945,17 @@ export default function AdminAttendance() {
 // Sub-components
 // ---------------------------------------------------------------------------
 
+const CARD_COLORS: Record<string, { border: string; bg: string; label: string }> = {
+  brand: { border: 'border-brand-200/80', bg: 'bg-brand-50/50', label: 'text-brand-700' },
+  red: { border: 'border-red-200/80', bg: 'bg-red-50/50', label: 'text-red-700' },
+  amber: { border: 'border-amber-200/80', bg: 'bg-amber-50/50', label: 'text-amber-700' },
+  emerald: { border: 'border-emerald-200/80', bg: 'bg-emerald-50/50', label: 'text-emerald-700' },
+  sky: { border: 'border-sky-200/80', bg: 'bg-sky-50/50', label: 'text-sky-700' },
+  violet: { border: 'border-violet-200/80', bg: 'bg-violet-50/50', label: 'text-violet-700' },
+  indigo: { border: 'border-indigo-200/80', bg: 'bg-indigo-50/50', label: 'text-indigo-700' },
+  surface: { border: 'border-surface-200/80', bg: 'bg-surface-50/50', label: 'text-surface-500' },
+}
+
 function SummaryCard({
   label,
   value,
@@ -719,20 +965,14 @@ function SummaryCard({
   value: string | number
   color?: string
 }) {
-  const borderColor = color
-    ? `border-${color}-200/80`
-    : 'border-surface-200/80'
-  const bgColor = color ? `bg-${color}-50/50` : 'bg-white'
-  const labelColor = color
-    ? `text-${color}-700`
-    : 'text-surface-500'
+  const c = color && CARD_COLORS[color] ? CARD_COLORS[color] : null
 
   return (
     <div
-      className={`rounded-lg sm:rounded-xl border ${borderColor} ${bgColor} p-3 sm:p-4 shadow-sm`}
+      className={`rounded-lg sm:rounded-xl border ${c?.border ?? 'border-surface-200/80'} ${c?.bg ?? 'bg-white'} p-3 sm:p-4 shadow-sm`}
     >
       <p
-        className={`text-[10px] sm:text-xs font-medium ${labelColor} uppercase tracking-wider`}
+        className={`text-[10px] sm:text-xs font-medium ${c?.label ?? 'text-surface-500'} uppercase tracking-wider`}
       >
         {label}
       </p>
@@ -799,6 +1039,33 @@ function InlineInput({
         }
       }}
       className="text-xs bg-transparent border-0 outline-none w-[120px] py-0 px-0 text-surface-700 placeholder:text-surface-300 focus:ring-1 focus:ring-brand-300 rounded"
+      placeholder="Add comment..."
+    />
+  )
+}
+
+function ModalCommentInput({
+  value,
+  onSave,
+}: {
+  value: string
+  onSave: (val: string) => void
+}) {
+  const [local, setLocal] = useState(value)
+
+  useEffect(() => {
+    setLocal(value)
+  }, [value])
+
+  return (
+    <textarea
+      value={local}
+      onChange={(e) => setLocal(e.target.value)}
+      onBlur={() => {
+        if (local !== value) onSave(local)
+      }}
+      rows={2}
+      className="text-sm border border-surface-200 rounded-lg px-3 py-2 w-full bg-white focus:ring-1 focus:ring-brand-300 outline-none resize-none"
       placeholder="Add comment..."
     />
   )

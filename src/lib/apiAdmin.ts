@@ -469,6 +469,8 @@ export interface AdminLeaveRequest {
   assetDeactivation?: string | null
   payrollCycleCode?: string | null
   dailySalary?: number | null
+  employeeCmid?: number | null
+  accountName?: string | null
 }
 
 export interface LeaveReviewContext {

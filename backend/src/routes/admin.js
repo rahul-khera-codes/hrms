@@ -722,10 +722,14 @@ router.get('/leave-requests', async (req, res) => {
               lr.start_time::text, lr.end_time::text, lr.return_time::text,
               lr.hourly_rate_input, lr.daily_hours_input, lr.monthly_rate_input,
               lr.asset_deactivation, lr.payroll_cycle_code,
-              lr.leave_daily_salary
+              lr.leave_daily_salary,
+              e.cmid AS employee_cmid,
+              c.name AS account_name
        FROM leave_requests lr
        JOIN users u ON u.id = lr.user_id
        LEFT JOIN users reviewer ON reviewer.id = lr.reviewed_by
+       LEFT JOIN employees e ON e.user_id = lr.user_id
+       LEFT JOIN clients c ON c.id = e.primary_client_id
        WHERE u.role = 'employee'`
     if (status !== 'all') {
       params.push(status)
@@ -762,6 +766,8 @@ router.get('/leave-requests', async (req, res) => {
       assetDeactivation: r.asset_deactivation || null,
       payrollCycleCode: r.payroll_cycle_code || null,
       dailySalary: r.leave_daily_salary != null ? Number(r.leave_daily_salary) : null,
+      employeeCmid: r.employee_cmid != null ? Number(r.employee_cmid) : null,
+      accountName: r.account_name || null,
     })))
   } catch (err) {
     console.error('Admin list leave requests error:', err)
