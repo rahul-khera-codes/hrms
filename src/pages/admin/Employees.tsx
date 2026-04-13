@@ -699,10 +699,13 @@ export default function AdminEmployees() {
       )}
 
       {modal && createPortal(
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40" role="dialog" aria-modal="true">
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
-            <h2 className="text-lg font-semibold text-surface-900 mb-4">{modal === 'add' ? 'Add employee' : 'Edit employee'}</h2>
-            <div className="space-y-4">
+        <div className="modal-backdrop" role="dialog" aria-modal="true">
+          <button type="button" className="absolute inset-0" onClick={() => setModal(null)} aria-label="Close" />
+          <div className="modal-frame-lg">
+            <div className="modal-header">
+              <h2 className="modal-title">{modal === 'add' ? 'Add employee' : 'Edit employee'}</h2>
+            </div>
+            <div className="modal-body">
               <div>
                 <label className="label">Name</label>
                 <input
@@ -946,13 +949,13 @@ export default function AdminEmployees() {
                 </>
               )}
             </div>
-            <div className="mt-6 flex flex-col-reverse sm:flex-row gap-3 justify-end">
-              <button type="button" onClick={() => setModal(null)} className="btn-secondary rounded-xl min-h-[2.75rem] px-4">Cancel</button>
+            <div className="modal-footer">
+              <button type="button" onClick={() => setModal(null)} className="btn-secondary">Cancel</button>
               <button
                 type="button"
                 onClick={handleSave}
                 disabled={saving || !name.trim() || !email.trim() || (modal === 'add' && (!password || password.length < 6))}
-                className="btn-primary rounded-xl min-h-[2.75rem] px-4 disabled:opacity-60"
+                className="btn-primary"
               >
                 {saving ? 'Saving…' : 'Save'}
               </button>
