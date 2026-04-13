@@ -409,7 +409,6 @@ export default function EmployeeLeave() {
               <thead className="sticky top-0 bg-surface-50/95 backdrop-blur-sm shadow-[0_1px_0_0_theme(colors.surface.200)] z-10">
                 <tr>
                   <th className="px-3 py-2.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap">Leave Type</th>
-                  <th className="px-3 py-2.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap">Type</th>
                   <th className="px-3 py-2.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap">Start</th>
                   <th className="px-3 py-2.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap">End</th>
                   <th className="px-3 py-2.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap">Return</th>
@@ -425,11 +424,6 @@ export default function EmployeeLeave() {
                     <tr key={r.id} className="border-b border-surface-100 hover:bg-brand-50/30 transition-colors">
                       <td className="px-3 py-2.5 text-xs font-medium text-surface-900 whitespace-nowrap">
                         {r.leaveCategory ? (CATEGORY_LABELS[r.leaveCategory] || r.leaveCategory) : '-'}
-                      </td>
-                      <td className="px-3 py-2.5 whitespace-nowrap">
-                        <span className={r.leaveType === 'paid' ? 'badge-brand' : 'badge-neutral'}>
-                          {r.leaveType === 'paid' ? 'Paid' : 'Unpaid'}
-                        </span>
                       </td>
                       <td className="px-3 py-2.5 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">{r.startDate ?? '-'}</td>
                       <td className="px-3 py-2.5 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">{r.endDate ?? '-'}</td>
