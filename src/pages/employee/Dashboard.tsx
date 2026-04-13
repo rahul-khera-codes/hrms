@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, useEffect } from 'react'
 import { format, subDays, startOfDay } from 'date-fns'
-import { Clock, Play, Square, TrendingUp, Moon, Zap, Calendar, FileDown, Eye, X, History, LayoutDashboard } from 'lucide-react'
+import { Clock, Play, Square, TrendingUp, Moon, Zap, Calendar, FileDown, Eye, X, History, LayoutDashboard, LayoutGrid, Table2 } from 'lucide-react'
 import {
   PieChart,
   Pie,
@@ -96,6 +96,7 @@ export default function EmployeeDashboard() {
     { id: string; periodFrom: string; periodTo: string; savedAt: string }[]
   >([])
   const [savedSlipsLoading, setSavedSlipsLoading] = useState(false)
+  const [sessionsView, setSessionsView] = useState<'card' | 'table'>('table')
 
   const fetchData = useCallback(async () => {
     try {
@@ -577,15 +578,37 @@ export default function EmployeeDashboard() {
         </div>
       </div>
 
-      <div className="card min-w-0">
+      <div className="card overflow-hidden min-w-0">
         <div className="card-header">
-          <div>
-            <h2 className="text-sm font-semibold text-surface-900">Recent sessions</h2>
-            <p className="text-[11px] text-surface-500 mt-0.5">Your latest clock-in activity</p>
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-lg bg-brand-50 border border-brand-100 text-brand-600 flex items-center justify-center shrink-0">
+              <History className="w-4 h-4" />
+            </div>
+            <div className="min-w-0">
+              <h2 className="text-sm font-semibold text-surface-900">Recent sessions</h2>
+              <p className="text-[11px] text-surface-500 mt-0.5">Your latest clock-in activity</p>
+            </div>
           </div>
-          <div className="w-7 h-7 rounded-lg bg-brand-50 text-brand-600 flex items-center justify-center">
-            <History className="w-3.5 h-3.5" />
-          </div>
+          {sessions.length > 0 && (
+            <div className="segmented">
+              <button
+                type="button"
+                onClick={() => setSessionsView('card')}
+                className={`segmented-item ${sessionsView === 'card' ? 'segmented-item-active' : ''}`}
+                aria-label="Card view"
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setSessionsView('table')}
+                className={`segmented-item ${sessionsView === 'table' ? 'segmented-item-active' : ''}`}
+                aria-label="Table view"
+              >
+                <Table2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
         </div>
         {sessions.length === 0 ? (
           <div className="empty-state">
@@ -593,7 +616,7 @@ export default function EmployeeDashboard() {
             <p className="empty-state-title">No recent sessions</p>
             <p className="empty-state-description">Your clock-in history will appear here.</p>
           </div>
-        ) : (
+        ) : sessionsView === 'card' ? (
           <ul className="p-3 sm:p-4 space-y-2">
             {sessions.slice(0, 5).map((s) => (
               <li
@@ -615,6 +638,39 @@ export default function EmployeeDashboard() {
               </li>
             ))}
           </ul>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead className="sticky top-0 bg-surface-50/95 backdrop-blur-sm shadow-[0_1px_0_0_theme(colors.surface.200)] z-10">
+                <tr>
+                  <th className="px-3 py-2.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap">Date</th>
+                  <th className="px-3 py-2.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap">Clock In</th>
+                  <th className="px-3 py-2.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap">Clock Out</th>
+                  <th className="px-3 py-2.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sessions.slice(0, 5).map((s) => (
+                  <tr key={s.id} className="border-b border-surface-100 hover:bg-brand-50/30 transition-colors">
+                    <td className="px-3 py-2.5 text-xs font-medium text-surface-900 whitespace-nowrap">
+                      {format(new Date(s.clockIn), 'MMM d, yyyy')}
+                    </td>
+                    <td className="px-3 py-2.5 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">
+                      {format(new Date(s.clockIn), 'HH:mm:ss')}
+                    </td>
+                    <td className="px-3 py-2.5 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">
+                      {s.clockOut ? format(new Date(s.clockOut), 'HH:mm:ss') : '—'}
+                    </td>
+                    <td className="px-3 py-2.5 whitespace-nowrap">
+                      <span className={`${s.status === 'active' ? 'badge-warning' : 'badge-neutral'} capitalize`}>
+                        {s.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>

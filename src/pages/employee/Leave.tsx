@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Calendar, CalendarCheck2, Clock3, Send } from 'lucide-react'
+import { Calendar, CalendarCheck2, Clock3, Send, LayoutGrid, Table2 } from 'lucide-react'
 import { createLeaveRequest, getMyLeaveRequests, type LeaveRequestItem } from '@/lib/apiEmployee'
 import AdminSelect from '@/components/AdminSelect'
 import { PageHeader } from '@/components/PageHeader'
@@ -52,6 +52,7 @@ export default function EmployeeLeave() {
   const todayDate = new Date().toISOString().slice(0, 10)
   const [reason, setReason] = useState('')
   const [notice, setNotice] = useState('')
+  const [requestsView, setRequestsView] = useState<'card' | 'table'>('table')
 
   async function load(showLoader = true) {
     if (showLoader) setLoading(true)
@@ -327,7 +328,29 @@ export default function EmployeeLeave() {
               <p className="text-[11px] text-surface-500 mt-0.5">Track the status of your leave requests</p>
             </div>
           </div>
-          {pendingCount > 0 && <span className="badge-warning">{pendingCount} pending</span>}
+          <div className="flex items-center gap-2">
+            {pendingCount > 0 && <span className="badge-warning">{pendingCount} pending</span>}
+            {requests.length > 0 && (
+              <div className="segmented">
+                <button
+                  type="button"
+                  onClick={() => setRequestsView('card')}
+                  className={`segmented-item ${requestsView === 'card' ? 'segmented-item-active' : ''}`}
+                  aria-label="Card view"
+                >
+                  <LayoutGrid className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRequestsView('table')}
+                  className={`segmented-item ${requestsView === 'table' ? 'segmented-item-active' : ''}`}
+                  aria-label="Table view"
+                >
+                  <Table2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+          </div>
         </div>
         {loading ? (
           <div className="p-6 flex items-center gap-3 text-surface-500 text-sm">
@@ -339,7 +362,7 @@ export default function EmployeeLeave() {
             <p className="empty-state-title">No leave requests yet</p>
             <p className="empty-state-description">Submit your first request using the form above.</p>
           </div>
-        ) : (
+        ) : requestsView === 'card' ? (
           <ul className="p-3 sm:p-4 space-y-2">
             {requests.map((r) => {
               const statusBadgeClass = r.status === 'approved' ? 'badge-success' : r.status === 'rejected' ? 'badge-danger' : 'badge-warning'
@@ -380,6 +403,50 @@ export default function EmployeeLeave() {
               )
             })}
           </ul>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead className="sticky top-0 bg-surface-50/95 backdrop-blur-sm shadow-[0_1px_0_0_theme(colors.surface.200)] z-10">
+                <tr>
+                  <th className="px-3 py-2.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap">Leave Type</th>
+                  <th className="px-3 py-2.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap">Type</th>
+                  <th className="px-3 py-2.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap">Start</th>
+                  <th className="px-3 py-2.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap">End</th>
+                  <th className="px-3 py-2.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap">Return</th>
+                  <th className="px-3 py-2.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap">Days Off</th>
+                  <th className="px-3 py-2.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap text-right">Pay</th>
+                  <th className="px-3 py-2.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {requests.map((r) => {
+                  const statusBadgeClass = r.status === 'approved' ? 'badge-success' : r.status === 'rejected' ? 'badge-danger' : 'badge-warning'
+                  return (
+                    <tr key={r.id} className="border-b border-surface-100 hover:bg-brand-50/30 transition-colors">
+                      <td className="px-3 py-2.5 text-xs font-medium text-surface-900 whitespace-nowrap">
+                        {r.leaveCategory ? (CATEGORY_LABELS[r.leaveCategory] || r.leaveCategory) : '-'}
+                      </td>
+                      <td className="px-3 py-2.5 whitespace-nowrap">
+                        <span className={r.leaveType === 'paid' ? 'badge-brand' : 'badge-neutral'}>
+                          {r.leaveType === 'paid' ? 'Paid' : 'Unpaid'}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2.5 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">{r.startDate ?? '-'}</td>
+                      <td className="px-3 py-2.5 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">{r.endDate ?? '-'}</td>
+                      <td className="px-3 py-2.5 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">{r.returnDate ?? '-'}</td>
+                      <td className="px-3 py-2.5 text-xs text-surface-600 whitespace-nowrap">{r.associateDaysOff ?? '-'}</td>
+                      <td className={`px-3 py-2.5 text-xs tabular-nums whitespace-nowrap text-right font-semibold ${r.leavePayableAmount != null && r.leavePayableAmount > 0 ? 'text-brand-700' : 'text-surface-400'}`}>
+                        {r.leavePayableAmount != null && r.leavePayableAmount > 0 ? `$${r.leavePayableAmount.toFixed(2)}` : '-'}
+                      </td>
+                      <td className="px-3 py-2.5 whitespace-nowrap">
+                        <span className={`${statusBadgeClass} capitalize`}>{r.status}</span>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>
