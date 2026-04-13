@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, useEffect } from 'react'
 import { format, subDays, startOfDay } from 'date-fns'
-import { Clock, Play, Square, TrendingUp, Moon, Zap, Calendar, FileDown, Eye, X, History } from 'lucide-react'
+import { Clock, Play, Square, TrendingUp, Moon, Zap, Calendar, FileDown, Eye, X, History, LayoutDashboard } from 'lucide-react'
 import {
   PieChart,
   Pie,
@@ -25,6 +25,7 @@ import {
   downloadStoredPayslipPdf,
 } from '@/lib/apiSessions'
 import AdminDatePicker from '@/components/AdminDatePicker'
+import { PageHeader } from '@/components/PageHeader'
 
 const HOURS_COLORS = {
   regular: '#14b8a6',
@@ -239,13 +240,12 @@ export default function EmployeeDashboard() {
   }
 
   return (
-    <div className="space-y-6 sm:space-y-8 overflow-x-hidden">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-semibold text-surface-900 tracking-tight">Dashboard</h1>
-          <p className="text-surface-500 mt-1 text-xs sm:text-sm">Track your time and view your hours.</p>
-        </div>
-      </div>
+    <div className="page overflow-x-hidden">
+      <PageHeader
+        title="Dashboard"
+        subtitle="Track your time and view your hours."
+        icon={<LayoutDashboard className="w-5 h-5" />}
+      />
 
       <div className="relative overflow-hidden rounded-xl sm:rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 p-4 sm:p-6 lg:p-8 shadow-lg shadow-brand-500/20">
         <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-4 sm:gap-6">

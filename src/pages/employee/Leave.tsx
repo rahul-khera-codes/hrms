@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Calendar, CalendarCheck2, Clock3, Send } from 'lucide-react'
 import { createLeaveRequest, getMyLeaveRequests, type LeaveRequestItem } from '@/lib/apiEmployee'
 import AdminSelect from '@/components/AdminSelect'
+import { PageHeader } from '@/components/PageHeader'
 
 const statusColors: Record<string, string> = {
   pending: 'bg-amber-100 text-amber-700',
@@ -165,10 +166,11 @@ export default function EmployeeLeave() {
         </div>
       )}
 
-      <div>
-        <h1 className="text-xl sm:text-2xl font-semibold text-surface-900 tracking-tight">My Leave</h1>
-        <p className="text-surface-500 mt-1 text-xs sm:text-sm">Submit leave requests and track approvals.</p>
-      </div>
+      <PageHeader
+        title="My Leave"
+        subtitle="Submit leave requests and track approvals."
+        icon={<CalendarCheck2 className="w-5 h-5" />}
+      />
 
       <div className="rounded-xl sm:rounded-2xl border border-surface-200/80 bg-white p-4 sm:p-6 shadow-sm">
         <h2 className="text-sm sm:text-base font-semibold text-surface-900 mb-4">New leave request</h2>

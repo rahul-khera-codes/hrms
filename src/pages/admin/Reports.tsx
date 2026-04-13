@@ -4,6 +4,7 @@ import { BarChart3, Download } from 'lucide-react'
 import { getAdminAttendance, getReportsSummary } from '@/lib/apiAdmin'
 import type { AttendanceRecord } from '@/types'
 import AdminSelect from '@/components/AdminSelect'
+import { PageHeader } from '@/components/PageHeader'
 
 const statusColors: Record<string, string> = {
   present: 'bg-brand-100 text-brand-700',
@@ -103,22 +104,23 @@ export default function AdminReports() {
   }
 
   return (
-    <div className="space-y-6 sm:space-y-8 overflow-x-hidden">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-semibold text-surface-900 tracking-tight">Reports</h1>
-          <p className="text-surface-500 mt-1 text-xs sm:text-sm">Generate and export payroll-ready reports.</p>
-        </div>
-        <button
-          type="button"
-          onClick={handleExport}
-          disabled={loading || (reportType === 'attendance' && attendanceData.length === 0) || (reportType === 'payroll' && !summaryData)}
-          className="btn-primary flex items-center justify-center gap-2 w-full sm:w-fit rounded-xl min-h-[2.75rem] disabled:opacity-50"
-        >
-          <Download className="w-4 h-4 shrink-0" />
-          Export report
-        </button>
-      </div>
+    <div className="page overflow-x-hidden">
+      <PageHeader
+        title="Reports"
+        subtitle="Generate and export payroll-ready reports."
+        icon={<BarChart3 className="w-5 h-5" />}
+        actions={
+          <button
+            type="button"
+            onClick={handleExport}
+            disabled={loading || (reportType === 'attendance' && attendanceData.length === 0) || (reportType === 'payroll' && !summaryData)}
+            className="btn-primary"
+          >
+            <Download className="w-4 h-4 shrink-0" />
+            Export report
+          </button>
+        }
+      />
 
       <div className="rounded-xl sm:rounded-2xl border border-surface-200/80 bg-white p-4 sm:p-6 shadow-sm">
         <h2 className="text-sm sm:text-base font-semibold text-surface-900 mb-0.5 sm:mb-1">Report options</h2>

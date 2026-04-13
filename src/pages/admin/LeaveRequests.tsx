@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { CalendarCheck2, Lock, Plus, Calendar, Clock3, Download, LayoutGrid, Table2, X } from 'lucide-react'
+import { PageHeader } from '@/components/PageHeader'
 import {
   getAdminLeaveRequests,
   getLeaveReviewContext,
@@ -415,91 +416,85 @@ export default function AdminLeaveRequests() {
   const isPaidLeave = reviewContext?.leave.leaveType === 'paid'
 
   return (
-    <div className="space-y-6 sm:space-y-8 overflow-x-hidden">
+    <div className="page overflow-x-hidden">
       {notice && (
-        <div className="fixed right-4 top-4 z-50 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700 shadow-lg">
-          {notice}
+        <div className="fixed right-4 top-4 z-50 alert-success shadow-lg animate-in slide-in-from-right-2">
+          <span>{notice}</span>
         </div>
       )}
 
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-semibold text-surface-900 tracking-tight">Leave requests</h1>
-          <p className="text-surface-500 mt-1 text-xs sm:text-sm">Review and approve employee leave requests.</p>
-        </div>
-        <button
-          type="button"
-          onClick={() => setShowCreateModal(true)}
-          className="btn-primary flex items-center justify-center gap-2 rounded-xl min-h-[2.75rem]"
-        >
-          <Plus className="w-4 h-4" />
-          New Leave
-        </button>
-      </div>
+      <PageHeader
+        title="Leave requests"
+        subtitle="Review and approve employee leave requests."
+        icon={<CalendarCheck2 className="w-5 h-5" />}
+        actions={
+          <button type="button" onClick={() => setShowCreateModal(true)} className="btn-primary">
+            <Plus className="w-4 h-4" />
+            New Leave
+          </button>
+        }
+      />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <div className="rounded-lg sm:rounded-xl border border-surface-200/80 bg-white p-3 sm:p-4 shadow-sm">
-          <p className="text-[10px] sm:text-xs font-medium text-surface-500 uppercase tracking-wider">Total</p>
-          <p className="mt-1 text-lg sm:text-xl font-semibold text-surface-900 tabular-nums">{summary.total}</p>
+        <div className="stat-card">
+          <p className="stat-label">Total</p>
+          <p className="stat-value">{summary.total}</p>
         </div>
-        <div className="rounded-lg sm:rounded-xl border border-amber-200/80 bg-amber-50/50 p-3 sm:p-4 shadow-sm">
-          <p className="text-[10px] sm:text-xs font-medium text-amber-700 uppercase tracking-wider">Pending</p>
-          <p className="mt-1 text-lg sm:text-xl font-semibold text-surface-900 tabular-nums">{summary.pending}</p>
+        <div className="stat-card border-amber-200/70 bg-amber-50/40">
+          <p className="stat-label text-amber-700">Pending</p>
+          <p className="stat-value">{summary.pending}</p>
         </div>
-        <div className="rounded-lg sm:rounded-xl border border-emerald-200/80 bg-emerald-50/50 p-3 sm:p-4 shadow-sm">
-          <p className="text-[10px] sm:text-xs font-medium text-emerald-700 uppercase tracking-wider">Approved</p>
-          <p className="mt-1 text-lg sm:text-xl font-semibold text-surface-900 tabular-nums">{summary.approved}</p>
+        <div className="stat-card border-emerald-200/70 bg-emerald-50/40">
+          <p className="stat-label text-emerald-700">Approved</p>
+          <p className="stat-value">{summary.approved}</p>
         </div>
-        <div className="rounded-lg sm:rounded-xl border border-red-200/80 bg-red-50/50 p-3 sm:p-4 shadow-sm">
-          <p className="text-[10px] sm:text-xs font-medium text-red-700 uppercase tracking-wider">Rejected</p>
-          <p className="mt-1 text-lg sm:text-xl font-semibold text-surface-900 tabular-nums">{summary.rejected}</p>
+        <div className="stat-card border-red-200/70 bg-red-50/40">
+          <p className="stat-label text-red-700">Rejected</p>
+          <p className="stat-value">{summary.rejected}</p>
         </div>
       </div>
 
-      <div className="rounded-xl sm:rounded-2xl border border-surface-200/80 bg-white p-3 sm:p-4 shadow-sm">
-        <div className="flex flex-col sm:flex-row gap-3 sm:items-end">
-          <div className="w-full sm:w-64">
-            <label className="label">Filter status</label>
-            <AdminSelect
-              value={filterStatus}
-              onChange={(val) => setFilterStatus(val as 'all' | 'pending' | 'approved' | 'rejected')}
-              options={[
-                { value: 'pending', label: 'Pending' },
-                { value: 'approved', label: 'Approved' },
-                { value: 'rejected', label: 'Rejected' },
-                { value: 'all', label: 'All' },
-              ]}
-            />
-          </div>
-          <div className="flex items-center gap-2 sm:ml-auto">
-            <div className="flex rounded-xl overflow-hidden border border-surface-200">
-              <button
-                type="button"
-                onClick={() => setViewMode('card')}
-                className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors ${viewMode === 'card' ? 'bg-brand-600 text-white' : 'bg-surface-50 text-surface-600 hover:bg-surface-100'}`}
-              >
-                <LayoutGrid className="w-3.5 h-3.5" />
-                Card
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewMode('table')}
-                className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors ${viewMode === 'table' ? 'bg-brand-600 text-white' : 'bg-surface-50 text-surface-600 hover:bg-surface-100'}`}
-              >
-                <Table2 className="w-3.5 h-3.5" />
-                Table
-              </button>
-            </div>
+      <div className="toolbar">
+        <div className="w-full sm:w-56">
+          <AdminSelect
+            value={filterStatus}
+            onChange={(val) => setFilterStatus(val as 'all' | 'pending' | 'approved' | 'rejected')}
+            options={[
+              { value: 'pending', label: 'Pending' },
+              { value: 'approved', label: 'Approved' },
+              { value: 'rejected', label: 'Rejected' },
+              { value: 'all', label: 'All' },
+            ]}
+          />
+        </div>
+        <div className="flex items-center gap-2 sm:ml-auto">
+          <div className="segmented">
             <button
               type="button"
-              onClick={exportCSV}
-              disabled={loading || rows.length === 0}
-              className="btn-secondary flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs disabled:opacity-50"
+              onClick={() => setViewMode('card')}
+              className={`segmented-item ${viewMode === 'card' ? 'segmented-item-active' : ''}`}
             >
-              <Download className="w-3.5 h-3.5" />
-              Export CSV
+              <LayoutGrid className="w-3.5 h-3.5" />
+              Card
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('table')}
+              className={`segmented-item ${viewMode === 'table' ? 'segmented-item-active' : ''}`}
+            >
+              <Table2 className="w-3.5 h-3.5" />
+              Table
             </button>
           </div>
+          <button
+            type="button"
+            onClick={exportCSV}
+            disabled={loading || rows.length === 0}
+            className="btn-secondary btn-sm"
+          >
+            <Download className="w-3.5 h-3.5" />
+            Export
+          </button>
         </div>
       </div>
 

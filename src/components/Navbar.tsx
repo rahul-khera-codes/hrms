@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Bell, X } from 'lucide-react'
+import { Bell, X, Check } from 'lucide-react'
 import type { Notification } from '../lib/apiNotifications'
 import {
   fetchMyNotifications,
@@ -15,7 +15,6 @@ export function Navbar() {
   const [loading, setLoading] = useState(false)
   const notificationWrapRef = useRef<HTMLDivElement | null>(null)
 
-  // Fetch notifications periodically
   useEffect(() => {
     const fetchNotifications = async () => {
       try {
@@ -29,10 +28,7 @@ export function Navbar() {
     }
 
     fetchNotifications()
-
-    // Poll every 1 second
     const interval = setInterval(fetchNotifications, 1000)
-
     return () => clearInterval(interval)
   }, [])
 
@@ -48,14 +44,11 @@ export function Navbar() {
     }
 
     const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setShowNotifications(false)
-      }
+      if (event.key === 'Escape') setShowNotifications(false)
     }
 
     document.addEventListener('mousedown', handleClickOutside)
     document.addEventListener('keydown', handleEscape)
-
     return () => {
       document.removeEventListener('mousedown', handleClickOutside)
       document.removeEventListener('keydown', handleEscape)
@@ -112,102 +105,99 @@ export function Navbar() {
     if (diffMins < 60) return `${diffMins}m ago`
     if (diffHours < 24) return `${diffHours}h ago`
     if (diffDays < 7) return `${diffDays}d ago`
-
     return date.toLocaleDateString()
   }
 
   return (
-    <div className="flex items-center justify-between gap-3 bg-white border-b border-gray-200 px-3 sm:px-6 py-3 shadow-sm">
-      <div className="text-lg sm:text-xl font-semibold text-gray-800 truncate">HRMS</div>
+    <div className="flex items-center justify-between gap-3 bg-white/80 backdrop-blur-sm border-b border-surface-200/70 px-4 sm:px-6 py-3 sticky top-0 z-30">
+      <div className="flex items-center gap-2">
+        <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center shadow-sm">
+          <span className="text-white text-xs font-bold">H</span>
+        </div>
+        <div className="text-sm sm:text-base font-semibold text-surface-900 tracking-tight">HRMS</div>
+      </div>
 
       <div ref={notificationWrapRef} className="relative">
         <button
           onClick={() => setShowNotifications(!showNotifications)}
-          className="relative p-2 text-gray-600 hover:text-gray-900 transition-colors"
+          className="relative btn-icon text-surface-500 hover:text-surface-900 hover:bg-surface-100"
+          aria-label="Notifications"
         >
-          <Bell size={20} />
+          <Bell size={18} />
           {unreadCount > 0 && (
-            <span className="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white transform translate-x-1 -translate-y-1 bg-red-600 rounded-full">
+            <span className="absolute top-1 right-1 inline-flex items-center justify-center min-w-[16px] h-4 px-1 text-[9px] font-bold leading-none text-white bg-red-500 rounded-full ring-2 ring-white">
               {unreadCount > 9 ? '9+' : unreadCount}
             </span>
           )}
         </button>
 
         {showNotifications && (
-          <div className="absolute right-0 mt-2 w-[min(24rem,calc(100vw-1rem))] sm:w-96 bg-white rounded-lg shadow-2xl z-50 max-h-96 overflow-hidden flex flex-col">
-            {/* Header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b bg-gray-50">
-              <h3 className="text-lg font-semibold text-gray-800">Notifications</h3>
+          <div className="absolute right-0 mt-2 w-[min(24rem,calc(100vw-1.5rem))] sm:w-96 bg-white rounded-2xl shadow-xl border border-surface-200 z-50 max-h-[28rem] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-surface-100">
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-semibold text-surface-900">Notifications</h3>
+                {unreadCount > 0 && (
+                  <span className="badge-brand text-[10px]">{unreadCount} new</span>
+                )}
+              </div>
               {unreadCount > 0 && (
                 <button
                   onClick={handleMarkAllAsRead}
                   disabled={loading}
-                  className="text-sm text-blue-600 hover:text-blue-700 disabled:opacity-50"
+                  className="text-xs font-medium text-brand-600 hover:text-brand-700 disabled:opacity-50"
                 >
-                  Mark all as read
+                  Mark all read
                 </button>
               )}
             </div>
 
-            {/* Notifications List */}
             <div className="overflow-y-auto flex-1">
               {notifications.length === 0 ? (
-                <div className="px-4 py-8 text-center text-gray-500">
-                  <Bell size={32} className="mx-auto mb-2 opacity-30" />
-                  <p>No notifications</p>
+                <div className="empty-state">
+                  <div className="empty-state-icon">
+                    <Bell size={20} />
+                  </div>
+                  <p className="empty-state-title">No notifications</p>
+                  <p className="empty-state-description">You're all caught up.</p>
                 </div>
               ) : (
-                <div className="divide-y">
+                <div className="divide-y divide-surface-100">
                   {notifications.map((notif) => (
                     <div
                       key={notif.id}
-                      onClick={() => {
-                        if (!notif.is_read) {
-                          handleMarkAsRead(notif.id)
-                        }
-                      }}
-                      className={`px-4 py-3 hover:bg-gray-50 transition-colors cursor-pointer ${
-                        !notif.is_read ? 'bg-blue-50' : ''
+                      onClick={() => { if (!notif.is_read) handleMarkAsRead(notif.id) }}
+                      className={`px-4 py-3 hover:bg-surface-50 transition-colors cursor-pointer ${
+                        !notif.is_read ? 'bg-brand-50/40' : ''
                       }`}
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
-                            <h4 className="text-sm font-semibold text-gray-900">
-                              {notif.title}
-                            </h4>
                             {!notif.is_read && (
-                              <span className="inline-block w-2 h-2 bg-blue-600 rounded-full"></span>
+                              <span className="inline-block w-1.5 h-1.5 bg-brand-500 rounded-full shrink-0" />
                             )}
+                            <h4 className="text-sm font-semibold text-surface-900 truncate">{notif.title}</h4>
                           </div>
-                          <p className="text-sm text-gray-600 mt-1">{notif.message}</p>
-                          <p className="text-xs text-gray-500 mt-1">
-                            {formatDate(notif.created_at)}
-                          </p>
+                          <p className="text-xs text-surface-600 mt-1 leading-relaxed">{notif.message}</p>
+                          <p className="text-[11px] text-surface-400 mt-1.5">{formatDate(notif.created_at)}</p>
                         </div>
 
-                        <div className="flex items-center gap-1 flex-shrink-0">
+                        <div className="flex items-center gap-0.5 flex-shrink-0">
                           {!notif.is_read && (
                             <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleMarkAsRead(notif.id)
-                              }}
-                              className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
+                              onClick={(e) => { e.stopPropagation(); handleMarkAsRead(notif.id) }}
+                              className="p-1.5 rounded-md text-surface-400 hover:text-brand-600 hover:bg-brand-50 transition-colors"
                               title="Mark as read"
                             >
-                              <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
+                              <Check size={14} />
                             </button>
                           )}
                           <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleDelete(notif.id)
-                            }}
-                            className="p-1 text-gray-400 hover:text-red-600 transition-colors"
+                            onClick={(e) => { e.stopPropagation(); handleDelete(notif.id) }}
+                            className="p-1.5 rounded-md text-surface-400 hover:text-red-600 hover:bg-red-50 transition-colors"
                             title="Delete"
                           >
-                            <X size={16} />
+                            <X size={14} />
                           </button>
                         </div>
                       </div>

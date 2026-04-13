@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Clock, Plus, Pencil, Trash2, LayoutGrid, Table2, Search } from 'lucide-react'
+import { Clock, Plus, Pencil, Trash2, LayoutGrid, Table2, Search, Timer } from 'lucide-react'
 import { getShifts, getClients, createShift, updateShift, deleteShift, type Shift, type Client } from '@/lib/apiAdmin'
 import AdminSelect from '@/components/AdminSelect'
+import { PageHeader } from '@/components/PageHeader'
 
 function formatTime(t: string) {
   if (!t) return '—'
@@ -125,82 +126,88 @@ export default function AdminShifts() {
 
   if (loading && shifts.length === 0) {
     return (
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-semibold text-surface-900 tracking-tight">Shifts</h1>
-          <p className="text-surface-500 mt-1 text-xs sm:text-sm">Define shift templates for scheduling.</p>
+      <div className="page">
+        <PageHeader title="Shifts" subtitle="Define shift templates for scheduling" icon={<Timer className="w-5 h-5" />} />
+        <div className="card p-6 flex items-center gap-3 text-surface-500 text-sm">
+          <div className="spinner" /> Loading shifts…
         </div>
-        <div className="rounded-xl border border-surface-200/80 bg-white p-6 text-surface-500 text-sm">Loading…</div>
       </div>
     )
   }
 
   return (
-    <div className="space-y-6 sm:space-y-8 overflow-x-hidden">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-semibold text-surface-900 tracking-tight">Shifts</h1>
-          <p className="text-surface-500 mt-1 text-xs sm:text-sm">Define shift templates. Use when assigning employees on the Schedule.</p>
-        </div>
-        <button type="button" onClick={openAdd} className="btn-primary flex items-center justify-center gap-2 rounded-xl min-h-[2.75rem]">
-          <Plus className="w-4 h-4" />
-          Add shift
-        </button>
-      </div>
+    <div className="page">
+      <PageHeader
+        title="Shifts"
+        subtitle="Define shift templates. Use when assigning employees on the Schedule."
+        icon={<Timer className="w-5 h-5" />}
+        actions={
+          <button type="button" onClick={openAdd} className="btn-primary">
+            <Plus className="w-4 h-4" />
+            Add shift
+          </button>
+        }
+      />
 
       {error && (
-        <p className="text-sm text-red-600" role="alert">{error}</p>
+        <div className="alert-error"><span>{error}</span></div>
       )}
 
-      {/* Filter bar: Search + Filter by client + View toggle */}
-      <div className="rounded-xl sm:rounded-2xl border border-surface-200/80 bg-white p-3 sm:p-4 shadow-sm">
-        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 sm:items-center">
-          <div className="relative flex-1 min-w-0">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400 shrink-0" />
-            <input
-              type="text"
-              placeholder="Search by name"
-              className="input pl-9 rounded-xl min-h-[2.75rem] w-full"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
-          <div className="w-full sm:w-48">
-            <AdminSelect
-              value={clientFilter}
-              onChange={(val) => setClientFilter(val)}
-              options={[
-                { value: '', label: 'All shifts' },
-                ...clients.map((c) => ({ value: c.id, label: c.name })),
-              ]}
-            />
-          </div>
-          <div className="flex rounded-xl overflow-hidden border border-surface-200 self-start sm:self-auto">
-            <button
-              type="button"
-              onClick={() => setViewMode('card')}
-              className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors ${viewMode === 'card' ? 'bg-brand-600 text-white' : 'bg-surface-50 text-surface-600 hover:bg-surface-100'}`}
-            >
-              <LayoutGrid className="w-3.5 h-3.5" />
-              Card
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode('table')}
-              className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors ${viewMode === 'table' ? 'bg-brand-600 text-white' : 'bg-surface-50 text-surface-600 hover:bg-surface-100'}`}
-            >
-              <Table2 className="w-3.5 h-3.5" />
-              Table
-            </button>
-          </div>
+      {/* Filter bar */}
+      <div className="toolbar">
+        <div className="relative flex-1 min-w-0">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400 shrink-0" />
+          <input
+            type="text"
+            placeholder="Search by name"
+            className="input pl-9"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        <div className="w-full sm:w-48">
+          <AdminSelect
+            value={clientFilter}
+            onChange={(val) => setClientFilter(val)}
+            options={[
+              { value: '', label: 'All shifts' },
+              ...clients.map((c) => ({ value: c.id, label: c.name })),
+            ]}
+          />
+        </div>
+        <div className="segmented self-start sm:self-auto">
+          <button
+            type="button"
+            onClick={() => setViewMode('card')}
+            className={`segmented-item ${viewMode === 'card' ? 'segmented-item-active' : ''}`}
+          >
+            <LayoutGrid className="w-3.5 h-3.5" />
+            Card
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode('table')}
+            className={`segmented-item ${viewMode === 'table' ? 'segmented-item-active' : ''}`}
+          >
+            <Table2 className="w-3.5 h-3.5" />
+            Table
+          </button>
         </div>
       </div>
 
-      <div className="rounded-xl sm:rounded-2xl border border-surface-200/80 bg-white shadow-sm overflow-hidden">
+      <div className="card overflow-hidden">
         {shifts.length === 0 ? (
-          <div className="p-8 text-center text-surface-500 text-sm">No shifts yet. Add one to get started.</div>
+          <div className="empty-state">
+            <div className="empty-state-icon"><Clock className="w-5 h-5" /></div>
+            <p className="empty-state-title">No shifts yet</p>
+            <p className="empty-state-description">Add your first shift template to start scheduling.</p>
+          </div>
         ) : filteredShifts.length === 0 ? (
-          <div className="p-8 text-center text-surface-500 text-sm">No shifts match your search.</div>
+          <div className="empty-state">
+            <div className="empty-state-icon"><Search className="w-5 h-5" /></div>
+            <p className="empty-state-title">No matches</p>
+            <p className="empty-state-description">Try a different search term.</p>
+          </div>
         ) : viewMode === 'card' ? (
           <ul className="p-3 sm:p-4 grid grid-cols-1 gap-3">
             {filteredShifts.map((s) => (
@@ -268,22 +275,25 @@ export default function AdminShifts() {
       </div>
 
       {modal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" role="dialog" aria-modal="true">
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6">
-            <h2 className="text-lg font-semibold text-surface-900 mb-4">{modal === 'add' ? 'Add shift' : 'Edit shift'}</h2>
-            <div className="space-y-4">
+        <div className="modal-backdrop" role="dialog" aria-modal="true">
+          <button type="button" className="absolute inset-0" onClick={() => setModal(null)} aria-label="Close" />
+          <div className="modal-frame">
+            <div className="modal-header">
+              <h2 className="modal-title">{modal === 'add' ? 'Add shift' : 'Edit shift'}</h2>
+            </div>
+            <div className="modal-body">
               <div>
                 <label className="label">Name</label>
-                <input type="text" className="input w-full rounded-xl min-h-[2.75rem]" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Morning" />
+                <input type="text" className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Morning" />
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="label">Start time</label>
-                  <input type="time" className="input w-full rounded-xl min-h-[2.75rem]" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
+                  <input type="time" className="input" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
                 </div>
                 <div>
                   <label className="label">End time</label>
-                  <input type="time" className="input w-full rounded-xl min-h-[2.75rem]" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
+                  <input type="time" className="input" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
                 </div>
               </div>
               <div>
@@ -306,9 +316,9 @@ export default function AdminShifts() {
                 />
               </div>
             </div>
-            <div className="mt-6 flex flex-col-reverse sm:flex-row gap-3 justify-end">
-              <button type="button" onClick={() => setModal(null)} className="btn-secondary rounded-xl min-h-[2.75rem] px-4">Cancel</button>
-              <button type="button" onClick={handleSave} disabled={saving || !name.trim()} className="btn-primary rounded-xl min-h-[2.75rem] px-4 disabled:opacity-60">
+            <div className="modal-footer">
+              <button type="button" onClick={() => setModal(null)} className="btn-secondary">Cancel</button>
+              <button type="button" onClick={handleSave} disabled={saving || !name.trim()} className="btn-primary">
                 {saving ? 'Saving…' : 'Save'}
               </button>
             </div>

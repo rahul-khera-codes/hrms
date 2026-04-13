@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { format, subDays } from 'date-fns'
-import { Search, Download, X, ArrowUp, ArrowDown, Filter } from 'lucide-react'
+import { Search, Download, X, ArrowUp, ArrowDown, Filter, Clock } from 'lucide-react'
 import { getAdminAttendance, updateAttendanceRecord } from '@/lib/apiAdmin'
 import type { AttendanceRecord } from '@/types'
 import AdminDatePicker from '@/components/AdminDatePicker'
+import { PageHeader } from '@/components/PageHeader'
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -428,55 +429,42 @@ export default function AdminAttendance() {
   // -----------------------------------------------------------------------
 
   return (
-    <div className="space-y-4 sm:space-y-6 overflow-x-hidden">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-semibold text-surface-900 tracking-tight">
-            Attendance
-          </h1>
-          <p className="text-surface-500 mt-1 text-xs sm:text-sm">
-            Excel-style attendance log. Inline-edit Status, Pay, Bill, Stage,
-            Task and Comments.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={exportCSV}
-          disabled={loading || records.length === 0}
-          className="btn-secondary flex items-center justify-center gap-2 rounded-xl w-full sm:w-auto min-h-[2.75rem] disabled:opacity-50"
-        >
-          <Download className="w-4 h-4 shrink-0" />
-          Export CSV
-        </button>
-      </div>
+    <div className="page overflow-x-hidden">
+      <PageHeader
+        title="Attendance"
+        subtitle="Excel-style log. Inline-edit Status, Pay, Bill, Stage, Task and Comments."
+        icon={<Clock className="w-5 h-5" />}
+        actions={
+          <button
+            type="button"
+            onClick={exportCSV}
+            disabled={loading || records.length === 0}
+            className="btn-secondary"
+          >
+            <Download className="w-4 h-4 shrink-0" />
+            Export CSV
+          </button>
+        }
+      />
 
       {/* Filters */}
-      <div className="rounded-xl sm:rounded-2xl border border-surface-200/80 bg-white p-3 sm:p-4 shadow-sm">
-        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
-          <div className="relative flex-1 min-w-0">
-            <Search className="absolute left-3 sm:left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400 shrink-0" />
-            <input
-              type="text"
-              placeholder="Search by name"
-              className="input pl-9 sm:pl-10 rounded-xl min-h-[2.75rem] w-full"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
+      <div className="toolbar">
+        <div className="relative flex-1 min-w-0">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400 shrink-0" />
+          <input
+            type="text"
+            placeholder="Search by name"
+            className="input pl-9"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        <div className="flex gap-2 flex-wrap sm:flex-nowrap">
+          <div className="flex-1 min-w-[140px]">
+            <AdminDatePicker value={dateFrom} onChange={(val) => setDateFrom(val)} />
           </div>
-          <div className="flex gap-2 flex-wrap">
-            <div className="flex-1 min-w-[140px]">
-              <AdminDatePicker
-                value={dateFrom}
-                onChange={(val) => setDateFrom(val)}
-              />
-            </div>
-            <div className="flex-1 min-w-[140px]">
-              <AdminDatePicker
-                value={dateTo}
-                onChange={(val) => setDateTo(val)}
-              />
-            </div>
+          <div className="flex-1 min-w-[140px]">
+            <AdminDatePicker value={dateTo} onChange={(val) => setDateTo(val)} />
           </div>
         </div>
       </div>
@@ -969,14 +957,14 @@ function SummaryCard({
 
   return (
     <div
-      className={`rounded-lg sm:rounded-xl border ${c?.border ?? 'border-surface-200/80'} ${c?.bg ?? 'bg-white'} p-3 sm:p-4 shadow-sm`}
+      className={`rounded-xl border ${c?.border ?? 'border-surface-200/70'} ${c?.bg ?? 'bg-white'} p-3 sm:p-3.5 shadow-card`}
     >
       <p
-        className={`text-[10px] sm:text-xs font-medium ${c?.label ?? 'text-surface-500'} uppercase tracking-wider`}
+        className={`text-[10px] sm:text-[11px] font-semibold ${c?.label ?? 'text-surface-500'} uppercase tracking-wider`}
       >
         {label}
       </p>
-      <p className="mt-1 text-lg sm:text-xl font-semibold text-surface-900 tabular-nums">
+      <p className="mt-0.5 text-base sm:text-lg font-bold text-surface-900 tabular-nums tracking-tight">
         {value}
       </p>
     </div>

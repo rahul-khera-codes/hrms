@@ -3,6 +3,7 @@ import { CalendarDays, Clock, Building2 } from 'lucide-react'
 import { getMySchedule, type MyScheduleEntry } from '@/lib/apiEmployee'
 import { format, addDays, startOfWeek, parseISO } from 'date-fns'
 import AdminSelect from '@/components/AdminSelect'
+import { PageHeader } from '@/components/PageHeader'
 
 function formatTime(t: string) {
   if (!t) return '—'
@@ -79,11 +80,12 @@ export default function EmployeeMySchedule() {
   })
 
   return (
-    <div className="space-y-6 overflow-x-hidden">
-      <div>
-        <h1 className="text-xl sm:text-2xl font-semibold text-surface-900 tracking-tight">My Schedule</h1>
-        <p className="text-surface-500 mt-1 text-xs sm:text-sm">Shifts assigned to you by your supervisor.</p>
-      </div>
+    <div className="page overflow-x-hidden">
+      <PageHeader
+        title="My Schedule"
+        subtitle="Shifts assigned to you by your supervisor."
+        icon={<CalendarDays className="w-5 h-5" />}
+      />
 
       <div className="rounded-xl border border-surface-200/80 bg-white p-4 shadow-sm">
         <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3">

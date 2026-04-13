@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, CalendarDays } from 'lucide-react'
 import { getClients, getShifts, getEmployees, getSchedule, createScheduleAssignment, deleteScheduleAssignment, type Client, type Shift, type ScheduleAssignment } from '@/lib/apiAdmin'
 import { addDays, startOfWeek, format, parseISO } from 'date-fns'
 import AdminSelect from '@/components/AdminSelect'
+import { PageHeader } from '@/components/PageHeader'
 
 const WEEKDAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
@@ -84,11 +85,12 @@ export default function AdminSchedule() {
   }
 
   return (
-    <div className="space-y-6 sm:space-y-8">
-      <div>
-        <h1 className="text-xl sm:text-2xl font-semibold text-surface-900 tracking-tight">Schedule</h1>
-        <p className="text-surface-500 mt-1 text-xs sm:text-sm">Assign employees to shifts per BPO client by week.</p>
-      </div>
+    <div className="page">
+      <PageHeader
+        title="Schedule"
+        subtitle="Assign employees to shifts per BPO client by week."
+        icon={<CalendarDays className="w-5 h-5" />}
+      />
 
       <div className="rounded-xl sm:rounded-2xl border border-surface-200/80 bg-white p-4 sm:p-6 shadow-sm">
         <div className="flex flex-col sm:flex-row flex-wrap gap-4 items-stretch sm:items-end">

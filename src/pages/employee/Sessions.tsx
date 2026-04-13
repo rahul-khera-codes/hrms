@@ -3,6 +3,7 @@ import { format } from 'date-fns'
 import { getSessions } from '@/lib/apiSessions'
 import type { ClockSession } from '@/types'
 import { Clock, Calendar, TrendingUp, Zap } from 'lucide-react'
+import { PageHeader } from '@/components/PageHeader'
 
 const SESSIONS_PER_PAGE = 10
 
@@ -81,11 +82,12 @@ export default function EmployeeSessions() {
   }
 
   return (
-    <div className="space-y-6 sm:space-y-8 overflow-x-hidden">
-      <div>
-        <h1 className="text-xl sm:text-2xl font-semibold text-surface-900 tracking-tight">My Sessions</h1>
-        <p className="text-surface-500 mt-1 text-xs sm:text-sm">View and manage your clock-in / clock-out history.</p>
-      </div>
+    <div className="page overflow-x-hidden">
+      <PageHeader
+        title="My Sessions"
+        subtitle="View and manage your clock-in / clock-out history."
+        icon={<Clock className="w-5 h-5" />}
+      />
 
       {sessions.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
