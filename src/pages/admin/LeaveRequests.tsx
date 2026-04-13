@@ -108,7 +108,7 @@ export default function AdminLeaveRequests() {
   const [saving, setSaving] = useState(false)
 
   // View mode and detail modal
-  const [viewMode, setViewMode] = useState<'card' | 'table'>('card')
+  const [viewMode, setViewMode] = useState<'card' | 'table'>('table')
   const [detailRow, setDetailRow] = useState<AdminLeaveRequest | null>(null)
 
   // New leave creation states

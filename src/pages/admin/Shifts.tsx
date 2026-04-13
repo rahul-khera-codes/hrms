@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { Clock, Plus, Pencil, Trash2 } from 'lucide-react'
+import { useState, useEffect, useMemo } from 'react'
+import { Clock, Plus, Pencil, Trash2, LayoutGrid, Table2, Search } from 'lucide-react'
 import { getShifts, getClients, createShift, updateShift, deleteShift, type Shift, type Client } from '@/lib/apiAdmin'
 import AdminSelect from '@/components/AdminSelect'
 
@@ -40,6 +40,20 @@ export default function AdminShifts() {
   const [timezone, setTimezone] = useState('UTC')
   const [clientId, setClientId] = useState<string>('')
   const [saving, setSaving] = useState(false)
+  const [viewMode, setViewMode] = useState<'card' | 'table'>('table')
+  const [search, setSearch] = useState('')
+
+  const filteredShifts = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return shifts
+    return shifts.filter((s) => s.name.toLowerCase().includes(q))
+  }, [shifts, search])
+
+  const clientMap = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const c of clients) m.set(c.id, c.name)
+    return m
+  }, [clients])
 
   function load() {
     return Promise.all([getShifts(clientFilter || undefined), getClients()]).then(([s, c]) => {
@@ -134,30 +148,62 @@ export default function AdminShifts() {
         </button>
       </div>
 
-      <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3">
-        <label className="label mb-0">Filter by client</label>
-        <div className="w-full sm:w-48">
-          <AdminSelect
-            value={clientFilter}
-            onChange={(val) => setClientFilter(val)}
-            options={[
-              { value: '', label: 'All shifts' },
-              ...clients.map((c) => ({ value: c.id, label: c.name })),
-            ]}
-          />
-        </div>
-      </div>
-
       {error && (
         <p className="text-sm text-red-600" role="alert">{error}</p>
       )}
 
+      {/* Filter bar: Search + Filter by client + View toggle */}
+      <div className="rounded-xl sm:rounded-2xl border border-surface-200/80 bg-white p-3 sm:p-4 shadow-sm">
+        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 sm:items-center">
+          <div className="relative flex-1 min-w-0">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400 shrink-0" />
+            <input
+              type="text"
+              placeholder="Search by name"
+              className="input pl-9 rounded-xl min-h-[2.75rem] w-full"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          <div className="w-full sm:w-48">
+            <AdminSelect
+              value={clientFilter}
+              onChange={(val) => setClientFilter(val)}
+              options={[
+                { value: '', label: 'All shifts' },
+                ...clients.map((c) => ({ value: c.id, label: c.name })),
+              ]}
+            />
+          </div>
+          <div className="flex rounded-xl overflow-hidden border border-surface-200 self-start sm:self-auto">
+            <button
+              type="button"
+              onClick={() => setViewMode('card')}
+              className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors ${viewMode === 'card' ? 'bg-brand-600 text-white' : 'bg-surface-50 text-surface-600 hover:bg-surface-100'}`}
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+              Card
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('table')}
+              className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors ${viewMode === 'table' ? 'bg-brand-600 text-white' : 'bg-surface-50 text-surface-600 hover:bg-surface-100'}`}
+            >
+              <Table2 className="w-3.5 h-3.5" />
+              Table
+            </button>
+          </div>
+        </div>
+      </div>
+
       <div className="rounded-xl sm:rounded-2xl border border-surface-200/80 bg-white shadow-sm overflow-hidden">
         {shifts.length === 0 ? (
           <div className="p-8 text-center text-surface-500 text-sm">No shifts yet. Add one to get started.</div>
-        ) : (
+        ) : filteredShifts.length === 0 ? (
+          <div className="p-8 text-center text-surface-500 text-sm">No shifts match your search.</div>
+        ) : viewMode === 'card' ? (
           <ul className="p-3 sm:p-4 grid grid-cols-1 gap-3">
-            {shifts.map((s) => (
+            {filteredShifts.map((s) => (
               <li
                 key={s.id}
                 className="flex flex-col sm:flex-row sm:items-center gap-4 p-4 sm:p-5 rounded-xl border border-surface-200/80 bg-white transition-all hover:shadow-md hover:border-brand-200/80"
@@ -180,6 +226,44 @@ export default function AdminShifts() {
               </li>
             ))}
           </ul>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full w-full text-left border-collapse">
+              <thead className="sticky top-0 z-10 bg-surface-50 shadow-[0_1px_0_0_theme(colors.surface.200)]">
+                <tr>
+                  {['Name', 'Start Time', 'End Time', 'Timezone', 'Client', 'Actions'].map((col) => (
+                    <th
+                      key={col}
+                      className={`px-3 py-2.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 ${col === 'Actions' ? 'text-right' : ''}`}
+                    >
+                      {col}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filteredShifts.map((s) => (
+                  <tr key={s.id} className="border-b border-surface-100 hover:bg-brand-50/40 transition-colors">
+                    <td className="px-3 py-2.5 text-xs font-medium text-surface-900 whitespace-nowrap">{s.name}</td>
+                    <td className="px-3 py-2.5 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">{formatTime(s.startTime)}</td>
+                    <td className="px-3 py-2.5 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">{formatTime(s.endTime)}</td>
+                    <td className="px-3 py-2.5 text-xs text-surface-600 whitespace-nowrap">{s.timezone || '-'}</td>
+                    <td className="px-3 py-2.5 text-xs text-surface-600 whitespace-nowrap">{s.clientId ? (clientMap.get(s.clientId) || '-') : '-'}</td>
+                    <td className="px-3 py-2.5 whitespace-nowrap text-right">
+                      <div className="flex items-center gap-1 justify-end">
+                        <button type="button" onClick={() => openEdit(s)} className="p-1.5 rounded-lg text-surface-500 hover:bg-surface-100" title="Edit">
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button type="button" onClick={() => handleDelete(s)} className="p-1.5 rounded-lg text-red-500 hover:bg-red-50" title="Delete">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 
