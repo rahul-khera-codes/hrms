@@ -1,4 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
+import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react'
 import {
   format,
   parseISO,
@@ -17,6 +19,8 @@ interface AdminDatePickerProps {
   className?: string
 }
 
+const CAL_WIDTH = 288 // ~w-72
+
 export default function AdminDatePicker({ value, onChange, className = '' }: AdminDatePickerProps) {
   const [open, setOpen] = useState(false)
   const [internal, setInternal] = useState<string>(value || format(new Date(), 'yyyy-MM-dd'))
@@ -24,7 +28,14 @@ export default function AdminDatePicker({ value, onChange, className = '' }: Adm
     const d = parseISO(value || '')
     return isValid(d) ? d : new Date()
   })
-  const ref = useRef<HTMLDivElement | null>(null)
+  const wrapperRef = useRef<HTMLDivElement | null>(null)
+  const buttonRef = useRef<HTMLButtonElement | null>(null)
+  const dropdownRef = useRef<HTMLDivElement | null>(null)
+  const [position, setPosition] = useState<{
+    top: number
+    left: number
+    placement: 'bottom' | 'top'
+  }>({ top: 0, left: 0, placement: 'bottom' })
 
   useEffect(() => {
     if (value) {
@@ -36,12 +47,60 @@ export default function AdminDatePicker({ value, onChange, className = '' }: Adm
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (!ref.current) return
-      if (!ref.current.contains(e.target as Node)) setOpen(false)
+      const target = e.target as Node
+      if (wrapperRef.current && wrapperRef.current.contains(target)) return
+      if (dropdownRef.current && dropdownRef.current.contains(target)) return
+      setOpen(false)
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
+
+  useEffect(() => {
+    if (!open) return
+    function handleEscape(e: KeyboardEvent) {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('keydown', handleEscape)
+    return () => document.removeEventListener('keydown', handleEscape)
+  }, [open])
+
+  // Compute portal position + flip
+  useEffect(() => {
+    if (!open || !buttonRef.current) return
+
+    function computePosition() {
+      if (!buttonRef.current) return
+      const rect = buttonRef.current.getBoundingClientRect()
+      const calHeight = 340
+      const gap = 4
+      const spaceBelow = window.innerHeight - rect.bottom
+      const spaceAbove = rect.top
+      const useTop = spaceBelow < calHeight && spaceAbove > spaceBelow
+
+      let left = rect.left + window.scrollX
+      // Prevent overflow right edge
+      if (left + CAL_WIDTH > window.innerWidth - 8) {
+        left = Math.max(8, window.innerWidth - CAL_WIDTH - 8)
+      }
+
+      setPosition({
+        top: useTop
+          ? rect.top + window.scrollY - gap
+          : rect.bottom + window.scrollY + gap,
+        left,
+        placement: useTop ? 'top' : 'bottom',
+      })
+    }
+
+    computePosition()
+    window.addEventListener('scroll', computePosition, true)
+    window.addEventListener('resize', computePosition)
+    return () => {
+      window.removeEventListener('scroll', computePosition, true)
+      window.removeEventListener('resize', computePosition)
+    }
+  }, [open])
 
   const date = (() => {
     const d = parseISO(internal)
@@ -56,7 +115,7 @@ export default function AdminDatePicker({ value, onChange, className = '' }: Adm
     onChange(next)
   }
 
-  // Build calendar grid for current viewMonth
+  // Build calendar grid
   const monthStart = startOfMonth(viewMonth)
   const monthEnd = endOfMonth(viewMonth)
   const calStart = startOfWeek(monthStart, { weekStartsOn: 0 })
@@ -75,19 +134,22 @@ export default function AdminDatePicker({ value, onChange, className = '' }: Adm
   const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
 
   return (
-    <div ref={ref} className="relative inline-block w-full">
+    <div ref={wrapperRef} className="relative inline-block w-full">
       <button
+        ref={buttonRef}
         type="button"
         className={
-          'input w-full rounded-xl min-h-[2.75rem] flex items-center justify-between px-3 py-2 ' +
-          'transition-colors duration-150 hover:bg-surface-50 focus:outline-none focus:ring-2 ' +
-          'focus:ring-brand-200 focus:border-brand-400 ' +
+          'input flex items-center justify-between px-3 ' +
+          'transition-colors duration-150 hover:bg-surface-50 ' +
           className
         }
         onClick={() => setOpen((o) => !o)}
       >
-        <span className="text-sm text-surface-900">{display}</span>
-        <span className="ml-2 text-surface-400 text-xs">{format(date, 'EEE')}</span>
+        <span className="flex items-center gap-2 min-w-0">
+          <Calendar className="w-4 h-4 text-surface-400 shrink-0" />
+          <span className="text-sm text-surface-900 tabular-nums">{display}</span>
+        </span>
+        <span className="ml-2 text-surface-400 text-[11px] uppercase tracking-wider font-medium">{format(date, 'EEE')}</span>
       </button>
       {/* Invisible native input to keep browser logic identical */}
       <input
@@ -97,32 +159,43 @@ export default function AdminDatePicker({ value, onChange, className = '' }: Adm
         onChange={handleNativeChange}
         tabIndex={-1}
       />
-      {open && (
-        <div className="absolute z-30 mt-1 w-72 rounded-2xl border border-surface-200 bg-white shadow-lg p-3">
+      {open && createPortal(
+        <div
+          ref={dropdownRef}
+          className="fixed z-[200] rounded-2xl border border-surface-200 bg-white shadow-xl p-3"
+          style={{
+            top: position.placement === 'bottom' ? `${position.top}px` : undefined,
+            bottom: position.placement === 'top'
+              ? `${window.innerHeight - position.top}px`
+              : undefined,
+            left: `${position.left}px`,
+            width: `${CAL_WIDTH}px`,
+          }}
+        >
           <div className="flex items-center justify-between mb-2">
             <button
               type="button"
               onClick={() => setViewMonth((m) => subMonths(m, 1))}
-              className="p-1.5 rounded-lg text-surface-500 hover:bg-surface-50"
+              className="p-1.5 rounded-lg text-surface-500 hover:bg-surface-50 hover:text-surface-800"
               aria-label="Previous month"
             >
-              ‹
+              <ChevronLeft className="w-4 h-4" />
             </button>
-            <div className="text-xs font-medium text-surface-800">
-              {format(viewMonth, 'MMMM, yyyy')}
+            <div className="text-sm font-semibold text-surface-800">
+              {format(viewMonth, 'MMMM yyyy')}
             </div>
             <button
               type="button"
               onClick={() => setViewMonth((m) => addMonths(m, 1))}
-              className="p-1.5 rounded-lg text-surface-500 hover:bg-surface-50"
+              className="p-1.5 rounded-lg text-surface-500 hover:bg-surface-50 hover:text-surface-800"
               aria-label="Next month"
             >
-              ›
+              <ChevronRight className="w-4 h-4" />
             </button>
           </div>
-          <div className="grid grid-cols-7 gap-1 text-[11px] text-surface-400 mb-1">
+          <div className="grid grid-cols-7 gap-1 text-[11px] font-semibold text-surface-400 mb-1">
             {WEEKDAYS.map((dLabel) => (
-              <div key={dLabel} className="text-center py-1">
+              <div key={dLabel} className="text-center py-1 uppercase">
                 {dLabel}
               </div>
             ))}
@@ -135,15 +208,15 @@ export default function AdminDatePicker({ value, onChange, className = '' }: Adm
                 const isSelected = internal === iso
                 const inMonth = day.getMonth() === viewMonth.getMonth()
                 let cellClass =
-                  'flex items-center justify-center rounded-lg py-1.5 cursor-pointer transition-colors duration-150 '
+                  'flex items-center justify-center rounded-lg h-8 cursor-pointer transition-colors duration-150 font-medium '
                 if (isSelected) {
-                  cellClass += 'bg-brand-500 text-white'
+                  cellClass += 'bg-brand-600 text-white shadow-sm hover:bg-brand-700'
                 } else if (isToday) {
-                  cellClass += 'border border-brand-300 text-brand-700 bg-brand-50'
+                  cellClass += 'border border-brand-300 text-brand-700 bg-brand-50 hover:bg-brand-100'
                 } else if (!inMonth) {
                   cellClass += 'text-surface-300 hover:bg-surface-50'
                 } else {
-                  cellClass += 'text-surface-700 hover:bg-surface-50'
+                  cellClass += 'text-surface-700 hover:bg-surface-100'
                 }
                 return (
                   <button
@@ -165,7 +238,7 @@ export default function AdminDatePicker({ value, onChange, className = '' }: Adm
           <div className="flex items-center justify-between mt-2 pt-2 border-t border-surface-100">
             <button
               type="button"
-              className="text-[11px] text-surface-500 hover:text-surface-700"
+              className="text-xs font-medium text-brand-600 hover:text-brand-700"
               onClick={() => {
                 const today = format(new Date(), 'yyyy-MM-dd')
                 setInternal(today)
@@ -177,7 +250,7 @@ export default function AdminDatePicker({ value, onChange, className = '' }: Adm
             </button>
             <button
               type="button"
-              className="text-[11px] text-surface-400 hover:text-surface-600"
+              className="text-xs font-medium text-surface-400 hover:text-surface-600"
               onClick={() => {
                 setInternal('')
                 onChange('')
@@ -186,9 +259,9 @@ export default function AdminDatePicker({ value, onChange, className = '' }: Adm
               Clear
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )
 }
-
