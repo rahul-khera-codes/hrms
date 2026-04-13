@@ -75,8 +75,11 @@ export default function EmployeeSessions() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[200px]">
-        <div className="w-8 h-8 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
+      <div className="page">
+        <PageHeader title="My Sessions" subtitle="View and manage your clock-in / clock-out history." icon={<Clock className="w-5 h-5" />} />
+        <div className="card p-6 flex items-center gap-3 text-surface-500 text-sm">
+          <div className="spinner" /> Loading sessions…
+        </div>
       </div>
     )
   }
@@ -90,125 +93,122 @@ export default function EmployeeSessions() {
       />
 
       {sessions.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-          <div className="rounded-lg sm:rounded-xl border border-surface-200/80 bg-white p-3 sm:p-4 shadow-sm min-w-0">
-            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-surface-100 flex items-center justify-center shrink-0">
-                <Calendar className="w-4 h-4 sm:w-5 sm:h-5 text-surface-600" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-[10px] sm:text-xs font-medium text-surface-500 uppercase tracking-wider truncate">Sessions</p>
-                <p className="text-base sm:text-lg font-semibold text-surface-900 tabular-nums truncate">{summary.sessions}</p>
-              </div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div className="stat-card flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-surface-100 border border-surface-200 text-surface-600 flex items-center justify-center shrink-0">
+              <Calendar className="w-4 h-4" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="stat-label truncate">Sessions</p>
+              <p className="stat-value truncate">{summary.sessions}</p>
             </div>
           </div>
-          <div className="rounded-lg sm:rounded-xl border border-surface-200/80 bg-white p-3 sm:p-4 shadow-sm min-w-0">
-            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-brand-50 flex items-center justify-center shrink-0">
-                <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-brand-600" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-[10px] sm:text-xs font-medium text-surface-500 uppercase tracking-wider truncate">Regular</p>
-                <p className="text-base sm:text-lg font-semibold text-surface-900 tabular-nums truncate">{summary.regularDuration}</p>
-              </div>
+          <div className="stat-card flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-brand-50 border border-brand-100 text-brand-600 flex items-center justify-center shrink-0">
+              <Clock className="w-4 h-4" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="stat-label truncate">Regular</p>
+              <p className="stat-value truncate">{summary.regularDuration}</p>
             </div>
           </div>
-          <div className="rounded-lg sm:rounded-xl border border-surface-200/80 bg-white p-3 sm:p-4 shadow-sm min-w-0">
-            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-amber-50 flex items-center justify-center shrink-0">
-                <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-amber-600" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-[10px] sm:text-xs font-medium text-surface-500 uppercase tracking-wider truncate">Overtime</p>
-                <p className="text-base sm:text-lg font-semibold text-surface-900 tabular-nums truncate">{summary.overtimeDuration}</p>
-              </div>
+          <div className="stat-card flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-50 border border-amber-100 text-amber-600 flex items-center justify-center shrink-0">
+              <TrendingUp className="w-4 h-4" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="stat-label truncate">Overtime</p>
+              <p className="stat-value truncate">{summary.overtimeDuration}</p>
             </div>
           </div>
-          <div className="rounded-lg sm:rounded-xl border border-brand-200/80 bg-brand-50/50 p-3 sm:p-4 shadow-sm min-w-0">
-            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-brand-100 flex items-center justify-center shrink-0">
-                <Zap className="w-4 h-4 sm:w-5 sm:h-5 text-brand-600" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-[10px] sm:text-xs font-medium text-brand-700 uppercase tracking-wider truncate">Total</p>
-                <p className="text-base sm:text-lg font-semibold text-surface-900 tabular-nums truncate">{summary.totalDuration}</p>
-              </div>
+          <div className="stat-card bg-brand-50/40 border-brand-200/70 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-brand-100 text-brand-700 flex items-center justify-center shrink-0">
+              <Zap className="w-4 h-4" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="stat-label truncate text-brand-700">Total</p>
+              <p className="stat-value truncate">{summary.totalDuration}</p>
             </div>
           </div>
         </div>
       )}
 
-      <div className="rounded-xl sm:rounded-2xl border border-surface-200/80 bg-white overflow-hidden shadow-sm min-w-0">
+      <div className="card overflow-hidden">
         {sessions.length === 0 ? (
-          <div className="p-8 sm:p-16 text-center">
-            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl bg-surface-100 flex items-center justify-center mx-auto mb-4 sm:mb-5">
-              <Clock className="w-7 h-7 sm:w-8 sm:h-8 text-surface-400" />
-            </div>
-            <h3 className="text-base sm:text-lg font-medium text-surface-900">No sessions yet</h3>
-            <p className="text-surface-500 mt-2 max-w-sm mx-auto text-xs sm:text-sm px-2">
-              Clock in from your dashboard to start tracking. Your sessions will appear here.
-            </p>
+          <div className="empty-state">
+            <div className="empty-state-icon"><Clock className="w-5 h-5" /></div>
+            <p className="empty-state-title">No sessions yet</p>
+            <p className="empty-state-description">Clock in from your dashboard to start tracking. Your sessions will appear here.</p>
           </div>
         ) : (
-          <ul className="p-3 sm:p-4 grid grid-cols-1 gap-3">
-            {paginatedSessions.map((s) => {
-              const displayRegularMinutes = getDisplayRegularMinutes(s)
-              return (
-                <li
-                  key={s.id}
-                  className="flex items-center gap-4 p-4 sm:p-5 rounded-xl border border-surface-200/80 bg-white transition-all hover:shadow-md hover:border-brand-200/80 min-w-0"
-                >
-                  <div className="w-10 h-10 rounded-xl bg-surface-100 flex items-center justify-center shrink-0">
-                    <Clock className="w-5 h-5 text-surface-600" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs sm:text-sm font-medium text-surface-900">{format(new Date(s.clockIn), 'MMM d, yyyy')}</p>
-                    <p className="text-[10px] sm:text-xs text-surface-500 mt-0.5">
-                      {format(new Date(s.clockIn), 'HH:mm:ss')} – {s.clockOut ? format(new Date(s.clockOut), 'HH:mm:ss') : '—'}
-                    </p>
-                    <div className="flex items-center gap-4 mt-1 flex-wrap text-[10px] sm:text-xs text-surface-600">
-                      <span>Regular: {s.status === 'completed' ? formatDuration(displayRegularMinutes) : '—'}</span>
-                      <span>Overtime: {s.overtimeMinutes != null && s.overtimeMinutes > 0 ? formatDuration(s.overtimeMinutes) : '—'}</span>
-                    </div>
-                  </div>
-                  <span
-                    className={
-                      s.status === 'active'
-                        ? 'inline-flex items-center px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-medium bg-brand-100 text-brand-700 shrink-0'
-                        : 'inline-flex items-center px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-medium bg-surface-100 text-surface-600 shrink-0'
-                    }
-                  >
-                    {s.status}
-                  </span>
-                </li>
-              )
-            })}
-          </ul>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead className="sticky top-0 bg-surface-50/95 backdrop-blur-sm shadow-[0_1px_0_0_theme(colors.surface.200)] z-10">
+                <tr>
+                  <th className="px-3 py-2.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap">Date</th>
+                  <th className="px-3 py-2.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap">Clock In</th>
+                  <th className="px-3 py-2.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap">Clock Out</th>
+                  <th className="px-3 py-2.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap text-right">Regular</th>
+                  <th className="px-3 py-2.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap text-right">Overtime</th>
+                  <th className="px-3 py-2.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {paginatedSessions.map((s) => {
+                  const displayRegularMinutes = getDisplayRegularMinutes(s)
+                  return (
+                    <tr key={s.id} className="border-b border-surface-100 hover:bg-brand-50/30 transition-colors">
+                      <td className="px-3 py-2.5 text-xs font-medium text-surface-900 whitespace-nowrap">
+                        {format(new Date(s.clockIn), 'MMM d, yyyy')}
+                      </td>
+                      <td className="px-3 py-2.5 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">
+                        {format(new Date(s.clockIn), 'HH:mm:ss')}
+                      </td>
+                      <td className="px-3 py-2.5 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">
+                        {s.clockOut ? format(new Date(s.clockOut), 'HH:mm:ss') : '—'}
+                      </td>
+                      <td className="px-3 py-2.5 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap text-right">
+                        {s.status === 'completed' ? formatDuration(displayRegularMinutes) : '—'}
+                      </td>
+                      <td className={`px-3 py-2.5 text-xs font-mono tabular-nums whitespace-nowrap text-right ${s.overtimeMinutes && s.overtimeMinutes > 0 ? 'text-amber-700 font-semibold' : 'text-surface-400'}`}>
+                        {s.overtimeMinutes != null && s.overtimeMinutes > 0 ? formatDuration(s.overtimeMinutes) : '—'}
+                      </td>
+                      <td className="px-3 py-2.5 whitespace-nowrap">
+                        <span className={`${s.status === 'active' ? 'badge-warning' : 'badge-neutral'} capitalize`}>
+                          {s.status}
+                        </span>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 
-      {sessions.length > 0 && (
+      {sessions.length > 0 && totalPages > 1 && (
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <p className="text-xs sm:text-sm text-surface-500">
-            Showing {pageStart + 1}-{Math.min(pageStart + SESSIONS_PER_PAGE, sessions.length)} of {sessions.length}
+          <p className="text-xs text-surface-500">
+            Showing {pageStart + 1}–{Math.min(pageStart + SESSIONS_PER_PAGE, sessions.length)} of {sessions.length}
           </p>
           <div className="flex items-center gap-2 w-full sm:w-auto">
             <button
               type="button"
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
               disabled={safeCurrentPage === 1}
-              className="btn-secondary rounded-xl min-h-[2.5rem] px-3 disabled:opacity-50 flex-1 sm:flex-none"
+              className="btn-secondary btn-sm flex-1 sm:flex-none"
             >
               Previous
             </button>
-            <span className="text-xs sm:text-sm text-surface-600 min-w-[80px] text-center flex-none">
+            <span className="text-xs font-medium text-surface-600 min-w-[80px] text-center">
               Page {safeCurrentPage} / {totalPages}
             </span>
             <button
               type="button"
               onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
               disabled={safeCurrentPage === totalPages}
-              className="btn-secondary rounded-xl min-h-[2.5rem] px-3 disabled:opacity-50 flex-1 sm:flex-none"
+              className="btn-secondary btn-sm flex-1 sm:flex-none"
             >
               Next
             </button>

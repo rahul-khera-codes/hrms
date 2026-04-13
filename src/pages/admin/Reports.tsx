@@ -1,17 +1,17 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { format, subDays } from 'date-fns'
-import { BarChart3, Download } from 'lucide-react'
+import { BarChart3, Download, Search, LayoutGrid, Table2, Clock, TrendingUp, Moon } from 'lucide-react'
 import { getAdminAttendance, getReportsSummary } from '@/lib/apiAdmin'
 import type { AttendanceRecord } from '@/types'
 import AdminSelect from '@/components/AdminSelect'
 import { PageHeader } from '@/components/PageHeader'
 
 const statusColors: Record<string, string> = {
-  present: 'bg-brand-100 text-brand-700',
-  active: 'bg-amber-100 text-amber-700',
-  absent: 'bg-amber-100 text-amber-700',
-  leave: 'bg-surface-100 text-surface-600',
-  adjusted: 'bg-indigo-100 text-indigo-700',
+  present: 'badge-success',
+  active: 'badge-warning',
+  absent: 'badge-danger',
+  leave: 'badge-info',
+  adjusted: 'badge-brand',
 }
 
 function formatDurationFromHours(hours: number) {
@@ -43,16 +43,15 @@ export default function AdminReports() {
     totalHours: number
   } | null>(null)
   const [loading, setLoading] = useState(false)
+  const [search, setSearch] = useState('')
+  const [viewMode, setViewMode] = useState<'card' | 'table'>('table')
 
   const toDate = new Date()
   const fromDate = range === 'week' ? subDays(toDate, 7) : subDays(toDate, 30)
   const fromStr = format(fromDate, 'yyyy-MM-dd')
   const toStr = format(toDate, 'yyyy-MM-dd')
 
-  const rangeLabel =
-    range === 'week'
-      ? format(fromDate, 'MMM d') + ' – ' + format(toDate, 'MMM d, yyyy')
-      : format(fromDate, 'MMM d') + ' – ' + format(toDate, 'MMM d, yyyy')
+  const rangeLabel = format(fromDate, 'MMM d') + ' – ' + format(toDate, 'MMM d, yyyy')
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -78,10 +77,16 @@ export default function AdminReports() {
     fetchData()
   }, [fetchData])
 
+  const filteredAttendance = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return attendanceData
+    return attendanceData.filter((r) => r.employeeName.toLowerCase().includes(q))
+  }, [attendanceData, search])
+
   function handleExport() {
     if (reportType === 'attendance') {
       const headers = ['Employee', 'Date', 'Clock In', 'Clock Out', 'Regular', 'Overtime', 'Night', 'Total', 'Status']
-      const rows = attendanceData.map((r) => [
+      const rows = filteredAttendance.map((r) => [
         r.employeeName,
         r.date,
         r.clockIn ? format(new Date(r.clockIn), 'HH:mm:ss') : '',
@@ -103,6 +108,8 @@ export default function AdminReports() {
     }
   }
 
+  const isAttendance = reportType === 'attendance'
+
   return (
     <div className="page overflow-x-hidden">
       <PageHeader
@@ -113,124 +120,197 @@ export default function AdminReports() {
           <button
             type="button"
             onClick={handleExport}
-            disabled={loading || (reportType === 'attendance' && attendanceData.length === 0) || (reportType === 'payroll' && !summaryData)}
+            disabled={loading || (isAttendance && filteredAttendance.length === 0) || (!isAttendance && !summaryData)}
             className="btn-primary"
           >
             <Download className="w-4 h-4 shrink-0" />
-            Export report
+            Export CSV
           </button>
         }
       />
 
-      <div className="rounded-xl sm:rounded-2xl border border-surface-200/80 bg-white p-4 sm:p-6 shadow-sm">
-        <h2 className="text-sm sm:text-base font-semibold text-surface-900 mb-0.5 sm:mb-1">Report options</h2>
-        <p className="text-xs sm:text-sm text-surface-500 mb-4 sm:mb-5">Choose type and date range</p>
-        <div className="flex flex-col sm:flex-row flex-wrap gap-4 sm:gap-6">
-          <div className="flex-1 min-w-0 sm:flex-initial">
-            <label className="label">Report type</label>
-            <AdminSelect
-              value={reportType}
-              onChange={(val) => setReportType(val as 'attendance' | 'payroll')}
-              options={[
-                { value: 'attendance', label: 'Attendance summary' },
-                { value: 'payroll', label: 'Payroll summary' },
-              ]}
-            />
-          </div>
-          <div className="flex-1 min-w-0 sm:flex-initial">
-            <label className="label">Date range</label>
-            <AdminSelect
-              value={range}
-              onChange={(val) => setRange(val as 'week' | 'month')}
-              options={[
-                { value: 'week', label: 'Last 7 days' },
-                { value: 'month', label: 'Last 30 days' },
-              ]}
-            />
-          </div>
+      {/* Unified toolbar: search + filters + view toggle */}
+      <div className="toolbar">
+        <div className="relative flex-1 min-w-0">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400 shrink-0" />
+          <input
+            type="text"
+            placeholder="Search by employee name"
+            className="input pl-9"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            disabled={!isAttendance}
+          />
         </div>
+        <div className="w-full sm:w-48">
+          <AdminSelect
+            value={reportType}
+            onChange={(val) => setReportType(val as 'attendance' | 'payroll')}
+            options={[
+              { value: 'attendance', label: 'Attendance summary' },
+              { value: 'payroll', label: 'Payroll summary' },
+            ]}
+          />
+        </div>
+        <div className="w-full sm:w-36">
+          <AdminSelect
+            value={range}
+            onChange={(val) => setRange(val as 'week' | 'month')}
+            options={[
+              { value: 'week', label: 'Last 7 days' },
+              { value: 'month', label: 'Last 30 days' },
+            ]}
+          />
+        </div>
+        {isAttendance && (
+          <div className="segmented self-start sm:self-auto">
+            <button
+              type="button"
+              onClick={() => setViewMode('card')}
+              className={`segmented-item ${viewMode === 'card' ? 'segmented-item-active' : ''}`}
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+              Card
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('table')}
+              className={`segmented-item ${viewMode === 'table' ? 'segmented-item-active' : ''}`}
+            >
+              <Table2 className="w-3.5 h-3.5" />
+              Table
+            </button>
+          </div>
+        )}
       </div>
 
-      <div className="rounded-xl sm:rounded-2xl border border-surface-200/80 bg-white p-4 sm:p-6 shadow-sm min-w-0">
-        <div className="flex flex-col sm:flex-row items-start gap-3 mb-4 sm:mb-6">
-          <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-brand-50 flex items-center justify-center shrink-0">
-            <BarChart3 className="w-5 h-5 text-brand-600" />
+      {/* Report body */}
+      <div className="card overflow-hidden">
+        <div className="card-header">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-lg bg-brand-50 border border-brand-100 text-brand-600 flex items-center justify-center shrink-0">
+              <BarChart3 className="w-4 h-4" />
+            </div>
+            <div className="min-w-0">
+              <h2 className="text-sm font-semibold text-surface-900">
+                {isAttendance ? 'Attendance summary' : 'Payroll summary'}
+              </h2>
+              <p className="text-[11px] text-surface-500 mt-0.5 tabular-nums">{rangeLabel}</p>
+            </div>
           </div>
-          <div className="min-w-0">
-            <h2 className="text-sm sm:text-base font-semibold text-surface-900">
-              {reportType === 'attendance' ? 'Attendance summary' : 'Payroll summary'}
-            </h2>
-            <p className="text-xs sm:text-sm text-surface-500 mt-0.5 truncate">{rangeLabel}</p>
-          </div>
+          {isAttendance && !loading && (
+            <span className="badge-neutral text-[11px]">{filteredAttendance.length} records</span>
+          )}
         </div>
+
         {loading ? (
-          <div className="py-8 flex items-center justify-center">
-            <div className="w-8 h-8 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
+          <div className="p-12 flex items-center justify-center gap-3 text-surface-500 text-sm">
+            <div className="spinner" /> Loading…
           </div>
-        ) : reportType === 'payroll' ? (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-            <div className="rounded-lg sm:rounded-xl border border-surface-200/80 p-4 sm:p-5 shadow-sm">
-              <p className="text-[10px] sm:text-xs font-medium text-surface-500 uppercase tracking-wider">Total regular hours</p>
-              <p className="text-xl sm:text-2xl font-semibold text-surface-900 mt-1 tabular-nums">
-                {formatDurationFromHours(summaryData?.regularHours ?? 0)}
-              </p>
-            </div>
-            <div className="rounded-lg sm:rounded-xl border border-surface-200/80 p-4 sm:p-5 shadow-sm">
-              <p className="text-[10px] sm:text-xs font-medium text-surface-500 uppercase tracking-wider">Total overtime</p>
-              <p className="text-xl sm:text-2xl font-semibold text-surface-900 mt-1 tabular-nums">
-                {formatDurationFromHours(summaryData?.overtimeHours ?? 0)}
-              </p>
-            </div>
-            <div className="rounded-lg sm:rounded-xl border border-brand-200/80 bg-brand-50/50 p-4 sm:p-5 shadow-sm">
-              <p className="text-[10px] sm:text-xs font-medium text-brand-700 uppercase tracking-wider">Total hours</p>
-              <p className="text-xl sm:text-2xl font-semibold text-surface-900 mt-1 tabular-nums">
-                {formatDurationFromHours(summaryData?.totalHours ?? 0)}
-              </p>
+        ) : !isAttendance ? (
+          <div className="p-4 sm:p-5">
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 sm:gap-4">
+              <div className="stat-card flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-brand-50 border border-brand-100 text-brand-600 flex items-center justify-center shrink-0">
+                  <Clock className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <p className="stat-label">Regular</p>
+                  <p className="stat-value">{formatDurationFromHours(summaryData?.regularHours ?? 0)}</p>
+                </div>
+              </div>
+              <div className="stat-card flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-50 border border-amber-100 text-amber-600 flex items-center justify-center shrink-0">
+                  <TrendingUp className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <p className="stat-label">Overtime</p>
+                  <p className="stat-value">{formatDurationFromHours(summaryData?.overtimeHours ?? 0)}</p>
+                </div>
+              </div>
+              <div className="stat-card flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center shrink-0">
+                  <Moon className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <p className="stat-label">Night</p>
+                  <p className="stat-value">{formatDurationFromHours(summaryData?.nightHours ?? 0)}</p>
+                </div>
+              </div>
+              <div className="stat-card bg-brand-50/50 border-brand-200/70 flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-brand-100 text-brand-700 flex items-center justify-center shrink-0">
+                  <Clock className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <p className="stat-label text-brand-700">Total</p>
+                  <p className="stat-value">{formatDurationFromHours(summaryData?.totalHours ?? 0)}</p>
+                </div>
+              </div>
             </div>
           </div>
-        ) : (
-          <div className="overflow-x-auto rounded-lg sm:rounded-xl border border-surface-200/80 overflow-hidden -mx-px">
-            <table className="w-full text-left min-w-[420px] border-separate [border-spacing:0_8px] px-2">
-              <thead>
-                <tr className="border-b border-surface-100 bg-surface-50/80">
-                  <th className="px-3 py-2.5 sm:px-5 sm:py-3.5 text-[10px] sm:text-xs font-semibold text-surface-500 uppercase tracking-wider">
-                    Employee
-                  </th>
-                  <th className="px-3 py-2.5 sm:px-5 sm:py-3.5 text-[10px] sm:text-xs font-semibold text-surface-500 uppercase tracking-wider">
-                    Date
-                  </th>
-                  <th className="px-3 py-2.5 sm:px-5 sm:py-3.5 text-[10px] sm:text-xs font-semibold text-surface-500 uppercase tracking-wider">
-                    Hours
-                  </th>
-                  <th className="px-3 py-2.5 sm:px-5 sm:py-3.5 text-[10px] sm:text-xs font-semibold text-surface-500 uppercase tracking-wider">
-                    Status
-                  </th>
+        ) : filteredAttendance.length === 0 ? (
+          <div className="empty-state">
+            <div className="empty-state-icon"><BarChart3 className="w-5 h-5" /></div>
+            <p className="empty-state-title">{search ? 'No matches' : 'No records'}</p>
+            <p className="empty-state-description">
+              {search ? 'Try a different search term.' : 'No attendance records in the selected period.'}
+            </p>
+          </div>
+        ) : viewMode === 'table' ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead className="sticky top-0 bg-surface-50/95 backdrop-blur-sm shadow-[0_1px_0_0_theme(colors.surface.200)] z-10">
+                <tr>
+                  <th className="px-3 py-2.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap">Employee</th>
+                  <th className="px-3 py-2.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap">Date</th>
+                  <th className="px-3 py-2.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap">Clock In</th>
+                  <th className="px-3 py-2.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap">Clock Out</th>
+                  <th className="px-3 py-2.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap text-right">Hours</th>
+                  <th className="px-3 py-2.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap">Status</th>
                 </tr>
               </thead>
               <tbody>
-                {attendanceData.map((r) => (
-                  <tr
-                    key={r.id}
-                    className="bg-white ring-1 ring-surface-200/80 hover:shadow-md hover:ring-brand-200/80 transition-all"
-                  >
-                    <td className="px-3 py-2.5 sm:px-5 sm:py-3.5 text-xs sm:text-sm font-medium text-surface-900 truncate max-w-[100px] sm:max-w-none rounded-l-xl">{r.employeeName}</td>
-                    <td className="px-3 py-2.5 sm:px-5 sm:py-3.5 text-xs sm:text-sm text-surface-700 tabular-nums whitespace-nowrap">{r.date}</td>
-                    <td className="px-3 py-2.5 sm:px-5 sm:py-3.5 text-xs sm:text-sm text-surface-700 tabular-nums">
+                {filteredAttendance.map((r) => (
+                  <tr key={r.id} className="border-b border-surface-100 hover:bg-brand-50/30 transition-colors">
+                    <td className="px-3 py-2.5 text-xs font-medium text-surface-900 whitespace-nowrap">{r.employeeName}</td>
+                    <td className="px-3 py-2.5 text-xs text-surface-700 tabular-nums whitespace-nowrap">{r.date}</td>
+                    <td className="px-3 py-2.5 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">
+                      {r.clockIn ? format(new Date(r.clockIn), 'HH:mm:ss') : '-'}
+                    </td>
+                    <td className="px-3 py-2.5 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">
+                      {r.clockOut ? format(new Date(r.clockOut), 'HH:mm:ss') : '-'}
+                    </td>
+                    <td className="px-3 py-2.5 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap text-right">
                       {formatDurationFromHours(r.regularHours + r.overtimeHours)}
                     </td>
-                    <td className="px-3 py-2.5 sm:px-5 sm:py-3.5 rounded-r-xl">
-                      <span className={`inline-flex items-center px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-medium ${statusColors[r.status] ?? 'bg-surface-100 text-surface-600'}`}>
-                        {r.status}
-                      </span>
+                    <td className="px-3 py-2.5 whitespace-nowrap">
+                      <span className={`${statusColors[r.status] ?? 'badge-neutral'} capitalize`}>{r.status}</span>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-            {attendanceData.length === 0 && (
-              <div className="p-8 text-center text-surface-500 text-sm">No attendance records in this period.</div>
-            )}
           </div>
+        ) : (
+          <ul className="p-3 sm:p-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+            {filteredAttendance.map((r) => (
+              <li
+                key={r.id}
+                className="flex items-center gap-3 p-3 rounded-xl border border-surface-200/70 bg-white hover:shadow-card-hover hover:border-brand-200/70 transition-all"
+              >
+                <div className="w-9 h-9 rounded-lg bg-surface-100 flex items-center justify-center text-surface-500 text-xs font-semibold shrink-0">
+                  {r.employeeName.charAt(0).toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-surface-900 truncate">{r.employeeName}</p>
+                  <p className="text-[11px] text-surface-500 mt-0.5 tabular-nums">
+                    {r.date} · {formatDurationFromHours(r.regularHours + r.overtimeHours)}
+                  </p>
+                </div>
+                <span className={`${statusColors[r.status] ?? 'badge-neutral'} capitalize shrink-0`}>{r.status}</span>
+              </li>
+            ))}
+          </ul>
         )}
       </div>
     </div>

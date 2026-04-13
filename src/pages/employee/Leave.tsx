@@ -4,12 +4,6 @@ import { createLeaveRequest, getMyLeaveRequests, type LeaveRequestItem } from '@
 import AdminSelect from '@/components/AdminSelect'
 import { PageHeader } from '@/components/PageHeader'
 
-const statusColors: Record<string, string> = {
-  pending: 'bg-amber-100 text-amber-700',
-  approved: 'bg-emerald-100 text-emerald-700',
-  rejected: 'bg-red-100 text-red-700',
-}
-
 type LeaveCategory = 'marriage' | 'bereavement' | 'time_off' | 'maternity' | 'paternity' | 'medical_license' | 'vacation'
 const leaveCategoryOptions: Array<{ value: LeaveCategory; label: string }> = [
   { value: 'vacation', label: 'Vacaciones' },
@@ -172,9 +166,19 @@ export default function EmployeeLeave() {
         icon={<CalendarCheck2 className="w-5 h-5" />}
       />
 
-      <div className="rounded-xl sm:rounded-2xl border border-surface-200/80 bg-white p-4 sm:p-6 shadow-sm">
-        <h2 className="text-sm sm:text-base font-semibold text-surface-900 mb-4">New leave request</h2>
-        <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
+      <div className="card">
+        <div className="card-header">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-lg bg-brand-50 border border-brand-100 text-brand-600 flex items-center justify-center shrink-0">
+              <CalendarCheck2 className="w-4 h-4" />
+            </div>
+            <div className="min-w-0">
+              <h2 className="text-sm font-semibold text-surface-900">New leave request</h2>
+              <p className="text-[11px] text-surface-500 mt-0.5">Fill in your leave details below</p>
+            </div>
+          </div>
+        </div>
+        <form onSubmit={handleSubmit} className="p-4 sm:p-5 space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {/* Leave Type */}
             <div className="sm:col-span-2">
@@ -295,67 +299,86 @@ export default function EmployeeLeave() {
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               rows={3}
-              className="input w-full rounded-xl"
+              className="input"
               placeholder="Short reason"
             />
           </div>
-          <button
-            type="submit"
-            disabled={saving}
-            className="btn-primary rounded-xl min-h-[2.75rem] px-4 inline-flex items-center justify-center gap-2 w-full sm:w-auto disabled:opacity-60"
-          >
-            <Send className="w-4 h-4" />
-            {saving ? 'Submitting...' : 'Submit request'}
-          </button>
+          <div className="flex justify-end pt-2 border-t border-surface-100">
+            <button
+              type="submit"
+              disabled={saving}
+              className="btn-primary"
+            >
+              <Send className="w-4 h-4" />
+              {saving ? 'Submitting…' : 'Submit request'}
+            </button>
+          </div>
         </form>
       </div>
 
-      <div className="rounded-xl sm:rounded-2xl border border-surface-200/80 bg-white shadow-sm overflow-hidden">
-        <div className="px-4 sm:px-6 pt-4 sm:pt-5">
-          <h2 className="text-sm sm:text-base font-semibold text-surface-900">My requests</h2>
-          <p className="text-xs sm:text-sm text-surface-500 mt-1">Pending: {pendingCount}</p>
+      <div className="card overflow-hidden">
+        <div className="card-header">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-lg bg-surface-100 border border-surface-200 text-surface-600 flex items-center justify-center shrink-0">
+              <CalendarCheck2 className="w-4 h-4" />
+            </div>
+            <div className="min-w-0">
+              <h2 className="text-sm font-semibold text-surface-900">My requests</h2>
+              <p className="text-[11px] text-surface-500 mt-0.5">Track the status of your leave requests</p>
+            </div>
+          </div>
+          {pendingCount > 0 && <span className="badge-warning">{pendingCount} pending</span>}
         </div>
         {loading ? (
-          <div className="p-8 text-center text-surface-500 text-sm">Loading...</div>
+          <div className="p-6 flex items-center gap-3 text-surface-500 text-sm">
+            <div className="spinner" /> Loading requests…
+          </div>
         ) : requests.length === 0 ? (
-          <div className="p-8 text-center text-surface-500 text-sm">No leave requests yet.</div>
+          <div className="empty-state">
+            <div className="empty-state-icon"><CalendarCheck2 className="w-5 h-5" /></div>
+            <p className="empty-state-title">No leave requests yet</p>
+            <p className="empty-state-description">Submit your first request using the form above.</p>
+          </div>
         ) : (
-          <ul className="p-3 sm:p-4 grid grid-cols-1 gap-3">
-            {requests.map((r) => (
-              <li
-                key={r.id}
-                className="flex flex-col sm:flex-row sm:items-center gap-4 p-4 sm:p-5 rounded-xl border border-surface-200/80 bg-white transition-all hover:shadow-md hover:border-brand-200/80"
-              >
-                <div className="w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center shrink-0">
-                  <CalendarCheck2 className="w-5 h-5 text-brand-600" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-surface-900">
-                    {r.startDate} - {r.endDate}
-                    {r.leaveCategory ? ` · ${CATEGORY_LABELS[r.leaveCategory] || r.leaveCategory}` : ''}
-                  </p>
-                  <p className="text-xs text-surface-500 mt-0.5">
-                    {r.leaveType === 'paid' ? 'Paid leave' : 'Unpaid leave'}
-                    {r.associateDaysOff ? ` · Days off: ${r.associateDaysOff}` : ''}
-                    {r.returnDate ? ` · Return: ${r.returnDate}` : ''}
-                  </p>
-                  {r.reason ? <p className="text-xs text-surface-500 mt-0.5">{r.reason}</p> : null}
-                  {r.status === 'approved' &&
-                  r.leavePayableAmount != null &&
-                  r.leavePayableAmount > 0 ? (
-                    <p className="text-xs font-medium text-brand-700 mt-0.5 tabular-nums">
-                      Approved leave pay: ${r.leavePayableAmount.toFixed(2)}
+          <ul className="p-3 sm:p-4 space-y-2">
+            {requests.map((r) => {
+              const statusBadgeClass = r.status === 'approved' ? 'badge-success' : r.status === 'rejected' ? 'badge-danger' : 'badge-warning'
+              return (
+                <li
+                  key={r.id}
+                  className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 sm:p-4 rounded-xl border border-surface-200/70 bg-white hover:shadow-card-hover hover:border-brand-200/70 transition-all"
+                >
+                  <div className="w-9 h-9 rounded-lg bg-brand-50 flex items-center justify-center shrink-0 text-brand-600">
+                    <CalendarCheck2 className="w-4 h-4" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-surface-900 tabular-nums">
+                      {r.startDate} → {r.endDate}
+                      {r.leaveCategory ? <span className="text-surface-500 font-normal"> · {CATEGORY_LABELS[r.leaveCategory] || r.leaveCategory}</span> : null}
                     </p>
-                  ) : null}
-                  {r.reviewedNote ? (
-                    <p className="text-xs text-surface-500 mt-0.5">Note: {r.reviewedNote}</p>
-                  ) : null}
-                </div>
-                <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium self-start sm:self-auto ${statusColors[r.status] || 'bg-surface-100 text-surface-600'}`}>
-                  {r.status}
-                </span>
-              </li>
-            ))}
+                    <p className="text-[11px] text-surface-500 mt-0.5">
+                      <span className={r.leaveType === 'paid' ? 'badge-brand mr-1' : 'badge-neutral mr-1'}>
+                        {r.leaveType === 'paid' ? 'Paid' : 'Unpaid'}
+                      </span>
+                      {r.associateDaysOff ? `Days off: ${r.associateDaysOff}` : ''}
+                      {r.returnDate ? ` · Return: ${r.returnDate}` : ''}
+                    </p>
+                    {r.reason ? <p className="text-[11px] text-surface-600 mt-1 italic">"{r.reason}"</p> : null}
+                    {r.status === 'approved' && r.leavePayableAmount != null && r.leavePayableAmount > 0 ? (
+                      <p className="text-[11px] font-semibold text-brand-700 mt-1 tabular-nums">
+                        Approved pay: ${r.leavePayableAmount.toFixed(2)}
+                      </p>
+                    ) : null}
+                    {r.reviewedNote ? (
+                      <p className="text-[11px] text-surface-500 mt-1">Note: {r.reviewedNote}</p>
+                    ) : null}
+                  </div>
+                  <span className={`${statusBadgeClass} self-start sm:self-auto capitalize shrink-0`}>
+                    {r.status}
+                  </span>
+                </li>
+              )
+            })}
           </ul>
         )}
       </div>

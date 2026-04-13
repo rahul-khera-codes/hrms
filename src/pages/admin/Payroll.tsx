@@ -508,37 +508,40 @@ export default function AdminPayroll() {
       />
 
 
-      <div className="rounded-xl sm:rounded-2xl border border-surface-200/80 bg-white p-4 sm:p-6 shadow-sm">
-        <h2 className="text-sm sm:text-base font-semibold text-surface-900 mb-0.5 sm:mb-1">Pay period</h2>
-        <p className="text-xs sm:text-sm text-surface-500 mb-4 sm:mb-5">Select the date range to calculate</p>
-        <div className="flex flex-col sm:flex-row flex-wrap gap-3 sm:gap-4 items-stretch sm:items-end">
-          <div className="flex-1 sm:flex-initial min-w-0">
-            <label className="label">Start date</label>
-            <div className="sm:w-40">
+      <div className="card">
+        <div className="card-header">
+          <div>
+            <h2 className="text-sm font-semibold text-surface-900">Pay period</h2>
+            <p className="text-xs text-surface-500 mt-0.5">Select the date range to calculate</p>
+          </div>
+          <div className="w-8 h-8 rounded-lg bg-brand-50 border border-brand-100 text-brand-600 flex items-center justify-center">
+            <Calendar className="w-4 h-4" />
+          </div>
+        </div>
+        <div className="p-4 sm:p-5 space-y-3">
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-3 sm:items-end">
+            <div className="flex-1 min-w-0 sm:max-w-[220px]">
+              <label className="label">Start date</label>
               <AdminDatePicker value={periodStart} onChange={(val) => setPeriodStart(val)} />
             </div>
-          </div>
-          <div className="flex-1 sm:flex-initial min-w-0">
-            <label className="label">End date</label>
-            <div className="sm:w-40">
+            <div className="flex-1 min-w-0 sm:max-w-[220px]">
+              <label className="label">End date</label>
               <AdminDatePicker value={periodEnd} onChange={(val) => setPeriodEnd(val)} />
             </div>
+            <button
+              type="button"
+              onClick={handleCalculate}
+              disabled={loading}
+              className="btn-primary sm:ml-auto"
+            >
+              <Calculator className="w-4 h-4 shrink-0" />
+              {loading ? 'Calculating…' : 'Calculate payroll'}
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={handleCalculate}
-            disabled={loading}
-            className="btn-primary flex items-center justify-center gap-2 rounded-xl w-full sm:w-auto min-h-[2.75rem] disabled:opacity-60"
-          >
-            <Calculator className="w-4 h-4 shrink-0" />
-            {loading ? 'Calculating…' : 'Calculate payroll'}
-          </button>
+          {error && (
+            <div className="alert-error"><span>{error}</span></div>
+          )}
         </div>
-        {error && (
-          <p className="mt-3 text-sm text-red-600" role="alert">
-            {error}
-          </p>
-        )}
       </div>
 
       {summary && (
