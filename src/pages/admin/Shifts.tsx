@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { createPortal } from 'react-dom'
 import { Clock, Plus, Pencil, Trash2, LayoutGrid, Table2, Search, Timer } from 'lucide-react'
 import { getShifts, getClients, createShift, updateShift, deleteShift, type Shift, type Client } from '@/lib/apiAdmin'
 import AdminSelect from '@/components/AdminSelect'
@@ -274,7 +275,7 @@ export default function AdminShifts() {
         )}
       </div>
 
-      {modal && (
+      {modal && createPortal(
         <div className="modal-backdrop" role="dialog" aria-modal="true">
           <button type="button" className="absolute inset-0" onClick={() => setModal(null)} aria-label="Close" />
           <div className="modal-frame">
@@ -323,7 +324,8 @@ export default function AdminShifts() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )

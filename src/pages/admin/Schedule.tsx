@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, CalendarDays } from 'lucide-react'
+import { useState, useEffect, useMemo } from 'react'
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, CalendarDays, Search } from 'lucide-react'
 import { getClients, getShifts, getEmployees, getSchedule, createScheduleAssignment, deleteScheduleAssignment, type Client, type Shift, type ScheduleAssignment } from '@/lib/apiAdmin'
 import { addDays, startOfWeek, format, parseISO } from 'date-fns'
 import AdminSelect from '@/components/AdminSelect'
@@ -20,6 +20,13 @@ export default function AdminSchedule() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [updating, setUpdating] = useState<string | null>(null)
+  const [search, setSearch] = useState('')
+
+  const filteredEmployees = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return employees
+    return employees.filter((e) => e.name.toLowerCase().includes(q))
+  }, [employees, search])
 
   const weekDates = Array.from({ length: 7 }, (_, i) => addDays(parseISO(weekStart), i))
   const fromDate = weekStart
@@ -92,60 +99,76 @@ export default function AdminSchedule() {
         icon={<CalendarDays className="w-5 h-5" />}
       />
 
-      <div className="rounded-xl sm:rounded-2xl border border-surface-200/80 bg-white p-4 sm:p-6 shadow-sm">
-        <div className="flex flex-col sm:flex-row flex-wrap gap-4 items-stretch sm:items-end">
-          <div className="flex-1 min-w-0 sm:max-w-xs">
-            <label className="label">BPO Client</label>
-            <AdminSelect
-              value={clientId}
-              onChange={(val) => setClientId(val)}
-              options={[
-                { value: '', label: 'Select client' },
-                ...clients.map((c) => ({ value: c.id, label: c.name })),
-              ]}
-            />
+      {/* Filter bar */}
+      <div className="toolbar">
+        <div className="relative flex-1 min-w-0">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400 shrink-0" />
+          <input
+            type="text"
+            placeholder="Search employees by name"
+            className="input pl-9"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        <div className="w-full sm:w-56">
+          <AdminSelect
+            value={clientId}
+            onChange={(val) => setClientId(val)}
+            options={[
+              { value: '', label: 'Select BPO client' },
+              ...clients.map((c) => ({ value: c.id, label: c.name })),
+            ]}
+          />
+        </div>
+        <div className="flex items-center gap-1 sm:ml-auto">
+          <button type="button" onClick={prevWeek} className="btn-icon text-surface-600 bg-white border border-surface-200 hover:bg-surface-50" aria-label="Previous week">
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          <div className="flex items-center gap-2 min-w-[180px] justify-center px-3 py-2 rounded-xl bg-surface-50 border border-surface-200">
+            <CalendarIcon className="w-4 h-4 text-surface-500 shrink-0" />
+            <span className="text-xs font-semibold text-surface-900 text-center tabular-nums whitespace-nowrap">
+              {format(weekDates[0], 'd MMM')} – {format(weekDates[6], 'd MMM yyyy')}
+            </span>
           </div>
-          <div className="flex items-center justify-between sm:justify-start gap-2 w-full sm:w-auto">
-            <button type="button" onClick={prevWeek} className="p-2 rounded-xl border border-surface-200 hover:bg-surface-50" aria-label="Previous week">
-              <ChevronLeft className="w-5 h-5 text-surface-600" />
-            </button>
-            <div className="flex items-center gap-2 min-w-0 justify-center flex-1 sm:flex-none sm:min-w-[200px]">
-              <CalendarIcon className="w-5 h-5 text-surface-500" />
-              <span className="text-sm font-medium text-surface-900 text-center">
-                {format(weekDates[0], 'd MMM')} – {format(weekDates[6], 'd MMM yyyy')}
-              </span>
-            </div>
-            <button type="button" onClick={nextWeek} className="p-2 rounded-xl border border-surface-200 hover:bg-surface-50" aria-label="Next week">
-              <ChevronRight className="w-5 h-5 text-surface-600" />
-            </button>
-          </div>
+          <button type="button" onClick={nextWeek} className="btn-icon text-surface-600 bg-white border border-surface-200 hover:bg-surface-50" aria-label="Next week">
+            <ChevronRight className="w-4 h-4" />
+          </button>
         </div>
       </div>
 
       {error && (
-        <p className="text-sm text-red-600" role="alert">{error}</p>
+        <div className="alert-error"><span>{error}</span></div>
       )}
 
       {!clientId ? (
-        <div className="rounded-xl border border-surface-200/80 bg-white p-8 text-center text-surface-500 text-sm">
-          Select a BPO client to view and edit the schedule.
+        <div className="card empty-state">
+          <div className="empty-state-icon"><CalendarDays className="w-5 h-5" /></div>
+          <p className="empty-state-title">Select a BPO client</p>
+          <p className="empty-state-description">Choose a client above to view and edit the weekly schedule.</p>
         </div>
       ) : loading && assignments.length === 0 ? (
-        <div className="rounded-xl border border-surface-200/80 bg-white p-8 text-center text-surface-500 text-sm">
-          Loading schedule…
+        <div className="card p-6 flex items-center justify-center gap-3 text-surface-500 text-sm">
+          <div className="spinner" /> Loading schedule…
+        </div>
+      ) : filteredEmployees.length === 0 && search ? (
+        <div className="card empty-state">
+          <div className="empty-state-icon"><Search className="w-5 h-5" /></div>
+          <p className="empty-state-title">No matches</p>
+          <p className="empty-state-description">No employees match "{search}".</p>
         </div>
       ) : (
-        <div className="rounded-xl sm:rounded-2xl border border-surface-200/80 bg-white shadow-sm min-w-0">
+        <div className="card overflow-hidden min-w-0">
           <div className="overflow-x-auto">
           <table className="w-full text-left text-sm border-collapse min-w-[780px]">
             <thead>
               <tr className="border-b border-surface-200 bg-surface-50/80">
-                <th className="py-3 px-3 font-medium text-surface-700 md:sticky md:left-0 bg-surface-50/80 md:z-10 min-w-[140px]">Employee</th>
+                <th className="py-3 px-3 text-[10px] font-semibold text-surface-500 uppercase tracking-wider md:sticky md:left-0 bg-surface-50 md:z-10 min-w-[140px]">Employee</th>
                 {weekDates.map((d) => (
-                  <th key={d.toISOString()} className="py-3 px-2 font-medium text-surface-700 text-center whitespace-nowrap min-w-[90px]">
+                  <th key={d.toISOString()} className="py-3 px-2 text-[10px] font-semibold text-surface-500 uppercase tracking-wider text-center whitespace-nowrap min-w-[90px]">
                     {WEEKDAY_LABELS[d.getDay() === 0 ? 6 : d.getDay() - 1]}
                     <br />
-                    <span className="text-xs font-normal text-surface-500">{format(d, 'd')}</span>
+                    <span className="text-xs font-normal text-surface-700 normal-case">{format(d, 'd')}</span>
                   </th>
                 ))}
               </tr>
@@ -153,12 +176,12 @@ export default function AdminSchedule() {
             <tbody>
               {employees.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-8 text-center text-surface-500">No employees.</td>
+                  <td colSpan={8} className="py-8 text-center text-surface-500 text-sm">No employees.</td>
                 </tr>
               ) : (
-                employees.map((emp) => (
-                  <tr key={emp.id} className="border-b border-surface-100 hover:bg-surface-50/50">
-                    <td className="py-2 px-3 font-medium text-surface-900 md:sticky md:left-0 bg-white md:z-10 min-w-[140px]">{emp.name}</td>
+                filteredEmployees.map((emp) => (
+                  <tr key={emp.id} className="border-b border-surface-100 hover:bg-brand-50/20">
+                    <td className="py-2 px-3 text-xs font-medium text-surface-900 md:sticky md:left-0 bg-white md:z-10 min-w-[140px]">{emp.name}</td>
                     {weekDates.map((d) => {
                       const dateStr = format(d, 'yyyy-MM-dd')
                       const a = getAssignment(emp.id, dateStr)
@@ -174,7 +197,7 @@ export default function AdminSchedule() {
                               ...shifts.map((s) => ({ value: s.id, label: s.name })),
                             ]}
                             disabled={isUpdating}
-                            className="text-xs min-h-[2rem] w-full"
+                            className="text-xs w-full"
                           />
                         </td>
                       )

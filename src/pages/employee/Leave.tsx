@@ -159,10 +159,10 @@ export default function EmployeeLeave() {
   }
 
   return (
-    <div className="space-y-6 sm:space-y-8 overflow-x-hidden">
+    <div className="page overflow-x-hidden">
       {notice && (
-        <div className="fixed right-4 top-4 z-50 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700 shadow-lg">
-          {notice}
+        <div className="fixed right-4 top-4 z-50 alert-success shadow-lg">
+          <span>{notice}</span>
         </div>
       )}
 

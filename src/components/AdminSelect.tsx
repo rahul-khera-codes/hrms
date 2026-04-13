@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 
 interface AdminSelectOption {
   value: string
@@ -25,38 +26,79 @@ export default function AdminSelect({
   const [open, setOpen] = useState(false)
   const wrapperRef = useRef<HTMLDivElement | null>(null)
   const buttonRef = useRef<HTMLButtonElement | null>(null)
-  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 })
+  const dropdownRef = useRef<HTMLDivElement | null>(null)
+  const [dropdownPosition, setDropdownPosition] = useState<{
+    top: number
+    left: number
+    width: number
+    placement: 'bottom' | 'top'
+    maxHeight: number
+  }>({ top: 0, left: 0, width: 0, placement: 'bottom', maxHeight: 240 })
   const selected = options.find((o) => o.value === value)
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (!wrapperRef.current) return
-      if (!wrapperRef.current.contains(e.target as Node)) {
-        setOpen(false)
-      }
+      const target = e.target as Node
+      // Ignore clicks inside the wrapper OR inside the portaled dropdown
+      if (wrapperRef.current && wrapperRef.current.contains(target)) return
+      if (dropdownRef.current && dropdownRef.current.contains(target)) return
+      setOpen(false)
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
+  // Compute position when opening or on scroll/resize while open
   useEffect(() => {
-    if (open && buttonRef.current) {
+    if (!open || !buttonRef.current) return
+
+    function computePosition() {
+      if (!buttonRef.current) return
       const rect = buttonRef.current.getBoundingClientRect()
+      const spaceBelow = window.innerHeight - rect.bottom
+      const spaceAbove = rect.top
+      const desiredHeight = 240
+      const gap = 4
+
+      // Decide placement: default bottom, flip to top if bottom is cramped AND top has more room
+      const useTop = spaceBelow < 180 && spaceAbove > spaceBelow
+      const availableSpace = useTop ? spaceAbove - gap - 8 : spaceBelow - gap - 8
+      const maxHeight = Math.min(desiredHeight, Math.max(120, availableSpace))
+
       setDropdownPosition({
-        top: rect.bottom + window.scrollY,
+        top: useTop ? rect.top + window.scrollY - gap : rect.bottom + window.scrollY + gap,
         left: rect.left + window.scrollX,
         width: rect.width,
+        placement: useTop ? 'top' : 'bottom',
+        maxHeight,
       })
     }
+
+    computePosition()
+    window.addEventListener('scroll', computePosition, true)
+    window.addEventListener('resize', computePosition)
+    return () => {
+      window.removeEventListener('scroll', computePosition, true)
+      window.removeEventListener('resize', computePosition)
+    }
+  }, [open])
+
+  // Close on Escape
+  useEffect(() => {
+    if (!open) return
+    function handleEscape(e: KeyboardEvent) {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('keydown', handleEscape)
+    return () => document.removeEventListener('keydown', handleEscape)
   }, [open])
 
   const baseClass =
     'relative inline-block text-sm ' + (disabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer')
 
   const buttonClass =
-    'input w-full rounded-xl min-h-[2.75rem] flex items-center justify-between px-3 py-2 ' +
-    'transition-colors duration-150 hover:bg-surface-50 focus:outline-none focus:ring-2 ' +
-    'focus:ring-brand-200 focus:border-brand-400 ' +
+    'input flex items-center justify-between px-3 ' +
+    'transition-colors duration-150 hover:bg-surface-50 ' +
     (disabled ? 'pointer-events-none ' : '') +
     className
 
@@ -89,13 +131,19 @@ export default function AdminSelect({
           </svg>
         </span>
       </button>
-      {open && !disabled && (
+      {open && !disabled && createPortal(
         <div
-          className="fixed z-50 rounded-xl border border-surface-200 bg-white shadow-lg max-h-60 overflow-auto"
+          ref={dropdownRef}
+          className="fixed z-[200] rounded-xl border border-surface-200 bg-white shadow-xl overflow-auto"
           style={{
-            top: `${dropdownPosition.top}px`,
+            top: dropdownPosition.placement === 'bottom' ? `${dropdownPosition.top}px` : undefined,
+            bottom: dropdownPosition.placement === 'top'
+              ? `${window.innerHeight - dropdownPosition.top}px`
+              : undefined,
             left: `${dropdownPosition.left}px`,
-            width: `${dropdownPosition.width}px`,
+            minWidth: `${dropdownPosition.width}px`,
+            maxWidth: `max(${dropdownPosition.width}px, 200px)`,
+            maxHeight: `${dropdownPosition.maxHeight}px`,
           }}
         >
           <ul className="py-1 text-sm" role="listbox">
@@ -120,7 +168,7 @@ export default function AdminSelect({
                   >
                     <span className="truncate">{opt.label}</span>
                     {isActive && (
-                      <span className="ml-2 text-brand-500">
+                      <span className="ml-2 text-brand-500 shrink-0">
                         <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
                           <path
                             fillRule="evenodd"
@@ -135,9 +183,9 @@ export default function AdminSelect({
               )
             })}
           </ul>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )
 }
-

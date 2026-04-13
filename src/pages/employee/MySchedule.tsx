@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { CalendarDays, Clock, Building2 } from 'lucide-react'
+import { CalendarDays, Clock, Building2, ChevronLeft, ChevronRight, Search } from 'lucide-react'
 import { getMySchedule, type MyScheduleEntry } from '@/lib/apiEmployee'
 import { format, addDays, startOfWeek, parseISO } from 'date-fns'
 import AdminSelect from '@/components/AdminSelect'
@@ -87,63 +87,63 @@ export default function EmployeeMySchedule() {
         icon={<CalendarDays className="w-5 h-5" />}
       />
 
-      <div className="rounded-xl border border-surface-200/80 bg-white p-4 shadow-sm">
-        <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3">
-          <button type="button" onClick={prevWeek} className="p-2 rounded-xl border border-surface-200 hover:bg-surface-50" aria-label="Previous week">
-            ←
+      {/* Filter toolbar */}
+      <div className="toolbar">
+        <div className="w-full sm:w-44">
+          <AdminSelect
+            value={clientFilter}
+            onChange={(val) => setClientFilter(val)}
+            options={[
+              { value: 'all', label: 'All clients' },
+              ...clientOptions.map((name) => ({ value: name, label: name })),
+            ]}
+          />
+        </div>
+        <div className="w-full sm:w-44">
+          <AdminSelect
+            value={shiftFilter}
+            onChange={(val) => setShiftFilter(val)}
+            options={[
+              { value: 'all', label: 'All shifts' },
+              ...shiftOptions.map((name) => ({ value: name, label: name })),
+            ]}
+          />
+        </div>
+        <div className="flex items-center gap-1 sm:ml-auto">
+          <button type="button" onClick={prevWeek} className="btn-icon text-surface-600 bg-white border border-surface-200 hover:bg-surface-50" aria-label="Previous week">
+            <ChevronLeft className="w-4 h-4" />
           </button>
-          <div className="flex items-center gap-2 min-w-[200px] justify-center">
-            <CalendarDays className="w-5 h-5 text-surface-500" />
-            <span className="text-sm font-medium text-surface-900">
+          <div className="flex items-center gap-2 min-w-[180px] justify-center px-3 py-2 rounded-xl bg-surface-50 border border-surface-200">
+            <CalendarDays className="w-4 h-4 text-surface-500 shrink-0" />
+            <span className="text-xs font-semibold text-surface-900 text-center tabular-nums whitespace-nowrap">
               {format(weekDates[0], 'd MMM')} – {format(weekDates[6], 'd MMM yyyy')}
             </span>
           </div>
-          <button type="button" onClick={nextWeek} className="p-2 rounded-xl border border-surface-200 hover:bg-surface-50" aria-label="Next week">
-            →
+          <button type="button" onClick={nextWeek} className="btn-icon text-surface-600 bg-white border border-surface-200 hover:bg-surface-50" aria-label="Next week">
+            <ChevronRight className="w-4 h-4" />
           </button>
-        </div>
-      </div>
-
-      <div className="rounded-xl border border-surface-200/80 bg-white p-4 shadow-sm">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
-            <label className="label">Filter by client</label>
-            <AdminSelect
-              value={clientFilter}
-              onChange={(val) => setClientFilter(val)}
-              options={[
-                { value: 'all', label: 'All clients' },
-                ...clientOptions.map((name) => ({ value: name, label: name })),
-              ]}
-            />
-          </div>
-          <div>
-            <label className="label">Filter by shift</label>
-            <AdminSelect
-              value={shiftFilter}
-              onChange={(val) => setShiftFilter(val)}
-              options={[
-                { value: 'all', label: 'All shifts' },
-                ...shiftOptions.map((name) => ({ value: name, label: name })),
-              ]}
-            />
-          </div>
         </div>
       </div>
 
       {error && (
-        <p className="text-sm text-red-600" role="alert">{error}</p>
+        <div className="alert-error"><span>{error}</span></div>
       )}
 
       {loading ? (
-        <div className="rounded-xl border border-surface-200/80 bg-white p-8 text-center text-surface-500 text-sm">Loading…</div>
+        <div className="card p-6 flex items-center justify-center gap-3 text-surface-500 text-sm">
+          <div className="spinner" /> Loading…
+        </div>
       ) : entries.length === 0 ? (
-        <div className="rounded-xl border border-surface-200/80 bg-white p-8 text-center text-surface-500 text-sm">
-          No shifts assigned for this week.
+        <div className="card empty-state">
+          <div className="empty-state-icon"><CalendarDays className="w-5 h-5" /></div>
+          <p className="empty-state-title">No shifts this week</p>
+          <p className="empty-state-description">No shifts have been assigned to you for this week.</p>
         </div>
       ) : filteredEntries.length === 0 ? (
-        <div className="rounded-xl border border-surface-200/80 bg-white p-8 text-center text-surface-500 text-sm">
-          No shifts match the selected filters.
+        <div className="card empty-state">
+          <div className="empty-state-icon"><Search className="w-5 h-5" /></div>
+          <p className="empty-state-title">No matches</p>
+          <p className="empty-state-description">No shifts match the selected filters.</p>
         </div>
       ) : (
         <ul className="p-3 sm:p-4 grid grid-cols-1 gap-3">
