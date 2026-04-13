@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { CalendarDays, Clock, Building2, ChevronLeft, ChevronRight, Search } from 'lucide-react'
+import { CalendarDays, Clock, Building2, ChevronLeft, ChevronRight, Search, LayoutGrid, Table2 } from 'lucide-react'
 import { getMySchedule, type MyScheduleEntry } from '@/lib/apiEmployee'
 import { format, addDays, startOfWeek, parseISO } from 'date-fns'
 import AdminSelect from '@/components/AdminSelect'
@@ -17,6 +17,7 @@ export default function EmployeeMySchedule() {
   const [error, setError] = useState<string | null>(null)
   const [clientFilter, setClientFilter] = useState('all')
   const [shiftFilter, setShiftFilter] = useState('all')
+  const [viewMode, setViewMode] = useState<'card' | 'table'>('table')
   const [weekStart, setWeekStart] = useState(() => {
     const d = startOfWeek(new Date(), { weekStartsOn: 1 })
     return format(d, 'yyyy-MM-dd')
@@ -89,7 +90,7 @@ export default function EmployeeMySchedule() {
 
       {/* Filter toolbar */}
       <div className="toolbar">
-        <div className="w-full sm:w-44">
+        <div className="w-full sm:w-40">
           <AdminSelect
             value={clientFilter}
             onChange={(val) => setClientFilter(val)}
@@ -99,7 +100,7 @@ export default function EmployeeMySchedule() {
             ]}
           />
         </div>
-        <div className="w-full sm:w-44">
+        <div className="w-full sm:w-40">
           <AdminSelect
             value={shiftFilter}
             onChange={(val) => setShiftFilter(val)}
@@ -109,11 +110,29 @@ export default function EmployeeMySchedule() {
             ]}
           />
         </div>
+        <div className="segmented self-start sm:self-auto">
+          <button
+            type="button"
+            onClick={() => setViewMode('card')}
+            className={`segmented-item ${viewMode === 'card' ? 'segmented-item-active' : ''}`}
+          >
+            <LayoutGrid className="w-3.5 h-3.5" />
+            Card
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode('table')}
+            className={`segmented-item ${viewMode === 'table' ? 'segmented-item-active' : ''}`}
+          >
+            <Table2 className="w-3.5 h-3.5" />
+            Table
+          </button>
+        </div>
         <div className="flex items-center gap-1 sm:ml-auto">
           <button type="button" onClick={prevWeek} className="btn-icon text-surface-600 bg-white border border-surface-200 hover:bg-surface-50" aria-label="Previous week">
             <ChevronLeft className="w-4 h-4" />
           </button>
-          <div className="flex items-center gap-2 min-w-[180px] justify-center px-3 py-2 rounded-xl bg-surface-50 border border-surface-200">
+          <div className="flex items-center gap-2 min-w-[170px] justify-center px-3 py-2 rounded-xl bg-surface-50 border border-surface-200">
             <CalendarDays className="w-4 h-4 text-surface-500 shrink-0" />
             <span className="text-xs font-semibold text-surface-900 text-center tabular-nums whitespace-nowrap">
               {format(weekDates[0], 'd MMM')} – {format(weekDates[6], 'd MMM yyyy')}
@@ -145,33 +164,71 @@ export default function EmployeeMySchedule() {
           <p className="empty-state-title">No matches</p>
           <p className="empty-state-description">No shifts match the selected filters.</p>
         </div>
-      ) : (
-        <ul className="p-3 sm:p-4 grid grid-cols-1 gap-3">
+      ) : viewMode === 'card' ? (
+        <ul className="p-3 sm:p-4 grid grid-cols-1 md:grid-cols-2 gap-3">
           {filteredEntries.map((e) => (
             <li
               key={e.id}
-              className="flex flex-col sm:flex-row sm:items-center gap-4 p-4 sm:p-5 rounded-xl border border-surface-200/80 bg-white transition-all hover:shadow-md hover:border-brand-200/80 min-w-0"
+              className="flex items-center gap-3 p-3 sm:p-4 rounded-xl border border-surface-200/70 bg-white transition-all hover:shadow-card-hover hover:border-brand-200/70 min-w-0"
             >
-              <div className="w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center shrink-0">
-                <CalendarDays className="w-5 h-5 text-brand-600" />
+              <div className="w-10 h-10 rounded-xl bg-brand-50 border border-brand-100 flex items-center justify-center shrink-0">
+                <CalendarDays className="w-4 h-4 text-brand-600" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-medium text-surface-900">{e.shiftName}</p>
-                <p className="text-xs text-surface-500 mt-0.5 flex items-center gap-1">
-                  <Building2 className="w-3.5 h-3.5" />
-                  {e.clientName}
+                <p className="text-sm font-semibold text-surface-900 truncate">{e.shiftName}</p>
+                <p className="text-[11px] text-surface-500 mt-0.5 flex items-center gap-1 truncate">
+                  <Building2 className="w-3 h-3 shrink-0" />
+                  <span className="truncate">{e.clientName}</span>
                 </p>
               </div>
-              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-xs sm:text-sm shrink-0 self-start sm:self-auto">
-                <span className="text-surface-600">{e.date ? format(parseISO(e.date), 'EEE, d MMM') : '—'}</span>
-                <span className="flex items-center gap-1 text-surface-700">
-                  <Clock className="w-4 h-4" />
-                  {formatTime(e.startTime)} – {formatTime(e.endTime)}
+              <div className="flex flex-col items-end gap-1 text-[11px] shrink-0">
+                <span className="text-surface-600 font-medium">{e.date ? format(parseISO(e.date), 'EEE, d MMM') : '—'}</span>
+                <span className="flex items-center gap-1 text-surface-700 font-mono tabular-nums">
+                  <Clock className="w-3 h-3" />
+                  {formatTime(e.startTime)}–{formatTime(e.endTime)}
                 </span>
               </div>
             </li>
           ))}
         </ul>
+      ) : (
+        <div className="card overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead className="sticky top-0 bg-surface-50/95 backdrop-blur-sm shadow-[0_1px_0_0_theme(colors.surface.200)] z-10">
+                <tr>
+                  <th className="px-3 py-2.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap">Date</th>
+                  <th className="px-3 py-2.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap">Shift</th>
+                  <th className="px-3 py-2.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap">Client</th>
+                  <th className="px-3 py-2.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap text-right">Start</th>
+                  <th className="px-3 py-2.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap text-right">End</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredEntries.map((e) => (
+                  <tr key={e.id} className="border-b border-surface-100 hover:bg-brand-50/30 transition-colors">
+                    <td className="px-3 py-2.5 text-xs font-medium text-surface-900 whitespace-nowrap tabular-nums">
+                      {e.date ? format(parseISO(e.date), 'EEE, d MMM') : '—'}
+                    </td>
+                    <td className="px-3 py-2.5 text-xs text-surface-900 font-medium whitespace-nowrap">{e.shiftName}</td>
+                    <td className="px-3 py-2.5 text-xs text-surface-700 whitespace-nowrap">
+                      <span className="inline-flex items-center gap-1">
+                        <Building2 className="w-3 h-3 text-surface-400 shrink-0" />
+                        {e.clientName}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2.5 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap text-right">
+                      {formatTime(e.startTime)}
+                    </td>
+                    <td className="px-3 py-2.5 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap text-right">
+                      {formatTime(e.endTime)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       )}
     </div>
   )

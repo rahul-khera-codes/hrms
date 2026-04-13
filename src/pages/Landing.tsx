@@ -483,7 +483,7 @@ export default function Landing() {
             <span className="font-semibold text-surface-900 text-sm sm:text-base">HARMONY</span>
           </div>
           <p className="text-xs sm:text-sm text-surface-500">
-            © {new Date().getFullYear()} TimeTrack. Time tracking & payroll.
+            © {new Date().getFullYear()} HARMONY. Time tracking & payroll.
           </p>
         </div>
       </footer>

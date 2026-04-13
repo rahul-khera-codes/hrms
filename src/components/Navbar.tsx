@@ -114,7 +114,7 @@ export function Navbar() {
         <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center shadow-sm">
           <span className="text-white text-xs font-bold">H</span>
         </div>
-        <div className="text-sm sm:text-base font-semibold text-surface-900 tracking-tight">HRMS</div>
+        <div className="text-sm sm:text-base font-semibold text-surface-900 tracking-tight">HARMONY</div>
       </div>
 
       <div ref={notificationWrapRef} className="relative">

@@ -47,7 +47,7 @@ export default function Login() {
           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center shadow-glow">
             <Clock className="w-5 h-5 text-white" />
           </div>
-          <span className="text-xl font-semibold text-white tracking-tight">TimeTrack</span>
+          <span className="text-xl font-semibold text-white tracking-tight">HARMONY</span>
         </div>
 
         <div className="relative z-10 space-y-8">
@@ -75,7 +75,7 @@ export default function Login() {
           </div>
         </div>
 
-        <p className="relative z-10 text-surface-500 text-xs">© TimeTrack. Sign in with your account.</p>
+        <p className="relative z-10 text-surface-500 text-xs">© HARMONY. Sign in with your account.</p>
       </div>
 
       {/* Right: Login form */}
@@ -85,7 +85,7 @@ export default function Login() {
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center shadow-sm">
               <Clock className="w-5 h-5 text-white" />
             </div>
-            <span className="text-xl font-semibold text-surface-900 tracking-tight">TimeTrack</span>
+            <span className="text-xl font-semibold text-surface-900 tracking-tight">HARMONY</span>
           </div>
 
           <div className="mb-8">

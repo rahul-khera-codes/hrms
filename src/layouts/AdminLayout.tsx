@@ -96,7 +96,7 @@ export default function AdminLayout() {
                     <Clock className="w-4 h-4 text-white" />
                   </div>
                   <div>
-                    <h1 className="text-sm font-semibold text-surface-900 tracking-tight leading-tight">TimeTrack</h1>
+                    <h1 className="text-sm font-semibold text-surface-900 tracking-tight leading-tight">HARMONY</h1>
                     <p className="text-[10px] text-surface-500 uppercase tracking-wider font-medium">Admin</p>
                   </div>
                 </div>
