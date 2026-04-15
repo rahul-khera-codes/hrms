@@ -28,6 +28,7 @@ export interface AttendanceRecord {
   employeeName: string
   employeeCmid?: number | null
   accountName?: string | null
+  accountId?: string | null
   date: string
   shiftStart?: string | null
   shiftEnd?: string | null
@@ -36,6 +37,7 @@ export interface AttendanceRecord {
   location?: string | null
   stage?: string | null
   reportsTo?: string | null
+  reportsToId?: string | null
   task?: string | null
   status: string
   payType?: string
@@ -52,6 +54,7 @@ export interface AttendanceRecord {
   hdyHours?: number
   holHours?: number
   comments?: string
+  isLocked?: boolean
   // Backward compatibility
   regularHours: number
   overtimeHours: number

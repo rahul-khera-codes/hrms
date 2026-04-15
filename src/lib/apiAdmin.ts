@@ -47,10 +47,38 @@ export async function updateAttendanceRecord(
     comments?: string | null
     shiftStart?: string | null
     shiftEnd?: string | null
+    clockIn?: string | null
+    clockOut?: string | null
+    reportsToOverride?: string | null
+    accountOverride?: string | null
+    isLocked?: boolean
+    force?: boolean
   }
 ): Promise<AttendanceRecord> {
   return api<AttendanceRecord>(`/api/admin/attendance/${sessionId}`, {
     method: 'PATCH',
+    body: JSON.stringify(data),
+  })
+}
+
+export async function createAttendanceRecord(data: {
+  employeeId: string
+  clockIn: string
+  clockOut?: string | null
+  shiftStart?: string | null
+  shiftEnd?: string | null
+  statusOverride?: string | null
+  payType?: string
+  billType?: string
+  task?: string | null
+  stage?: string | null
+  comments?: string | null
+  reportsToOverride?: string | null
+  accountOverride?: string | null
+  isLocked?: boolean
+}): Promise<AttendanceRecord> {
+  return api<AttendanceRecord>('/api/admin/attendance', {
+    method: 'POST',
     body: JSON.stringify(data),
   })
 }
@@ -471,6 +499,7 @@ export interface AdminLeaveRequest {
   dailySalary?: number | null
   employeeCmid?: number | null
   accountName?: string | null
+  isLocked?: boolean
 }
 
 export interface LeaveReviewContext {
@@ -510,16 +539,26 @@ export async function getLeaveReviewContext(id: string): Promise<LeaveReviewCont
 export async function reviewAdminLeaveRequest(
   id: string,
   data: {
-    status: 'approved' | 'rejected'
+    status?: 'approved' | 'rejected'
     reviewedNote?: string
     calculationType?: 'non_payable' | 'hourly_salary' | 'monthly_salary'
     associateDaysOff?: string[]
     payableDays?: number
+    isLocked?: boolean
+    force?: boolean
   }
 ): Promise<AdminLeaveRequest> {
   return api<AdminLeaveRequest>(`/api/admin/leave-requests/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(data),
+  })
+}
+
+/** Toggle just the lock state on a leave request (works on any status) */
+export async function setLeaveRequestLocked(id: string, locked: boolean): Promise<AdminLeaveRequest> {
+  return api<AdminLeaveRequest>(`/api/admin/leave-requests/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ isLocked: locked }),
   })
 }
 

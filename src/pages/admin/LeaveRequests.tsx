@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
-import { CalendarCheck2, Lock, Plus, Calendar, Clock3, Download, LayoutGrid, Table2, X } from 'lucide-react'
+import { CalendarCheck2, Lock, Unlock, Plus, Calendar, Clock3, Download, LayoutGrid, Table2, X, Search } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
 import {
   getAdminLeaveRequests,
   getLeaveReviewContext,
   reviewAdminLeaveRequest,
   createAdminLeaveRequest,
+  setLeaveRequestLocked,
   getEmployees,
   getPayrollPeriods,
   type AdminLeaveRequest,
@@ -97,7 +98,8 @@ export default function AdminLeaveRequests() {
   const [rows, setRows] = useState<AdminLeaveRequest[]>([])
   const [allRows, setAllRows] = useState<AdminLeaveRequest[]>([])
   const [loading, setLoading] = useState(true)
-  const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'approved' | 'rejected'>('pending')
+  const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all')
+  const [search, setSearch] = useState('')
   const [notice, setNotice] = useState('')
   const [reviewingId, setReviewingId] = useState<string | null>(null)
   const [reviewContext, setReviewContext] = useState<LeaveReviewContext | null>(null)
@@ -190,6 +192,17 @@ export default function AdminLeaveRequests() {
       rejected: allRows.filter((r) => r.status === 'rejected').length,
     }
   }, [allRows])
+
+  // Apply client-side search on the already-status-filtered rows
+  const displayedRows = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return rows
+    return rows.filter((r) =>
+      r.employeeName.toLowerCase().includes(q) ||
+      (r.employeeCmid != null && String(r.employeeCmid).includes(q)) ||
+      (r.accountName ?? '').toLowerCase().includes(q)
+    )
+  }, [rows, search])
 
   const preview = useMemo(() => {
     if (!reviewContext) return null
@@ -317,6 +330,20 @@ export default function AdminLeaveRequests() {
       .finally(() => setContextLoading(false))
   }
 
+  async function handleToggleLock(id: string, currentlyLocked: boolean) {
+    try {
+      await setLeaveRequestLocked(id, !currentlyLocked)
+      setNotice(currentlyLocked ? 'Leave unlocked.' : 'Leave locked.')
+      await load(false)
+      if (detailRow && detailRow.id === id) {
+        setDetailRow((prev) => (prev ? { ...prev, isLocked: !currentlyLocked } : prev))
+      }
+    } catch (err: unknown) {
+      const msg = err && typeof err === 'object' && 'message' in err ? String((err as Error).message) : 'Failed to toggle lock.'
+      setNotice(msg)
+    }
+  }
+
   async function submitReview() {
     if (!reviewingId) return
     setSaving(true)
@@ -367,7 +394,7 @@ export default function AdminLeaveRequests() {
   }
 
   function exportCSV() {
-    if (!rows.length) return
+    if (!displayedRows.length) return
     const headers = [
       'CMID',
       'Employee Name',
@@ -382,8 +409,9 @@ export default function AdminLeaveRequests() {
       'Payable Days',
       'Daily Salary',
       'Payable Amount',
+      'Payroll Cycle',
     ]
-    const csvRows = rows.map((r) => [
+    const csvRows = displayedRows.map((r) => [
       r.employeeCmid != null ? String(r.employeeCmid) : '',
       r.employeeName,
       r.accountName ?? '',
@@ -397,6 +425,7 @@ export default function AdminLeaveRequests() {
       r.leavePayableDays != null ? String(r.leavePayableDays) : '',
       r.dailySalary != null ? r.dailySalary.toFixed(2) : '',
       r.leavePayableAmount != null ? r.leavePayableAmount.toFixed(2) : '',
+      r.payrollCycleCode ?? '',
     ])
     const csv = [
       headers.join(','),
@@ -455,15 +484,25 @@ export default function AdminLeaveRequests() {
       </div>
 
       <div className="toolbar">
-        <div className="w-full sm:w-56">
+        <div className="relative flex-1 min-w-0">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400 shrink-0" />
+          <input
+            type="text"
+            placeholder="Search by employee, CMID, or account"
+            className="input pl-9"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        <div className="w-full sm:w-48">
           <AdminSelect
             value={filterStatus}
             onChange={(val) => setFilterStatus(val as 'all' | 'pending' | 'approved' | 'rejected')}
             options={[
+              { value: 'all', label: 'All' },
               { value: 'pending', label: 'Pending' },
               { value: 'approved', label: 'Approved' },
               { value: 'rejected', label: 'Rejected' },
-              { value: 'all', label: 'All' },
             ]}
           />
         </div>
@@ -489,7 +528,7 @@ export default function AdminLeaveRequests() {
           <button
             type="button"
             onClick={exportCSV}
-            disabled={loading || rows.length === 0}
+            disabled={loading || displayedRows.length === 0}
             className="btn-secondary btn-sm"
           >
             <Download className="w-3.5 h-3.5" />
@@ -501,15 +540,17 @@ export default function AdminLeaveRequests() {
       <div className="rounded-xl sm:rounded-2xl border border-surface-200/80 bg-white shadow-sm overflow-hidden">
         {loading ? (
           <div className="p-8 text-center text-surface-500 text-sm">Loading...</div>
-        ) : rows.length === 0 ? (
-          <div className="p-8 text-center text-surface-500 text-sm">No leave requests found.</div>
+        ) : displayedRows.length === 0 ? (
+          <div className="p-8 text-center text-surface-500 text-sm">
+            {search ? 'No matches for your search.' : 'No leave requests found.'}
+          </div>
         ) : viewMode === 'card' ? (
           <ul className="p-3 sm:p-4 grid grid-cols-1 gap-3">
-            {rows.map((r) => (
+            {displayedRows.map((r) => (
               <li
                 key={r.id}
                 className="flex flex-col sm:flex-row sm:items-center gap-4 p-4 sm:p-5 rounded-xl border border-surface-200/80 bg-white transition-all hover:shadow-md hover:border-brand-200/80 cursor-pointer"
-                onClick={() => r.status === 'pending' ? openReview(r) : setDetailRow(r)}
+                onClick={() => (r.isLocked ? setDetailRow(r) : openReview(r))}
               >
                 <div className="w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center shrink-0">
                   <CalendarCheck2 className="w-5 h-5 text-brand-600" />
@@ -531,12 +572,15 @@ export default function AdminLeaveRequests() {
                   ) : null}
                 </div>
                 <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto">
+                  {r.isLocked && (
+                    <span className="badge-neutral" title="Locked"><Lock className="w-3 h-3" /> Locked</span>
+                  )}
                   <span
                     className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${statusColors[r.status] || 'bg-surface-100 text-surface-600'}`}
                   >
                     {r.status}
                   </span>
-                  {r.status === 'pending' && (
+                  {r.status === 'pending' && !r.isLocked && (
                     <button type="button" onClick={(e) => { e.stopPropagation(); openReview(r) }} className="btn-secondary rounded-xl px-3 py-2 text-xs">
                       Review
                     </button>
@@ -564,6 +608,7 @@ export default function AdminLeaveRequests() {
                     'Payable Days',
                     'Daily Salary',
                     'Payable Amount',
+                    'Payroll Cycle',
                   ].map((col) => (
                     <th
                       key={col}
@@ -575,11 +620,11 @@ export default function AdminLeaveRequests() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r) => (
+                {displayedRows.map((r) => (
                   <tr
                     key={r.id}
                     className="border-b border-surface-100 hover:bg-brand-50/40 transition-colors cursor-pointer group"
-                    onClick={() => r.status === 'pending' ? openReview(r) : setDetailRow(r)}
+                    onClick={() => (r.isLocked ? setDetailRow(r) : openReview(r))}
                   >
                     <td className="px-3 py-2 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">{r.employeeCmid ?? '-'}</td>
                     <td className="px-3 py-2 text-xs font-medium text-surface-900 whitespace-nowrap">{r.employeeName}</td>
@@ -602,6 +647,7 @@ export default function AdminLeaveRequests() {
                     <td className={`px-3 py-2 text-xs tabular-nums whitespace-nowrap text-right font-semibold ${r.leavePayableAmount != null && r.leavePayableAmount > 0 ? 'text-brand-700' : 'text-surface-400'}`}>
                       {r.leavePayableAmount != null ? `$${r.leavePayableAmount.toFixed(2)}` : '-'}
                     </td>
+                    <td className="px-3 py-2 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">{r.payrollCycleCode ?? '-'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -1011,32 +1057,46 @@ export default function AdminLeaveRequests() {
               </>
             )}
 
-            <div className="mt-5 flex flex-col-reverse sm:flex-row justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setReviewingId(null)
-                  setReviewContext(null)
-                }}
-                className="btn-secondary rounded-xl px-4 py-2"
-                disabled={saving}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => void submitReview()}
-                className="btn-primary rounded-xl px-4 py-2"
-                disabled={saving || contextLoading || !reviewContext}
-              >
-                {saving ? 'Saving…' : 'Save'}
-              </button>
+            <div className="mt-5 flex flex-col-reverse sm:flex-row justify-between gap-2">
+              {reviewingId && (
+                <button
+                  type="button"
+                  onClick={() => void handleToggleLock(reviewingId, false)}
+                  className="btn-secondary rounded-xl px-3 py-2 text-xs"
+                  disabled={saving}
+                  title="Lock this record to prevent further edits"
+                >
+                  <Lock className="w-3.5 h-3.5" />
+                  Lock record
+                </button>
+              )}
+              <div className="flex flex-col-reverse sm:flex-row gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setReviewingId(null)
+                    setReviewContext(null)
+                  }}
+                  className="btn-secondary rounded-xl px-4 py-2"
+                  disabled={saving}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void submitReview()}
+                  className="btn-primary rounded-xl px-4 py-2"
+                  disabled={saving || contextLoading || !reviewContext}
+                >
+                  {saving ? 'Saving…' : 'Save'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Detail Modal (read-only, for approved/rejected) */}
+      {/* Detail Modal (for locked records — shows info + Unlock button) */}
       {detailRow && (
         <div className="fixed inset-0 z-40 flex items-center justify-center p-4">
           <button
@@ -1178,6 +1238,27 @@ export default function AdminLeaveRequests() {
                   </div>
                 </div>
               </div>
+
+              {/* Locked banner + Unlock action */}
+              {detailRow.isLocked && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-4 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 text-amber-800">
+                    <Lock className="w-4 h-4 shrink-0" />
+                    <div>
+                      <p className="text-sm font-semibold">Record locked</p>
+                      <p className="text-xs opacity-80">No further changes can be made until unlocked.</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void handleToggleLock(detailRow.id, true)}
+                    className="btn-secondary btn-sm shrink-0"
+                  >
+                    <Unlock className="w-3.5 h-3.5" />
+                    Unlock
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>

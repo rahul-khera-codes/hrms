@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { format, subDays } from 'date-fns'
-import { Search, Download, X, ArrowUp, ArrowDown, Filter, Clock } from 'lucide-react'
-import { getAdminAttendance, updateAttendanceRecord } from '@/lib/apiAdmin'
+import { format, startOfWeek, endOfWeek } from 'date-fns'
+import { Search, Download, X, ArrowUp, ArrowDown, Filter, Clock, Plus, Lock, Unlock } from 'lucide-react'
+import { getAdminAttendance, updateAttendanceRecord, createAttendanceRecord, getEmployees, getClients, type EmployeeRecord, type Client } from '@/lib/apiAdmin'
 import type { AttendanceRecord } from '@/types'
 import AdminDatePicker from '@/components/AdminDatePicker'
+import AdminSelect from '@/components/AdminSelect'
 import { PageHeader } from '@/components/PageHeader'
 
 // ---------------------------------------------------------------------------
@@ -121,12 +122,26 @@ function fmtDateTime(dateStr: string | null | undefined): string {
   }
 }
 
-function fmtFullDateTime(dateStr: string | null | undefined): string {
+
+function toDateTimeLocal(dateStr: string | null | undefined): string {
+  // Convert ISO string to YYYY-MM-DDTHH:MM for <input type="datetime-local">
   if (!dateStr) return ''
   try {
-    return format(new Date(dateStr), 'yyyy-MM-dd hh:mm a')
+    const d = new Date(dateStr)
+    const offset = d.getTimezoneOffset() * 60000
+    return new Date(d.getTime() - offset).toISOString().slice(0, 16)
   } catch {
     return ''
+  }
+}
+
+function fromDateTimeLocal(val: string): string | null {
+  // Convert local datetime string back to ISO
+  if (!val) return null
+  try {
+    return new Date(val).toISOString()
+  } catch {
+    return null
   }
 }
 
@@ -152,8 +167,9 @@ export default function AdminAttendance() {
   const [records, setRecords] = useState<AttendanceRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [dateFrom, setDateFrom] = useState(() => format(subDays(new Date(), 7), 'yyyy-MM-dd'))
-  const [dateTo, setDateTo] = useState(() => format(new Date(), 'yyyy-MM-dd'))
+  // Default date range = current week Sunday → Saturday (client's standard)
+  const [dateFrom, setDateFrom] = useState(() => format(startOfWeek(new Date(), { weekStartsOn: 0 }), 'yyyy-MM-dd'))
+  const [dateTo, setDateTo] = useState(() => format(endOfWeek(new Date(), { weekStartsOn: 0 }), 'yyyy-MM-dd'))
   const [savingId, setSavingId] = useState<string | null>(null)
   const [detailRecord, setDetailRecord] = useState<AttendanceRecord | null>(null)
 
@@ -162,6 +178,13 @@ export default function AdminAttendance() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const [columnFilters, setColumnFilters] = useState<Record<string, string>>({})
   const [filterOpen, setFilterOpen] = useState<string | null>(null)
+
+  // Dropdown lookup data for editable modal fields
+  const [allEmployees, setAllEmployees] = useState<EmployeeRecord[]>([])
+  const [allClients, setAllClients] = useState<Client[]>([])
+
+  // Add Attendance Record modal
+  const [showAddModal, setShowAddModal] = useState(false)
 
   // -----------------------------------------------------------------------
   // Fetch
@@ -181,6 +204,12 @@ export default function AdminAttendance() {
       setLoading(false)
     }
   }, [dateFrom, dateTo, search])
+
+  useEffect(() => {
+    // Fetch lookup data once for modal dropdowns
+    getEmployees().then(setAllEmployees).catch(() => setAllEmployees([]))
+    getClients().then(setAllClients).catch(() => setAllClients([]))
+  }, [])
 
   useEffect(() => {
     fetchAttendance()
@@ -207,18 +236,24 @@ export default function AdminAttendance() {
   // -----------------------------------------------------------------------
 
   const handleFieldUpdate = useCallback(
-    async (record: AttendanceRecord, field: string, value: string) => {
+    async (record: AttendanceRecord, field: string, value: string | boolean) => {
       const sessionId = record.sessionId ?? record.id
       setSavingId(sessionId)
       try {
-        // Map front-end field names to API payload keys
-        const payload: Record<string, string | null> = {}
-        if (field === 'status') payload.statusOverride = value || null
+        const payload: Record<string, unknown> = {}
+        if (field === 'status') payload.statusOverride = (value as string) || null
         else if (field === 'payType') payload.payType = value
         else if (field === 'billType') payload.billType = value
-        else if (field === 'stage') payload.stage = value || null
-        else if (field === 'task') payload.task = value || null
-        else if (field === 'comments') payload.comments = value || null
+        else if (field === 'stage') payload.stage = (value as string) || null
+        else if (field === 'task') payload.task = (value as string) || null
+        else if (field === 'comments') payload.comments = (value as string) || null
+        else if (field === 'shiftStart') payload.shiftStart = (value as string) || null
+        else if (field === 'shiftEnd') payload.shiftEnd = (value as string) || null
+        else if (field === 'clockIn') payload.clockIn = (value as string) || null
+        else if (field === 'clockOut') payload.clockOut = (value as string) || null
+        else if (field === 'reportsToOverride') payload.reportsToOverride = (value as string) || null
+        else if (field === 'accountOverride') payload.accountOverride = (value as string) || null
+        else if (field === 'isLocked') payload.isLocked = Boolean(value)
 
         const updated = await updateAttendanceRecord(sessionId, payload)
 
@@ -228,13 +263,16 @@ export default function AdminAttendance() {
             return rSid === sessionId ? { ...r, ...updated } : r
           }),
         )
+        if (detailRecord && (detailRecord.sessionId ?? detailRecord.id) === sessionId) {
+          setDetailRecord((prev) => (prev ? { ...prev, ...updated } : prev))
+        }
       } catch (err) {
         console.error('Failed to update attendance record', err)
       } finally {
         setSavingId(null)
       }
     },
-    [],
+    [detailRecord],
   )
 
   // -----------------------------------------------------------------------
@@ -435,15 +473,25 @@ export default function AdminAttendance() {
         subtitle="Excel-style log. Inline-edit Status, Pay, Bill, Stage, Task and Comments."
         icon={<Clock className="w-5 h-5" />}
         actions={
-          <button
-            type="button"
-            onClick={exportCSV}
-            disabled={loading || records.length === 0}
-            className="btn-secondary"
-          >
-            <Download className="w-4 h-4 shrink-0" />
-            Export CSV
-          </button>
+          <>
+            <button
+              type="button"
+              onClick={exportCSV}
+              disabled={loading || records.length === 0}
+              className="btn-secondary"
+            >
+              <Download className="w-4 h-4 shrink-0" />
+              Export CSV
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowAddModal(true)}
+              className="btn-primary"
+            >
+              <Plus className="w-4 h-4" />
+              Add record
+            </button>
+          </>
         }
       />
 
@@ -498,8 +546,8 @@ export default function AdminAttendance() {
           <SummaryCard label="Regular" value={fmtHours(summary.billReg)} color="brand" />
           <SummaryCard label="Premium" value={fmtHours(summary.billPremium)} color="violet" />
           <SummaryCard label="Holiday" value={fmtHours(summary.billHoliday)} color="emerald" />
-          <SummaryCard label="DNB" value={fmtHours(summary.billDnb)} color="surface" />
           <SummaryCard label="Review" value={fmtHours(summary.billReview)} color="indigo" />
+          <SummaryCard label="DNB" value={fmtHours(summary.billDnb)} color="surface" />
         </div>
       </div>
 
@@ -755,26 +803,45 @@ export default function AdminAttendance() {
             </div>
 
             <div className="p-6 space-y-5">
-              {/* Shift & Clock - 2x2 grid */}
+              {/* Locked banner */}
+              {detailRecord.isLocked && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3 flex items-center gap-2 text-amber-800">
+                  <Lock className="w-4 h-4 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold">This record is locked</p>
+                    <p className="text-[11px] opacity-80">Unlock it from the footer to make changes.</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Shift & Clock — editable datetime-local inputs */}
               <div className="rounded-xl border border-surface-200 bg-surface-50 p-4">
-                <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider mb-3">Shift & Clock</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="rounded-lg bg-white border border-surface-100 p-2.5">
-                    <p className="text-[10px] font-medium text-surface-400 uppercase tracking-wider">Shift Start</p>
-                    <p className="text-sm font-medium text-surface-900 tabular-nums mt-0.5">{fmtFullDateTime(detailRecord.shiftStart) || '-'}</p>
-                  </div>
-                  <div className="rounded-lg bg-white border border-surface-100 p-2.5">
-                    <p className="text-[10px] font-medium text-surface-400 uppercase tracking-wider">Clock In</p>
-                    <p className="text-sm font-medium text-surface-900 tabular-nums mt-0.5">{fmtFullDateTime(detailRecord.clockIn) || '-'}</p>
-                  </div>
-                  <div className="rounded-lg bg-white border border-surface-100 p-2.5">
-                    <p className="text-[10px] font-medium text-surface-400 uppercase tracking-wider">Shift End</p>
-                    <p className="text-sm font-medium text-surface-900 tabular-nums mt-0.5">{fmtFullDateTime(detailRecord.shiftEnd) || '-'}</p>
-                  </div>
-                  <div className="rounded-lg bg-white border border-surface-100 p-2.5">
-                    <p className="text-[10px] font-medium text-surface-400 uppercase tracking-wider">Clock Out</p>
-                    <p className="text-sm font-medium text-surface-900 tabular-nums mt-0.5">{fmtFullDateTime(detailRecord.clockOut) || '-'}</p>
-                  </div>
+                <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider mb-3">Shift & Clock (Editable)</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <ShiftTimeInput
+                    label="Shift Start"
+                    value={toDateTimeLocal(detailRecord.shiftStart)}
+                    disabled={detailRecord.isLocked ?? false}
+                    onSave={(v) => handleFieldUpdate(detailRecord, 'shiftStart', fromDateTimeLocal(v) ?? '')}
+                  />
+                  <ShiftTimeInput
+                    label="Clock In"
+                    value={toDateTimeLocal(detailRecord.clockIn)}
+                    disabled={detailRecord.isLocked ?? false}
+                    onSave={(v) => handleFieldUpdate(detailRecord, 'clockIn', fromDateTimeLocal(v) ?? '')}
+                  />
+                  <ShiftTimeInput
+                    label="Shift End"
+                    value={toDateTimeLocal(detailRecord.shiftEnd)}
+                    disabled={detailRecord.isLocked ?? false}
+                    onSave={(v) => handleFieldUpdate(detailRecord, 'shiftEnd', fromDateTimeLocal(v) ?? '')}
+                  />
+                  <ShiftTimeInput
+                    label="Clock Out"
+                    value={toDateTimeLocal(detailRecord.clockOut)}
+                    disabled={detailRecord.isLocked ?? false}
+                    onSave={(v) => handleFieldUpdate(detailRecord, 'clockOut', fromDateTimeLocal(v) ?? '')}
+                  />
                 </div>
               </div>
 
@@ -823,21 +890,38 @@ export default function AdminAttendance() {
               {/* Editable Classification */}
               <div className="rounded-xl border border-surface-200 bg-surface-50 p-4">
                 <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider mb-3">Classification (Editable)</p>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-3">
                   <div>
                     <label className="text-[10px] font-medium text-surface-400 uppercase block mb-1">Account</label>
-                    <p className="text-sm font-medium text-surface-900">{detailRecord.accountName ?? '-'}</p>
+                    <AdminSelect
+                      value={detailRecord.accountId ?? ''}
+                      disabled={detailRecord.isLocked ?? false}
+                      onChange={(val) => handleFieldUpdate(detailRecord, 'accountOverride', val)}
+                      options={[
+                        { value: '', label: '— None —' },
+                        ...allClients.map((c) => ({ value: c.id, label: c.name })),
+                      ]}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-medium text-surface-400 uppercase block mb-1">Reports To</label>
+                    <AdminSelect
+                      value={detailRecord.reportsToId ?? ''}
+                      disabled={detailRecord.isLocked ?? false}
+                      onChange={(val) => handleFieldUpdate(detailRecord, 'reportsToOverride', val)}
+                      options={[
+                        { value: '', label: '— None —' },
+                        ...allEmployees.map((e) => ({ value: e.id, label: e.name })),
+                      ]}
+                    />
                   </div>
                   <div>
                     <label className="text-[10px] font-medium text-surface-400 uppercase block mb-1">Status</label>
                     <select
                       value={detailRecord.status}
-                      onChange={(e) => {
-                        const val = e.target.value
-                        handleFieldUpdate(detailRecord, 'status', val)
-                        setDetailRecord({ ...detailRecord, status: val })
-                      }}
-                      className="text-sm border border-surface-200 rounded-lg px-2 py-1.5 w-full bg-white focus:ring-1 focus:ring-brand-300 outline-none"
+                      disabled={detailRecord.isLocked ?? false}
+                      onChange={(e) => handleFieldUpdate(detailRecord, 'status', e.target.value)}
+                      className="text-sm border border-surface-200 rounded-lg px-2 py-1.5 w-full bg-white focus:ring-1 focus:ring-brand-300 outline-none disabled:opacity-60"
                     >
                       <option value="">--</option>
                       {STATUS_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
@@ -847,12 +931,9 @@ export default function AdminAttendance() {
                     <label className="text-[10px] font-medium text-surface-400 uppercase block mb-1">Pay</label>
                     <select
                       value={detailRecord.payType ?? ''}
-                      onChange={(e) => {
-                        const val = e.target.value
-                        handleFieldUpdate(detailRecord, 'payType', val)
-                        setDetailRecord({ ...detailRecord, payType: val })
-                      }}
-                      className="text-sm border border-surface-200 rounded-lg px-2 py-1.5 w-full bg-white focus:ring-1 focus:ring-brand-300 outline-none"
+                      disabled={detailRecord.isLocked ?? false}
+                      onChange={(e) => handleFieldUpdate(detailRecord, 'payType', e.target.value)}
+                      className="text-sm border border-surface-200 rounded-lg px-2 py-1.5 w-full bg-white focus:ring-1 focus:ring-brand-300 outline-none disabled:opacity-60"
                     >
                       <option value="">--</option>
                       {PAY_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
@@ -862,12 +943,9 @@ export default function AdminAttendance() {
                     <label className="text-[10px] font-medium text-surface-400 uppercase block mb-1">Bill</label>
                     <select
                       value={detailRecord.billType ?? ''}
-                      onChange={(e) => {
-                        const val = e.target.value
-                        handleFieldUpdate(detailRecord, 'billType', val)
-                        setDetailRecord({ ...detailRecord, billType: val })
-                      }}
-                      className="text-sm border border-surface-200 rounded-lg px-2 py-1.5 w-full bg-white focus:ring-1 focus:ring-brand-300 outline-none"
+                      disabled={detailRecord.isLocked ?? false}
+                      onChange={(e) => handleFieldUpdate(detailRecord, 'billType', e.target.value)}
+                      className="text-sm border border-surface-200 rounded-lg px-2 py-1.5 w-full bg-white focus:ring-1 focus:ring-brand-300 outline-none disabled:opacity-60"
                     >
                       <option value="">--</option>
                       {BILL_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
@@ -877,12 +955,9 @@ export default function AdminAttendance() {
                     <label className="text-[10px] font-medium text-surface-400 uppercase block mb-1">Stage</label>
                     <select
                       value={detailRecord.stage ?? ''}
-                      onChange={(e) => {
-                        const val = e.target.value
-                        handleFieldUpdate(detailRecord, 'stage', val)
-                        setDetailRecord({ ...detailRecord, stage: val })
-                      }}
-                      className="text-sm border border-surface-200 rounded-lg px-2 py-1.5 w-full bg-white focus:ring-1 focus:ring-brand-300 outline-none"
+                      disabled={detailRecord.isLocked ?? false}
+                      onChange={(e) => handleFieldUpdate(detailRecord, 'stage', e.target.value)}
+                      className="text-sm border border-surface-200 rounded-lg px-2 py-1.5 w-full bg-white focus:ring-1 focus:ring-brand-300 outline-none disabled:opacity-60"
                     >
                       <option value="">--</option>
                       {STAGE_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
@@ -892,20 +967,13 @@ export default function AdminAttendance() {
                     <label className="text-[10px] font-medium text-surface-400 uppercase block mb-1">Task</label>
                     <select
                       value={detailRecord.task ?? ''}
-                      onChange={(e) => {
-                        const val = e.target.value
-                        handleFieldUpdate(detailRecord, 'task', val)
-                        setDetailRecord({ ...detailRecord, task: val })
-                      }}
-                      className="text-sm border border-surface-200 rounded-lg px-2 py-1.5 w-full bg-white focus:ring-1 focus:ring-brand-300 outline-none"
+                      disabled={detailRecord.isLocked ?? false}
+                      onChange={(e) => handleFieldUpdate(detailRecord, 'task', e.target.value)}
+                      className="text-sm border border-surface-200 rounded-lg px-2 py-1.5 w-full bg-white focus:ring-1 focus:ring-brand-300 outline-none disabled:opacity-60"
                     >
                       <option value="">--</option>
                       {TASK_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
                     </select>
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-medium text-surface-400 uppercase block mb-1">Reports To</label>
-                    <p className="text-sm font-medium text-surface-900 mt-0.5">{detailRecord.reportsTo ?? '-'}</p>
                   </div>
                 </div>
               </div>
@@ -915,16 +983,205 @@ export default function AdminAttendance() {
                 <label className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider block mb-2">Comments</label>
                 <ModalCommentInput
                   value={detailRecord.comments ?? ''}
-                  onSave={(v) => {
-                    handleFieldUpdate(detailRecord, 'comments', v)
-                    setDetailRecord({ ...detailRecord, comments: v })
-                  }}
+                  disabled={detailRecord.isLocked ?? false}
+                  onSave={(v) => handleFieldUpdate(detailRecord, 'comments', v)}
                 />
+              </div>
+
+              {/* Lock toggle */}
+              <div className="flex items-center justify-between rounded-xl border border-surface-200 bg-surface-50 p-4">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-surface-900 flex items-center gap-2">
+                    {detailRecord.isLocked ? <Lock className="w-4 h-4 text-amber-600" /> : <Unlock className="w-4 h-4 text-surface-400" />}
+                    {detailRecord.isLocked ? 'Record is locked' : 'Record is editable'}
+                  </p>
+                  <p className="text-[11px] text-surface-500 mt-0.5">
+                    Locking prevents further changes until an admin unlocks it.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleFieldUpdate(detailRecord, 'isLocked', !(detailRecord.isLocked ?? false))}
+                  className={detailRecord.isLocked ? 'btn-secondary btn-sm' : 'btn-danger btn-sm'}
+                >
+                  {detailRecord.isLocked ? <><Unlock className="w-3.5 h-3.5" /> Unlock</> : <><Lock className="w-3.5 h-3.5" /> Lock</>}
+                </button>
               </div>
             </div>
           </div>
         </div>
       )}
+
+      {/* Add Attendance Record Modal */}
+      {showAddModal && (
+        <AddAttendanceRecordModal
+          employees={allEmployees}
+          clients={allClients}
+          onClose={() => setShowAddModal(false)}
+          onCreated={(newRecord) => {
+            setRecords((prev) => [newRecord, ...prev])
+            setShowAddModal(false)
+            // Refresh to ensure server-side ordering/joins are applied
+            void fetchAttendance()
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+function AddAttendanceRecordModal({
+  employees,
+  clients,
+  onClose,
+  onCreated,
+}: {
+  employees: EmployeeRecord[]
+  clients: Client[]
+  onClose: () => void
+  onCreated: (record: AttendanceRecord) => void
+}) {
+  const now = new Date()
+  const isoLocal = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
+
+  const [employeeId, setEmployeeId] = useState('')
+  const [clockIn, setClockIn] = useState(isoLocal)
+  const [clockOut, setClockOut] = useState(isoLocal)
+  const [shiftStart, setShiftStart] = useState(isoLocal)
+  const [shiftEnd, setShiftEnd] = useState(isoLocal)
+  const [status, setStatus] = useState<string>('Present')
+  const [payType, setPayType] = useState<string>('Regular')
+  const [billType, setBillType] = useState<string>('Regular')
+  const [task, setTask] = useState('')
+  const [stage, setStage] = useState<string>('Production')
+  const [comments, setComments] = useState('')
+  const [reportsToOverride, setReportsToOverride] = useState('')
+  const [accountOverride, setAccountOverride] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function handleSave() {
+    if (!employeeId) {
+      setError('Please select an employee.')
+      return
+    }
+    setSaving(true)
+    setError(null)
+    try {
+      const record = await createAttendanceRecord({
+        employeeId,
+        clockIn: fromDateTimeLocal(clockIn) || new Date().toISOString(),
+        clockOut: fromDateTimeLocal(clockOut),
+        shiftStart: fromDateTimeLocal(shiftStart),
+        shiftEnd: fromDateTimeLocal(shiftEnd),
+        statusOverride: status || null,
+        payType,
+        billType,
+        task: task || null,
+        stage: stage || null,
+        comments: comments || null,
+        reportsToOverride: reportsToOverride || null,
+        accountOverride: accountOverride || null,
+      })
+      onCreated(record)
+    } catch (err: unknown) {
+      setError(err && typeof err === 'object' && 'message' in err ? String((err as Error).message) : 'Failed to create record')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="modal-backdrop" role="dialog" aria-modal="true">
+      <button type="button" className="absolute inset-0" onClick={onClose} aria-label="Close" />
+      <div className="modal-frame-lg">
+        <div className="modal-header">
+          <div>
+            <h2 className="modal-title">Add Attendance Record</h2>
+            <p className="text-[11px] text-surface-500 mt-0.5">Manually create an attendance entry (for supervisors filling in for absent employees, etc.)</p>
+          </div>
+          <button type="button" onClick={onClose} className="btn-icon text-surface-400 hover:text-surface-700 hover:bg-surface-100" aria-label="Close">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="modal-body">
+          {error && <div className="alert-error"><span>{error}</span></div>}
+
+          <div>
+            <label className="label">Employee *</label>
+            <AdminSelect
+              value={employeeId}
+              onChange={setEmployeeId}
+              options={[
+                { value: '', label: 'Select employee' },
+                ...employees.map((e) => ({ value: e.id, label: `${e.name}${e.cmid != null ? ` · CMID ${e.cmid}` : ''}` })),
+              ]}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="label">Shift Start</label>
+              <input type="datetime-local" value={shiftStart} onChange={(e) => setShiftStart(e.target.value)} className="input" />
+            </div>
+            <div>
+              <label className="label">Shift End</label>
+              <input type="datetime-local" value={shiftEnd} onChange={(e) => setShiftEnd(e.target.value)} className="input" />
+            </div>
+            <div>
+              <label className="label">Clock In *</label>
+              <input type="datetime-local" value={clockIn} onChange={(e) => setClockIn(e.target.value)} className="input" />
+            </div>
+            <div>
+              <label className="label">Clock Out</label>
+              <input type="datetime-local" value={clockOut} onChange={(e) => setClockOut(e.target.value)} className="input" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="label">Status</label>
+              <AdminSelect value={status} onChange={setStatus} options={STATUS_OPTIONS.map((s) => ({ value: s, label: s }))} />
+            </div>
+            <div>
+              <label className="label">Pay</label>
+              <AdminSelect value={payType} onChange={setPayType} options={PAY_OPTIONS.map((s) => ({ value: s, label: s }))} />
+            </div>
+            <div>
+              <label className="label">Bill</label>
+              <AdminSelect value={billType} onChange={setBillType} options={BILL_OPTIONS.map((s) => ({ value: s, label: s }))} />
+            </div>
+            <div>
+              <label className="label">Stage</label>
+              <AdminSelect value={stage} onChange={setStage} options={STAGE_OPTIONS.map((s) => ({ value: s, label: s }))} />
+            </div>
+            <div>
+              <label className="label">Task</label>
+              <AdminSelect value={task} onChange={setTask} options={[{ value: '', label: '— None —' }, ...TASK_OPTIONS.map((s) => ({ value: s, label: s }))]} />
+            </div>
+            <div>
+              <label className="label">Account</label>
+              <AdminSelect value={accountOverride} onChange={setAccountOverride} options={[{ value: '', label: '— None —' }, ...clients.map((c) => ({ value: c.id, label: c.name }))]} />
+            </div>
+          </div>
+
+          <div>
+            <label className="label">Reports To</label>
+            <AdminSelect value={reportsToOverride} onChange={setReportsToOverride} options={[{ value: '', label: '— None —' }, ...employees.map((e) => ({ value: e.id, label: e.name }))]} />
+          </div>
+
+          <div>
+            <label className="label">Comments</label>
+            <textarea value={comments} onChange={(e) => setComments(e.target.value)} rows={2} className="input" placeholder="Optional comments" />
+          </div>
+        </div>
+        <div className="modal-footer">
+          <button type="button" onClick={onClose} className="btn-secondary" disabled={saving}>Cancel</button>
+          <button type="button" onClick={handleSave} className="btn-primary" disabled={saving || !employeeId || !clockIn}>
+            {saving ? 'Saving…' : 'Create record'}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
@@ -1035,9 +1292,11 @@ function InlineInput({
 function ModalCommentInput({
   value,
   onSave,
+  disabled,
 }: {
   value: string
   onSave: (val: string) => void
+  disabled?: boolean
 }) {
   const [local, setLocal] = useState(value)
 
@@ -1053,8 +1312,41 @@ function ModalCommentInput({
         if (local !== value) onSave(local)
       }}
       rows={2}
-      className="text-sm border border-surface-200 rounded-lg px-3 py-2 w-full bg-white focus:ring-1 focus:ring-brand-300 outline-none resize-none"
+      disabled={disabled}
+      className="text-sm border border-surface-200 rounded-lg px-3 py-2 w-full bg-white focus:ring-1 focus:ring-brand-300 outline-none resize-none disabled:bg-surface-100 disabled:opacity-70"
       placeholder="Add comment..."
     />
+  )
+}
+
+function ShiftTimeInput({
+  label,
+  value,
+  onSave,
+  disabled,
+}: {
+  label: string
+  value: string  // datetime-local format
+  onSave: (val: string) => void
+  disabled?: boolean
+}) {
+  const [local, setLocal] = useState(value)
+
+  useEffect(() => {
+    setLocal(value)
+  }, [value])
+
+  return (
+    <div className="rounded-lg bg-white border border-surface-100 p-2.5">
+      <p className="text-[10px] font-medium text-surface-400 uppercase tracking-wider">{label}</p>
+      <input
+        type="datetime-local"
+        value={local}
+        onChange={(e) => setLocal(e.target.value)}
+        onBlur={() => { if (local !== value) onSave(local) }}
+        disabled={disabled}
+        className="w-full text-sm font-medium text-surface-900 tabular-nums mt-0.5 bg-transparent border-0 outline-none focus:ring-1 focus:ring-brand-300 rounded disabled:opacity-70"
+      />
+    </div>
   )
 }

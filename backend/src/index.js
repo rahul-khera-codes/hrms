@@ -73,6 +73,16 @@ try {
     await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS x35_hours DECIMAL(8,2) DEFAULT 0`)
     await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS x100_hours DECIMAL(8,2) DEFAULT 0`)
     await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS hol_hours DECIMAL(8,2) DEFAULT 0`)
+    // 14APR2026 feedback: make attendance records fully editable + lockable
+    await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS is_locked BOOLEAN NOT NULL DEFAULT FALSE`)
+    await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS shift_start_override TIMESTAMPTZ`)
+    await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS shift_end_override TIMESTAMPTZ`)
+    await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS clock_in_override TIMESTAMPTZ`)
+    await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS clock_out_override TIMESTAMPTZ`)
+    await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS reports_to_override UUID REFERENCES users(id)`)
+    await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS account_override UUID REFERENCES clients(id)`)
+    // Supports manually-created attendance records (Add Record feature)
+    await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS is_manual BOOLEAN NOT NULL DEFAULT FALSE`)
   } catch (e) {
     if (e.code !== '42701') console.warn('sessions attendance columns migration:', e.message)
   }
@@ -238,6 +248,8 @@ try {
     await pool.query(`ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS monthly_rate_input DECIMAL(14,2)`)
     await pool.query(`ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS asset_deactivation VARCHAR(255)`)
     await pool.query(`ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS payroll_cycle_code VARCHAR(20)`)
+    // 14APR2026 feedback: lock toggle on leave requests
+    await pool.query(`ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS is_locked BOOLEAN NOT NULL DEFAULT FALSE`)
   } catch (e) {
     if (e.code !== '42701') console.warn('leave_requests admin create columns migration:', e.message)
   }

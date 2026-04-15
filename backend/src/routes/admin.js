@@ -181,6 +181,7 @@ function toAttendanceRecord(row) {
     location: row.location || null,
     stage: row.stage || null,
     reportsTo: row.reports_to_name || null,
+    reportsToId: row.reports_to_override || row.reports_to_id || null,
     task: row.task || null,
     status,
     payType,
@@ -196,7 +197,9 @@ function toAttendanceRecord(row) {
     hdyHours: r2(hdyHours),
     comments: row.comments || '',
     accountName: row.account_name || null,
+    accountId: row.account_override || row.account_id || null,
     employeeCmid: row.employee_cmid != null ? Number(row.employee_cmid) : null,
+    isLocked: row.is_locked === true,
     // Backward-compatible fields
     regularHours,
     overtimeHours,
@@ -303,9 +306,12 @@ router.get('/attendance', async (req, res) => {
         COALESCE(SUM(s.x35_hours), 0) AS x35_hours,
         COALESCE(SUM(s.x100_hours), 0) AS x100_hours,
         COALESCE(SUM(s.hol_hours), 0) AS hol_hours,
-        MAX(mgr.name) AS reports_to_name,
-        MAX(c.name) AS account_name,
+        MAX(COALESCE(mgr_ov.name, mgr.name)) AS reports_to_name,
+        MAX(COALESCE(c_ov.name, c.name)) AS account_name,
         MAX(e.cmid) AS employee_cmid,
+        BOOL_OR(s.is_locked) AS is_locked,
+        MAX(s.reports_to_override::text)::uuid AS reports_to_override,
+        MAX(s.account_override::text)::uuid AS account_override,
         (ARRAY_AGG(s.id ORDER BY s.clock_in DESC))[1] AS session_id,
         -- Dynamic shift lookup from schedule_assignments (backfills null shift_start/end)
         -- Force UTC so comparison with clock_in (stored as UTC) is timezone-correct
@@ -321,7 +327,9 @@ router.get('/attendance', async (req, res) => {
       JOIN users u ON u.id = s.user_id AND u.role = 'employee'
       LEFT JOIN employees e ON e.user_id = u.id
       LEFT JOIN users mgr ON mgr.id = e.reports_to
+      LEFT JOIN users mgr_ov ON mgr_ov.id = s.reports_to_override
       LEFT JOIN clients c ON c.id = e.primary_client_id
+      LEFT JOIN clients c_ov ON c_ov.id = s.account_override
       LEFT JOIN LATERAL (
         SELECT a.shift_id,
                a.override_start_time AS override_start,
@@ -501,12 +509,24 @@ router.patch('/attendance/:sessionId', async (req, res) => {
     const { sessionId } = req.params
     const {
       statusOverride, payType, billType, task, stage,
-      location, comments, shiftStart, shiftEnd
+      location, comments, shiftStart, shiftEnd,
+      // 14APR2026 feedback: fully editable attendance
+      clockIn, clockOut, reportsToOverride, accountOverride, isLocked,
+      // unlock helper (admin forces override even if locked)
+      force,
     } = req.body
 
-    const session = await query('SELECT id FROM sessions WHERE id = $1', [sessionId])
+    const session = await query('SELECT id, is_locked FROM sessions WHERE id = $1', [sessionId])
     if (!session.rows.length) {
       return res.status(404).json({ error: 'Not found', message: 'Session not found' })
+    }
+
+    // If the record is locked, only allow changes to the is_locked field itself
+    // (so admin can unlock), unless ?force=true is supplied.
+    const wasLocked = session.rows[0].is_locked === true
+    const onlyUnlocking = Object.keys(req.body).length === 1 && isLocked === false
+    if (wasLocked && !onlyUnlocking && !force) {
+      return res.status(409).json({ error: 'Locked', message: 'This record is locked. Unlock it first to edit.' })
     }
 
     const updates = []
@@ -522,6 +542,11 @@ router.patch('/attendance/:sessionId', async (req, res) => {
     if (comments !== undefined) { updates.push(`comments = $${i++}`); params.push(comments || null) }
     if (shiftStart !== undefined) { updates.push(`shift_start = $${i++}`); params.push(shiftStart || null) }
     if (shiftEnd !== undefined) { updates.push(`shift_end = $${i++}`); params.push(shiftEnd || null) }
+    if (clockIn !== undefined) { updates.push(`clock_in = $${i++}`); params.push(clockIn || null) }
+    if (clockOut !== undefined) { updates.push(`clock_out = $${i++}`); params.push(clockOut || null) }
+    if (reportsToOverride !== undefined) { updates.push(`reports_to_override = $${i++}`); params.push(reportsToOverride || null) }
+    if (accountOverride !== undefined) { updates.push(`account_override = $${i++}`); params.push(accountOverride || null) }
+    if (isLocked !== undefined) { updates.push(`is_locked = $${i++}`); params.push(!!isLocked) }
 
     if (updates.length === 0) {
       return res.status(400).json({ error: 'Bad request', message: 'No fields to update' })
@@ -546,12 +571,18 @@ router.patch('/attendance/:sessionId', async (req, res) => {
               s.task, s.status_override, s.pay_type, s.bill_type, s.comments,
               s.scheduled_minutes, s.actual_minutes, s.dbt_minutes, s.holiday_name,
               s.reg_hours, s.n15_hours, s.x35_hours, s.x100_hours, s.hol_hours,
-              mgr.name AS reports_to_name, c.name AS account_name, e.cmid AS employee_cmid
+              s.is_locked,
+              s.reports_to_override, s.account_override,
+              COALESCE(mgr_ov.name, mgr.name) AS reports_to_name,
+              COALESCE(c_ov.name, c.name) AS account_name,
+              e.cmid AS employee_cmid
        FROM sessions s
        JOIN users u ON u.id = s.user_id
        LEFT JOIN employees e ON e.user_id = u.id
        LEFT JOIN users mgr ON mgr.id = e.reports_to
+       LEFT JOIN users mgr_ov ON mgr_ov.id = s.reports_to_override
        LEFT JOIN clients c ON c.id = e.primary_client_id
+       LEFT JOIN clients c_ov ON c_ov.id = s.account_override
        WHERE s.id = $1`,
       [sessionId]
     )
@@ -563,6 +594,93 @@ router.patch('/attendance/:sessionId', async (req, res) => {
     res.json(toAttendanceRecord({ ...row, id: row.session_id, date: dateStr }))
   } catch (err) {
     console.error('Admin update attendance error:', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// POST /api/admin/attendance — admin manually creates an attendance record (14APR2026 feedback)
+// Used by supervisors when an employee didn't clock in/out through the app.
+router.post('/attendance', async (req, res) => {
+  try {
+    const {
+      employeeId, clockIn, clockOut, shiftStart, shiftEnd,
+      statusOverride, payType, billType, task, stage, comments,
+      reportsToOverride, accountOverride, isLocked,
+    } = req.body
+
+    if (!employeeId) {
+      return res.status(400).json({ error: 'Bad request', message: 'employeeId is required' })
+    }
+    if (!clockIn) {
+      return res.status(400).json({ error: 'Bad request', message: 'clockIn is required' })
+    }
+
+    const user = await query(`SELECT id FROM users WHERE id = $1 AND role = 'employee'`, [employeeId])
+    if (!user.rows.length) {
+      return res.status(404).json({ error: 'Not found', message: 'Employee not found' })
+    }
+
+    const inserted = await query(
+      `INSERT INTO sessions (
+         user_id, clock_in, clock_out, shift_start, shift_end,
+         status_override, pay_type, bill_type, task, stage, comments,
+         reports_to_override, account_override, is_locked, is_manual
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, TRUE)
+       RETURNING id`,
+      [
+        employeeId,
+        clockIn,
+        clockOut || null,
+        shiftStart || null,
+        shiftEnd || null,
+        statusOverride || null,
+        payType || 'Regular',
+        billType || 'Regular',
+        task || null,
+        stage || 'Production',
+        comments || null,
+        reportsToOverride || null,
+        accountOverride || null,
+        !!isLocked,
+      ]
+    )
+    const newId = inserted.rows[0].id
+
+    // Re-fetch with joins (same as PATCH endpoint)
+    const full = await query(
+      `SELECT s.id AS session_id, u.id AS user_id, u.name AS user_name,
+              (s.clock_in AT TIME ZONE 'UTC')::date AS date,
+              s.clock_in AS first_clock_in, s.clock_out AS last_clock_out,
+              COALESCE(s.regular_minutes, 0)::int AS regular_minutes,
+              COALESCE(s.overtime_minutes, 0)::int AS overtime_minutes,
+              COALESCE(s.night_minutes, 0)::int AS night_minutes,
+              CASE WHEN s.clock_out IS NOT NULL THEN EXTRACT(EPOCH FROM (s.clock_out - s.clock_in)) / 60.0 ELSE 0 END AS precise_total_minutes,
+              (s.clock_out IS NULL) AS has_active_session,
+              s.shift_start, s.shift_end,
+              COALESCE(s.location, e.location) AS location,
+              COALESCE(s.stage, 'Production') AS stage,
+              s.task, s.status_override, s.pay_type, s.bill_type, s.comments,
+              s.scheduled_minutes, s.actual_minutes, s.dbt_minutes, s.holiday_name,
+              s.reg_hours, s.n15_hours, s.x35_hours, s.x100_hours, s.hol_hours,
+              s.is_locked, s.reports_to_override, s.account_override,
+              COALESCE(mgr_ov.name, mgr.name) AS reports_to_name,
+              COALESCE(c_ov.name, c.name) AS account_name,
+              e.cmid AS employee_cmid
+       FROM sessions s
+       JOIN users u ON u.id = s.user_id
+       LEFT JOIN employees e ON e.user_id = u.id
+       LEFT JOIN users mgr ON mgr.id = e.reports_to
+       LEFT JOIN users mgr_ov ON mgr_ov.id = s.reports_to_override
+       LEFT JOIN clients c ON c.id = e.primary_client_id
+       LEFT JOIN clients c_ov ON c_ov.id = s.account_override
+       WHERE s.id = $1`,
+      [newId]
+    )
+    const row = full.rows[0]
+    const dateStr = row.date ? new Date(row.date).toISOString().slice(0, 10) : ''
+    res.status(201).json(toAttendanceRecord({ ...row, id: row.session_id, date: dateStr }))
+  } catch (err) {
+    console.error('Admin create attendance error:', err)
     res.status(500).json({ error: 'Internal server error' })
   }
 })
@@ -723,6 +841,7 @@ router.get('/leave-requests', async (req, res) => {
               lr.hourly_rate_input, lr.daily_hours_input, lr.monthly_rate_input,
               lr.asset_deactivation, lr.payroll_cycle_code,
               lr.leave_daily_salary,
+              lr.is_locked,
               e.cmid AS employee_cmid,
               c.name AS account_name
        FROM leave_requests lr
@@ -768,6 +887,7 @@ router.get('/leave-requests', async (req, res) => {
       dailySalary: r.leave_daily_salary != null ? Number(r.leave_daily_salary) : null,
       employeeCmid: r.employee_cmid != null ? Number(r.employee_cmid) : null,
       accountName: r.account_name || null,
+      isLocked: r.is_locked === true,
     })))
   } catch (err) {
     console.error('Admin list leave requests error:', err)
@@ -852,22 +972,45 @@ router.get('/leave-requests/:id/review-context', async (req, res) => {
 router.patch('/leave-requests/:id', async (req, res) => {
   try {
     const { id } = req.params
-    const { status, reviewedNote, calculationType, associateDaysOff, payableDays } = req.body
+    const { status, reviewedNote, calculationType, associateDaysOff, payableDays, isLocked, force } = req.body
+
+    // 14APR2026 feedback: lock toggle. Handle lock-only updates separately so they work on any record.
+    const existing = await query(
+      `SELECT lr.id, lr.user_id, lr.leave_type, lr.status, lr.is_locked,
+              lr.start_date::text AS start_date_str, lr.end_date::text AS end_date_str, lr.reason
+       FROM leave_requests lr
+       WHERE lr.id = $1`,
+      [id]
+    )
+    if (!existing.rows.length) {
+      return res.status(404).json({ error: 'Not found', message: 'Leave request not found' })
+    }
+    const existingRow = existing.rows[0]
+
+    // Lock-only update path (no status change)
+    if (isLocked !== undefined && status === undefined) {
+      const upd = await query(
+        `UPDATE leave_requests SET is_locked = $1, updated_at = NOW() WHERE id = $2
+         RETURNING id, user_id, leave_type, start_date::text AS start_date_str, end_date::text AS end_date_str,
+                   reason, status, reviewed_note, reviewed_at, created_at,
+                   leave_calculation_type, leave_associate_days_off, leave_payable_days, leave_payable_amount,
+                   leave_category, return_date::text AS return_date_str, start_time::text, end_time::text, return_time::text, is_locked`,
+        [!!isLocked, id]
+      )
+      return res.json(mapLeaveRowToJson(upd.rows[0]))
+    }
+
     if (!['approved', 'rejected'].includes(String(status))) {
       return res.status(400).json({ error: 'Bad request', message: 'status must be approved or rejected' })
     }
 
-    const pending = await query(
-      `SELECT lr.id, lr.user_id, lr.leave_type,
-              lr.start_date::text AS start_date_str, lr.end_date::text AS end_date_str, lr.reason
-       FROM leave_requests lr
-       WHERE lr.id = $1 AND lr.status = 'pending'`,
-      [id]
-    )
-    if (!pending.rows.length) {
-      return res.status(404).json({ error: 'Not found', message: 'Leave request not found or already reviewed' })
+    // Block edits on locked records unless caller explicitly forces
+    if (existingRow.is_locked && !force) {
+      return res.status(409).json({ error: 'Locked', message: 'This leave request is locked. Unlock it first to edit.' })
     }
-    const row = pending.rows[0]
+
+    // Allow re-review of any non-locked record (approved → rejected, rejected → approved, or re-apply settings)
+    const row = existingRow
 
     const noteVal = reviewedNote ? String(reviewedNote).trim() : null
 
@@ -886,7 +1029,7 @@ router.patch('/leave-requests/:id', async (req, res) => {
              leave_daily_hours = NULL,
              leave_daily_salary = NULL,
              leave_payable_amount = NULL
-         WHERE id = $3 AND status = 'pending'
+         WHERE id = $3
          RETURNING id, user_id, leave_type, start_date::text AS start_date_str, end_date::text AS end_date_str,
                    reason, status, reviewed_note, reviewed_at, created_at,
                    leave_calculation_type, leave_associate_days_off, leave_payable_days, leave_payable_amount,
@@ -977,7 +1120,7 @@ router.patch('/leave-requests/:id', async (req, res) => {
            leave_daily_hours = $7,
            leave_daily_salary = $8,
            leave_payable_amount = $9
-       WHERE id = $10 AND status = 'pending'
+       WHERE id = $10
        RETURNING id, user_id, leave_type, start_date::text AS start_date_str, end_date::text AS end_date_str,
                  reason, status, reviewed_note, reviewed_at, created_at,
                  leave_calculation_type, leave_associate_days_off, leave_payable_days, leave_payable_amount,
@@ -1064,6 +1207,7 @@ function mapLeaveRowToJson(r) {
     startTime: r.start_time || null,
     endTime: r.end_time || null,
     returnTime: r.return_time || null,
+    isLocked: r.is_locked === true,
   }
 }
 

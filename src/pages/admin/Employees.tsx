@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { Users, Plus, Pencil, LayoutGrid, Table2, Search } from 'lucide-react'
+import { Users, Plus, Pencil, LayoutGrid, Table2, Search, Download, ArrowUp, ArrowDown, Filter } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
 import {
   getEmployees,
@@ -73,6 +73,10 @@ export default function AdminEmployees() {
   const [saving, setSaving] = useState(false)
   const [viewMode, setViewMode] = useState<'card' | 'table'>('table')
   const [search, setSearch] = useState('')
+  const [sortCol, setSortCol] = useState<string | null>(null)
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+  const [columnFilters, setColumnFilters] = useState<Record<string, string>>({})
+  const [filterOpen, setFilterOpen] = useState<string | null>(null)
   const [activeEmployees, setActiveEmployees] = useState<Set<string>>(new Set())
   const [cmid, setCmid] = useState('')
   const [contractType, setContractType] = useState<string>('employee')
@@ -170,7 +174,7 @@ export default function AdminEmployees() {
     }
   }, [])
 
-  const filteredEmployees = useMemo(() => {
+  const baseFiltered = useMemo(() => {
     const q = search.trim().toLowerCase()
     return employees.filter((emp) => {
       const assignment = assignmentByEmployee[emp.id]
@@ -180,6 +184,79 @@ export default function AdminEmployees() {
       return clientMatch && shiftMatch && searchMatch
     })
   }, [employees, assignmentByEmployee, clientFilter, shiftFilter, search])
+
+  const empColAccessor = useCallback((emp: EmployeeRecord, col: string): string | number => {
+    switch (col) {
+      case 'CMID': return emp.cmid ?? 0
+      case 'Employee Name': return emp.name.toLowerCase()
+      case 'Account': return (emp.primaryClientName ?? '').toLowerCase()
+      case 'Email': return emp.email.toLowerCase()
+      case 'Salary Type': return (emp.salaryType ?? '').toLowerCase()
+      case 'Salary': return emp.baseSalary ?? 0
+      case 'Department': return (emp.department ?? '').toLowerCase()
+      case 'Job Title': return (emp.jobTitle ?? '').toLowerCase()
+      case 'Contract Status': return (emp.contractStatus ?? '').toLowerCase()
+      default: return ''
+    }
+  }, [])
+
+  const filteredEmployees = useMemo(() => {
+    let result = [...baseFiltered]
+    // Per-column filters
+    for (const [col, val] of Object.entries(columnFilters)) {
+      if (!val) continue
+      const lower = val.toLowerCase()
+      result = result.filter((e) => String(empColAccessor(e, col)).toLowerCase().includes(lower))
+    }
+    // Sort
+    if (sortCol) {
+      result.sort((a, b) => {
+        const aVal = empColAccessor(a, sortCol)
+        const bVal = empColAccessor(b, sortCol)
+        if (typeof aVal === 'number' && typeof bVal === 'number') {
+          return sortDir === 'asc' ? aVal - bVal : bVal - aVal
+        }
+        const cmp = String(aVal).localeCompare(String(bVal))
+        return sortDir === 'asc' ? cmp : -cmp
+      })
+    }
+    return result
+  }, [baseFiltered, columnFilters, sortCol, sortDir, empColAccessor])
+
+  function handleEmpSort(col: string) {
+    if (sortCol === col) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    else { setSortCol(col); setSortDir('asc') }
+  }
+  function handleEmpColumnFilter(col: string, value: string) {
+    setColumnFilters((prev) => ({ ...prev, [col]: value }))
+  }
+
+  function exportEmployeesCSV() {
+    if (!filteredEmployees.length) return
+    const headers = ['CMID', 'Employee Name', 'Account', 'Email', 'Salary Type', 'Salary', 'Department', 'Job Title', 'Contract Status']
+    const rows = filteredEmployees.map((e) => [
+      e.cmid != null ? String(e.cmid) : '',
+      e.name,
+      e.primaryClientName ?? '',
+      e.email,
+      e.salaryType ?? '',
+      e.baseSalary != null ? String(e.baseSalary) : '',
+      e.department ?? '',
+      e.jobTitle ?? '',
+      e.contractStatus ?? '',
+    ])
+    const csv = [
+      headers.join(','),
+      ...rows.map((row) => row.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')),
+    ].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `employees-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
 
   const uniqueShiftNames = Array.from(
     new Set(allShifts.map((shift) => shift.name.trim()).filter(Boolean))
@@ -474,14 +551,25 @@ export default function AdminEmployees() {
         subtitle="Manage employees. Add and edit staff here; payroll uses this list."
         icon={<Users className="w-5 h-5" />}
         actions={
-          <button
-            type="button"
-            onClick={(e) => { e.currentTarget.blur(); openAdd() }}
-            className="btn-primary"
-          >
-            <Plus className="w-4 h-4" />
-            Add employee
-          </button>
+          <>
+            <button
+              type="button"
+              onClick={exportEmployeesCSV}
+              disabled={filteredEmployees.length === 0}
+              className="btn-secondary"
+            >
+              <Download className="w-4 h-4 shrink-0" />
+              Export CSV
+            </button>
+            <button
+              type="button"
+              onClick={(e) => { e.currentTarget.blur(); openAdd() }}
+              className="btn-primary"
+            >
+              <Plus className="w-4 h-4" />
+              Add employee
+            </button>
+          </>
         }
       />
 
@@ -614,12 +702,44 @@ export default function AdminEmployees() {
             <table className="min-w-[1200px] w-full text-left border-collapse">
               <thead className="sticky top-0 z-10 bg-surface-50 shadow-[0_1px_0_0_theme(colors.surface.200)]">
                 <tr>
-                  {['CMID', 'Employee Name', 'Account', 'Email', 'Contract', 'Department', 'Job Title', 'Salary', 'Status', 'Actions'].map((col) => (
+                  {['CMID', 'Employee Name', 'Account', 'Email', 'Department', 'Job Title', 'Salary Type', 'Salary', 'Contract Status', 'Actions'].map((col) => (
                     <th
                       key={col}
-                      className={`px-3 py-2.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 ${col === 'Actions' ? 'text-right' : col === 'Salary' ? 'text-right' : ''}`}
+                      className={`px-3 py-1.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 ${col === 'Actions' ? 'text-right' : col === 'Salary' ? 'text-right' : ''}`}
                     >
-                      {col}
+                      {col === 'Actions' ? col : (
+                        <>
+                          <div className="flex items-center gap-0.5">
+                            <button
+                              type="button"
+                              className="flex items-center gap-0.5 hover:text-surface-700 transition-colors"
+                              onClick={() => handleEmpSort(col)}
+                            >
+                              {col}
+                              {sortCol === col && (sortDir === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
+                            </button>
+                            <button
+                              type="button"
+                              className={`p-0.5 rounded hover:bg-surface-200/60 transition-colors ${columnFilters[col] ? 'text-brand-600' : 'text-surface-400'}`}
+                              onClick={(e) => { e.stopPropagation(); setFilterOpen(filterOpen === col ? null : col) }}
+                            >
+                              <Filter className="w-2.5 h-2.5" />
+                            </button>
+                          </div>
+                          {filterOpen === col && (
+                            <div className="mt-1" onClick={(e) => e.stopPropagation()}>
+                              <input
+                                type="text"
+                                value={columnFilters[col] ?? ''}
+                                onChange={(e) => handleEmpColumnFilter(col, e.target.value)}
+                                placeholder={`Filter ${col}...`}
+                                className="w-full text-[10px] font-normal normal-case tracking-normal border border-surface-200 rounded px-1.5 py-1 bg-white focus:ring-1 focus:ring-brand-300 outline-none"
+                                autoFocus
+                              />
+                            </div>
+                          )}
+                        </>
+                      )}
                     </th>
                   ))}
                 </tr>
@@ -638,11 +758,10 @@ export default function AdminEmployees() {
                     </td>
                     <td className="px-3 py-2.5 text-xs text-surface-700 whitespace-nowrap">{emp.primaryClientName ?? '-'}</td>
                     <td className="px-3 py-2.5 text-xs text-surface-600 whitespace-nowrap max-w-[200px] truncate">{emp.email}</td>
-                    <td className="px-3 py-2.5 text-xs text-surface-700 whitespace-nowrap">{emp.contractType === 'contractor' ? 'Contractor' : 'Employee'}</td>
                     <td className="px-3 py-2.5 text-xs text-surface-600 whitespace-nowrap">{emp.department ?? '-'}</td>
                     <td className="px-3 py-2.5 text-xs text-surface-600 whitespace-nowrap">{emp.jobTitle ?? '-'}</td>
-                    <td className="px-3 py-2.5 text-xs text-surface-700 tabular-nums whitespace-nowrap text-right">
-                      {emp.salaryType === 'monthly' ? 'M ' : 'H '}
+                    <td className="px-3 py-2.5 text-xs text-surface-700 whitespace-nowrap capitalize">{emp.salaryType ?? '-'}</td>
+                    <td className="px-3 py-2.5 text-xs text-surface-700 tabular-nums whitespace-nowrap text-right font-medium">
                       {emp.salaryType === 'monthly' ? emp.baseSalary.toLocaleString() : emp.baseSalary.toFixed(2)}
                     </td>
                     <td className="px-3 py-2.5 whitespace-nowrap">
