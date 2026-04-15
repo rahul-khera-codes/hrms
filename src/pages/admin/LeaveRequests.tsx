@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { CalendarCheck2, Lock, Unlock, Plus, Calendar, Clock3, Download, LayoutGrid, Table2, Search } from 'lucide-react'
+import { CalendarCheck2, Lock, Unlock, Plus, Calendar, Clock3, Download, LayoutGrid, Table2, Search, ArrowUp, ArrowDown, Filter } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
 import {
   getAdminLeaveRequests,
@@ -102,6 +102,39 @@ export default function AdminLeaveRequests() {
   const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all')
   const [filterLeaveType, setFilterLeaveType] = useState<string>('all')
   const [search, setSearch] = useState('')
+  // Per-column sort/filter (standard from 14APR2026 — "every table")
+  const [sortCol, setSortCol] = useState<string | null>(null)
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+  const [columnFilters, setColumnFilters] = useState<Record<string, string>>({})
+  const [filterOpen, setFilterOpen] = useState<string | null>(null)
+
+  const leaveColAccessor = (r: AdminLeaveRequest, col: string): string | number => {
+    switch (col) {
+      case 'CMID': return r.employeeCmid ?? 0
+      case 'Employee Name': return r.employeeName.toLowerCase()
+      case 'Account': return (r.accountName ?? '').toLowerCase()
+      case 'Leave Type': return (CATEGORY_LABELS[r.leaveCategory ?? ''] || r.leaveCategory || '').toLowerCase()
+      case 'Approval Status': return r.status
+      case 'Calculation': return (r.leaveCalculationType ?? '').toLowerCase()
+      case 'Start Date': return r.startDate ?? ''
+      case 'End Date': return r.endDate ?? ''
+      case 'Days Off': return (r.leaveAssociateDaysOff ?? '').toLowerCase()
+      case 'Return Date': return r.returnDate ?? ''
+      case 'Payable Days': return r.leavePayableDays ?? 0
+      case 'Daily Salary': return r.dailySalary ?? 0
+      case 'Payable Amount': return r.leavePayableAmount ?? 0
+      case 'Payroll Cycle': return (r.payrollCycleCode ?? '').toLowerCase()
+      default: return ''
+    }
+  }
+
+  function handleLeaveSort(col: string) {
+    if (sortCol === col) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    else { setSortCol(col); setSortDir('asc') }
+  }
+  function handleLeaveColumnFilter(col: string, value: string) {
+    setColumnFilters((prev) => ({ ...prev, [col]: value }))
+  }
   const [notice, setNotice] = useState('')
   const [reviewingId, setReviewingId] = useState<string | null>(null)
   const [reviewContext, setReviewContext] = useState<LeaveReviewContext | null>(null)
@@ -195,10 +228,10 @@ export default function AdminLeaveRequests() {
     }
   }, [allRows])
 
-  // Apply client-side search + leave-type filter on the already-status-filtered rows
+  // Apply client-side search + leave-type filter + per-column filters + sort
   const displayedRows = useMemo(() => {
     const q = search.trim().toLowerCase()
-    return rows.filter((r) => {
+    let result = rows.filter((r) => {
       if (filterLeaveType !== 'all' && r.leaveCategory !== filterLeaveType) return false
       if (!q) return true
       return (
@@ -207,7 +240,27 @@ export default function AdminLeaveRequests() {
         (r.accountName ?? '').toLowerCase().includes(q)
       )
     })
-  }, [rows, search, filterLeaveType])
+    // Per-column filters
+    for (const [col, val] of Object.entries(columnFilters)) {
+      if (!val) continue
+      const lower = val.toLowerCase()
+      result = result.filter((r) => String(leaveColAccessor(r, col)).toLowerCase().includes(lower))
+    }
+    // Sort
+    if (sortCol) {
+      result = [...result].sort((a, b) => {
+        const av = leaveColAccessor(a, sortCol)
+        const bv = leaveColAccessor(b, sortCol)
+        if (typeof av === 'number' && typeof bv === 'number') {
+          return sortDir === 'asc' ? av - bv : bv - av
+        }
+        const cmp = String(av).localeCompare(String(bv))
+        return sortDir === 'asc' ? cmp : -cmp
+      })
+    }
+    return result
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, search, filterLeaveType, columnFilters, sortCol, sortDir])
 
   const preview = useMemo(() => {
     if (!reviewContext) return null
@@ -627,9 +680,22 @@ export default function AdminLeaveRequests() {
                   ].map((col) => (
                     <th
                       key={col}
-                      className={`px-3 py-2.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 ${['Payable Days', 'Daily Salary', 'Payable Amount'].includes(col) ? 'text-right' : ''}`}
+                      className={`px-3 py-1.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 ${['Payable Days', 'Daily Salary', 'Payable Amount'].includes(col) ? 'text-right' : ''}`}
                     >
-                      {col}
+                      <div className="flex items-center gap-0.5">
+                        <button type="button" className="flex items-center gap-0.5 hover:text-surface-700 transition-colors" onClick={() => handleLeaveSort(col)}>
+                          {col}
+                          {sortCol === col && (sortDir === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
+                        </button>
+                        <button type="button" className={`p-0.5 rounded hover:bg-surface-200/60 transition-colors ${columnFilters[col] ? 'text-brand-600' : 'text-surface-400'}`} onClick={(e) => { e.stopPropagation(); setFilterOpen(filterOpen === col ? null : col) }}>
+                          <Filter className="w-2.5 h-2.5" />
+                        </button>
+                      </div>
+                      {filterOpen === col && (
+                        <div className="mt-1" onClick={(e) => e.stopPropagation()}>
+                          <input type="text" value={columnFilters[col] ?? ''} onChange={(e) => handleLeaveColumnFilter(col, e.target.value)} placeholder={`Filter ${col}...`} className="w-full text-[10px] font-normal normal-case tracking-normal border border-surface-200 rounded px-1.5 py-1 bg-white focus:ring-1 focus:ring-brand-300 outline-none" autoFocus />
+                        </div>
+                      )}
                     </th>
                   ))}
                 </tr>
