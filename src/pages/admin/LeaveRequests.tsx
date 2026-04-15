@@ -363,8 +363,9 @@ export default function AdminLeaveRequests() {
 
   function openReview(row: AdminLeaveRequest) {
     setReviewingId(row.id)
-    setReviewStatus('approved')
-    setReviewNote('')
+    // Default to the row's existing decision so re-review is a diff, not a reset.
+    setReviewStatus(row.status === 'rejected' ? 'rejected' : 'approved')
+    setReviewNote(row.reviewedNote ?? '')
     setReviewContext(null)
     setContextLoading(true)
     void getLeaveReviewContext(row.id)
@@ -379,7 +380,17 @@ export default function AdminLeaveRequests() {
             ctx.defaultCalculationType === 'monthly_salary' ? 'monthly_salary' : 'hourly_salary'
           )
         }
-        setPayableDaysInput(String(ctx.suggestedPayableDays))
+        // Prefer the previously-saved payable days when re-reviewing; fall back to suggested.
+        const existingPD = ctx.leave.payableDays
+        setPayableDaysInput(
+          existingPD != null && Number.isFinite(existingPD)
+            ? String(existingPD)
+            : String(ctx.suggestedPayableDays)
+        )
+        // Also pick up saved note if row snapshot didn't have it.
+        if (!row.reviewedNote && ctx.leave.reviewedNote) {
+          setReviewNote(ctx.leave.reviewedNote)
+        }
       })
       .catch(() => {
         setNotice('Could not load review details.')
@@ -620,7 +631,7 @@ export default function AdminLeaveRequests() {
               <li
                 key={r.id}
                 className="flex flex-col sm:flex-row sm:items-center gap-4 p-4 sm:p-5 rounded-xl border border-surface-200/80 bg-white transition-all hover:shadow-md hover:border-brand-200/80 cursor-pointer"
-                onClick={() => (r.isLocked || r.status !== 'pending' ? setDetailRow(r) : openReview(r))}
+                onClick={() => (r.isLocked ? setDetailRow(r) : openReview(r))}
               >
                 <div className="w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center shrink-0">
                   <CalendarCheck2 className="w-5 h-5 text-brand-600" />
@@ -712,7 +723,7 @@ export default function AdminLeaveRequests() {
                   <tr
                     key={r.id}
                     className="border-b border-surface-100 hover:bg-brand-50/40 transition-colors cursor-pointer group"
-                    onClick={() => (r.isLocked || r.status !== 'pending' ? setDetailRow(r) : openReview(r))}
+                    onClick={() => (r.isLocked ? setDetailRow(r) : openReview(r))}
                   >
                     <td className="px-3 py-2 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">{r.employeeCmid ?? '-'}</td>
                     <td className="px-3 py-2 text-xs font-medium text-surface-900 whitespace-nowrap">{r.employeeName}</td>
@@ -739,9 +750,9 @@ export default function AdminLeaveRequests() {
                     <td className="px-3 py-2 whitespace-nowrap text-right" onClick={(e) => e.stopPropagation()}>
                       <button
                         type="button"
-                        onClick={() => (r.isLocked || r.status !== 'pending' ? setDetailRow(r) : openReview(r))}
+                        onClick={() => (r.isLocked ? setDetailRow(r) : openReview(r))}
                         className="p-1.5 rounded-lg text-surface-500 hover:bg-surface-100"
-                        title={r.isLocked ? 'View (locked)' : r.status !== 'pending' ? `View (${r.status})` : 'Edit / review'}
+                        title={r.isLocked ? 'View (locked)' : 'Edit / review'}
                       >
                         <Pencil className="w-3.5 h-3.5" />
                       </button>
@@ -1013,13 +1024,29 @@ export default function AdminLeaveRequests() {
             aria-label="Close"
           />
           <div className="relative z-10 w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl border border-surface-200 bg-white p-5 shadow-xl">
-            <h2 className="text-base font-semibold text-surface-900">Review leave request</h2>
-            <p className="mt-1 text-sm text-surface-500">Approve or reject. Pay fields apply when approving.</p>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h2 className="text-base font-semibold text-surface-900">
+                  {reviewContext && reviewContext.leave.status !== 'pending' ? 'Edit leave decision' : 'Review leave request'}
+                </h2>
+                <p className="mt-1 text-sm text-surface-500">Approve or reject. Pay fields apply when approving.</p>
+              </div>
+              {reviewContext && reviewContext.leave.status !== 'pending' ? (
+                <span className={`shrink-0 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold capitalize ${statusColors[reviewContext.leave.status] || 'bg-surface-100 text-surface-600'}`}>
+                  {reviewContext.leave.status}
+                </span>
+              ) : null}
+            </div>
 
             {contextLoading || !reviewContext ? (
               <div className="py-10 text-center text-sm text-surface-500">Loading details…</div>
             ) : (
               <>
+                {reviewContext.leave.status !== 'pending' ? (
+                  <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50/70 px-3 py-2 text-xs text-amber-800">
+                    Re-reviewing an already <strong className="capitalize">{reviewContext.leave.status}</strong> request. Saving will overwrite the existing decision.
+                  </div>
+                ) : null}
                 <div className="mt-4 rounded-xl border border-surface-200 bg-surface-50/80 p-3 text-sm space-y-1">
                   <p>
                     <span className="text-surface-500">Employee:</span>{' '}

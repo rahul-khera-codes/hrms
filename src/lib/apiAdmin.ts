@@ -512,7 +512,10 @@ export interface LeaveReviewContext {
     startDate: string
     endDate: string
     reason: string
-    status: 'pending'
+    status: 'pending' | 'approved' | 'rejected'
+    isLocked?: boolean
+    reviewedNote?: string
+    payableDays?: number | null
     leaveCategory?: string | null
     calculationType?: string | null
     associateDaysOff?: string | null

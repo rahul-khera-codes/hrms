@@ -905,14 +905,19 @@ router.get('/leave-requests', async (req, res) => {
   }
 })
 
-// GET /api/admin/leave-requests/:id/review-context — pending leave + employee salary + settings (admin review modal)
+// GET /api/admin/leave-requests/:id/review-context — leave + employee salary + settings (admin review modal)
+// Works for any status; PATCH blocks edits only when the record is locked.
 router.get('/leave-requests/:id/review-context', async (req, res) => {
   try {
     const { id } = req.params
+    if (!UUID_RE.test(id)) {
+      return res.status(400).json({ error: 'Bad request', message: 'Leave request id must be a valid UUID.' })
+    }
     const lr = await query(
-      `SELECT lr.id, lr.user_id, lr.leave_type, lr.status,
+      `SELECT lr.id, lr.user_id, lr.leave_type, lr.status, lr.is_locked,
               lr.start_date::text AS start_date_str, lr.end_date::text AS end_date_str, lr.reason,
               lr.leave_category, lr.leave_calculation_type, lr.leave_associate_days_off,
+              lr.leave_payable_days, lr.reviewed_note,
               lr.return_date::text AS return_date_str,
               lr.start_time::text, lr.end_time::text, lr.return_time::text
        FROM leave_requests lr
@@ -923,9 +928,6 @@ router.get('/leave-requests/:id/review-context', async (req, res) => {
       return res.status(404).json({ error: 'Not found', message: 'Leave request not found' })
     }
     const row = lr.rows[0]
-    if (row.status !== 'pending') {
-      return res.status(400).json({ error: 'Bad request', message: 'Only pending requests can be opened for review' })
-    }
     const empResult = await query(
       `SELECT u.name AS user_name,
               COALESCE(e.salary_type, u.salary_type) AS salary_type,
@@ -953,6 +955,9 @@ router.get('/leave-requests/:id/review-context', async (req, res) => {
         endDate,
         reason: row.reason || '',
         status: row.status,
+        isLocked: !!row.is_locked,
+        reviewedNote: row.reviewed_note || '',
+        payableDays: row.leave_payable_days != null ? Number(row.leave_payable_days) : null,
         leaveCategory: row.leave_category || null,
         calculationType: row.leave_calculation_type || null,
         associateDaysOff: row.leave_associate_days_off || null,
