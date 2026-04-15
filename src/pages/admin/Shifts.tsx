@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { Clock, Plus, Pencil, Trash2, LayoutGrid, Table2, Search, Timer } from 'lucide-react'
+import { Clock, Plus, Pencil, Trash2, LayoutGrid, Table2, Search, Timer, ArrowUp, ArrowDown, Filter } from 'lucide-react'
 import { getShifts, getClients, createShift, updateShift, deleteShift, type Shift, type Client } from '@/lib/apiAdmin'
 import AdminSelect from '@/components/AdminSelect'
 import { PageHeader } from '@/components/PageHeader'
@@ -44,18 +44,53 @@ export default function AdminShifts() {
   const [saving, setSaving] = useState(false)
   const [viewMode, setViewMode] = useState<'card' | 'table'>('table')
   const [search, setSearch] = useState('')
-
-  const filteredShifts = useMemo(() => {
-    const q = search.trim().toLowerCase()
-    if (!q) return shifts
-    return shifts.filter((s) => s.name.toLowerCase().includes(q))
-  }, [shifts, search])
+  const [sortCol, setSortCol] = useState<string | null>(null)
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+  const [columnFilters, setColumnFilters] = useState<Record<string, string>>({})
+  const [filterOpen, setFilterOpen] = useState<string | null>(null)
 
   const clientMap = useMemo(() => {
     const m = new Map<string, string>()
     for (const c of clients) m.set(c.id, c.name)
     return m
   }, [clients])
+
+  const shiftColAccessor = (s: Shift, col: string): string => {
+    switch (col) {
+      case 'Name': return s.name.toLowerCase()
+      case 'Start Time': return String(s.startTime ?? '')
+      case 'End Time': return String(s.endTime ?? '')
+      case 'Timezone': return (s.timezone ?? '').toLowerCase()
+      case 'Client': return (s.clientId ? clientMap.get(s.clientId) : '')?.toLowerCase() ?? ''
+      default: return ''
+    }
+  }
+
+  const filteredShifts = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    let result = q ? shifts.filter((s) => s.name.toLowerCase().includes(q)) : [...shifts]
+    for (const [col, val] of Object.entries(columnFilters)) {
+      if (!val) continue
+      const lower = val.toLowerCase()
+      result = result.filter((s) => shiftColAccessor(s, col).includes(lower))
+    }
+    if (sortCol) {
+      result.sort((a, b) => {
+        const cmp = shiftColAccessor(a, sortCol).localeCompare(shiftColAccessor(b, sortCol))
+        return sortDir === 'asc' ? cmp : -cmp
+      })
+    }
+    return result
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shifts, search, columnFilters, sortCol, sortDir, clientMap])
+
+  function handleShiftSort(col: string) {
+    if (sortCol === col) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    else { setSortCol(col); setSortDir('asc') }
+  }
+  function handleShiftColumnFilter(col: string, value: string) {
+    setColumnFilters((prev) => ({ ...prev, [col]: value }))
+  }
 
   function load() {
     return Promise.all([getShifts(clientFilter || undefined), getClients()]).then(([s, c]) => {
@@ -242,9 +277,26 @@ export default function AdminShifts() {
                   {['Name', 'Start Time', 'End Time', 'Timezone', 'Client', 'Actions'].map((col) => (
                     <th
                       key={col}
-                      className={`px-3 py-2.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 ${col === 'Actions' ? 'text-right' : ''}`}
+                      className={`px-3 py-1.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 ${col === 'Actions' ? 'text-right' : ''}`}
                     >
-                      {col}
+                      {col === 'Actions' ? col : (
+                        <>
+                          <div className="flex items-center gap-0.5">
+                            <button type="button" className="flex items-center gap-0.5 hover:text-surface-700 transition-colors" onClick={() => handleShiftSort(col)}>
+                              {col}
+                              {sortCol === col && (sortDir === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
+                            </button>
+                            <button type="button" className={`p-0.5 rounded hover:bg-surface-200/60 transition-colors ${columnFilters[col] ? 'text-brand-600' : 'text-surface-400'}`} onClick={(e) => { e.stopPropagation(); setFilterOpen(filterOpen === col ? null : col) }}>
+                              <Filter className="w-2.5 h-2.5" />
+                            </button>
+                          </div>
+                          {filterOpen === col && (
+                            <div className="mt-1" onClick={(e) => e.stopPropagation()}>
+                              <input type="text" value={columnFilters[col] ?? ''} onChange={(e) => handleShiftColumnFilter(col, e.target.value)} placeholder={`Filter ${col}...`} className="w-full text-[10px] font-normal normal-case tracking-normal border border-surface-200 rounded px-1.5 py-1 bg-white focus:ring-1 focus:ring-brand-300 outline-none" autoFocus />
+                            </div>
+                          )}
+                        </>
+                      )}
                     </th>
                   ))}
                 </tr>
