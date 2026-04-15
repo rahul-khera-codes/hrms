@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Calendar, CalendarCheck2, Clock3, Send, LayoutGrid, Table2 } from 'lucide-react'
+import { Calendar, CalendarCheck2, Clock3, Send, LayoutGrid, Table2, Download, Search } from 'lucide-react'
 import { createLeaveRequest, getMyLeaveRequests, type LeaveRequestItem } from '@/lib/apiEmployee'
 import AdminSelect from '@/components/AdminSelect'
 import { PageHeader } from '@/components/PageHeader'
@@ -53,6 +53,7 @@ export default function EmployeeLeave() {
   const [reason, setReason] = useState('')
   const [notice, setNotice] = useState('')
   const [requestsView, setRequestsView] = useState<'card' | 'table'>('table')
+  const [search, setSearch] = useState('')
 
   async function load(showLoader = true) {
     if (showLoader) setLoading(true)
@@ -95,6 +96,49 @@ export default function EmployeeLeave() {
   }, [notice])
 
   const pendingCount = useMemo(() => requests.filter((r) => r.status === 'pending').length, [requests])
+
+  const filteredRequests = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return requests
+    return requests.filter((r) => {
+      const categoryLabel = r.leaveCategory ? (CATEGORY_LABELS[r.leaveCategory] || r.leaveCategory).toLowerCase() : ''
+      return (
+        categoryLabel.includes(q) ||
+        (r.status ?? '').toLowerCase().includes(q) ||
+        (r.leaveType ?? '').toLowerCase().includes(q) ||
+        (r.startDate ?? '').toLowerCase().includes(q) ||
+        (r.endDate ?? '').toLowerCase().includes(q) ||
+        (r.returnDate ?? '').toLowerCase().includes(q) ||
+        (r.reason ?? '').toLowerCase().includes(q)
+      )
+    })
+  }, [requests, search])
+
+  function exportCSV() {
+    if (!filteredRequests.length) return
+    const headers = ['Leave Type', 'Start', 'End', 'Return', 'Days Off', 'Pay', 'Status', 'Reason']
+    const rows = filteredRequests.map((r) => [
+      r.leaveCategory ? (CATEGORY_LABELS[r.leaveCategory] || r.leaveCategory) : '',
+      r.startDate ?? '',
+      r.endDate ?? '',
+      r.returnDate ?? '',
+      r.associateDaysOff ?? '',
+      r.leavePayableAmount != null && r.leavePayableAmount > 0 ? r.leavePayableAmount.toFixed(2) : '',
+      r.status ?? '',
+      r.reason ?? '',
+    ])
+    const csv = [
+      headers.join(','),
+      ...rows.map((row) => row.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')),
+    ].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `my-leave-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
 
   function toggleDayOff(day: string) {
     setDaysOff((prev) =>
@@ -165,6 +209,12 @@ export default function EmployeeLeave() {
         title="My Leave"
         subtitle="Submit leave requests and track approvals."
         icon={<CalendarCheck2 className="w-5 h-5" />}
+        actions={
+          <button type="button" onClick={exportCSV} disabled={filteredRequests.length === 0} className="btn-secondary">
+            <Download className="w-4 h-4 shrink-0" />
+            Export CSV
+          </button>
+        }
       />
 
       <div className="card">
@@ -317,6 +367,21 @@ export default function EmployeeLeave() {
         </form>
       </div>
 
+      {requests.length > 0 && (
+        <div className="toolbar">
+          <div className="relative flex-1 min-w-0">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400 shrink-0" />
+            <input
+              type="text"
+              placeholder="Search leave by type, status or date"
+              className="input pl-9"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+        </div>
+      )}
+
       <div className="card overflow-hidden">
         <div className="card-header">
           <div className="flex items-center gap-2.5 min-w-0">
@@ -362,9 +427,15 @@ export default function EmployeeLeave() {
             <p className="empty-state-title">No leave requests yet</p>
             <p className="empty-state-description">Submit your first request using the form above.</p>
           </div>
+        ) : filteredRequests.length === 0 ? (
+          <div className="empty-state">
+            <div className="empty-state-icon"><Search className="w-5 h-5" /></div>
+            <p className="empty-state-title">No matches</p>
+            <p className="empty-state-description">No leave requests match your search.</p>
+          </div>
         ) : requestsView === 'card' ? (
           <ul className="p-3 sm:p-4 space-y-2">
-            {requests.map((r) => {
+            {filteredRequests.map((r) => {
               const statusBadgeClass = r.status === 'approved' ? 'badge-success' : r.status === 'rejected' ? 'badge-danger' : 'badge-warning'
               return (
                 <li
@@ -418,7 +489,7 @@ export default function EmployeeLeave() {
                 </tr>
               </thead>
               <tbody>
-                {requests.map((r) => {
+                {filteredRequests.map((r) => {
                   const statusBadgeClass = r.status === 'approved' ? 'badge-success' : r.status === 'rejected' ? 'badge-danger' : 'badge-warning'
                   return (
                     <tr key={r.id} className="border-b border-surface-100 hover:bg-brand-50/30 transition-colors">

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { CalendarDays, Clock, Building2, ChevronLeft, ChevronRight, Search, LayoutGrid, Table2 } from 'lucide-react'
+import { CalendarDays, Clock, Building2, ChevronLeft, ChevronRight, Search, LayoutGrid, Table2, Download } from 'lucide-react'
 import { getMySchedule, type MyScheduleEntry } from '@/lib/apiEmployee'
 import { format, addDays, startOfWeek, parseISO } from 'date-fns'
 import AdminSelect from '@/components/AdminSelect'
@@ -80,12 +80,41 @@ export default function EmployeeMySchedule() {
     return byClient && byShift
   })
 
+  function exportCSV() {
+    if (!filteredEntries.length) return
+    const headers = ['Date', 'Shift', 'Client', 'Start', 'End']
+    const rows = filteredEntries.map((e) => [
+      e.date ? format(parseISO(e.date), 'yyyy-MM-dd') : '',
+      e.shiftName ?? '',
+      e.clientName ?? '',
+      formatTime(e.startTime),
+      formatTime(e.endTime),
+    ])
+    const csv = [
+      headers.join(','),
+      ...rows.map((row) => row.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')),
+    ].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `my-schedule-${weekStart}-to-${weekEnd}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <div className="page overflow-x-hidden">
       <PageHeader
         title="My Schedule"
         subtitle="Shifts assigned to you by your supervisor."
         icon={<CalendarDays className="w-5 h-5" />}
+        actions={
+          <button type="button" onClick={exportCSV} disabled={filteredEntries.length === 0} className="btn-secondary">
+            <Download className="w-4 h-4 shrink-0" />
+            Export CSV
+          </button>
+        }
       />
 
       {/* Filter toolbar */}
