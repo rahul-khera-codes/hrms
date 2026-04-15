@@ -499,6 +499,7 @@ export interface AdminLeaveRequest {
   dailySalary?: number | null
   employeeCmid?: number | null
   accountName?: string | null
+  reportsTo?: string | null
   isLocked?: boolean
 }
 

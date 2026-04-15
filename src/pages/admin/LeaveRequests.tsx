@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { CalendarCheck2, Lock, Unlock, Plus, Calendar, Clock3, Download, LayoutGrid, Table2, X, Search } from 'lucide-react'
+import { CalendarCheck2, Lock, Unlock, Plus, Calendar, Clock3, Download, LayoutGrid, Table2, Search } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
 import {
   getAdminLeaveRequests,
@@ -15,6 +15,7 @@ import {
   type PayrollPeriod,
 } from '@/lib/apiAdmin'
 import AdminSelect from '@/components/AdminSelect'
+import { DetailModalHeader } from '@/components/DetailModalHeader'
 
 const statusColors: Record<string, string> = {
   pending: 'bg-amber-100 text-amber-700',
@@ -99,6 +100,7 @@ export default function AdminLeaveRequests() {
   const [allRows, setAllRows] = useState<AdminLeaveRequest[]>([])
   const [loading, setLoading] = useState(true)
   const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all')
+  const [filterLeaveType, setFilterLeaveType] = useState<string>('all')
   const [search, setSearch] = useState('')
   const [notice, setNotice] = useState('')
   const [reviewingId, setReviewingId] = useState<string | null>(null)
@@ -193,16 +195,19 @@ export default function AdminLeaveRequests() {
     }
   }, [allRows])
 
-  // Apply client-side search on the already-status-filtered rows
+  // Apply client-side search + leave-type filter on the already-status-filtered rows
   const displayedRows = useMemo(() => {
     const q = search.trim().toLowerCase()
-    if (!q) return rows
-    return rows.filter((r) =>
-      r.employeeName.toLowerCase().includes(q) ||
-      (r.employeeCmid != null && String(r.employeeCmid).includes(q)) ||
-      (r.accountName ?? '').toLowerCase().includes(q)
-    )
-  }, [rows, search])
+    return rows.filter((r) => {
+      if (filterLeaveType !== 'all' && r.leaveCategory !== filterLeaveType) return false
+      if (!q) return true
+      return (
+        r.employeeName.toLowerCase().includes(q) ||
+        (r.employeeCmid != null && String(r.employeeCmid).includes(q)) ||
+        (r.accountName ?? '').toLowerCase().includes(q)
+      )
+    })
+  }, [rows, search, filterLeaveType])
 
   const preview = useMemo(() => {
     if (!reviewContext) return null
@@ -494,12 +499,22 @@ export default function AdminLeaveRequests() {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <div className="w-full sm:w-48">
+        <div className="w-full sm:w-44">
+          <AdminSelect
+            value={filterLeaveType}
+            onChange={(val) => setFilterLeaveType(val)}
+            options={[
+              { value: 'all', label: 'All leave types' },
+              ...leaveCategoryOptions.map((opt) => ({ value: opt.value, label: opt.label })),
+            ]}
+          />
+        </div>
+        <div className="w-full sm:w-44">
           <AdminSelect
             value={filterStatus}
             onChange={(val) => setFilterStatus(val as 'all' | 'pending' | 'approved' | 'rejected')}
             options={[
-              { value: 'all', label: 'All' },
+              { value: 'all', label: 'All status' },
               { value: 'pending', label: 'Pending' },
               { value: 'approved', label: 'Approved' },
               { value: 'rejected', label: 'Rejected' },
@@ -1106,31 +1121,20 @@ export default function AdminLeaveRequests() {
             aria-label="Close"
           />
           <div className="relative z-10 w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl border border-surface-200 bg-white shadow-xl">
-            {/* Header */}
-            <div className="sticky top-0 z-10 bg-white border-b border-surface-200 px-6 py-4 rounded-t-2xl">
-              <button
-                type="button"
-                onClick={() => setDetailRow(null)}
-                className="absolute top-3 right-3 p-1.5 rounded-lg hover:bg-surface-100 transition-colors"
-              >
-                <X className="w-5 h-5 text-surface-400" />
-              </button>
-              <div className="flex items-center gap-3">
-                <h2 className="text-lg font-semibold text-surface-900">{detailRow.employeeName}</h2>
-                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold capitalize ${statusColors[detailRow.status] || 'bg-surface-100 text-surface-600'}`}>
-                  {detailRow.status}
-                </span>
-              </div>
-              <div className="flex items-center gap-2 mt-1">
-                <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-surface-100 text-xs font-mono font-medium text-surface-600">
-                  CMID {detailRow.employeeCmid ?? '-'}
-                </span>
-                {detailRow.accountName && (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-surface-100 text-xs font-medium text-surface-600">
-                    {detailRow.accountName}
+            {/* Client standard header (14APR2026): Name + CMID + Reports To */}
+            <div className="sticky top-0 z-10 bg-white rounded-t-2xl">
+              <DetailModalHeader
+                employeeName={detailRow.employeeName}
+                cmid={detailRow.employeeCmid}
+                reportsTo={detailRow.reportsTo}
+                accountName={detailRow.accountName}
+                onClose={() => setDetailRow(null)}
+                extra={
+                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold capitalize ${statusColors[detailRow.status] || 'bg-surface-100 text-surface-600'}`}>
+                    {detailRow.status}
                   </span>
-                )}
-              </div>
+                }
+              />
             </div>
 
             <div className="p-5 space-y-4">

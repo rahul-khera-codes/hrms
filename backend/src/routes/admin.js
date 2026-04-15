@@ -850,11 +850,13 @@ router.get('/leave-requests', async (req, res) => {
               lr.leave_daily_salary,
               lr.is_locked,
               e.cmid AS employee_cmid,
-              c.name AS account_name
+              c.name AS account_name,
+              mgr.name AS reports_to_name
        FROM leave_requests lr
        JOIN users u ON u.id = lr.user_id
        LEFT JOIN users reviewer ON reviewer.id = lr.reviewed_by
        LEFT JOIN employees e ON e.user_id = lr.user_id
+       LEFT JOIN users mgr ON mgr.id = e.reports_to
        LEFT JOIN clients c ON c.id = e.primary_client_id
        WHERE u.role = 'employee'`
     if (status !== 'all') {
@@ -894,6 +896,7 @@ router.get('/leave-requests', async (req, res) => {
       dailySalary: r.leave_daily_salary != null ? Number(r.leave_daily_salary) : null,
       employeeCmid: r.employee_cmid != null ? Number(r.employee_cmid) : null,
       accountName: r.account_name || null,
+      reportsTo: r.reports_to_name || null,
       isLocked: r.is_locked === true,
     })))
   } catch (err) {

@@ -6,6 +6,7 @@ import type { AttendanceRecord } from '@/types'
 import AdminDatePicker from '@/components/AdminDatePicker'
 import AdminSelect from '@/components/AdminSelect'
 import { PageHeader } from '@/components/PageHeader'
+import { DetailModalHeader } from '@/components/DetailModalHeader'
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -781,25 +782,15 @@ export default function AdminAttendance() {
           />
           <div className="relative z-10 w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl border border-surface-200 bg-white shadow-xl">
             {/* Header */}
-            <div className="sticky top-0 z-10 bg-white border-b border-surface-200 px-6 py-4 rounded-t-2xl">
-              <button
-                type="button"
-                onClick={() => setDetailRecord(null)}
-                className="absolute top-3 right-3 p-1.5 rounded-lg hover:bg-surface-100 transition-colors"
-              >
-                <X className="w-5 h-5 text-surface-400" />
-              </button>
-              <h2 className="text-lg font-semibold text-surface-900">{detailRecord.employeeName}</h2>
-              <div className="flex items-center gap-2 mt-1">
-                <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-surface-100 text-xs font-mono font-medium text-surface-600">
-                  CMID {detailRecord.employeeCmid ?? '-'}
-                </span>
-                {detailRecord.accountName && (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-surface-100 text-xs font-medium text-surface-600">
-                    {detailRecord.accountName}
-                  </span>
-                )}
-              </div>
+            <div className="sticky top-0 z-10 bg-white rounded-t-2xl">
+              {/* Client standard header (14APR2026): Name + CMID + Reports To */}
+              <DetailModalHeader
+                employeeName={detailRecord.employeeName}
+                cmid={detailRecord.employeeCmid}
+                reportsTo={detailRecord.reportsTo}
+                accountName={detailRecord.accountName}
+                onClose={() => setDetailRecord(null)}
+              />
             </div>
 
             <div className="p-6 space-y-5">
