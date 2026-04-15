@@ -21,7 +21,7 @@ export function PageHeader({ title, subtitle, actions, icon }: PageHeaderProps) 
           {subtitle && <p className="page-subtitle">{subtitle}</p>}
         </div>
       </div>
-      {actions && <div className="flex flex-wrap items-center gap-2 shrink-0">{actions}</div>}
+      {actions && <div className="page-header-actions">{actions}</div>}
     </div>
   )
 }

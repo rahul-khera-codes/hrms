@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback, useEffect } from 'react'
 import { format } from 'date-fns'
 import { getSessions } from '@/lib/apiSessions'
 import type { ClockSession } from '@/types'
-import { Clock, Calendar, TrendingUp, Zap } from 'lucide-react'
+import { Clock, Calendar, TrendingUp, Zap, Download, Search } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
 
 const SESSIONS_PER_PAGE = 10
@@ -32,6 +32,40 @@ export default function EmployeeSessions() {
   const [sessions, setSessions] = useState<ClockSession[]>([])
   const [loading, setLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState(1)
+  const [search, setSearch] = useState('')
+
+  const filteredSessions = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return sessions
+    return sessions.filter((s) => {
+      const dateStr = format(new Date(s.clockIn), 'MMM d, yyyy HH:mm').toLowerCase()
+      return dateStr.includes(q) || s.status.toLowerCase().includes(q)
+    })
+  }, [sessions, search])
+
+  function exportCSV() {
+    if (!filteredSessions.length) return
+    const headers = ['Date', 'Clock In', 'Clock Out', 'Regular', 'Overtime', 'Status']
+    const rows = filteredSessions.map((s) => [
+      format(new Date(s.clockIn), 'yyyy-MM-dd'),
+      format(new Date(s.clockIn), 'HH:mm:ss'),
+      s.clockOut ? format(new Date(s.clockOut), 'HH:mm:ss') : '',
+      s.status === 'completed' ? formatDuration(getDisplayRegularMinutes(s)) : '',
+      s.overtimeMinutes != null && s.overtimeMinutes > 0 ? formatDuration(s.overtimeMinutes) : '',
+      s.status,
+    ])
+    const csv = [
+      headers.join(','),
+      ...rows.map((row) => row.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')),
+    ].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `my-sessions-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
 
   const fetchSessions = useCallback(async () => {
     try {
@@ -62,10 +96,10 @@ export default function EmployeeSessions() {
     }
   }, [sessions])
 
-  const totalPages = Math.max(1, Math.ceil(sessions.length / SESSIONS_PER_PAGE))
+  const totalPages = Math.max(1, Math.ceil(filteredSessions.length / SESSIONS_PER_PAGE))
   const safeCurrentPage = Math.min(currentPage, totalPages)
   const pageStart = (safeCurrentPage - 1) * SESSIONS_PER_PAGE
-  const paginatedSessions = sessions.slice(pageStart, pageStart + SESSIONS_PER_PAGE)
+  const paginatedSessions = filteredSessions.slice(pageStart, pageStart + SESSIONS_PER_PAGE)
 
   useEffect(() => {
     if (currentPage > totalPages) {
@@ -90,7 +124,28 @@ export default function EmployeeSessions() {
         title="My Sessions"
         subtitle="View and manage your clock-in / clock-out history."
         icon={<Clock className="w-5 h-5" />}
+        actions={
+          <button type="button" onClick={exportCSV} disabled={filteredSessions.length === 0} className="btn-secondary">
+            <Download className="w-4 h-4 shrink-0" />
+            Export CSV
+          </button>
+        }
       />
+
+      {sessions.length > 0 && (
+        <div className="toolbar">
+          <div className="relative flex-1 min-w-0">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400 shrink-0" />
+            <input
+              type="text"
+              placeholder="Search sessions by date or status"
+              className="input pl-9"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+        </div>
+      )}
 
       {sessions.length > 0 && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">

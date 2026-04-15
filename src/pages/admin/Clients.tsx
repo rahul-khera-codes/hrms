@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { Building2, Plus, Pencil, Trash2, LayoutGrid, Table2, Search, ArrowUp, ArrowDown, Filter } from 'lucide-react'
+import { Building2, Plus, Pencil, Trash2, LayoutGrid, Table2, Search, ArrowUp, ArrowDown, Filter, Download } from 'lucide-react'
 import { getClients, createClient, updateClient, deleteClient, type Client } from '@/lib/apiAdmin'
 import { PageHeader } from '@/components/PageHeader'
 
@@ -108,6 +108,23 @@ export default function AdminClients() {
     }
   }
 
+  function exportCSV() {
+    if (!filteredClients.length) return
+    const headers = ['Name', 'Code']
+    const rows = filteredClients.map((c) => [c.name, c.code || ''])
+    const csv = [
+      headers.join(','),
+      ...rows.map((row) => row.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')),
+    ].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `clients-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   if (loading) {
     return (
       <div className="page">
@@ -126,10 +143,16 @@ export default function AdminClients() {
         subtitle="Manage BPO clients. Use them when building schedules."
         icon={<Building2 className="w-5 h-5" />}
         actions={
-          <button type="button" onClick={(e) => { e.currentTarget.blur(); openAdd() }} className="btn-primary">
-            <Plus className="w-4 h-4" />
-            Add client
-          </button>
+          <>
+            <button type="button" onClick={exportCSV} disabled={filteredClients.length === 0} className="btn-secondary">
+              <Download className="w-4 h-4 shrink-0" />
+              Export CSV
+            </button>
+            <button type="button" onClick={(e) => { e.currentTarget.blur(); openAdd() }} className="btn-primary">
+              <Plus className="w-4 h-4" />
+              Add client
+            </button>
+          </>
         }
       />
 

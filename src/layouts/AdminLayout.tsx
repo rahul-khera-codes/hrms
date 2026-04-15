@@ -184,7 +184,7 @@ export default function AdminLayout() {
         </aside>
 
         <main className="flex-1 min-w-0 overflow-auto">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 py-5 sm:py-6 md:py-7">
+          <div className="max-w-7xl mx-auto px-3 sm:px-5 md:px-6 lg:px-8 py-4 sm:py-5 md:py-6 lg:py-7">
             <button
               type="button"
               onClick={() => setMobileMenuOpen(true)}

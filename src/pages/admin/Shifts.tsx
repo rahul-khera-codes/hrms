@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { Clock, Plus, Pencil, Trash2, LayoutGrid, Table2, Search, Timer, ArrowUp, ArrowDown, Filter } from 'lucide-react'
+import { Clock, Plus, Pencil, Trash2, LayoutGrid, Table2, Search, Timer, ArrowUp, ArrowDown, Filter, Download } from 'lucide-react'
 import { getShifts, getClients, createShift, updateShift, deleteShift, type Shift, type Client } from '@/lib/apiAdmin'
 import AdminSelect from '@/components/AdminSelect'
 import { PageHeader } from '@/components/PageHeader'
@@ -160,6 +160,29 @@ export default function AdminShifts() {
     }
   }
 
+  function exportShiftsCSV() {
+    if (!filteredShifts.length) return
+    const headers = ['Name', 'Start Time', 'End Time', 'Timezone', 'Client']
+    const rows = filteredShifts.map((s) => [
+      s.name,
+      formatTime(s.startTime),
+      formatTime(s.endTime),
+      s.timezone || '',
+      s.clientId ? (clientMap.get(s.clientId) || '') : '',
+    ])
+    const csv = [
+      headers.join(','),
+      ...rows.map((row) => row.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')),
+    ].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `shifts-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   if (loading && shifts.length === 0) {
     return (
       <div className="page">
@@ -178,10 +201,16 @@ export default function AdminShifts() {
         subtitle="Define shift templates. Use when assigning employees on the Schedule."
         icon={<Timer className="w-5 h-5" />}
         actions={
-          <button type="button" onClick={openAdd} className="btn-primary">
-            <Plus className="w-4 h-4" />
-            Add shift
-          </button>
+          <>
+            <button type="button" onClick={exportShiftsCSV} disabled={filteredShifts.length === 0} className="btn-secondary">
+              <Download className="w-4 h-4 shrink-0" />
+              Export CSV
+            </button>
+            <button type="button" onClick={openAdd} className="btn-primary">
+              <Plus className="w-4 h-4" />
+              Add shift
+            </button>
+          </>
         }
       />
 

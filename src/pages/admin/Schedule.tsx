@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, CalendarDays, Search } from 'lucide-react'
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, CalendarDays, Search, Download } from 'lucide-react'
 import { getClients, getShifts, getEmployees, getSchedule, createScheduleAssignment, deleteScheduleAssignment, type Client, type Shift, type ScheduleAssignment } from '@/lib/apiAdmin'
 import { addDays, startOfWeek, format, parseISO } from 'date-fns'
 import AdminSelect from '@/components/AdminSelect'
@@ -91,12 +91,48 @@ export default function AdminSchedule() {
     setWeekStart(format(addDays(parseISO(weekStart), 7), 'yyyy-MM-dd'))
   }
 
+  function exportScheduleCSV() {
+    if (!clientId || filteredEmployees.length === 0) return
+    const headers = ['Employee', ...weekDates.map((d) => format(d, 'EEE d MMM'))]
+    const rows = filteredEmployees.map((emp) => {
+      const row: string[] = [emp.name]
+      for (const d of weekDates) {
+        const dateStr = format(d, 'yyyy-MM-dd')
+        const a = getAssignment(emp.id, dateStr)
+        row.push(a ? a.shiftName : '')
+      }
+      return row
+    })
+    const csv = [
+      headers.join(','),
+      ...rows.map((row) => row.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')),
+    ].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `schedule-${fromDate}-to-${toDate}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <div className="page">
       <PageHeader
         title="Schedule"
         subtitle="Assign employees to shifts per BPO client by week."
         icon={<CalendarDays className="w-5 h-5" />}
+        actions={
+          <button
+            type="button"
+            onClick={exportScheduleCSV}
+            disabled={!clientId || filteredEmployees.length === 0}
+            className="btn-secondary"
+          >
+            <Download className="w-4 h-4 shrink-0" />
+            Export CSV
+          </button>
+        }
       />
 
       {/* Filter bar */}
