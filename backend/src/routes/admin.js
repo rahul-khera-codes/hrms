@@ -503,10 +503,17 @@ router.get('/attendance', async (req, res) => {
   }
 })
 
+// UUID validator — prevents 22P02 errors when frontend passes synthetic IDs
+// (e.g., "leave-<uuid>" for leave rows shown in the attendance grid).
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 // PATCH /api/admin/attendance/:sessionId — admin edits attendance record fields
 router.patch('/attendance/:sessionId', async (req, res) => {
   try {
     const { sessionId } = req.params
+    if (!UUID_RE.test(sessionId)) {
+      return res.status(400).json({ error: 'Bad request', message: 'Session id must be a valid UUID (cannot edit synthetic rows like leave entries).' })
+    }
     const {
       statusOverride, payType, billType, task, stage,
       location, comments, shiftStart, shiftEnd,
@@ -972,6 +979,9 @@ router.get('/leave-requests/:id/review-context', async (req, res) => {
 router.patch('/leave-requests/:id', async (req, res) => {
   try {
     const { id } = req.params
+    if (!UUID_RE.test(id)) {
+      return res.status(400).json({ error: 'Bad request', message: 'Leave request id must be a valid UUID.' })
+    }
     const { status, reviewedNote, calculationType, associateDaysOff, payableDays, isLocked, force } = req.body
 
     // 14APR2026 feedback: lock toggle. Handle lock-only updates separately so they work on any record.
