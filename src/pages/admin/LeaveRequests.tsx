@@ -620,7 +620,7 @@ export default function AdminLeaveRequests() {
               <li
                 key={r.id}
                 className="flex flex-col sm:flex-row sm:items-center gap-4 p-4 sm:p-5 rounded-xl border border-surface-200/80 bg-white transition-all hover:shadow-md hover:border-brand-200/80 cursor-pointer"
-                onClick={() => (r.isLocked ? setDetailRow(r) : openReview(r))}
+                onClick={() => (r.isLocked || r.status !== 'pending' ? setDetailRow(r) : openReview(r))}
               >
                 <div className="w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center shrink-0">
                   <CalendarCheck2 className="w-5 h-5 text-brand-600" />
@@ -712,7 +712,7 @@ export default function AdminLeaveRequests() {
                   <tr
                     key={r.id}
                     className="border-b border-surface-100 hover:bg-brand-50/40 transition-colors cursor-pointer group"
-                    onClick={() => (r.isLocked ? setDetailRow(r) : openReview(r))}
+                    onClick={() => (r.isLocked || r.status !== 'pending' ? setDetailRow(r) : openReview(r))}
                   >
                     <td className="px-3 py-2 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">{r.employeeCmid ?? '-'}</td>
                     <td className="px-3 py-2 text-xs font-medium text-surface-900 whitespace-nowrap">{r.employeeName}</td>
@@ -739,9 +739,9 @@ export default function AdminLeaveRequests() {
                     <td className="px-3 py-2 whitespace-nowrap text-right" onClick={(e) => e.stopPropagation()}>
                       <button
                         type="button"
-                        onClick={() => (r.isLocked ? setDetailRow(r) : openReview(r))}
+                        onClick={() => (r.isLocked || r.status !== 'pending' ? setDetailRow(r) : openReview(r))}
                         className="p-1.5 rounded-lg text-surface-500 hover:bg-surface-100"
-                        title={r.isLocked ? 'View (locked)' : 'Edit / review'}
+                        title={r.isLocked ? 'View (locked)' : r.status !== 'pending' ? `View (${r.status})` : 'Edit / review'}
                       >
                         <Pencil className="w-3.5 h-3.5" />
                       </button>
