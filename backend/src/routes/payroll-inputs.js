@@ -1,0 +1,383 @@
+import { Router } from 'express'
+import { query } from '../config/db.js'
+import { authMiddleware, requireAdmin } from '../middleware/auth.js'
+
+const router = Router()
+
+// UUID format check — prevents 22P02 errors on bad path params
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+// Allowed enum values from client 14APR2026 email
+const INPUT_TYPES = new Set([
+  'Comisiones',
+  'Horas Regulares',
+  'Horas Nocturnas',
+  'Horas al 35% Extra',
+  'Horas al 100% Extra',
+  'Horas Feriadas Trabajadas',
+  'Bono Colaboración',
+  'Bono Reclutamiento',
+  'Bonificación de Ley',
+  'Incentivo PA',
+  'Incentivo KPI',
+  'Descuento Dependiente TSS',
+  'Descuento Préstamo',
+  'Descuento Cafetería',
+  'Descuento Gymnasio',
+  'Descuento PayLater',
+  'Descuento Seguro',
+  'Descuento Admin',
+])
+
+const CURRENCIES = new Set(['DOP', 'USD'])
+const CALC_TYPES = new Set(['hourly', 'base_amount', 'both'])
+const STATUSES = new Set(['pending', 'approved', 'rejected'])
+
+/**
+ * Compute input amount per client's PowerApps formula:
+ *   ('Payable Hours' * 'Hourly Rate' * 'Hourly Multiplier')
+ *   + If(IsBlank('Base Amount'), 0, 'Base Amount' * 'Exchange Rate')
+ *
+ * Both parts can be present in a single input.
+ */
+export function computeInputAmount({
+  payableHours,
+  hourlyRate,
+  hourlyMultiplier,
+  baseAmount,
+  exchangeRate,
+}) {
+  const ph = Number(payableHours) || 0
+  const hr = Number(hourlyRate) || 0
+  const hm = Number(hourlyMultiplier) || 0
+  const ba = Number(baseAmount)
+  const er = Number(exchangeRate) || 0
+  const hourlyPart = ph * hr * hm
+  const basePart = Number.isFinite(ba) && !Number.isNaN(ba) && ba !== 0 ? ba * er : 0
+  return Math.round((hourlyPart + basePart) * 100) / 100
+}
+
+function mapRow(r) {
+  return {
+    id: r.id,
+    userId: r.user_id,
+    employeeName: r.user_name || null,
+    employeeCmid: r.employee_cmid != null ? Number(r.employee_cmid) : null,
+    accountName: r.account_name || null,
+    reportsTo: r.reports_to_name || null,
+    inputType: r.input_type,
+    calculationType: r.calculation_type,
+    payableHours: r.payable_hours != null ? Number(r.payable_hours) : null,
+    hourlyRate: r.hourly_rate != null ? Number(r.hourly_rate) : null,
+    hourlyMultiplier: r.hourly_multiplier != null ? Number(r.hourly_multiplier) : null,
+    currency: r.currency || null,
+    baseAmount: r.base_amount != null ? Number(r.base_amount) : null,
+    exchangeRate: r.exchange_rate != null ? Number(r.exchange_rate) : null,
+    inputAmount: Number(r.input_amount) || 0,
+    payrollCycleCode: r.payroll_cycle_code || null,
+    approverId: r.approver_id || null,
+    approverName: r.approver_name || null,
+    status: r.status,
+    reviewedBy: r.reviewed_by || null,
+    reviewedByName: r.reviewed_by_name || null,
+    reviewedAt: r.reviewed_at || null,
+    reviewedNote: r.reviewed_note || '',
+    notes: r.notes || '',
+    isLocked: r.is_locked === true,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  }
+}
+
+// All endpoints require auth + admin role
+router.use(authMiddleware)
+router.use(requireAdmin)
+
+// GET /api/admin/payroll-inputs?status=&type=&cycle=&userId=
+router.get('/', async (req, res) => {
+  try {
+    const { status, type, cycle, userId } = req.query
+    const params = []
+    let sql = `
+      SELECT pi.*, u.name AS user_name,
+             e.cmid AS employee_cmid,
+             c.name AS account_name,
+             mgr.name AS reports_to_name,
+             app.name AS approver_name,
+             rev.name AS reviewed_by_name
+      FROM payroll_inputs pi
+      JOIN users u ON u.id = pi.user_id
+      LEFT JOIN employees e ON e.user_id = pi.user_id
+      LEFT JOIN users mgr ON mgr.id = e.reports_to
+      LEFT JOIN clients c ON c.id = e.primary_client_id
+      LEFT JOIN users app ON app.id = pi.approver_id
+      LEFT JOIN users rev ON rev.id = pi.reviewed_by
+      WHERE 1=1
+    `
+    if (status && status !== 'all') {
+      params.push(String(status))
+      sql += ` AND pi.status = $${params.length}`
+    }
+    if (type && type !== 'all') {
+      params.push(String(type))
+      sql += ` AND pi.input_type = $${params.length}`
+    }
+    if (cycle) {
+      params.push(String(cycle))
+      sql += ` AND pi.payroll_cycle_code = $${params.length}`
+    }
+    if (userId) {
+      if (!UUID_RE.test(String(userId))) {
+        return res.status(400).json({ error: 'Bad request', message: 'userId must be UUID' })
+      }
+      params.push(userId)
+      sql += ` AND pi.user_id = $${params.length}`
+    }
+    sql += " ORDER BY CASE WHEN pi.status = 'pending' THEN 0 ELSE 1 END, pi.created_at DESC"
+
+    const result = await query(sql, params)
+    res.json(result.rows.map(mapRow))
+  } catch (err) {
+    console.error('List payroll inputs error:', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// GET /api/admin/payroll-inputs/:id
+router.get('/:id', async (req, res) => {
+  try {
+    const { id } = req.params
+    if (!UUID_RE.test(id)) {
+      return res.status(400).json({ error: 'Bad request', message: 'id must be UUID' })
+    }
+    const result = await query(
+      `SELECT pi.*, u.name AS user_name,
+              e.cmid AS employee_cmid, c.name AS account_name,
+              mgr.name AS reports_to_name,
+              app.name AS approver_name, rev.name AS reviewed_by_name
+       FROM payroll_inputs pi
+       JOIN users u ON u.id = pi.user_id
+       LEFT JOIN employees e ON e.user_id = pi.user_id
+       LEFT JOIN users mgr ON mgr.id = e.reports_to
+       LEFT JOIN clients c ON c.id = e.primary_client_id
+       LEFT JOIN users app ON app.id = pi.approver_id
+       LEFT JOIN users rev ON rev.id = pi.reviewed_by
+       WHERE pi.id = $1`,
+      [id]
+    )
+    if (!result.rows.length) return res.status(404).json({ error: 'Not found' })
+    res.json(mapRow(result.rows[0]))
+  } catch (err) {
+    console.error('Get payroll input error:', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+function validateBody(body, isCreate = true) {
+  const errors = []
+  if (isCreate) {
+    if (!body.userId) errors.push('userId is required')
+    if (!body.inputType) errors.push('inputType is required')
+  }
+  if (body.inputType && !INPUT_TYPES.has(body.inputType)) {
+    errors.push(`inputType must be one of: ${[...INPUT_TYPES].join(', ')}`)
+  }
+  if (body.calculationType && !CALC_TYPES.has(body.calculationType)) {
+    errors.push(`calculationType must be one of: ${[...CALC_TYPES].join(', ')}`)
+  }
+  if (body.currency && !CURRENCIES.has(body.currency)) {
+    errors.push('currency must be DOP or USD')
+  }
+  if (body.status && !STATUSES.has(body.status)) {
+    errors.push('status must be pending/approved/rejected')
+  }
+  if (body.userId && !UUID_RE.test(String(body.userId))) errors.push('userId must be UUID')
+  if (body.approverId && !UUID_RE.test(String(body.approverId))) errors.push('approverId must be UUID')
+  return errors
+}
+
+// POST /api/admin/payroll-inputs — create
+router.post('/', async (req, res) => {
+  try {
+    const errors = validateBody(req.body, true)
+    if (errors.length) return res.status(400).json({ error: 'Bad request', message: errors.join('; ') })
+
+    const {
+      userId, inputType, calculationType = 'base_amount',
+      payableHours, hourlyRate, hourlyMultiplier,
+      currency, baseAmount, exchangeRate,
+      payrollCycleCode, approverId,
+      status = 'pending', notes,
+    } = req.body
+
+    const inputAmount = computeInputAmount({
+      payableHours, hourlyRate, hourlyMultiplier, baseAmount, exchangeRate,
+    })
+
+    const result = await query(
+      `INSERT INTO payroll_inputs (
+         user_id, input_type, calculation_type,
+         payable_hours, hourly_rate, hourly_multiplier,
+         currency, base_amount, exchange_rate,
+         input_amount, payroll_cycle_code, approver_id,
+         status, notes
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+       RETURNING id`,
+      [
+        userId, inputType, calculationType,
+        payableHours ?? null, hourlyRate ?? null, hourlyMultiplier ?? null,
+        currency || null, baseAmount ?? null, exchangeRate ?? null,
+        inputAmount, payrollCycleCode || null, approverId || null,
+        status, notes || null,
+      ]
+    )
+    const newId = result.rows[0].id
+    const full = await query(
+      `SELECT pi.*, u.name AS user_name,
+              e.cmid AS employee_cmid, c.name AS account_name,
+              mgr.name AS reports_to_name,
+              app.name AS approver_name, rev.name AS reviewed_by_name
+       FROM payroll_inputs pi
+       JOIN users u ON u.id = pi.user_id
+       LEFT JOIN employees e ON e.user_id = pi.user_id
+       LEFT JOIN users mgr ON mgr.id = e.reports_to
+       LEFT JOIN clients c ON c.id = e.primary_client_id
+       LEFT JOIN users app ON app.id = pi.approver_id
+       LEFT JOIN users rev ON rev.id = pi.reviewed_by
+       WHERE pi.id = $1`,
+      [newId]
+    )
+    res.status(201).json(mapRow(full.rows[0]))
+  } catch (err) {
+    console.error('Create payroll input error:', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// PATCH /api/admin/payroll-inputs/:id — update (supports lock-only + review)
+router.patch('/:id', async (req, res) => {
+  try {
+    const { id } = req.params
+    if (!UUID_RE.test(id)) {
+      return res.status(400).json({ error: 'Bad request', message: 'id must be UUID' })
+    }
+    const errors = validateBody(req.body, false)
+    if (errors.length) return res.status(400).json({ error: 'Bad request', message: errors.join('; ') })
+
+    const existing = await query('SELECT * FROM payroll_inputs WHERE id = $1', [id])
+    if (!existing.rows.length) return res.status(404).json({ error: 'Not found' })
+    const prev = existing.rows[0]
+
+    // Lock-only path — works even on approved/rejected/locked records
+    const bodyKeys = Object.keys(req.body)
+    const lockOnly = bodyKeys.length === 1 && 'isLocked' in req.body
+    if (!lockOnly && prev.is_locked && !req.body.force) {
+      return res.status(409).json({ error: 'Locked', message: 'Record is locked. Unlock it first to edit.' })
+    }
+
+    const updates = []
+    const params = []
+    let i = 1
+    const simpleFields = {
+      inputType: 'input_type',
+      calculationType: 'calculation_type',
+      payableHours: 'payable_hours',
+      hourlyRate: 'hourly_rate',
+      hourlyMultiplier: 'hourly_multiplier',
+      currency: 'currency',
+      baseAmount: 'base_amount',
+      exchangeRate: 'exchange_rate',
+      payrollCycleCode: 'payroll_cycle_code',
+      approverId: 'approver_id',
+      notes: 'notes',
+    }
+    for (const [k, col] of Object.entries(simpleFields)) {
+      if (k in req.body) {
+        updates.push(`${col} = $${i++}`)
+        params.push(req.body[k] === '' ? null : req.body[k])
+      }
+    }
+    // Status transitions — set reviewed_by/reviewed_at automatically
+    if ('status' in req.body) {
+      updates.push(`status = $${i++}`)
+      params.push(req.body.status)
+      if (req.body.status === 'approved' || req.body.status === 'rejected') {
+        updates.push(`reviewed_by = $${i++}`)
+        params.push(req.user.id)
+        updates.push(`reviewed_at = NOW()`)
+      }
+    }
+    if ('reviewedNote' in req.body) {
+      updates.push(`reviewed_note = $${i++}`)
+      params.push(req.body.reviewedNote || null)
+    }
+    if ('isLocked' in req.body) {
+      updates.push(`is_locked = $${i++}`)
+      params.push(!!req.body.isLocked)
+    }
+
+    // Recompute input_amount if any of the calc fields changed
+    const calcFieldsChanged = ['payableHours', 'hourlyRate', 'hourlyMultiplier', 'baseAmount', 'exchangeRate']
+      .some((k) => k in req.body)
+    if (calcFieldsChanged) {
+      const newAmount = computeInputAmount({
+        payableHours: 'payableHours' in req.body ? req.body.payableHours : prev.payable_hours,
+        hourlyRate: 'hourlyRate' in req.body ? req.body.hourlyRate : prev.hourly_rate,
+        hourlyMultiplier: 'hourlyMultiplier' in req.body ? req.body.hourlyMultiplier : prev.hourly_multiplier,
+        baseAmount: 'baseAmount' in req.body ? req.body.baseAmount : prev.base_amount,
+        exchangeRate: 'exchangeRate' in req.body ? req.body.exchangeRate : prev.exchange_rate,
+      })
+      updates.push(`input_amount = $${i++}`)
+      params.push(newAmount)
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'Bad request', message: 'No fields to update' })
+    }
+    updates.push(`updated_at = NOW()`)
+    params.push(id)
+    await query(`UPDATE payroll_inputs SET ${updates.join(', ')} WHERE id = $${i}`, params)
+
+    const full = await query(
+      `SELECT pi.*, u.name AS user_name,
+              e.cmid AS employee_cmid, c.name AS account_name,
+              mgr.name AS reports_to_name,
+              app.name AS approver_name, rev.name AS reviewed_by_name
+       FROM payroll_inputs pi
+       JOIN users u ON u.id = pi.user_id
+       LEFT JOIN employees e ON e.user_id = pi.user_id
+       LEFT JOIN users mgr ON mgr.id = e.reports_to
+       LEFT JOIN clients c ON c.id = e.primary_client_id
+       LEFT JOIN users app ON app.id = pi.approver_id
+       LEFT JOIN users rev ON rev.id = pi.reviewed_by
+       WHERE pi.id = $1`,
+      [id]
+    )
+    res.json(mapRow(full.rows[0]))
+  } catch (err) {
+    console.error('Update payroll input error:', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// DELETE /api/admin/payroll-inputs/:id
+router.delete('/:id', async (req, res) => {
+  try {
+    const { id } = req.params
+    if (!UUID_RE.test(id)) {
+      return res.status(400).json({ error: 'Bad request', message: 'id must be UUID' })
+    }
+    const existing = await query('SELECT is_locked FROM payroll_inputs WHERE id = $1', [id])
+    if (!existing.rows.length) return res.status(404).json({ error: 'Not found' })
+    if (existing.rows[0].is_locked) {
+      return res.status(409).json({ error: 'Locked', message: 'Record is locked. Unlock it first to delete.' })
+    }
+    await query('DELETE FROM payroll_inputs WHERE id = $1', [id])
+    res.status(204).end()
+  } catch (err) {
+    console.error('Delete payroll input error:', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+export default router

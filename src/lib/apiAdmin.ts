@@ -588,3 +588,146 @@ export async function createAdminLeaveRequest(data: {
     body: JSON.stringify(data),
   })
 }
+
+/* ============================================================
+ * PAYROLL INPUTS (14APR2026 module)
+ * ============================================================ */
+
+export const PAYROLL_INPUT_TYPES = [
+  'Comisiones',
+  'Horas Regulares',
+  'Horas Nocturnas',
+  'Horas al 35% Extra',
+  'Horas al 100% Extra',
+  'Horas Feriadas Trabajadas',
+  'Bono Colaboración',
+  'Bono Reclutamiento',
+  'Bonificación de Ley',
+  'Incentivo PA',
+  'Incentivo KPI',
+  'Descuento Dependiente TSS',
+  'Descuento Préstamo',
+  'Descuento Cafetería',
+  'Descuento Gymnasio',
+  'Descuento PayLater',
+  'Descuento Seguro',
+  'Descuento Admin',
+] as const
+export type PayrollInputType = (typeof PAYROLL_INPUT_TYPES)[number]
+
+export const PAYROLL_CURRENCIES = ['DOP', 'USD'] as const
+export type PayrollCurrency = (typeof PAYROLL_CURRENCIES)[number]
+
+export type PayrollCalcType = 'hourly' | 'base_amount' | 'both'
+
+export interface PayrollInput {
+  id: string
+  userId: string
+  employeeName: string | null
+  employeeCmid: number | null
+  accountName: string | null
+  reportsTo: string | null
+  inputType: string
+  calculationType: PayrollCalcType
+  payableHours: number | null
+  hourlyRate: number | null
+  hourlyMultiplier: number | null
+  currency: PayrollCurrency | null
+  baseAmount: number | null
+  exchangeRate: number | null
+  inputAmount: number
+  payrollCycleCode: string | null
+  approverId: string | null
+  approverName: string | null
+  status: 'pending' | 'approved' | 'rejected'
+  reviewedBy: string | null
+  reviewedByName: string | null
+  reviewedAt: string | null
+  reviewedNote: string
+  notes: string
+  isLocked: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface PayrollInputCreate {
+  userId: string
+  inputType: PayrollInputType | string
+  calculationType?: PayrollCalcType
+  payableHours?: number | null
+  hourlyRate?: number | null
+  hourlyMultiplier?: number | null
+  currency?: PayrollCurrency | null
+  baseAmount?: number | null
+  exchangeRate?: number | null
+  payrollCycleCode?: string | null
+  approverId?: string | null
+  status?: 'pending' | 'approved' | 'rejected'
+  notes?: string | null
+}
+
+export interface PayrollInputUpdate extends Partial<PayrollInputCreate> {
+  isLocked?: boolean
+  reviewedNote?: string
+  force?: boolean
+}
+
+export async function getPayrollInputs(params?: {
+  status?: 'all' | 'pending' | 'approved' | 'rejected'
+  type?: string
+  cycle?: string
+  userId?: string
+}): Promise<PayrollInput[]> {
+  const q = new URLSearchParams()
+  if (params?.status && params.status !== 'all') q.set('status', params.status)
+  if (params?.type && params.type !== 'all') q.set('type', params.type)
+  if (params?.cycle) q.set('cycle', params.cycle)
+  if (params?.userId) q.set('userId', params.userId)
+  const qs = q.toString()
+  return api<PayrollInput[]>(`/api/admin/payroll-inputs${qs ? `?${qs}` : ''}`)
+}
+
+export async function createPayrollInput(data: PayrollInputCreate): Promise<PayrollInput> {
+  return api<PayrollInput>('/api/admin/payroll-inputs', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
+export async function updatePayrollInput(id: string, data: PayrollInputUpdate): Promise<PayrollInput> {
+  return api<PayrollInput>(`/api/admin/payroll-inputs/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  })
+}
+
+export async function setPayrollInputLocked(id: string, locked: boolean): Promise<PayrollInput> {
+  return updatePayrollInput(id, { isLocked: locked })
+}
+
+export async function deletePayrollInput(id: string): Promise<void> {
+  await api<void>(`/api/admin/payroll-inputs/${id}`, { method: 'DELETE' })
+}
+
+/** Mirror of backend's computeInputAmount — for live preview in forms */
+export function computePayrollInputAmount(input: {
+  payableHours?: number | null
+  hourlyRate?: number | null
+  hourlyMultiplier?: number | null
+  baseAmount?: number | null
+  exchangeRate?: number | null
+}): number {
+  const ph = Number(input.payableHours) || 0
+  const hr = Number(input.hourlyRate) || 0
+  const hm = Number(input.hourlyMultiplier) || 0
+  const ba = Number(input.baseAmount)
+  const er = Number(input.exchangeRate) || 0
+  const hourlyPart = ph * hr * hm
+  const basePart = Number.isFinite(ba) && ba !== 0 ? ba * er : 0
+  return Math.round((hourlyPart + basePart) * 100) / 100
+}
+
+/** Helper: is this input type a deduction? (for payroll calculations next phase) */
+export function isDeductionInputType(inputType: string): boolean {
+  return inputType.startsWith('Descuento')
+}

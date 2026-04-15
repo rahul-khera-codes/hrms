@@ -4,6 +4,7 @@ import cors from 'cors'
 import authRoutes from './routes/auth.js'
 import sessionsRoutes from './routes/sessions.js'
 import adminRoutes from './routes/admin.js'
+import payrollInputsRoutes from './routes/payroll-inputs.js'
 import notificationsRoutes from './routes/notifications.js'
 import pool from './config/db.js'
 
@@ -16,6 +17,7 @@ app.use(express.json())
 app.use('/api/auth', authRoutes)
 app.use('/api/sessions', sessionsRoutes)
 app.use('/api/admin', adminRoutes)
+app.use('/api/admin/payroll-inputs', payrollInputsRoutes)
 app.use('/api/notifications', notificationsRoutes)
 
 app.get('/health', (_req, res) => {
@@ -253,6 +255,48 @@ try {
   } catch (e) {
     if (e.code !== '42701') console.warn('leave_requests admin create columns migration:', e.message)
   }
+
+  // 14APR2026 Payroll Inputs module
+  // Captures payroll-affecting items not tied to timesheet / salary:
+  //   - Incomes: bonuses, commissions, retroactive hour claims
+  //   - Deductions: loans, cafeteria, gym, insurance, TSS dependents, admin fees
+  // Input amount formula (from client):
+  //   (payable_hours * hourly_rate * hourly_multiplier) + COALESCE(base_amount * exchange_rate, 0)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS payroll_inputs (
+      id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id           UUID NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+      input_type        VARCHAR(48) NOT NULL,
+      calculation_type  VARCHAR(16) NOT NULL DEFAULT 'base_amount'
+        CHECK (calculation_type IN ('hourly', 'base_amount', 'both')),
+      -- Hourly-side fields
+      payable_hours     DECIMAL(8,2),
+      hourly_rate       DECIMAL(14,4),
+      hourly_multiplier DECIMAL(6,4),
+      -- Base-amount-side fields
+      currency          VARCHAR(3) CHECK (currency IS NULL OR currency IN ('DOP', 'USD')),
+      base_amount       DECIMAL(14,2),
+      exchange_rate     DECIMAL(10,4),
+      -- Calculated result
+      input_amount      DECIMAL(14,2) NOT NULL DEFAULT 0,
+      -- Workflow
+      payroll_cycle_code VARCHAR(20),
+      approver_id       UUID REFERENCES users (id) ON DELETE SET NULL,
+      status            VARCHAR(16) NOT NULL DEFAULT 'pending'
+        CHECK (status IN ('pending', 'approved', 'rejected')),
+      reviewed_by       UUID REFERENCES users (id) ON DELETE SET NULL,
+      reviewed_at       TIMESTAMPTZ,
+      reviewed_note     TEXT,
+      notes             TEXT,
+      is_locked         BOOLEAN NOT NULL DEFAULT FALSE,
+      created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `)
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_payroll_inputs_user ON payroll_inputs (user_id)')
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_payroll_inputs_cycle ON payroll_inputs (payroll_cycle_code)')
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_payroll_inputs_status ON payroll_inputs (status)')
+  console.log('Payroll inputs table ready')
   await pool.query(`
     CREATE TABLE IF NOT EXISTS payroll_line_items (
       id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),

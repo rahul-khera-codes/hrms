@@ -15,6 +15,7 @@ import {
   Users,
   Calendar,
   CalendarCheck2,
+  Receipt,
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { Navbar } from '@/components/Navbar'
@@ -39,6 +40,7 @@ const navSections: { title?: string; items: { to: string; label: string; icon: t
     title: 'Payroll',
     items: [
       { to: '/admin/payroll-calendar', label: 'Payroll calendar', icon: Calendar },
+      { to: '/admin/payroll-inputs', label: 'Payroll inputs', icon: Receipt },
       { to: '/admin/payroll', label: 'Payroll', icon: FileText },
       { to: '/admin/reports', label: 'Reports', icon: BarChart3 },
     ],

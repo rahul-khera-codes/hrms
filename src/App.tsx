@@ -17,6 +17,7 @@ import AdminShifts from './pages/admin/Shifts'
 import AdminSchedule from './pages/admin/Schedule'
 import AdminEmployees from './pages/admin/Employees'
 import AdminPayrollCalendar from './pages/admin/PayrollCalendar'
+import AdminPayrollInputs from './pages/admin/PayrollInputs'
 import AdminLeaveRequests from './pages/admin/LeaveRequests'
 
 function ProtectedEmployee({ children }: { children: React.ReactNode }) {
@@ -77,6 +78,7 @@ export default function App() {
           <Route path="employees" element={<AdminEmployees />} />
           <Route path="attendance" element={<AdminAttendance />} />
           <Route path="payroll-calendar" element={<AdminPayrollCalendar />} />
+          <Route path="payroll-inputs" element={<AdminPayrollInputs />} />
           <Route path="payroll" element={<AdminPayroll />} />
           <Route path="reports" element={<AdminReports />} />
           <Route path="settings" element={<AdminSettings />} />
