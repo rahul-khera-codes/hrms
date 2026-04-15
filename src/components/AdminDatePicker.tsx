@@ -147,9 +147,9 @@ export default function AdminDatePicker({ value, onChange, className = '' }: Adm
       >
         <span className="flex items-center gap-2 min-w-0">
           <Calendar className="w-4 h-4 text-surface-400 shrink-0" />
-          <span className="text-sm text-surface-900 tabular-nums">{display}</span>
+          <span className="text-sm text-surface-900 tabular-nums whitespace-nowrap">{display}</span>
         </span>
-        <span className="ml-2 text-surface-400 text-[11px] uppercase tracking-wider font-medium">{format(date, 'EEE')}</span>
+        <span className="ml-2 text-surface-400 text-[11px] uppercase tracking-wider font-medium shrink-0 whitespace-nowrap">{format(date, 'EEE')}</span>
       </button>
       {/* Invisible native input to keep browser logic identical */}
       <input

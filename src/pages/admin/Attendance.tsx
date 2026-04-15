@@ -509,10 +509,10 @@ export default function AdminAttendance() {
           />
         </div>
         <div className="flex gap-2 flex-wrap sm:flex-nowrap">
-          <div className="flex-1 min-w-[140px]">
+          <div className="flex-1 min-w-[170px] sm:min-w-[180px] sm:w-[180px] sm:flex-none">
             <AdminDatePicker value={dateFrom} onChange={(val) => setDateFrom(val)} />
           </div>
-          <div className="flex-1 min-w-[140px]">
+          <div className="flex-1 min-w-[170px] sm:min-w-[180px] sm:w-[180px] sm:flex-none">
             <AdminDatePicker value={dateTo} onChange={(val) => setDateTo(val)} />
           </div>
         </div>

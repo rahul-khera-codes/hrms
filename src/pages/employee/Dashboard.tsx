@@ -368,11 +368,11 @@ export default function EmployeeDashboard() {
           </div>
           <div className="p-4 sm:p-5 space-y-4">
             <div className="flex flex-col sm:flex-row flex-wrap gap-3 sm:items-end">
-              <div className="flex-1 min-w-0 sm:max-w-[200px]">
+              <div className="flex-1 min-w-[170px] sm:max-w-[220px]">
                 <label className="label">From</label>
                 <AdminDatePicker value={slipFrom} onChange={(v) => setSlipFrom(v)} />
               </div>
-              <div className="flex-1 min-w-0 sm:max-w-[200px]">
+              <div className="flex-1 min-w-[170px] sm:max-w-[220px]">
                 <label className="label">To</label>
                 <AdminDatePicker value={slipTo} onChange={(v) => setSlipTo(v)} />
               </div>
