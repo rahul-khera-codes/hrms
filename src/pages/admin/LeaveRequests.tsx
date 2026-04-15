@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { CalendarCheck2, Lock, Unlock, Plus, Calendar, Clock3, Download, LayoutGrid, Table2, Search, ArrowUp, ArrowDown, Filter } from 'lucide-react'
+import { CalendarCheck2, Lock, Unlock, Plus, Calendar, Clock3, Download, LayoutGrid, Table2, Search, ArrowUp, ArrowDown, Filter, Pencil } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
 import {
   getAdminLeaveRequests,
@@ -515,10 +515,21 @@ export default function AdminLeaveRequests() {
         subtitle="Review and approve employee leave requests."
         icon={<CalendarCheck2 className="w-5 h-5" />}
         actions={
-          <button type="button" onClick={() => setShowCreateModal(true)} className="btn-primary">
-            <Plus className="w-4 h-4" />
-            New Leave
-          </button>
+          <>
+            <button
+              type="button"
+              onClick={exportCSV}
+              disabled={loading || displayedRows.length === 0}
+              className="btn-secondary"
+            >
+              <Download className="w-4 h-4 shrink-0" />
+              Export CSV
+            </button>
+            <button type="button" onClick={() => setShowCreateModal(true)} className="btn-primary">
+              <Plus className="w-4 h-4" />
+              New Leave
+            </button>
+          </>
         }
       />
 
@@ -593,15 +604,6 @@ export default function AdminLeaveRequests() {
               Table
             </button>
           </div>
-          <button
-            type="button"
-            onClick={exportCSV}
-            disabled={loading || displayedRows.length === 0}
-            className="btn-secondary btn-sm"
-          >
-            <Download className="w-3.5 h-3.5" />
-            Export
-          </button>
         </div>
       </div>
 
@@ -677,24 +679,29 @@ export default function AdminLeaveRequests() {
                     'Daily Salary',
                     'Payable Amount',
                     'Payroll Cycle',
+                    'Actions',
                   ].map((col) => (
                     <th
                       key={col}
-                      className={`px-3 py-1.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 ${['Payable Days', 'Daily Salary', 'Payable Amount'].includes(col) ? 'text-right' : ''}`}
+                      className={`px-3 py-1.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 ${['Payable Days', 'Daily Salary', 'Payable Amount'].includes(col) ? 'text-right' : col === 'Actions' ? 'text-right' : ''}`}
                     >
-                      <div className="flex items-center gap-0.5">
-                        <button type="button" className="flex items-center gap-0.5 hover:text-surface-700 transition-colors" onClick={() => handleLeaveSort(col)}>
-                          {col}
-                          {sortCol === col && (sortDir === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
-                        </button>
-                        <button type="button" className={`p-0.5 rounded hover:bg-surface-200/60 transition-colors ${columnFilters[col] ? 'text-brand-600' : 'text-surface-400'}`} onClick={(e) => { e.stopPropagation(); setFilterOpen(filterOpen === col ? null : col) }}>
-                          <Filter className="w-2.5 h-2.5" />
-                        </button>
-                      </div>
-                      {filterOpen === col && (
-                        <div className="mt-1" onClick={(e) => e.stopPropagation()}>
-                          <input type="text" value={columnFilters[col] ?? ''} onChange={(e) => handleLeaveColumnFilter(col, e.target.value)} placeholder={`Filter ${col}...`} className="w-full text-[10px] font-normal normal-case tracking-normal border border-surface-200 rounded px-1.5 py-1 bg-white focus:ring-1 focus:ring-brand-300 outline-none" autoFocus />
-                        </div>
+                      {col === 'Actions' ? col : (
+                        <>
+                          <div className="flex items-center gap-0.5">
+                            <button type="button" className="flex items-center gap-0.5 hover:text-surface-700 transition-colors" onClick={() => handleLeaveSort(col)}>
+                              {col}
+                              {sortCol === col && (sortDir === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
+                            </button>
+                            <button type="button" className={`p-0.5 rounded hover:bg-surface-200/60 transition-colors ${columnFilters[col] ? 'text-brand-600' : 'text-surface-400'}`} onClick={(e) => { e.stopPropagation(); setFilterOpen(filterOpen === col ? null : col) }}>
+                              <Filter className="w-2.5 h-2.5" />
+                            </button>
+                          </div>
+                          {filterOpen === col && (
+                            <div className="mt-1" onClick={(e) => e.stopPropagation()}>
+                              <input type="text" value={columnFilters[col] ?? ''} onChange={(e) => handleLeaveColumnFilter(col, e.target.value)} placeholder={`Filter ${col}...`} className="w-full text-[10px] font-normal normal-case tracking-normal border border-surface-200 rounded px-1.5 py-1 bg-white focus:ring-1 focus:ring-brand-300 outline-none" autoFocus />
+                            </div>
+                          )}
+                        </>
                       )}
                     </th>
                   ))}
@@ -729,6 +736,16 @@ export default function AdminLeaveRequests() {
                       {r.leavePayableAmount != null ? `$${r.leavePayableAmount.toFixed(2)}` : '-'}
                     </td>
                     <td className="px-3 py-2 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">{r.payrollCycleCode ?? '-'}</td>
+                    <td className="px-3 py-2 whitespace-nowrap text-right" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        onClick={() => (r.isLocked ? setDetailRow(r) : openReview(r))}
+                        className="p-1.5 rounded-lg text-surface-500 hover:bg-surface-100"
+                        title={r.isLocked ? 'View (locked)' : 'Edit / review'}
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>

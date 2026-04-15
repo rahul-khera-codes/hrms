@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { format, startOfWeek, endOfWeek } from 'date-fns'
-import { Search, Download, X, ArrowUp, ArrowDown, Filter, Clock, Plus, Lock, Unlock } from 'lucide-react'
+import { Search, Download, X, ArrowUp, ArrowDown, Filter, Clock, Plus, Lock, Unlock, Pencil } from 'lucide-react'
 import { getAdminAttendance, updateAttendanceRecord, createAttendanceRecord, getEmployees, getClients, type EmployeeRecord, type Client } from '@/lib/apiAdmin'
 import type { AttendanceRecord } from '@/types'
 import AdminDatePicker from '@/components/AdminDatePicker'
@@ -594,11 +594,14 @@ export default function AdminAttendance() {
                     'X100%',
                     'HDY',
                     'Comments',
+                    'Actions',
                   ].map((col) => (
                     <th
                       key={col}
-                      className="px-2 py-1 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap border-b border-surface-200"
+                      className={`px-2 py-1 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 ${col === 'Actions' ? 'text-right' : ''}`}
                     >
+                      {col === 'Actions' ? col : (
+                      <>
                       <div className="flex items-center gap-0.5">
                         <button
                           type="button"
@@ -629,6 +632,8 @@ export default function AdminAttendance() {
                             autoFocus
                           />
                         </div>
+                      )}
+                      </>
                       )}
                     </th>
                   ))}
@@ -761,6 +766,17 @@ export default function AdminAttendance() {
                           value={r.comments ?? ''}
                           onSave={(v) => handleFieldUpdate(r, 'comments', v)}
                         />
+                      </td>
+                      {/* Actions — Edit pencil */}
+                      <td className="px-2 py-1.5 whitespace-nowrap text-right" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          type="button"
+                          onClick={() => setDetailRecord(r)}
+                          className="p-1.5 rounded-lg text-surface-500 hover:bg-surface-100"
+                          title="Edit"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
                       </td>
                     </tr>
                   )

@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback, useEffect } from 'react'
 import { format } from 'date-fns'
 import { getSessions } from '@/lib/apiSessions'
 import type { ClockSession } from '@/types'
-import { Clock, Calendar, TrendingUp, Zap, Download, Search } from 'lucide-react'
+import { Clock, Calendar, TrendingUp, Zap, Download, Search, LayoutGrid, Table2 } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
 
 const SESSIONS_PER_PAGE = 10
@@ -33,6 +33,7 @@ export default function EmployeeSessions() {
   const [loading, setLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState(1)
   const [search, setSearch] = useState('')
+  const [viewMode, setViewMode] = useState<'card' | 'table'>('table')
 
   const filteredSessions = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -144,6 +145,24 @@ export default function EmployeeSessions() {
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
+          <div className="segmented self-start sm:self-auto">
+            <button
+              type="button"
+              onClick={() => setViewMode('card')}
+              className={`segmented-item ${viewMode === 'card' ? 'segmented-item-active' : ''}`}
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+              Card
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('table')}
+              className={`segmented-item ${viewMode === 'table' ? 'segmented-item-active' : ''}`}
+            >
+              <Table2 className="w-3.5 h-3.5" />
+              Table
+            </button>
+          </div>
         </div>
       )}
 
@@ -195,6 +214,32 @@ export default function EmployeeSessions() {
             <p className="empty-state-title">No sessions yet</p>
             <p className="empty-state-description">Clock in from your dashboard to start tracking. Your sessions will appear here.</p>
           </div>
+        ) : viewMode === 'card' ? (
+          <ul className="p-3 sm:p-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+            {paginatedSessions.map((s) => {
+              const displayRegularMinutes = getDisplayRegularMinutes(s)
+              return (
+                <li key={s.id} className="flex items-center gap-3 p-3 rounded-xl border border-surface-200/70 bg-white hover:shadow-card-hover hover:border-brand-200/70 transition-all">
+                  <div className="w-10 h-10 rounded-xl bg-brand-50 border border-brand-100 flex items-center justify-center text-brand-600 shrink-0">
+                    <Clock className="w-4 h-4" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-surface-900">{format(new Date(s.clockIn), 'MMM d, yyyy')}</p>
+                    <p className="text-[11px] text-surface-500 mt-0.5 tabular-nums font-mono">
+                      {format(new Date(s.clockIn), 'HH:mm:ss')} – {s.clockOut ? format(new Date(s.clockOut), 'HH:mm:ss') : '—'}
+                    </p>
+                    <p className="text-[11px] text-surface-600 mt-0.5">
+                      Regular: <span className="font-mono font-semibold">{s.status === 'completed' ? formatDuration(displayRegularMinutes) : '—'}</span>
+                      {s.overtimeMinutes && s.overtimeMinutes > 0 ? (
+                        <> · OT: <span className="font-mono font-semibold text-amber-700">{formatDuration(s.overtimeMinutes)}</span></>
+                      ) : null}
+                    </p>
+                  </div>
+                  <span className={`${s.status === 'active' ? 'badge-warning' : 'badge-neutral'} capitalize shrink-0`}>{s.status}</span>
+                </li>
+              )
+            })}
+          </ul>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
