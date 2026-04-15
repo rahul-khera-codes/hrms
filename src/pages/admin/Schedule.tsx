@@ -184,8 +184,18 @@ export default function AdminSchedule() {
           <p className="empty-state-description">Choose a client above to view and edit the weekly schedule.</p>
         </div>
       ) : loading && assignments.length === 0 ? (
-        <div className="card p-6 flex items-center justify-center gap-3 text-surface-500 text-sm">
-          <div className="spinner" /> Loading schedule…
+        <div className="card overflow-hidden">
+          <div className="p-3 sm:p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="rounded-xl border border-surface-200/70 bg-white p-3 flex items-center gap-3">
+                <span className="inline-block w-9 h-9 rounded-lg bg-surface-200/70 animate-pulse shrink-0" />
+                <div className="flex-1 space-y-1.5">
+                  <span className="block h-3 w-1/2 rounded bg-surface-200/70 animate-pulse" />
+                  <span className="block h-2.5 w-1/3 rounded bg-surface-200/70 animate-pulse" />
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       ) : filteredEmployees.length === 0 && search ? (
         <div className="card empty-state">

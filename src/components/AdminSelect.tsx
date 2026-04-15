@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import { ChevronDown, ChevronUp, Check } from 'lucide-react'
 
 interface AdminSelectOption {
   value: string
@@ -116,19 +117,8 @@ export default function AdminSelect({
         <span className="truncate text-left min-w-0 flex-1">
           {selected ? selected.label : <span className="text-surface-400">{placeholder}</span>}
         </span>
-        <span
-          className={
-            'ml-2 inline-flex h-5 w-5 items-center justify-center rounded-full text-surface-400 transition-transform duration-150 ' +
-            (open ? 'rotate-180' : '')
-          }
-        >
-          <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
-            <path
-              fillRule="evenodd"
-              d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.24a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z"
-              clipRule="evenodd"
-            />
-          </svg>
+        <span className="ml-2 inline-flex h-5 w-5 items-center justify-center rounded-full text-surface-400 transition-colors">
+          {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
         </span>
       </button>
       {open && !disabled && createPortal(
@@ -169,13 +159,7 @@ export default function AdminSelect({
                     <span className="truncate">{opt.label}</span>
                     {isActive && (
                       <span className="ml-2 text-brand-500 shrink-0">
-                        <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
-                          <path
-                            fillRule="evenodd"
-                            d="M16.704 5.29a1 1 0 010 1.42l-7.25 7.25a1 1 0 01-1.414 0l-3.25-3.25a1 1 0 111.414-1.42L8.75 11.54l6.543-6.54a1 1 0 011.414 0z"
-                            clipRule="evenodd"
-                          />
-                        </svg>
+                        <Check className="h-4 w-4" />
                       </span>
                     )}
                   </button>

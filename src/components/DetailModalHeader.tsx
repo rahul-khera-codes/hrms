@@ -35,16 +35,16 @@ export function DetailModalHeader({
         <div className="min-w-0 flex-1">
           <h2 className="text-base font-semibold text-surface-900 truncate">{employeeName}</h2>
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1">
-            <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-surface-100 text-[11px] font-mono font-medium text-surface-700">
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-surface-100 border border-surface-200 text-[11px] font-mono font-medium text-surface-700">
               CMID {cmid ?? '-'}
             </span>
             {reportsTo && (
-              <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-surface-100 text-[11px] font-medium text-surface-700">
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-surface-100 border border-surface-200 text-[11px] font-medium text-surface-700">
                 Reports to: {reportsTo}
               </span>
             )}
             {accountName && (
-              <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-brand-50 border border-brand-100 text-[11px] font-medium text-brand-700">
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-brand-50 border border-brand-100 text-[11px] font-medium text-brand-700">
                 {accountName}
               </span>
             )}
@@ -55,7 +55,7 @@ export function DetailModalHeader({
       <button
         type="button"
         onClick={onClose}
-        className="btn-icon text-surface-400 hover:text-surface-700 hover:bg-surface-100 shrink-0"
+        className="p-2.5 min-w-[2.75rem] min-h-[2.75rem] rounded-lg text-surface-400 hover:text-surface-700 hover:bg-surface-100 shrink-0 transition-colors flex items-center justify-center"
         aria-label="Close"
       >
         <X className="w-4 h-4" />

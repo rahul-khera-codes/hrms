@@ -107,7 +107,8 @@ export default function AdminDatePicker({ value, onChange, className = '' }: Adm
     return isValid(d) ? d : new Date()
   })()
 
-  const display = format(date, 'dd-MM-yyyy')
+  // Display: "Apr 16, 2026" (standard, locale-friendly, never wraps in 170px column).
+  const display = format(date, 'MMM d, yyyy')
 
   function handleNativeChange(e: React.ChangeEvent<HTMLInputElement>) {
     const next = e.target.value

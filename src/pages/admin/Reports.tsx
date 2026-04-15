@@ -204,8 +204,10 @@ export default function AdminReports() {
         </div>
 
         {loading ? (
-          <div className="p-12 flex items-center justify-center gap-3 text-surface-500 text-sm">
-            <div className="spinner" /> Loading…
+          <div className="p-4 sm:p-5 space-y-3">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="h-10 rounded-lg bg-surface-200/60 animate-pulse" />
+            ))}
           </div>
         ) : !isAttendance ? (
           <div className="p-4 sm:p-5">

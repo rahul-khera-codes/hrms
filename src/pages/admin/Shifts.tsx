@@ -4,6 +4,7 @@ import { Clock, Plus, Pencil, Trash2, LayoutGrid, Table2, Search, Timer, ArrowUp
 import { getShifts, getClients, createShift, updateShift, deleteShift, type Shift, type Client } from '@/lib/apiAdmin'
 import AdminSelect from '@/components/AdminSelect'
 import { PageHeader } from '@/components/PageHeader'
+import { SkeletonTableRows } from '@/components/Skeleton'
 
 function formatTime(t: string) {
   if (!t) return '—'
@@ -187,8 +188,14 @@ export default function AdminShifts() {
     return (
       <div className="page">
         <PageHeader title="Shifts" subtitle="Define shift templates for scheduling" icon={<Timer className="w-5 h-5" />} />
-        <div className="card p-6 flex items-center gap-3 text-surface-500 text-sm">
-          <div className="spinner" /> Loading shifts…
+        <div className="card overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <tbody>
+                <SkeletonTableRows rows={4} cols={5} />
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     )

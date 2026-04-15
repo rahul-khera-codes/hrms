@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Bell, X, Check } from 'lucide-react'
+import { Bell, X, Check, Rows3, Rows2, HelpCircle } from 'lucide-react'
 import type { Notification } from '../lib/apiNotifications'
 import {
   fetchMyNotifications,
@@ -7,6 +7,7 @@ import {
   markAllNotificationsAsRead,
   deleteNotification,
 } from '../lib/apiNotifications'
+import { useUIPrefs } from '../contexts/UIPrefsContext'
 
 export function Navbar() {
   const [showNotifications, setShowNotifications] = useState(false)
@@ -14,6 +15,7 @@ export function Navbar() {
   const [unreadCount, setUnreadCount] = useState(0)
   const [loading, setLoading] = useState(false)
   const notificationWrapRef = useRef<HTMLDivElement | null>(null)
+  const { density, toggleDensity } = useUIPrefs()
 
   useEffect(() => {
     const fetchNotifications = async () => {
@@ -111,11 +113,35 @@ export function Navbar() {
   return (
     <div className="flex items-center justify-between gap-3 bg-white/80 backdrop-blur-sm border-b border-surface-200/70 px-4 sm:px-6 py-3 sticky top-0 z-30">
       <div className="flex items-center gap-2">
-        <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center shadow-sm">
-          <span className="text-white text-xs font-bold">H</span>
+        <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center shadow-sm group transition-transform hover:scale-105">
+          <span className="text-white text-xs font-bold tracking-tight">H</span>
         </div>
-        <div className="text-sm sm:text-base font-semibold text-surface-900 tracking-tight">HARMONY</div>
+        <div className="text-sm sm:text-base font-semibold text-surface-900 tracking-tight font-display">HARMONY</div>
       </div>
+
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          onClick={toggleDensity}
+          className="btn-icon text-surface-500 hover:text-surface-900 hover:bg-surface-100"
+          aria-label={density === 'comfortable' ? 'Switch to compact density' : 'Switch to comfortable density'}
+          title={density === 'comfortable' ? 'Compact rows' : 'Comfortable rows'}
+        >
+          {density === 'comfortable' ? <Rows3 size={18} /> : <Rows2 size={18} />}
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            // Trigger the global "?" handler
+            const evt = new KeyboardEvent('keydown', { key: '?', bubbles: true })
+            window.dispatchEvent(evt)
+          }}
+          className="hidden sm:inline-flex btn-icon text-surface-500 hover:text-surface-900 hover:bg-surface-100"
+          aria-label="Keyboard shortcuts"
+          title="Keyboard shortcuts (?)"
+        >
+          <HelpCircle size={18} />
+        </button>
 
       <div ref={notificationWrapRef} className="relative">
         <button
@@ -125,14 +151,14 @@ export function Navbar() {
         >
           <Bell size={18} />
           {unreadCount > 0 && (
-            <span className="absolute top-1 right-1 inline-flex items-center justify-center min-w-[16px] h-4 px-1 text-[9px] font-bold leading-none text-white bg-red-500 rounded-full ring-2 ring-white">
+            <span className="absolute top-0.5 right-0.5 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold leading-none text-white bg-red-500 rounded-full ring-2 ring-white tabular-nums">
               {unreadCount > 9 ? '9+' : unreadCount}
             </span>
           )}
         </button>
 
         {showNotifications && (
-          <div className="absolute right-0 mt-2 w-[min(24rem,calc(100vw-1.5rem))] sm:w-96 bg-white rounded-2xl shadow-xl border border-surface-200 z-50 max-h-[28rem] overflow-hidden flex flex-col">
+          <div className="absolute right-0 mt-2 w-[min(24rem,calc(100vw-1.5rem))] sm:w-96 bg-white rounded-2xl shadow-xl border border-surface-200 z-50 max-h-[20rem] sm:max-h-[28rem] overflow-hidden flex flex-col">
             <div className="flex items-center justify-between px-4 py-3 border-b border-surface-100">
               <div className="flex items-center gap-2">
                 <h3 className="text-sm font-semibold text-surface-900">Notifications</h3>
@@ -208,6 +234,7 @@ export function Navbar() {
             </div>
           </div>
         )}
+      </div>
       </div>
     </div>
   )

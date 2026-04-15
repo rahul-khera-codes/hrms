@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { CalendarCheck2, Lock, Unlock, Plus, Calendar, Clock3, Download, LayoutGrid, Table2, Search, ArrowUp, ArrowDown, Filter, Pencil } from 'lucide-react'
+import { CalendarCheck2, Lock, Unlock, Plus, Calendar, Clock3, Download, LayoutGrid, Table2, Search, ArrowUp, ArrowDown, Filter, Pencil, XCircle } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
 import {
   getAdminLeaveRequests,
@@ -16,7 +16,12 @@ import {
 } from '@/lib/apiAdmin'
 import AdminSelect from '@/components/AdminSelect'
 import { DetailModalHeader } from '@/components/DetailModalHeader'
+import { SkeletonTableRows } from '@/components/Skeleton'
+import { BulkActionBar } from '@/components/BulkActionBar'
+import { useToast } from '@/components/Toast'
 
+// Background+text pair for status pills assembled with inline-flex wrappers below.
+// Prefer `statusBadgeClass(status)` from @/lib/badges for new code.
 const statusColors: Record<string, string> = {
   pending: 'bg-amber-100 text-amber-700',
   approved: 'bg-emerald-100 text-emerald-700',
@@ -135,7 +140,22 @@ export default function AdminLeaveRequests() {
   function handleLeaveColumnFilter(col: string, value: string) {
     setColumnFilters((prev) => ({ ...prev, [col]: value }))
   }
-  const [notice, setNotice] = useState('')
+  const toast = useToast()
+  // Keep `setNotice` API for minimal migration churn — auto-detect error vs success
+  // by message content. Any string starting with "Could not", "Failed", contains "must",
+  // or "No eligible" is treated as an error/warning.
+  const setNotice = (msg: string) => {
+    const m = String(msg ?? '').trim()
+    if (!m) return
+    const lower = m.toLowerCase()
+    if (lower.startsWith('could not') || lower.startsWith('failed') || lower.includes(' failed') || lower.includes('error')) {
+      toast.error(m)
+    } else if (lower.includes('must ') || lower.includes('no eligible') || lower.includes('missing ')) {
+      toast.warning(m)
+    } else {
+      toast.success(m)
+    }
+  }
   const [reviewingId, setReviewingId] = useState<string | null>(null)
   const [reviewContext, setReviewContext] = useState<LeaveReviewContext | null>(null)
   const [contextLoading, setContextLoading] = useState(false)
@@ -148,6 +168,19 @@ export default function AdminLeaveRequests() {
   // View mode and detail modal
   const [viewMode, setViewMode] = useState<'card' | 'table'>('table')
   const [detailRow, setDetailRow] = useState<AdminLeaveRequest | null>(null)
+
+  // Bulk selection (table view only)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkSaving, setBulkSaving] = useState(false)
+  function clearSelection() { setSelectedIds(new Set()) }
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
 
   // New leave creation states
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -212,12 +245,6 @@ export default function AdminLeaveRequests() {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
   }, [filterStatus])
-
-  useEffect(() => {
-    if (!notice) return
-    const timeoutId = window.setTimeout(() => setNotice(''), 2200)
-    return () => window.clearTimeout(timeoutId)
-  }, [notice])
 
   const summary = useMemo(() => {
     return {
@@ -399,6 +426,56 @@ export default function AdminLeaveRequests() {
       .finally(() => setContextLoading(false))
   }
 
+  async function bulkSetLocked(locked: boolean) {
+    if (selectedIds.size === 0) return
+    setBulkSaving(true)
+    let ok = 0
+    let failed = 0
+    for (const id of Array.from(selectedIds)) {
+      try {
+        await setLeaveRequestLocked(id, locked)
+        ok++
+      } catch {
+        failed++
+      }
+    }
+    setBulkSaving(false)
+    setNotice(failed === 0
+      ? `${ok} request${ok === 1 ? '' : 's'} ${locked ? 'locked' : 'unlocked'}.`
+      : `${ok} updated, ${failed} failed.`)
+    clearSelection()
+    await load(false)
+  }
+
+  async function bulkReject() {
+    if (selectedIds.size === 0) return
+    const eligibleIds = Array.from(selectedIds).filter((id) => {
+      const row = rows.find((r) => r.id === id)
+      return row && !row.isLocked && row.status !== 'rejected'
+    })
+    if (eligibleIds.length === 0) {
+      setNotice('No eligible requests selected (locked or already rejected).')
+      return
+    }
+    setBulkSaving(true)
+    let ok = 0
+    let failed = 0
+    for (const id of eligibleIds) {
+      try {
+        await reviewAdminLeaveRequest(id, { status: 'rejected', reviewedNote: 'Bulk rejected' })
+        ok++
+      } catch {
+        failed++
+      }
+    }
+    setBulkSaving(false)
+    setNotice(failed === 0
+      ? `${ok} request${ok === 1 ? '' : 's'} rejected.`
+      : `${ok} rejected, ${failed} failed.`)
+    clearSelection()
+    await load(false)
+  }
+
   async function handleToggleLock(id: string, currentlyLocked: boolean) {
     try {
       await setLeaveRequestLocked(id, !currentlyLocked)
@@ -515,12 +592,6 @@ export default function AdminLeaveRequests() {
 
   return (
     <div className="page overflow-x-hidden">
-      {notice && (
-        <div className="fixed right-4 top-4 z-50 alert-success shadow-lg animate-in slide-in-from-right-2">
-          <span>{notice}</span>
-        </div>
-      )}
-
       <PageHeader
         title="Leave requests"
         subtitle="Review and approve employee leave requests."
@@ -620,7 +691,13 @@ export default function AdminLeaveRequests() {
 
       <div className="rounded-xl sm:rounded-2xl border border-surface-200/80 bg-white shadow-sm overflow-hidden">
         {loading ? (
-          <div className="p-8 text-center text-surface-500 text-sm">Loading...</div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <tbody>
+                <SkeletonTableRows rows={6} cols={6} />
+              </tbody>
+            </table>
+          </div>
         ) : displayedRows.length === 0 ? (
           <div className="p-8 text-center text-surface-500 text-sm">
             {search ? 'No matches for your search.' : 'No leave requests found.'}
@@ -671,10 +748,28 @@ export default function AdminLeaveRequests() {
             ))}
           </ul>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto scroll-fade-x">
             <table className="min-w-[1600px] w-full text-left border-collapse">
-              <thead className="sticky top-0 z-10 bg-surface-50 shadow-[0_1px_0_0_theme(colors.surface.200)]">
+              <thead className="sticky top-0 z-10 bg-surface-50 border-b border-surface-200">
                 <tr>
+                  <th className="px-3 py-1.5 w-10 border-b border-surface-200">
+                    <input
+                      type="checkbox"
+                      aria-label="Select all visible"
+                      className="w-3.5 h-3.5 rounded border-surface-300 text-brand-600 focus:ring-brand-500 cursor-pointer"
+                      checked={displayedRows.length > 0 && displayedRows.every((r) => selectedIds.has(r.id))}
+                      ref={(el) => {
+                        if (!el) return
+                        const total = displayedRows.length
+                        const sel = displayedRows.filter((r) => selectedIds.has(r.id)).length
+                        el.indeterminate = sel > 0 && sel < total
+                      }}
+                      onChange={(e) => {
+                        if (e.target.checked) setSelectedIds(new Set(displayedRows.map((r) => r.id)))
+                        else clearSelection()
+                      }}
+                    />
+                  </th>
                   {[
                     'CMID',
                     'Employee Name',
@@ -722,9 +817,18 @@ export default function AdminLeaveRequests() {
                 {displayedRows.map((r) => (
                   <tr
                     key={r.id}
-                    className="border-b border-surface-100 hover:bg-brand-50/40 transition-colors cursor-pointer group"
+                    className={`border-b border-surface-100 hover:bg-brand-50/40 transition-colors cursor-pointer group ${selectedIds.has(r.id) ? 'bg-brand-50/30' : ''}`}
                     onClick={() => (r.isLocked ? setDetailRow(r) : openReview(r))}
                   >
+                    <td className="px-3 py-2 w-10" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        aria-label={`Select ${r.employeeName}`}
+                        className="w-3.5 h-3.5 rounded border-surface-300 text-brand-600 focus:ring-brand-500 cursor-pointer"
+                        checked={selectedIds.has(r.id)}
+                        onChange={() => toggleSelect(r.id)}
+                      />
+                    </td>
                     <td className="px-3 py-2 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">{r.employeeCmid ?? '-'}</td>
                     <td className="px-3 py-2 text-xs font-medium text-surface-900 whitespace-nowrap">{r.employeeName}</td>
                     <td className="px-3 py-2 text-xs text-surface-700 whitespace-nowrap">{r.accountName ?? '-'}</td>
@@ -1377,6 +1481,39 @@ export default function AdminLeaveRequests() {
           </div>
         </div>
       )}
+
+      <BulkActionBar count={selectedIds.size} onClear={clearSelection}>
+        <button
+          type="button"
+          onClick={() => void bulkSetLocked(true)}
+          disabled={bulkSaving}
+          className="btn-secondary btn-sm"
+          title="Lock selected"
+        >
+          <Lock className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">Lock</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => void bulkSetLocked(false)}
+          disabled={bulkSaving}
+          className="btn-secondary btn-sm"
+          title="Unlock selected"
+        >
+          <Unlock className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">Unlock</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => void bulkReject()}
+          disabled={bulkSaving}
+          className="btn-danger btn-sm"
+          title="Reject selected (skips locked / already-rejected)"
+        >
+          <XCircle className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">Reject</span>
+        </button>
+      </BulkActionBar>
     </div>
   )
 }

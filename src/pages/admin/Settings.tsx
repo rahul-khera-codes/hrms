@@ -137,8 +137,13 @@ export default function AdminSettings() {
     return (
       <div className="page overflow-x-hidden">
         <PageHeader title="Settings" subtitle="Configure payroll rules and system options." icon={<SettingsIcon className="w-5 h-5" />} />
-        <div className="card p-6 flex items-center gap-3 text-surface-500 text-sm">
-          <div className="spinner" /> Loading settings…
+        <div className="card p-5 sm:p-6 space-y-3">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="space-y-1.5">
+              <span className="block h-3 w-32 rounded bg-surface-200/70 animate-pulse" />
+              <span className="block h-10 w-full rounded-lg bg-surface-100 animate-pulse" />
+            </div>
+          ))}
         </div>
       </div>
     )

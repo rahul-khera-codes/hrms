@@ -1,7 +1,11 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { Users, Plus, Pencil, LayoutGrid, Table2, Search, Download, ArrowUp, ArrowDown, Filter } from 'lucide-react'
+import { Users, Plus, Pencil, LayoutGrid, Table2, Search, Download, ArrowUp, ArrowDown, Filter, AlertCircle, CheckCircle2, Ban } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
+import { DetailModalHeader } from '@/components/DetailModalHeader'
+import { statusBadgeClass } from '@/lib/badges'
+import { SkeletonTableRows } from '@/components/Skeleton'
+import { BulkActionBar } from '@/components/BulkActionBar'
 import {
   getEmployees,
   createEmployee,
@@ -78,6 +82,18 @@ export default function AdminEmployees() {
   const [columnFilters, setColumnFilters] = useState<Record<string, string>>({})
   const [filterOpen, setFilterOpen] = useState<string | null>(null)
   const [activeEmployees, setActiveEmployees] = useState<Set<string>>(new Set())
+  // Bulk selection state (table view only)
+  const [selectedEmpIds, setSelectedEmpIds] = useState<Set<string>>(new Set())
+  const [bulkSaving, setBulkSaving] = useState(false)
+  function clearEmpSelection() { setSelectedEmpIds(new Set()) }
+  function toggleEmpSelect(id: string) {
+    setSelectedEmpIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
   const [cmid, setCmid] = useState('')
   const [contractType, setContractType] = useState<string>('employee')
   const [hireDate, setHireDate] = useState('')
@@ -414,6 +430,25 @@ export default function AdminEmployees() {
     setModal('edit')
   }
 
+  async function bulkSetContractStatus(nextStatus: 'active' | 'inactive') {
+    if (selectedEmpIds.size === 0) return
+    setBulkSaving(true)
+    let ok = 0
+    let failed = 0
+    for (const id of Array.from(selectedEmpIds)) {
+      try {
+        await updateEmployee(id, { contractStatus: nextStatus })
+        ok++
+      } catch {
+        failed++
+      }
+    }
+    setBulkSaving(false)
+    setError(failed === 0 ? null : `${ok} updated, ${failed} failed.`)
+    clearEmpSelection()
+    await load()
+  }
+
   async function handleSave() {
     const trimmedName = name.trim()
     const trimmedEmail = email.trim()
@@ -537,8 +572,23 @@ export default function AdminEmployees() {
     return (
       <div className="page">
         <PageHeader title="Employees" subtitle="Manage employees. Payroll uses this list." icon={<Users className="w-5 h-5" />} />
-        <div className="card p-6 flex items-center gap-3 text-surface-500 text-sm">
-          <div className="spinner" /> Loading employees…
+        <div className="card overflow-hidden">
+          <div className="overflow-x-auto scroll-fade-x">
+            <table className="w-full text-left border-collapse">
+              <thead className="bg-surface-50">
+                <tr>
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <th key={i} className="px-3 py-2.5 text-[10px] uppercase tracking-wider whitespace-nowrap border-b border-surface-200">
+                      <span className="inline-block bg-surface-200/70 rounded animate-pulse h-3 w-16" />
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                <SkeletonTableRows rows={6} cols={6} />
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     )
@@ -574,7 +624,10 @@ export default function AdminEmployees() {
       />
 
       {error && (
-        <div className="alert-error"><span>{error}</span></div>
+        <div className="alert-error">
+          <AlertCircle className="w-4 h-4 mt-0.5 shrink-0 text-red-600" />
+          <span className="flex-1 min-w-0 break-words">{error}</span>
+        </div>
       )}
 
       <div className="toolbar">
@@ -584,7 +637,7 @@ export default function AdminEmployees() {
             <input
               type="text"
               placeholder="Search by name, email, or CMID"
-              className="input pl-9 rounded-xl min-h-[2.75rem] w-full"
+              className="input pl-9 w-full"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -657,7 +710,7 @@ export default function AdminEmployees() {
                   <div className="flex items-center gap-2">
                     <p className="font-medium text-surface-900">{emp.name}</p>
                     {activeEmployees.has(emp.id) && (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-medium bg-amber-100 text-amber-700 shrink-0">
+                      <span className="badge-success shrink-0" title="Currently clocked in">
                         Active
                       </span>
                     )}
@@ -698,10 +751,28 @@ export default function AdminEmployees() {
             ))}
           </ul>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto scroll-fade-x">
             <table className="min-w-[1200px] w-full text-left border-collapse">
-              <thead className="sticky top-0 z-10 bg-surface-50 shadow-[0_1px_0_0_theme(colors.surface.200)]">
+              <thead className="sticky top-0 z-10 bg-surface-50 border-b border-surface-200">
                 <tr>
+                  <th className="px-3 py-1.5 w-10 border-b border-surface-200">
+                    <input
+                      type="checkbox"
+                      aria-label="Select all visible"
+                      className="w-3.5 h-3.5 rounded border-surface-300 text-brand-600 focus:ring-brand-500 cursor-pointer"
+                      checked={paginatedEmployees.length > 0 && paginatedEmployees.every((e) => selectedEmpIds.has(e.id))}
+                      ref={(el) => {
+                        if (!el) return
+                        const total = paginatedEmployees.length
+                        const sel = paginatedEmployees.filter((e) => selectedEmpIds.has(e.id)).length
+                        el.indeterminate = sel > 0 && sel < total
+                      }}
+                      onChange={(e) => {
+                        if (e.target.checked) setSelectedEmpIds(new Set(paginatedEmployees.map((emp) => emp.id)))
+                        else clearEmpSelection()
+                      }}
+                    />
+                  </th>
                   {['CMID', 'Employee Name', 'Account', 'Email', 'Department', 'Job Title', 'Salary Type', 'Salary', 'Contract Status', 'Actions'].map((col) => (
                     <th
                       key={col}
@@ -746,13 +817,22 @@ export default function AdminEmployees() {
               </thead>
               <tbody>
                 {paginatedEmployees.map((emp) => (
-                  <tr key={emp.id} className="border-b border-surface-100 hover:bg-brand-50/40 transition-colors">
+                  <tr key={emp.id} className={`border-b border-surface-100 hover:bg-brand-50/40 transition-colors ${selectedEmpIds.has(emp.id) ? 'bg-brand-50/30' : ''}`}>
+                    <td className="px-3 py-2.5 w-10">
+                      <input
+                        type="checkbox"
+                        aria-label={`Select ${emp.name}`}
+                        className="w-3.5 h-3.5 rounded border-surface-300 text-brand-600 focus:ring-brand-500 cursor-pointer"
+                        checked={selectedEmpIds.has(emp.id)}
+                        onChange={() => toggleEmpSelect(emp.id)}
+                      />
+                    </td>
                     <td className="px-3 py-2.5 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">{emp.cmid ?? '-'}</td>
                     <td className="px-3 py-2.5 text-xs font-medium text-surface-900 whitespace-nowrap">
                       <div className="flex items-center gap-2">
                         {emp.name}
                         {activeEmployees.has(emp.id) && (
-                          <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-amber-100 text-amber-700">Active</span>
+                          <span className="badge-success text-[9px] py-0" title="Currently clocked in">Active</span>
                         )}
                       </div>
                     </td>
@@ -766,12 +846,8 @@ export default function AdminEmployees() {
                     </td>
                     <td className="px-3 py-2.5 whitespace-nowrap">
                       {emp.contractStatus ? (
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                          emp.contractStatus === 'active' ? 'bg-emerald-100 text-emerald-700' :
-                          emp.contractStatus === 'terminated' ? 'bg-red-100 text-red-700' :
-                          'bg-amber-100 text-amber-700'
-                        }`}>
-                          {emp.contractStatus.charAt(0).toUpperCase() + emp.contractStatus.slice(1)}
+                        <span className={`${statusBadgeClass(emp.contractStatus)} capitalize`}>
+                          {emp.contractStatus}
                         </span>
                       ) : '-'}
                     </td>
@@ -798,7 +874,7 @@ export default function AdminEmployees() {
               type="button"
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
               disabled={safeCurrentPage === 1}
-              className="btn-secondary rounded-xl min-h-[2.5rem] px-3 disabled:opacity-50 flex-1 sm:flex-none"
+              className="btn-secondary btn-sm flex-1 sm:flex-none"
             >
               Previous
             </button>
@@ -809,7 +885,7 @@ export default function AdminEmployees() {
               type="button"
               onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
               disabled={safeCurrentPage === totalPages}
-              className="btn-secondary rounded-xl min-h-[2.5rem] px-3 disabled:opacity-50 flex-1 sm:flex-none"
+              className="btn-secondary btn-sm flex-1 sm:flex-none"
             >
               Next
             </button>
@@ -817,43 +893,96 @@ export default function AdminEmployees() {
         </div>
       )}
 
+      <BulkActionBar count={selectedEmpIds.size} onClear={clearEmpSelection}>
+        <button
+          type="button"
+          onClick={() => void bulkSetContractStatus('active')}
+          disabled={bulkSaving}
+          className="btn-secondary btn-sm"
+          title="Mark selected employees Active"
+        >
+          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+          <span className="hidden sm:inline">Activate</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => void bulkSetContractStatus('inactive')}
+          disabled={bulkSaving}
+          className="btn-secondary btn-sm"
+          title="Mark selected employees Inactive"
+        >
+          <Ban className="w-3.5 h-3.5 text-amber-600" />
+          <span className="hidden sm:inline">Deactivate</span>
+        </button>
+      </BulkActionBar>
+
       {modal && createPortal(
         <div className="modal-backdrop" role="dialog" aria-modal="true">
           <button type="button" className="absolute inset-0" onClick={() => setModal(null)} aria-label="Close" />
           <div className="modal-frame-lg">
-            <div className="modal-header">
-              <h2 className="modal-title">{modal === 'add' ? 'Add employee' : 'Edit employee'}</h2>
-            </div>
+            {modal === 'edit' && editing ? (
+              <DetailModalHeader
+                employeeName={editing.name}
+                cmid={editing.cmid}
+                reportsTo={editing.reportsToName ?? null}
+                accountName={editing.primaryClientName ?? null}
+                onClose={() => setModal(null)}
+              />
+            ) : (
+              <div className="modal-header">
+                <div className="flex items-start gap-3 min-w-0 flex-1">
+                  <div className="w-10 h-10 rounded-xl bg-brand-50 border border-brand-100 text-brand-600 flex items-center justify-center shrink-0">
+                    <Plus className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h2 className="modal-title">Add employee</h2>
+                    <p className="text-[11px] text-surface-500 mt-0.5">Create a new employee record.</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setModal(null)}
+                  className="p-2.5 min-w-[2.75rem] min-h-[2.75rem] rounded-lg text-surface-400 hover:text-surface-700 hover:bg-surface-100 shrink-0 transition-colors flex items-center justify-center"
+                  aria-label="Close"
+                >
+                  <span aria-hidden>×</span>
+                </button>
+              </div>
+            )}
             <div className="modal-body">
               <div>
-                <label className="label">Name</label>
+                <label className="label">Name <span className="text-red-500" aria-hidden>*</span></label>
                 <input
                   type="text"
-                  className="input w-full rounded-xl min-h-[2.75rem]"
+                  className="input w-full"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Full name"
+                  required
                 />
               </div>
               <div>
-                <label className="label">Email</label>
+                <label className="label">Email <span className="text-red-500" aria-hidden>*</span></label>
                 <input
                   type="email"
-                  className="input w-full rounded-xl min-h-[2.75rem]"
+                  className="input w-full"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="email@example.com"
+                  required
                 />
               </div>
               {modal === 'add' && (
                 <div>
-                  <label className="label">Password</label>
+                  <label className="label">Password <span className="text-red-500" aria-hidden>*</span></label>
                   <input
                     type="password"
-                    className="input w-full rounded-xl min-h-[2.75rem]"
+                    className="input w-full"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Min 6 characters"
+                    required
+                    minLength={6}
                   />
                 </div>
               )}
@@ -862,7 +991,7 @@ export default function AdminEmployees() {
                   <label className="label">New password (leave blank to keep)</label>
                   <input
                     type="password"
-                    className="input w-full rounded-xl min-h-[2.75rem]"
+                    className="input w-full"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Min 6 characters"
@@ -880,7 +1009,7 @@ export default function AdminEmployees() {
                         type="number"
                         min={0}
                         step={1}
-                        className="input w-full rounded-xl min-h-[2.75rem]"
+                        className="input w-full"
                         value={cmid}
                         onChange={(e) => setCmid(e.target.value)}
                         placeholder="e.g. 1001"
@@ -890,7 +1019,7 @@ export default function AdminEmployees() {
                       <label className="label">Harmony ID</label>
                       <input
                         type="text"
-                        className="input w-full rounded-xl min-h-[2.75rem] bg-surface-50 text-surface-500"
+                        className="input w-full bg-surface-50 text-surface-500"
                         value={cmid ? `HRM-${cmid.padStart(5, '0')}` : ''}
                         readOnly
                         disabled
@@ -911,7 +1040,7 @@ export default function AdminEmployees() {
                       <label className="label">Hire Date</label>
                       <input
                         type="date"
-                        className="input w-full rounded-xl min-h-[2.75rem]"
+                        className="input w-full"
                         value={hireDate}
                         onChange={(e) => setHireDate(e.target.value)}
                       />
@@ -983,7 +1112,7 @@ export default function AdminEmployees() {
                       <label className="label">Termination Date</label>
                       <input
                         type="date"
-                        className="input w-full rounded-xl min-h-[2.75rem]"
+                        className="input w-full"
                         value={terminationDate}
                         onChange={(e) => setTerminationDate(e.target.value)}
                       />
@@ -1008,7 +1137,7 @@ export default function AdminEmployees() {
                   type="number"
                   min={0}
                   step={salaryType === 'monthly' ? 100 : 0.01}
-                  className="input w-full rounded-xl min-h-[2.75rem]"
+                  className="input w-full"
                   value={baseSalary}
                   onChange={(e) => setBaseSalary(e.target.value)}
                   placeholder={salaryType === 'monthly' ? 'e.g. 25000' : 'e.g. 150'}
@@ -1044,7 +1173,7 @@ export default function AdminEmployees() {
                       <label className="label">Shift start time</label>
                       <input
                         type="time"
-                        className="input w-full rounded-xl min-h-[2.75rem]"
+                        className="input w-full"
                         value={assignmentStartTime}
                         onChange={(e) => setAssignmentStartTime(e.target.value)}
                         disabled={!assignedShiftId}
@@ -1054,7 +1183,7 @@ export default function AdminEmployees() {
                       <label className="label">Shift end time</label>
                       <input
                         type="time"
-                        className="input w-full rounded-xl min-h-[2.75rem]"
+                        className="input w-full"
                         value={assignmentEndTime}
                         onChange={(e) => setAssignmentEndTime(e.target.value)}
                         disabled={!assignedShiftId}

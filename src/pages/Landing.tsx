@@ -99,7 +99,7 @@ export default function Landing() {
             <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-brand-500 flex items-center justify-center shrink-0">
               <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
             </div>
-            <span className="text-base sm:text-lg font-semibold text-surface-900 truncate">HARMONY</span>
+            <span className="text-base sm:text-lg font-semibold text-surface-900 truncate font-display">HARMONY</span>
           </a>
           <nav className="hidden md:flex items-center gap-6 lg:gap-8">
             <a href="#features" className="text-sm font-medium text-surface-600 hover:text-surface-900 transition-colors whitespace-nowrap">
@@ -480,7 +480,7 @@ export default function Landing() {
             <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-brand-500 flex items-center justify-center shrink-0">
               <Clock className="w-4 h-4 text-white" />
             </div>
-            <span className="font-semibold text-surface-900 text-sm sm:text-base">HARMONY</span>
+            <span className="font-semibold text-surface-900 text-sm sm:text-base font-display">HARMONY</span>
           </div>
           <p className="text-xs sm:text-sm text-surface-500">
             © {new Date().getFullYear()} HARMONY. Time tracking & payroll.

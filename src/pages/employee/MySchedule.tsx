@@ -4,6 +4,7 @@ import { getMySchedule, type MyScheduleEntry } from '@/lib/apiEmployee'
 import { format, addDays, startOfWeek, parseISO } from 'date-fns'
 import AdminSelect from '@/components/AdminSelect'
 import { PageHeader } from '@/components/PageHeader'
+import { SkeletonTableRows } from '@/components/Skeleton'
 
 function formatTime(t: string) {
   if (!t) return '—'
@@ -178,8 +179,14 @@ export default function EmployeeMySchedule() {
       )}
 
       {loading ? (
-        <div className="card p-6 flex items-center justify-center gap-3 text-surface-500 text-sm">
-          <div className="spinner" /> Loading…
+        <div className="card overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <tbody>
+                <SkeletonTableRows rows={5} cols={5} />
+              </tbody>
+            </table>
+          </div>
         </div>
       ) : entries.length === 0 ? (
         <div className="card empty-state">

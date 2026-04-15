@@ -4,6 +4,7 @@ import { getSessions } from '@/lib/apiSessions'
 import type { ClockSession } from '@/types'
 import { Clock, Calendar, TrendingUp, Zap, Download, Search, LayoutGrid, Table2 } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
+import { SkeletonTableRows } from '@/components/Skeleton'
 
 const SESSIONS_PER_PAGE = 10
 
@@ -112,8 +113,14 @@ export default function EmployeeSessions() {
     return (
       <div className="page">
         <PageHeader title="My Sessions" subtitle="View and manage your clock-in / clock-out history." icon={<Clock className="w-5 h-5" />} />
-        <div className="card p-6 flex items-center gap-3 text-surface-500 text-sm">
-          <div className="spinner" /> Loading sessions…
+        <div className="card overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <tbody>
+                <SkeletonTableRows rows={5} cols={6} />
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     )

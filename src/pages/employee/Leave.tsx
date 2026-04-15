@@ -3,6 +3,8 @@ import { Calendar, CalendarCheck2, Clock3, Send, LayoutGrid, Table2, Download, S
 import { createLeaveRequest, getMyLeaveRequests, type LeaveRequestItem } from '@/lib/apiEmployee'
 import AdminSelect from '@/components/AdminSelect'
 import { PageHeader } from '@/components/PageHeader'
+import { SkeletonTableRows } from '@/components/Skeleton'
+import { useToast } from '@/components/Toast'
 
 type LeaveCategory = 'marriage' | 'bereavement' | 'time_off' | 'maternity' | 'paternity' | 'medical_license' | 'vacation'
 const leaveCategoryOptions: Array<{ value: LeaveCategory; label: string }> = [
@@ -51,7 +53,15 @@ export default function EmployeeLeave() {
   const [returnTime, setReturnTime] = useState(initialDateTime.time)
   const todayDate = new Date().toISOString().slice(0, 10)
   const [reason, setReason] = useState('')
-  const [notice, setNotice] = useState('')
+  const toast = useToast()
+  const setNotice = (msg: string) => {
+    const m = String(msg ?? '').trim()
+    if (!m) return
+    const lower = m.toLowerCase()
+    if (lower.startsWith('past dates') || lower.includes('must ') || lower.includes('not allowed')) toast.warning(m)
+    else if (lower.startsWith('failed') || lower.includes('error')) toast.error(m)
+    else toast.success(m)
+  }
   const [requestsView, setRequestsView] = useState<'card' | 'table'>('table')
   const [search, setSearch] = useState('')
 
@@ -88,12 +98,6 @@ export default function EmployeeLeave() {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
   }, [])
-
-  useEffect(() => {
-    if (!notice) return
-    const timeoutId = window.setTimeout(() => setNotice(''), 2200)
-    return () => window.clearTimeout(timeoutId)
-  }, [notice])
 
   const pendingCount = useMemo(() => requests.filter((r) => r.status === 'pending').length, [requests])
 
@@ -199,12 +203,6 @@ export default function EmployeeLeave() {
 
   return (
     <div className="page overflow-x-hidden">
-      {notice && (
-        <div className="fixed right-4 top-4 z-50 alert-success shadow-lg">
-          <span>{notice}</span>
-        </div>
-      )}
-
       <PageHeader
         title="My Leave"
         subtitle="Submit leave requests and track approvals."
@@ -418,8 +416,12 @@ export default function EmployeeLeave() {
           </div>
         </div>
         {loading ? (
-          <div className="p-6 flex items-center gap-3 text-surface-500 text-sm">
-            <div className="spinner" /> Loading requests…
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <tbody>
+                <SkeletonTableRows rows={4} cols={5} />
+              </tbody>
+            </table>
           </div>
         ) : requests.length === 0 ? (
           <div className="empty-state">

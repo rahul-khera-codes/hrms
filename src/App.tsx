@@ -1,5 +1,8 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
+import { UIPrefsProvider } from './contexts/UIPrefsContext'
+import { ToastProvider } from './components/Toast'
+import { KeyboardShortcuts } from './components/KeyboardShortcuts'
 import Landing from './pages/Landing'
 import EmployeeLayout from './layouts/EmployeeLayout'
 import AdminLayout from './layouts/AdminLayout'
@@ -49,8 +52,11 @@ function PageLoader() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <Routes>
+    <UIPrefsProvider>
+      <ToastProvider>
+        <AuthProvider>
+          <KeyboardShortcuts />
+          <Routes>
         <Route path="/" element={<Landing />} />
         <Route
           path="/dashboard/*"
@@ -88,7 +94,9 @@ export default function App() {
           <Route path="leave-requests" element={<AdminLeaveRequests />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </AuthProvider>
+          </Routes>
+        </AuthProvider>
+      </ToastProvider>
+    </UIPrefsProvider>
   )
 }

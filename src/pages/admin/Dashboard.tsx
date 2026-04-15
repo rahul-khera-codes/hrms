@@ -99,10 +99,13 @@ export default function AdminDashboard() {
     indigo: 'bg-indigo-50 text-indigo-600 border-indigo-100',
   }
 
+  // 'active' on Dashboard means "currently clocked in" (not a terminal status),
+  // so we treat it as info, with present/adjusted as success and absent as danger.
   const statusBadge = (status: string) => {
-    if (status === 'present' || status === 'adjusted') return 'badge-brand'
-    if (status === 'active') return 'badge-warning'
+    if (status === 'present' || status === 'adjusted' || status === 'completed') return 'badge-success'
+    if (status === 'active') return 'badge-info'
     if (status === 'absent') return 'badge-danger'
+    if (status === 'pending' || status === 'late') return 'badge-warning'
     return 'badge-neutral'
   }
 

@@ -74,7 +74,7 @@ export default function AdminLayout() {
         )}
         <aside
           className={clsx(
-            'border-r border-surface-200/70 bg-white flex flex-col shrink-0 transition-[width,transform] duration-200 overflow-hidden z-50',
+            'border-r border-surface-200/70 bg-white brand-sidebar-accent flex flex-col shrink-0 transition-[width,transform] duration-200 overflow-hidden z-50',
             'fixed inset-y-0 left-0 w-64 shadow-xl -translate-x-full md:relative md:shadow-none md:translate-x-0',
             mobileMenuOpen && 'translate-x-0',
             collapsed && 'md:w-[4.5rem]',
@@ -98,8 +98,8 @@ export default function AdminLayout() {
                     <Clock className="w-4 h-4 text-white" />
                   </div>
                   <div>
-                    <h1 className="text-sm font-semibold text-surface-900 tracking-tight leading-tight">HARMONY</h1>
-                    <p className="text-[10px] text-surface-500 uppercase tracking-wider font-medium">Admin</p>
+                    <h1 className="text-sm font-semibold text-surface-900 tracking-tight leading-tight font-display">HARMONY</h1>
+                    <p className="text-[10px] text-brand-700 uppercase tracking-wider font-medium">Admin</p>
                   </div>
                 </div>
                 <button

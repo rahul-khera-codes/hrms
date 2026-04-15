@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { Building2, Plus, Pencil, Trash2, LayoutGrid, Table2, Search, ArrowUp, ArrowDown, Filter, Download } from 'lucide-react'
 import { getClients, createClient, updateClient, deleteClient, type Client } from '@/lib/apiAdmin'
 import { PageHeader } from '@/components/PageHeader'
+import { SkeletonTableRows } from '@/components/Skeleton'
 
 export default function AdminClients() {
   const [clients, setClients] = useState<Client[]>([])
@@ -129,8 +130,14 @@ export default function AdminClients() {
     return (
       <div className="page">
         <PageHeader title="Clients" subtitle="Manage BPO clients for scheduling" icon={<Building2 className="w-5 h-5" />} />
-        <div className="card p-6 flex items-center gap-3 text-surface-500 text-sm">
-          <div className="spinner" /> Loading clients…
+        <div className="card overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <tbody>
+                <SkeletonTableRows rows={4} cols={4} />
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     )

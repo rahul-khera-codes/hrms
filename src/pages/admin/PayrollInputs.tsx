@@ -6,6 +6,8 @@ import {
 import AdminSelect from '@/components/AdminSelect'
 import { PageHeader } from '@/components/PageHeader'
 import { DetailModalHeader } from '@/components/DetailModalHeader'
+import { SkeletonTableRows } from '@/components/Skeleton'
+import { useToast } from '@/components/Toast'
 import {
   getPayrollInputs,
   createPayrollInput,
@@ -37,7 +39,14 @@ const statusColors: Record<string, string> = {
 export default function AdminPayrollInputs() {
   const [rows, setRows] = useState<PayrollInput[]>([])
   const [loading, setLoading] = useState(true)
-  const [notice, setNotice] = useState('')
+  const toast = useToast()
+  const setNotice = (msg: string) => {
+    const m = String(msg ?? '').trim()
+    if (!m) return
+    const lower = m.toLowerCase()
+    if (lower.startsWith('failed') || lower.includes(' failed') || lower.includes('error')) toast.error(m)
+    else toast.success(m)
+  }
 
   const [filterStatus, setFilterStatus] = useState<StatusFilter>('all')
   const [filterType, setFilterType] = useState<string>('all')
@@ -85,11 +94,6 @@ export default function AdminPayrollInputs() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filterStatus, filterType])
 
-  useEffect(() => {
-    if (!notice) return
-    const t = window.setTimeout(() => setNotice(''), 2500)
-    return () => window.clearTimeout(t)
-  }, [notice])
 
   const summary = useMemo(() => {
     const total = rows.length
@@ -220,10 +224,6 @@ export default function AdminPayrollInputs() {
 
   return (
     <div className="page overflow-x-hidden">
-      {notice && (
-        <div className="fixed right-4 top-4 z-50 alert-success shadow-lg"><span>{notice}</span></div>
-      )}
-
       <PageHeader
         title="Payroll inputs"
         subtitle="Bonuses, incentives, claims, and deductions that are not paid through the timesheet."
@@ -313,7 +313,13 @@ export default function AdminPayrollInputs() {
       {/* List */}
       <div className="card overflow-hidden">
         {loading ? (
-          <div className="p-6 flex items-center gap-3 text-surface-500 text-sm"><div className="spinner" /> Loading…</div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <tbody>
+                <SkeletonTableRows rows={5} cols={6} />
+              </tbody>
+            </table>
+          </div>
         ) : displayedRows.length === 0 ? (
           <div className="empty-state">
             <div className="empty-state-icon"><Receipt className="w-5 h-5" /></div>
