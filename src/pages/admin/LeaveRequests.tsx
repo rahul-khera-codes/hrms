@@ -484,6 +484,11 @@ export default function AdminLeaveRequests() {
       if (detailRow && detailRow.id === id) {
         setDetailRow((prev) => (prev ? { ...prev, isLocked: !currentlyLocked } : prev))
       }
+      // Close the review modal after locking — locked records are not editable
+      if (reviewingId === id && !currentlyLocked) {
+        setReviewingId(null)
+        setReviewContext(null)
+      }
     } catch (err: unknown) {
       const msg = err && typeof err === 'object' && 'message' in err ? String((err as Error).message) : 'Failed to toggle lock.'
       setNotice(msg)
