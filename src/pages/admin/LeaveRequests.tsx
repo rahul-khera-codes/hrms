@@ -1127,79 +1127,90 @@ export default function AdminLeaveRequests() {
             }}
             aria-label="Close"
           />
-          <div className="relative z-10 w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl border border-surface-200 bg-white p-5 shadow-xl">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <h2 className="text-base font-semibold text-surface-900">
-                  {reviewContext && reviewContext.leave.status !== 'pending' ? 'Edit leave decision' : 'Review leave request'}
-                </h2>
-                <p className="mt-1 text-sm text-surface-500">Approve or reject. Pay fields apply when approving.</p>
-              </div>
-              {reviewContext && reviewContext.leave.status !== 'pending' ? (
-                <span className={`shrink-0 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold capitalize ${statusColors[reviewContext.leave.status] || 'bg-surface-100 text-surface-600'}`}>
-                  {reviewContext.leave.status}
-                </span>
-              ) : null}
-            </div>
+          <div className="relative z-10 w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl border border-surface-200 bg-white shadow-xl">
+            {/* Employee header — matches attendance modal layout */}
+            {(() => {
+              const reviewRow = rows.find((r) => r.id === reviewingId)
+              return (
+                <div className="sticky top-0 z-10 bg-white rounded-t-2xl">
+                  <DetailModalHeader
+                    employeeName={reviewContext?.leave.employeeName ?? reviewRow?.employeeName ?? ''}
+                    cmid={reviewRow?.employeeCmid}
+                    reportsTo={reviewRow?.reportsTo}
+                    onClose={() => { setReviewingId(null); setReviewContext(null) }}
+                    extra={
+                      reviewContext && reviewContext.leave.status !== 'pending' ? (
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold capitalize ${statusColors[reviewContext.leave.status] || 'bg-surface-100 text-surface-600'}`}>
+                          {reviewContext.leave.status}
+                        </span>
+                      ) : null
+                    }
+                  />
+                </div>
+              )
+            })()}
 
             {contextLoading || !reviewContext ? (
               <div className="py-10 text-center text-sm text-surface-500">Loading details…</div>
             ) : (
               <>
                 {reviewContext.leave.status !== 'pending' ? (
-                  <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50/70 px-3 py-2 text-xs text-amber-800">
+                  <div className="mx-5 mt-4 rounded-lg border border-amber-200 bg-amber-50/70 px-3 py-2 text-xs text-amber-800">
                     Re-reviewing an already <strong className="capitalize">{reviewContext.leave.status}</strong> request. Saving will overwrite the existing decision.
                   </div>
                 ) : null}
-                <div className="mt-4 rounded-xl border border-surface-200 bg-surface-50/80 p-3 text-sm space-y-1">
-                  <p>
-                    <span className="text-surface-500">Employee:</span>{' '}
-                    <span className="font-medium text-surface-900">{reviewContext.leave.employeeName}</span>
-                  </p>
-                  {reviewContext.leave.leaveCategory ? (
-                    <p>
-                      <span className="text-surface-500">Leave Type:</span>{' '}
-                      {CATEGORY_LABELS[reviewContext.leave.leaveCategory] || reviewContext.leave.leaveCategory}
-                    </p>
-                  ) : null}
-                  <p>
-                    <span className="text-surface-500">Period:</span>{' '}
-                    <span className="tabular-nums">
-                      {reviewContext.leave.startDate}{reviewContext.leave.startTime ? ` ${reviewContext.leave.startTime}` : ''} → {reviewContext.leave.endDate}{reviewContext.leave.endTime ? ` ${reviewContext.leave.endTime}` : ''}
-                    </span>
-                  </p>
-                  {reviewContext.leave.returnDate ? (
-                    <p>
-                      <span className="text-surface-500">Return:</span>{' '}
-                      <span className="tabular-nums">{reviewContext.leave.returnDate}{reviewContext.leave.returnTime ? ` ${reviewContext.leave.returnTime}` : ''}</span>
-                    </p>
-                  ) : null}
-                  <p>
-                    <span className="text-surface-500">Type:</span>{' '}
-                    {reviewContext.leave.leaveType === 'paid' ? 'Paid' : 'Unpaid'}
-                  </p>
-                  {reviewContext.leave.associateDaysOff ? (
-                    <p>
-                      <span className="text-surface-500">Days Off:</span>{' '}
-                      {reviewContext.leave.associateDaysOff}
-                    </p>
-                  ) : null}
-                  {reviewContext.leave.calculationType ? (
-                    <p>
-                      <span className="text-surface-500">Requested Calculation:</span>{' '}
-                      {reviewContext.leave.calculationType === 'non_payable' ? 'Non Payable' : reviewContext.leave.calculationType === 'hourly_salary' ? 'Hourly Salary' : 'Monthly Salary'}
-                    </p>
-                  ) : null}
-                  <p>
-                    <span className="text-surface-500">Salary:</span>{' '}
-                    {reviewContext.employee.salaryType} · base ${reviewContext.employee.baseSalary.toFixed(2)}
-                  </p>
+                <div className="mx-5 mt-4 rounded-xl border border-surface-200 bg-surface-50/80 p-3 text-sm">
+                  <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider mb-3">Leave Info</p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-3">
+                    {reviewContext.leave.leaveCategory ? (
+                      <div>
+                        <p className="text-[10px] font-medium text-surface-400 uppercase">Leave Type</p>
+                        <p className="font-medium text-surface-900 mt-0.5">{CATEGORY_LABELS[reviewContext.leave.leaveCategory] || reviewContext.leave.leaveCategory}</p>
+                      </div>
+                    ) : null}
+                    <div>
+                      <p className="text-[10px] font-medium text-surface-400 uppercase">Type</p>
+                      <p className="font-medium text-surface-900 mt-0.5">{reviewContext.leave.leaveType === 'paid' ? 'Paid' : 'Unpaid'}</p>
+                    </div>
+                    {reviewContext.leave.calculationType ? (
+                      <div>
+                        <p className="text-[10px] font-medium text-surface-400 uppercase">Calculation</p>
+                        <p className="font-medium text-surface-900 mt-0.5">
+                          {reviewContext.leave.calculationType === 'non_payable' ? 'Non Payable' : reviewContext.leave.calculationType === 'hourly_salary' ? 'Hourly Salary' : 'Monthly Salary'}
+                        </p>
+                      </div>
+                    ) : null}
+                    {reviewContext.leave.associateDaysOff ? (
+                      <div>
+                        <p className="text-[10px] font-medium text-surface-400 uppercase">Days Off</p>
+                        <p className="font-medium text-surface-900 mt-0.5">{reviewContext.leave.associateDaysOff}</p>
+                      </div>
+                    ) : null}
+                    <div>
+                      <p className="text-[10px] font-medium text-surface-400 uppercase">Salary</p>
+                      <p className="font-medium text-surface-900 mt-0.5">{reviewContext.employee.salaryType} · base ${reviewContext.employee.baseSalary.toFixed(2)}</p>
+                    </div>
+                    <div className="col-span-2 sm:col-span-3">
+                      <p className="text-[10px] font-medium text-surface-400 uppercase">Period</p>
+                      <p className="font-medium text-surface-900 tabular-nums mt-0.5">
+                        {reviewContext.leave.startDate}{reviewContext.leave.startTime ? ` ${reviewContext.leave.startTime}` : ''}
+                        <span className="text-surface-400 mx-1.5">&rarr;</span>
+                        {reviewContext.leave.endDate}{reviewContext.leave.endTime ? ` ${reviewContext.leave.endTime}` : ''}
+                      </p>
+                    </div>
+                    {reviewContext.leave.returnDate ? (
+                      <div>
+                        <p className="text-[10px] font-medium text-surface-400 uppercase">Return Date</p>
+                        <p className="font-medium text-surface-900 tabular-nums mt-0.5">{reviewContext.leave.returnDate}{reviewContext.leave.returnTime ? ` ${reviewContext.leave.returnTime}` : ''}</p>
+                      </div>
+                    ) : null}
+                  </div>
                   {reviewContext.leave.reason ? (
-                    <p className="text-xs text-surface-600 pt-1 border-t border-surface-200/80">{reviewContext.leave.reason}</p>
+                    <p className="text-xs text-surface-600 pt-2 mt-3 border-t border-surface-200/80">{reviewContext.leave.reason}</p>
                   ) : null}
                 </div>
 
-                <div className="mt-4 space-y-3">
+                <div className="mx-5 mt-4 space-y-3">
                   <AdminSelect
                     value={reviewStatus}
                     onChange={(val) => setReviewStatus(val as 'approved' | 'rejected')}
@@ -1286,7 +1297,7 @@ export default function AdminLeaveRequests() {
               </>
             )}
 
-            <div className="mt-5 flex flex-col-reverse sm:flex-row justify-between gap-2">
+            <div className="mx-5 mt-5 mb-5 flex flex-col-reverse sm:flex-row justify-between gap-2">
               {reviewingId && (
                 <button
                   type="button"
@@ -1341,7 +1352,6 @@ export default function AdminLeaveRequests() {
                 employeeName={detailRow.employeeName}
                 cmid={detailRow.employeeCmid}
                 reportsTo={detailRow.reportsTo}
-                accountName={detailRow.accountName}
                 onClose={() => setDetailRow(null)}
                 extra={
                   <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold capitalize ${statusColors[detailRow.status] || 'bg-surface-100 text-surface-600'}`}>

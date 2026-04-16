@@ -804,7 +804,6 @@ export default function AdminAttendance() {
                 employeeName={detailRecord.employeeName}
                 cmid={detailRecord.employeeCmid}
                 reportsTo={detailRecord.reportsTo}
-                accountName={detailRecord.accountName}
                 onClose={() => setDetailRecord(null)}
               />
             </div>
