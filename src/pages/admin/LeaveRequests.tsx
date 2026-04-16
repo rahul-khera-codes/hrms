@@ -704,9 +704,16 @@ export default function AdminLeaveRequests() {
               </tbody>
             </table>
           </div>
-        ) : displayedRows.length === 0 ? (
-          <div className="p-8 text-center text-surface-500 text-sm">
-            {search ? 'No matches for your search.' : 'No leave requests found.'}
+        ) : viewMode === 'card' && displayedRows.length === 0 ? (
+          <div className="empty-state">
+            <div className="empty-state-icon"><Search className="w-5 h-5" /></div>
+            <p className="empty-state-title">No matches</p>
+            <p className="empty-state-description">{search ? 'No matches for your search.' : 'Try adjusting your filters.'}</p>
+            {Object.values(columnFilters).some(Boolean) && (
+              <button type="button" className="btn-secondary btn-sm mt-3" onClick={() => { setColumnFilters({}); setFilterOpen(null) }}>
+                Clear column filters
+              </button>
+            )}
           </div>
         ) : viewMode === 'card' ? (
           <ul className="p-3 sm:p-4 grid grid-cols-1 gap-3">
@@ -820,6 +827,24 @@ export default function AdminLeaveRequests() {
                 </tr>
               </thead>
               <tbody>
+                {displayedRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={17} className="py-12">
+                      <div className="flex flex-col items-center justify-center text-center">
+                        <div className="w-12 h-12 rounded-full bg-surface-100 flex items-center justify-center text-surface-400 mb-3">
+                          <Search className="w-5 h-5" />
+                        </div>
+                        <p className="text-sm font-medium text-surface-700">No matches</p>
+                        <p className="text-xs text-surface-500 mt-1">Try adjusting your search or column filters.</p>
+                        {Object.values(columnFilters).some(Boolean) && (
+                          <button type="button" className="btn-secondary btn-sm mt-3" onClick={() => { setColumnFilters({}); setFilterOpen(null) }}>
+                            Clear column filters
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ) : null}
                 {displayedRows.map((r) => (
                   <tr
                     key={r.id}

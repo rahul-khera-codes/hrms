@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react'
 import {
@@ -18,8 +18,8 @@ import {
 } from 'date-fns'
 
 interface DateRangePickerProps {
-  startDate: string // yyyy-MM-dd
-  endDate: string   // yyyy-MM-dd
+  startDate: string
+  endDate: string
   onChange: (start: string, end: string) => void
   className?: string
 }
@@ -31,7 +31,6 @@ const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
 export default function DateRangePicker({ startDate, endDate, onChange, className = '' }: DateRangePickerProps) {
   const [open, setOpen] = useState(false)
   const [mode, setMode] = useState<Mode>('week')
-  // For custom mode: track which end the user is picking
   const [pickingEnd, setPickingEnd] = useState(false)
   const [hoverDate, setHoverDate] = useState<string | null>(null)
 
@@ -45,7 +44,6 @@ export default function DateRangePicker({ startDate, endDate, onChange, classNam
   const dropdownRef = useRef<HTMLDivElement | null>(null)
   const [position, setPosition] = useState<{ top: number; left: number; placement: 'bottom' | 'top' }>({ top: 0, left: 0, placement: 'bottom' })
 
-  // Close on click outside
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       const target = e.target as Node
@@ -60,34 +58,51 @@ export default function DateRangePicker({ startDate, endDate, onChange, classNam
 
   useEffect(() => {
     if (!open) return
-    function handleEscape(e: KeyboardEvent) {
+    const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') { setOpen(false); setPickingEnd(false) }
     }
     document.addEventListener('keydown', handleEscape)
     return () => document.removeEventListener('keydown', handleEscape)
   }, [open])
 
-  // Position the dropdown
+  // Sync leftMonth when startDate prop changes externally
   useEffect(() => {
-    if (!open || !buttonRef.current) return
-    function computePosition() {
-      if (!buttonRef.current) return
-      const rect = buttonRef.current.getBoundingClientRect()
-      const calHeight = 380
-      const calWidth = 600
-      const gap = 4
-      const spaceBelow = window.innerHeight - rect.bottom
-      const useTop = spaceBelow < calHeight && rect.top > spaceBelow
-      let left = rect.left + window.scrollX
+    if (!open) {
+      const d = parseISO(startDate || '')
+      if (isValid(d)) setLeftMonth(startOfMonth(d))
+    }
+  }, [startDate, open])
+
+  const computePosition = useCallback(() => {
+    if (!buttonRef.current) return
+    const rect = buttonRef.current.getBoundingClientRect()
+    const calHeight = 420
+    const gap = 6
+    const spaceBelow = window.innerHeight - rect.bottom
+    const useTop = spaceBelow < calHeight && rect.top > spaceBelow
+
+    // On mobile (< 640px), center horizontally
+    const isMobile = window.innerWidth < 640
+    let left: number
+    if (isMobile) {
+      left = 8
+    } else {
+      left = rect.left + window.scrollX
+      const calWidth = 580
       if (left + calWidth > window.innerWidth - 8) {
         left = Math.max(8, window.innerWidth - calWidth - 8)
       }
-      setPosition({
-        top: useTop ? rect.top + window.scrollY - gap : rect.bottom + window.scrollY + gap,
-        left,
-        placement: useTop ? 'top' : 'bottom',
-      })
     }
+
+    setPosition({
+      top: useTop ? rect.top + window.scrollY - gap : rect.bottom + window.scrollY + gap,
+      left,
+      placement: useTop ? 'top' : 'bottom',
+    })
+  }, [])
+
+  useEffect(() => {
+    if (!open) return
     computePosition()
     window.addEventListener('scroll', computePosition, true)
     window.addEventListener('resize', computePosition)
@@ -95,28 +110,24 @@ export default function DateRangePicker({ startDate, endDate, onChange, classNam
       window.removeEventListener('scroll', computePosition, true)
       window.removeEventListener('resize', computePosition)
     }
-  }, [open])
+  }, [open, computePosition])
 
   const rightMonth = addMonths(leftMonth, 1)
-
   const start = parseISO(startDate)
   const end = parseISO(endDate)
   const validStart = isValid(start) ? start : new Date()
   const validEnd = isValid(end) ? end : new Date()
-
-  const displayText = `${format(validStart, 'MMM d, yyyy')} - ${format(validEnd, 'MMM d, yyyy')}`
+  const displayText = `${format(validStart, 'MMM d, yyyy')}  –  ${format(validEnd, 'MMM d, yyyy')}`
 
   function handleDayClick(iso: string) {
     const clicked = parseISO(iso)
-
     if (mode === 'week') {
-      // Auto-select full Sun-Sat week
-      const weekStart = startOfWeek(clicked, { weekStartsOn: 0 })
-      const weekEnd = endOfWeek(clicked, { weekStartsOn: 0 })
-      onChange(format(weekStart, 'yyyy-MM-dd'), format(weekEnd, 'yyyy-MM-dd'))
+      const ws = startOfWeek(clicked, { weekStartsOn: 0 })
+      const we = endOfWeek(clicked, { weekStartsOn: 0 })
+      onChange(format(ws, 'yyyy-MM-dd'), format(we, 'yyyy-MM-dd'))
       setOpen(false)
+      setHoverDate(null)
     } else {
-      // Custom mode: first click = start, second click = end
       if (!pickingEnd) {
         onChange(iso, iso)
         setPickingEnd(true)
@@ -128,32 +139,53 @@ export default function DateRangePicker({ startDate, endDate, onChange, classNam
           onChange(format(s, 'yyyy-MM-dd'), iso)
         }
         setPickingEnd(false)
+        setHoverDate(null)
         setOpen(false)
       }
     }
   }
 
-  function isInRange(day: Date): boolean {
+  /** Determine if a day falls within the visible range (selected or hovered) */
+  function getRangeState(day: Date): { inRange: boolean; isStart: boolean; isEnd: boolean } {
+    let rangeStart = validStart
+    let rangeEnd = validEnd
+
+    // In week mode with hover, show the hovered week
+    if (mode === 'week' && hoverDate) {
+      const h = parseISO(hoverDate)
+      if (isValid(h)) {
+        rangeStart = startOfWeek(h, { weekStartsOn: 0 })
+        rangeEnd = endOfWeek(h, { weekStartsOn: 0 })
+      }
+    }
+
+    // In custom mode picking end, show preview range
     if (mode === 'custom' && pickingEnd && hoverDate) {
       const s = parseISO(startDate)
       const h = parseISO(hoverDate)
-      if (!isValid(s) || !isValid(h)) return false
-      const rangeStart = isBefore(h, s) ? h : s
-      const rangeEnd = isAfter(h, s) ? h : s
-      return isWithinInterval(day, { start: rangeStart, end: rangeEnd })
+      if (isValid(s) && isValid(h)) {
+        rangeStart = isBefore(h, s) ? h : s
+        rangeEnd = isAfter(h, s) ? h : s
+      }
     }
-    if (!isValid(validStart) || !isValid(validEnd)) return false
-    return isWithinInterval(day, { start: validStart, end: validEnd })
+
+    if (!isValid(rangeStart) || !isValid(rangeEnd)) return { inRange: false, isStart: false, isEnd: false }
+
+    return {
+      inRange: isWithinInterval(day, { start: rangeStart, end: rangeEnd }),
+      isStart: isSameDay(day, rangeStart),
+      isEnd: isSameDay(day, rangeEnd),
+    }
   }
 
-  function renderMonth(month: Date) {
-    const monthStart = startOfMonth(month)
-    const monthEnd = endOfMonth(month)
-    const calStart = startOfWeek(monthStart, { weekStartsOn: 0 })
-    const calEnd = endOfWeek(monthEnd, { weekStartsOn: 0 })
+  function buildWeeks(month: Date): Date[][] {
+    const ms = startOfMonth(month)
+    const me = endOfMonth(month)
+    const cs = startOfWeek(ms, { weekStartsOn: 0 })
+    const ce = endOfWeek(me, { weekStartsOn: 0 })
     const weeks: Date[][] = []
-    const d = new Date(calStart)
-    while (d <= calEnd) {
+    const d = new Date(cs)
+    while (d <= ce) {
       const week: Date[] = []
       for (let i = 0; i < 7; i++) {
         week.push(new Date(d))
@@ -165,54 +197,63 @@ export default function DateRangePicker({ startDate, endDate, onChange, classNam
   }
 
   function renderCalendar(month: Date) {
-    const weeks = renderMonth(month)
+    const weeks = buildWeeks(month)
     return (
       <div className="flex-1 min-w-0">
-        <div className="text-center text-sm font-semibold text-surface-800 mb-2">
+        <div className="text-center text-sm font-semibold text-surface-800 mb-2.5 select-none">
           {format(month, 'MMMM yyyy')}
         </div>
-        <div className="grid grid-cols-7 gap-0.5 text-[11px] font-semibold text-surface-400 mb-1">
+        <div className="grid grid-cols-7 text-[10px] font-semibold text-surface-400 mb-1 select-none">
           {WEEKDAYS.map((dLabel) => (
-            <div key={dLabel} className="text-center py-1 uppercase">{dLabel}</div>
+            <div key={dLabel} className="text-center py-1 uppercase tracking-wider">{dLabel}</div>
           ))}
         </div>
-        <div className="grid grid-cols-7 gap-0.5 text-xs">
-          {weeks.map((week) =>
-            week.map((day) => {
+        <div className="grid grid-cols-7 text-xs">
+          {weeks.map((week, wi) =>
+            week.map((day, di) => {
               const iso = format(day, 'yyyy-MM-dd')
               const isToday = format(new Date(), 'yyyy-MM-dd') === iso
               const inMonth = day.getMonth() === month.getMonth()
-              const isStart = isValid(validStart) && isSameDay(day, validStart)
-              const isEnd = isValid(validEnd) && isSameDay(day, validEnd)
-              const inRange = isInRange(day)
+              const { inRange, isStart, isEnd } = getRangeState(day)
 
-              let cellClass = 'flex items-center justify-center h-8 cursor-pointer transition-colors duration-100 font-medium relative '
+              // Build cell classes for smooth range highlight
+              let outer = 'relative h-8 '
+              let inner = 'relative z-10 flex items-center justify-center w-full h-full text-xs font-medium select-none transition-colors duration-75 '
 
+              // Range background — full cell, no gap
+              if (inRange) {
+                outer += 'bg-brand-100 '
+                if (isStart) outer += 'rounded-l-lg '
+                if (isEnd) outer += 'rounded-r-lg '
+              }
+
+              // Inner circle for start/end
               if (isStart || isEnd) {
-                cellClass += 'bg-brand-600 text-white z-10 '
-                cellClass += isStart ? 'rounded-l-lg ' : ''
-                cellClass += isEnd ? 'rounded-r-lg ' : ''
-                if (isStart && isEnd) cellClass += 'rounded-lg '
+                inner += 'bg-brand-600 text-white rounded-lg '
               } else if (inRange) {
-                cellClass += 'bg-brand-100 text-brand-800 '
-              } else if (isToday) {
-                cellClass += 'border border-brand-300 text-brand-700 bg-brand-50 rounded-lg '
+                inner += 'text-brand-800 '
+              } else if (isToday && inMonth) {
+                inner += 'font-bold text-brand-700 '
               } else if (!inMonth) {
-                cellClass += 'text-surface-300 '
+                inner += 'text-surface-300 '
               } else {
-                cellClass += 'text-surface-700 hover:bg-surface-100 rounded-lg '
+                inner += 'text-surface-700 hover:bg-surface-100 rounded-lg cursor-pointer '
               }
 
               return (
-                <button
-                  key={iso}
-                  type="button"
-                  className={cellClass}
-                  onClick={() => handleDayClick(iso)}
-                  onMouseEnter={() => { if (mode === 'custom' && pickingEnd) setHoverDate(iso) }}
-                >
-                  {format(day, 'd')}
-                </button>
+                <div key={`${wi}-${di}`} className={outer}>
+                  <button
+                    type="button"
+                    className={inner}
+                    onClick={() => handleDayClick(iso)}
+                    onMouseEnter={() => setHoverDate(iso)}
+                  >
+                    {format(day, 'd')}
+                    {isToday && !isStart && !isEnd && inMonth && (
+                      <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-brand-500" />
+                    )}
+                  </button>
+                </div>
               )
             }),
           )}
@@ -227,81 +268,84 @@ export default function DateRangePicker({ startDate, endDate, onChange, classNam
         ref={buttonRef}
         type="button"
         className={
-          'input flex items-center gap-2 px-3 transition-colors duration-150 hover:bg-surface-50 ' + className
+          'input flex items-center gap-2.5 px-3.5 transition-all duration-150 hover:border-surface-300 ' + className
         }
         onClick={() => setOpen((o) => !o)}
       >
-        <Calendar className="w-4 h-4 text-surface-400 shrink-0" />
-        <span className="text-sm text-surface-900 tabular-nums whitespace-nowrap">{displayText}</span>
+        <Calendar className="w-4 h-4 text-brand-500 shrink-0" />
+        <span className="text-sm text-surface-900 tabular-nums whitespace-nowrap tracking-tight">{displayText}</span>
       </button>
 
       {open && createPortal(
         <div
           ref={dropdownRef}
-          className="fixed z-[200] rounded-2xl border border-surface-200 bg-white shadow-xl p-4"
+          className="fixed z-[200] rounded-2xl border border-surface-200/80 bg-white shadow-2xl overflow-hidden animate-in fade-in duration-150"
           style={{
             top: position.placement === 'bottom' ? `${position.top}px` : undefined,
             bottom: position.placement === 'top' ? `${window.innerHeight - position.top}px` : undefined,
             left: `${position.left}px`,
-            width: 'auto',
+            width: window.innerWidth < 640 ? 'calc(100vw - 16px)' : 'auto',
             maxWidth: 'calc(100vw - 16px)',
           }}
+          onMouseLeave={() => { if (!pickingEnd) setHoverDate(null) }}
         >
-          {/* Mode toggle */}
-          <div className="flex items-center gap-2 mb-3">
-            <div className="flex rounded-lg overflow-hidden border border-surface-200 text-xs">
-              <button
-                type="button"
-                onClick={() => { setMode('week'); setPickingEnd(false) }}
-                className={`px-3 py-1.5 font-medium transition-colors ${mode === 'week' ? 'bg-brand-600 text-white' : 'bg-white text-surface-600 hover:bg-surface-50'}`}
-              >
-                Weekly
-              </button>
-              <button
-                type="button"
-                onClick={() => { setMode('custom'); setPickingEnd(false) }}
-                className={`px-3 py-1.5 font-medium transition-colors ${mode === 'custom' ? 'bg-brand-600 text-white' : 'bg-white text-surface-600 hover:bg-surface-50'}`}
-              >
-                Custom
-              </button>
-            </div>
-            <span className="text-[11px] text-surface-400">
-              {mode === 'week' ? 'Click any day to select Sun–Sat week' : pickingEnd ? 'Click to set end date' : 'Click to set start date'}
-            </span>
-          </div>
-
-          {/* Month navigation + two calendars */}
-          <div className="flex items-start gap-4">
-            <button
-              type="button"
-              onClick={() => setLeftMonth((m) => subMonths(m, 1))}
-              className="p-1.5 rounded-lg text-surface-500 hover:bg-surface-50 hover:text-surface-800 mt-0.5"
-              aria-label="Previous month"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <div className="flex gap-6 flex-1">
-              {renderCalendar(leftMonth)}
-              <div className="hidden sm:block">
-                {renderCalendar(rightMonth)}
+          {/* Header bar */}
+          <div className="px-4 pt-4 pb-3 border-b border-surface-100 flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-1.5">
+              <div className="flex rounded-lg overflow-hidden border border-surface-200 text-[11px]">
+                <button
+                  type="button"
+                  onClick={() => { setMode('week'); setPickingEnd(false) }}
+                  className={`px-3 py-1.5 font-semibold tracking-wide uppercase transition-colors ${mode === 'week' ? 'bg-brand-600 text-white' : 'bg-white text-surface-500 hover:bg-surface-50'}`}
+                >
+                  Weekly
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setMode('custom'); setPickingEnd(false) }}
+                  className={`px-3 py-1.5 font-semibold tracking-wide uppercase transition-colors ${mode === 'custom' ? 'bg-brand-600 text-white' : 'bg-white text-surface-500 hover:bg-surface-50'}`}
+                >
+                  Custom
+                </button>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={() => setLeftMonth((m) => addMonths(m, 1))}
-              className="p-1.5 rounded-lg text-surface-500 hover:bg-surface-50 hover:text-surface-800 mt-0.5"
-              aria-label="Next month"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
+            <p className="text-[11px] text-surface-400 font-medium">
+              {mode === 'week' ? 'Click any day to select Sun – Sat week' : pickingEnd ? 'Now click to set end date' : 'Click to set start date'}
+            </p>
           </div>
 
-          {/* Quick actions */}
-          <div className="flex items-center justify-between mt-3 pt-3 border-t border-surface-100">
-            <div className="flex gap-2">
+          {/* Calendars */}
+          <div className="px-4 pt-3 pb-2">
+            <div className="flex items-center gap-2">
               <button
                 type="button"
-                className="text-xs font-medium text-brand-600 hover:text-brand-700"
+                onClick={() => setLeftMonth((m) => subMonths(m, 1))}
+                className="p-1.5 rounded-lg text-surface-400 hover:bg-surface-100 hover:text-surface-700 transition-colors shrink-0"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <div className="flex gap-8 flex-1 min-w-0">
+                {renderCalendar(leftMonth)}
+                <div className="hidden sm:block">
+                  {renderCalendar(rightMonth)}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setLeftMonth((m) => addMonths(m, 1))}
+                className="p-1.5 rounded-lg text-surface-400 hover:bg-surface-100 hover:text-surface-700 transition-colors shrink-0"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div className="px-4 py-3 border-t border-surface-100 bg-surface-50/50 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                className="text-xs font-semibold text-brand-600 hover:text-brand-700 transition-colors"
                 onClick={() => {
                   const now = new Date()
                   const ws = startOfWeek(now, { weekStartsOn: 0 })
@@ -313,15 +357,15 @@ export default function DateRangePicker({ startDate, endDate, onChange, classNam
               >
                 This week
               </button>
+              <span className="w-px h-3.5 bg-surface-200" />
               <button
                 type="button"
-                className="text-xs font-medium text-surface-500 hover:text-surface-700"
+                className="text-xs font-semibold text-surface-500 hover:text-surface-700 transition-colors"
                 onClick={() => {
-                  const now = new Date()
-                  const prevWeekDay = new Date(now)
-                  prevWeekDay.setDate(prevWeekDay.getDate() - 7)
-                  const ws = startOfWeek(prevWeekDay, { weekStartsOn: 0 })
-                  const we = endOfWeek(prevWeekDay, { weekStartsOn: 0 })
+                  const prev = new Date()
+                  prev.setDate(prev.getDate() - 7)
+                  const ws = startOfWeek(prev, { weekStartsOn: 0 })
+                  const we = endOfWeek(prev, { weekStartsOn: 0 })
                   onChange(format(ws, 'yyyy-MM-dd'), format(we, 'yyyy-MM-dd'))
                   setLeftMonth(startOfMonth(ws))
                   setOpen(false)
@@ -332,10 +376,10 @@ export default function DateRangePicker({ startDate, endDate, onChange, classNam
             </div>
             <button
               type="button"
-              className="text-xs font-medium text-surface-400 hover:text-surface-600"
-              onClick={() => setOpen(false)}
+              className="text-xs font-semibold text-surface-400 hover:text-surface-600 transition-colors"
+              onClick={() => { setOpen(false); setPickingEnd(false); setHoverDate(null) }}
             >
-              Close
+              Done
             </button>
           </div>
         </div>,
