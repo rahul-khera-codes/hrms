@@ -164,6 +164,7 @@ export default function AdminLeaveRequests() {
   const [calculationType, setCalculationType] = useState<LeaveCalcType>('hourly_salary')
   const [payableDaysInput, setPayableDaysInput] = useState('0')
   const [saving, setSaving] = useState(false)
+  const [reviewLocked, setReviewLocked] = useState(false)
 
   // View mode and detail modal
   const [viewMode, setViewMode] = useState<'card' | 'table'>('table')
@@ -390,6 +391,7 @@ export default function AdminLeaveRequests() {
 
   function openReview(row: AdminLeaveRequest) {
     setReviewingId(row.id)
+    setReviewLocked(row.isLocked ?? false)
     // Default to the row's existing decision so re-review is a diff, not a reset.
     setReviewStatus(row.status === 'rejected' ? 'rejected' : 'approved')
     setReviewNote(row.reviewedNote ?? '')
@@ -484,10 +486,9 @@ export default function AdminLeaveRequests() {
       if (detailRow && detailRow.id === id) {
         setDetailRow((prev) => (prev ? { ...prev, isLocked: !currentlyLocked } : prev))
       }
-      // Close the review modal after locking — locked records are not editable
-      if (reviewingId === id && !currentlyLocked) {
-        setReviewingId(null)
-        setReviewContext(null)
+      // Update the review modal's lock state in real-time
+      if (reviewingId === id) {
+        setReviewLocked(!currentlyLocked)
       }
     } catch (err: unknown) {
       const msg = err && typeof err === 'object' && 'message' in err ? String((err as Error).message) : 'Failed to toggle lock.'
@@ -1159,7 +1160,16 @@ export default function AdminLeaveRequests() {
               <div className="py-10 text-center text-sm text-surface-500">Loading details…</div>
             ) : (
               <>
-                {reviewContext.leave.status !== 'pending' ? (
+                {reviewLocked && (
+                  <div className="mx-5 mt-4 rounded-xl border border-amber-200 bg-amber-50/70 p-3 flex items-center gap-2 text-amber-800">
+                    <Lock className="w-4 h-4 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold">This record is locked</p>
+                      <p className="text-[11px] opacity-80">Unlock it from the bottom to make changes.</p>
+                    </div>
+                  </div>
+                )}
+                {reviewContext.leave.status !== 'pending' && !reviewLocked ? (
                   <div className="mx-5 mt-4 rounded-lg border border-amber-200 bg-amber-50/70 px-3 py-2 text-xs text-amber-800">
                     Re-reviewing an already <strong className="capitalize">{reviewContext.leave.status}</strong> request. Saving will overwrite the existing decision.
                   </div>
@@ -1215,10 +1225,11 @@ export default function AdminLeaveRequests() {
                   ) : null}
                 </div>
 
-                <div className="mx-5 mt-4 space-y-3">
+                <div className={`mx-5 mt-4 space-y-3 ${reviewLocked ? 'opacity-50 pointer-events-none' : ''}`}>
                   <AdminSelect
                     value={reviewStatus}
                     onChange={(val) => setReviewStatus(val as 'approved' | 'rejected')}
+                    disabled={reviewLocked}
                     options={[
                       { value: 'approved', label: 'Approve' },
                       { value: 'rejected', label: 'Reject' },
@@ -1234,6 +1245,7 @@ export default function AdminLeaveRequests() {
                             <AdminSelect
                               value={calculationType}
                               onChange={(val) => setCalculationType(val as LeaveCalcType)}
+                              disabled={reviewLocked}
                               options={[
                                 { value: 'non_payable', label: 'Non-payable' },
                                 { value: 'hourly_salary', label: 'Hourly salary' },
@@ -1250,6 +1262,7 @@ export default function AdminLeaveRequests() {
                               step={0.5}
                               value={payableDaysInput}
                               onChange={(e) => setPayableDaysInput(e.target.value)}
+                              disabled={reviewLocked}
                               className="input w-full rounded-xl"
                             />
                             <p className="text-[10px] text-surface-500 mt-1">
@@ -1295,6 +1308,7 @@ export default function AdminLeaveRequests() {
                     value={reviewNote}
                     onChange={(e) => setReviewNote(e.target.value)}
                     rows={3}
+                    disabled={reviewLocked}
                     className="input w-full rounded-xl"
                     placeholder="Optional note"
                   />
@@ -1302,40 +1316,49 @@ export default function AdminLeaveRequests() {
               </>
             )}
 
-            <div className="mx-5 mt-5 mb-5 flex flex-col-reverse sm:flex-row justify-between gap-2">
-              {reviewingId && (
+            {/* Lock toggle — same pattern as attendance modal */}
+            {reviewingId && (
+              <div className="mx-5 mt-4 flex items-center justify-between rounded-xl border border-surface-200 bg-surface-50 p-4">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-surface-900 flex items-center gap-2">
+                    {reviewLocked ? <Lock className="w-4 h-4 text-amber-600" /> : <Unlock className="w-4 h-4 text-surface-400" />}
+                    {reviewLocked ? 'Record is locked' : 'Record is editable'}
+                  </p>
+                  <p className="text-[11px] text-surface-500 mt-0.5">
+                    Locking prevents further changes until an admin unlocks it.
+                  </p>
+                </div>
                 <button
                   type="button"
-                  onClick={() => void handleToggleLock(reviewingId, false)}
-                  className="btn-secondary rounded-xl px-3 py-2 text-xs"
-                  disabled={saving}
-                  title="Lock this record to prevent further edits"
-                >
-                  <Lock className="w-3.5 h-3.5" />
-                  Lock record
-                </button>
-              )}
-              <div className="flex flex-col-reverse sm:flex-row gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setReviewingId(null)
-                    setReviewContext(null)
-                  }}
-                  className="btn-secondary rounded-xl px-4 py-2"
+                  onClick={() => void handleToggleLock(reviewingId, reviewLocked)}
+                  className={reviewLocked ? 'btn-secondary btn-sm' : 'btn-danger btn-sm'}
                   disabled={saving}
                 >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void submitReview()}
-                  className="btn-primary rounded-xl px-4 py-2"
-                  disabled={saving || contextLoading || !reviewContext}
-                >
-                  {saving ? 'Saving…' : 'Save'}
+                  {reviewLocked ? <><Unlock className="w-3.5 h-3.5" /> Unlock</> : <><Lock className="w-3.5 h-3.5" /> Lock</>}
                 </button>
               </div>
+            )}
+
+            <div className="mx-5 mt-4 mb-5 flex flex-col-reverse sm:flex-row justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setReviewingId(null)
+                  setReviewContext(null)
+                }}
+                className="btn-secondary rounded-xl px-4 py-2"
+                disabled={saving}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void submitReview()}
+                className="btn-primary rounded-xl px-4 py-2"
+                disabled={saving || contextLoading || !reviewContext || reviewLocked}
+              >
+                {saving ? 'Saving…' : 'Save'}
+              </button>
             </div>
           </div>
         </div>
