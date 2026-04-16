@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { format, startOfWeek, endOfWeek } from 'date-fns'
+import { format, startOfWeek, endOfWeek, parseISO } from 'date-fns'
 import { Search, Download, X, ArrowUp, ArrowDown, Filter, Clock, Plus, Lock, Unlock, Pencil } from 'lucide-react'
 import { getAdminAttendance, updateAttendanceRecord, createAttendanceRecord, getEmployees, getClients, type EmployeeRecord, type Client } from '@/lib/apiAdmin'
 import type { AttendanceRecord } from '@/types'
@@ -171,6 +171,15 @@ export default function AdminAttendance() {
   // Default date range = current week Sunday → Saturday (client's standard)
   const [dateFrom, setDateFrom] = useState(() => format(startOfWeek(new Date(), { weekStartsOn: 0 }), 'yyyy-MM-dd'))
   const [dateTo, setDateTo] = useState(() => format(endOfWeek(new Date(), { weekStartsOn: 0 }), 'yyyy-MM-dd'))
+
+  // When start date changes, auto-snap end date to the Saturday of that week
+  function handleDateFromChange(val: string) {
+    setDateFrom(val)
+    try {
+      const d = parseISO(val)
+      setDateTo(format(endOfWeek(d, { weekStartsOn: 0 }), 'yyyy-MM-dd'))
+    } catch { /* keep existing dateTo if parse fails */ }
+  }
   const [savingId, setSavingId] = useState<string | null>(null)
   const [detailRecord, setDetailRecord] = useState<AttendanceRecord | null>(null)
 
@@ -510,7 +519,7 @@ export default function AdminAttendance() {
         </div>
         <div className="flex gap-2 flex-wrap sm:flex-nowrap">
           <div className="flex-1 min-w-[170px] sm:min-w-[180px] sm:w-[180px] sm:flex-none">
-            <AdminDatePicker value={dateFrom} onChange={(val) => setDateFrom(val)} />
+            <AdminDatePicker value={dateFrom} onChange={handleDateFromChange} />
           </div>
           <div className="flex-1 min-w-[170px] sm:min-w-[180px] sm:w-[180px] sm:flex-none">
             <AdminDatePicker value={dateTo} onChange={(val) => setDateTo(val)} />

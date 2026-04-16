@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { Users, Plus, Pencil, LayoutGrid, Table2, Search, Download, ArrowUp, ArrowDown, Filter, AlertCircle, CheckCircle2, Ban } from 'lucide-react'
+import { Users, Plus, Pencil, LayoutGrid, Table2, Search, Download, ArrowUp, ArrowDown, Filter, AlertCircle, CheckCircle2, Ban, X } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
 import { DetailModalHeader } from '@/components/DetailModalHeader'
 import { statusBadgeClass } from '@/lib/badges'
@@ -637,10 +637,20 @@ export default function AdminEmployees() {
             <input
               type="text"
               placeholder="Search by name, email, or CMID"
-              className="input pl-9 w-full"
+              className="input pl-9 pr-8 w-full"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 rounded text-surface-400 hover:text-surface-700 hover:bg-surface-100 transition-colors"
+                aria-label="Clear search"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
           <div className="w-full sm:w-40">
             <AdminSelect
@@ -798,15 +808,25 @@ export default function AdminEmployees() {
                             </button>
                           </div>
                           {filterOpen === col && (
-                            <div className="mt-1" onClick={(e) => e.stopPropagation()}>
+                            <div className="mt-1 relative" onClick={(e) => e.stopPropagation()}>
                               <input
                                 type="text"
                                 value={columnFilters[col] ?? ''}
                                 onChange={(e) => handleEmpColumnFilter(col, e.target.value)}
                                 placeholder={`Filter ${col}...`}
-                                className="w-full text-[10px] font-normal normal-case tracking-normal border border-surface-200 rounded px-1.5 py-1 bg-white focus:ring-1 focus:ring-brand-300 outline-none"
+                                className="w-full text-[10px] font-normal normal-case tracking-normal border border-surface-200 rounded px-1.5 py-1 pr-5 bg-white focus:ring-1 focus:ring-brand-300 outline-none"
                                 autoFocus
                               />
+                              {columnFilters[col] && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleEmpColumnFilter(col, '')}
+                                  className="absolute right-1 top-1/2 -translate-y-1/2 p-0.5 rounded text-surface-400 hover:text-surface-700"
+                                  aria-label="Clear filter"
+                                >
+                                  <X className="w-2.5 h-2.5" />
+                                </button>
+                              )}
                             </div>
                           )}
                         </>
