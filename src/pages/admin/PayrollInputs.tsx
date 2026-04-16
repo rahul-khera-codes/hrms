@@ -99,9 +99,10 @@ export default function AdminPayrollInputs() {
     const total = rows.length
     const pending = rows.filter((r) => r.status === 'pending').length
     const approved = rows.filter((r) => r.status === 'approved').length
+    const rejected = rows.filter((r) => r.status === 'rejected').length
     const income = rows.filter((r) => !isDeductionInputType(r.inputType) && r.status === 'approved').reduce((a, r) => a + r.inputAmount, 0)
     const deductions = rows.filter((r) => isDeductionInputType(r.inputType) && r.status === 'approved').reduce((a, r) => a + r.inputAmount, 0)
-    return { total, pending, approved, income, deductions }
+    return { total, pending, approved, rejected, income, deductions }
   }, [rows])
 
   const colAccessor = (r: PayrollInput, col: string): string | number => {
@@ -243,7 +244,7 @@ export default function AdminPayrollInputs() {
       />
 
       {/* Summary cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
         <div className="stat-card">
           <p className="stat-label">Total</p>
           <p className="stat-value">{summary.total}</p>
@@ -255,6 +256,10 @@ export default function AdminPayrollInputs() {
         <div className="stat-card border-emerald-200/70 bg-emerald-50/40">
           <p className="stat-label text-emerald-700">Approved</p>
           <p className="stat-value">{summary.approved}</p>
+        </div>
+        <div className="stat-card border-red-200/70 bg-red-50/40">
+          <p className="stat-label text-red-700">Rejected</p>
+          <p className="stat-value">{summary.rejected}</p>
         </div>
         <div className="stat-card border-brand-200/70 bg-brand-50/40">
           <p className="stat-label text-brand-700">Income (approved)</p>
@@ -468,6 +473,12 @@ function PayrollInputModal({
 
   const [userId, setUserId] = useState(existing?.userId ?? '')
   const [inputType, setInputType] = useState<string>(existing?.inputType ?? 'Bono Colaboración')
+
+  // When employee changes, clear approver if it was the same person
+  function handleUserIdChange(id: string) {
+    setUserId(id)
+    if (approverId === id) setApproverId('')
+  }
   const [calcType, setCalcType] = useState<PayrollCalcType>(existing?.calculationType ?? 'base_amount')
   const [payableHours, setPayableHours] = useState(existing?.payableHours != null ? String(existing.payableHours) : '')
   const [hourlyRate, setHourlyRate] = useState(existing?.hourlyRate != null ? String(existing.hourlyRate) : '')
@@ -499,6 +510,8 @@ function PayrollInputModal({
   async function handleSave() {
     if (!userId) { setError('Please select an employee.'); return }
     if (!inputType) { setError('Please select an input type.'); return }
+    if (!payrollCycleCode) { setError('Please select a payroll cycle.'); return }
+    if (!approverId) { setError('Please select an approver.'); return }
     setError(null)
     setSaving(true)
     try {
@@ -573,7 +586,7 @@ function PayrollInputModal({
               <label className="label">Employee *</label>
               <AdminSelect
                 value={userId}
-                onChange={setUserId}
+                onChange={handleUserIdChange}
                 disabled={locked || isEdit}
                 options={[
                   { value: '', label: 'Select employee' },
@@ -674,7 +687,7 @@ function PayrollInputModal({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="label">Payroll Cycle</label>
+              <label className="label">Payroll Cycle *</label>
               <AdminSelect
                 value={payrollCycleCode}
                 onChange={setPayrollCycleCode}
@@ -686,14 +699,14 @@ function PayrollInputModal({
               />
             </div>
             <div>
-              <label className="label">Approver</label>
+              <label className="label">Approver *</label>
               <AdminSelect
                 value={approverId}
                 onChange={setApproverId}
                 disabled={locked}
                 options={[
-                  { value: '', label: '— None —' },
-                  ...admins.map((a) => ({ value: a.id, label: a.name })),
+                  { value: '', label: 'Select approver' },
+                  ...admins.filter((a) => a.id !== userId).map((a) => ({ value: a.id, label: a.name })),
                 ]}
               />
             </div>

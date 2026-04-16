@@ -1,3 +1,22 @@
 # Dependencies
 node_modules/
 
+# Build output
+dist/
+
+# OS
+.DS_Store
+
+# Test artifacts
+test-results/
+backend/test-results/
+
+# Deploy script (contains server credentials — never commit)
+deploy_hrms.py
+
+# IDE / Claude
+.claude/
+
+# TypeScript incremental build
+tsconfig.tsbuildinfo
+
