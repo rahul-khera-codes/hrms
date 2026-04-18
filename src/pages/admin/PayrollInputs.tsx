@@ -95,15 +95,7 @@ export default function AdminPayrollInputs() {
   }, [filterStatus, filterType])
 
 
-  const summary = useMemo(() => {
-    const total = rows.length
-    const pending = rows.filter((r) => r.status === 'pending').length
-    const approved = rows.filter((r) => r.status === 'approved').length
-    const rejected = rows.filter((r) => r.status === 'rejected').length
-    const income = rows.filter((r) => !isDeductionInputType(r.inputType) && r.status === 'approved').reduce((a, r) => a + r.inputAmount, 0)
-    const deductions = rows.filter((r) => isDeductionInputType(r.inputType) && r.status === 'approved').reduce((a, r) => a + r.inputAmount, 0)
-    return { total, pending, approved, rejected, income, deductions }
-  }, [rows])
+  // summary is defined after displayedRows below
 
   const colAccessor = (r: PayrollInput, col: string): string | number => {
     switch (col) {
@@ -153,6 +145,16 @@ export default function AdminPayrollInputs() {
     if (sortCol === col) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
     else { setSortCol(col); setSortDir('asc') }
   }
+
+  const summary = useMemo(() => {
+    const total = displayedRows.length
+    const pending = displayedRows.filter((r) => r.status === 'pending').length
+    const approved = displayedRows.filter((r) => r.status === 'approved').length
+    const rejected = displayedRows.filter((r) => r.status === 'rejected').length
+    const income = displayedRows.filter((r) => !isDeductionInputType(r.inputType) && r.status === 'approved').reduce((a, r) => a + r.inputAmount, 0)
+    const deductions = displayedRows.filter((r) => isDeductionInputType(r.inputType) && r.status === 'approved').reduce((a, r) => a + r.inputAmount, 0)
+    return { total, pending, approved, rejected, income, deductions }
+  }, [displayedRows])
 
   function exportCSV() {
     if (!displayedRows.length) return
@@ -479,7 +481,7 @@ function PayrollInputModal({
     setUserId(id)
     if (approverId === id) setApproverId('')
   }
-  const [calcType, setCalcType] = useState<PayrollCalcType>(existing?.calculationType ?? 'base_amount')
+  const [calcType, setCalcType] = useState<PayrollCalcType>(existing?.calculationType === 'both' ? 'hourly' : (existing?.calculationType ?? 'base_amount'))
   const [payableHours, setPayableHours] = useState(existing?.payableHours != null ? String(existing.payableHours) : '')
   const [hourlyRate, setHourlyRate] = useState(existing?.hourlyRate != null ? String(existing.hourlyRate) : '')
   const [hourlyMultiplier, setHourlyMultiplier] = useState(existing?.hourlyMultiplier != null ? String(existing.hourlyMultiplier) : '1.0')
@@ -504,8 +506,8 @@ function PayrollInputModal({
     exchangeRate: Number(exchangeRate) || 0,
   })
 
-  const showHourlyFields = calcType === 'hourly' || calcType === 'both'
-  const showBaseFields = calcType === 'base_amount' || calcType === 'both'
+  const showHourlyFields = calcType === 'hourly'
+  const showBaseFields = calcType === 'base_amount'
 
   async function handleSave() {
     if (!userId) { setError('Please select an employee.'); return }
@@ -611,7 +613,6 @@ function PayrollInputModal({
               {([
                 { value: 'hourly' as const, label: 'Hourly' },
                 { value: 'base_amount' as const, label: 'Base amount' },
-                { value: 'both' as const, label: 'Both' },
               ]).map((opt) => (
                 <button
                   key={opt.value}
@@ -626,7 +627,7 @@ function PayrollInputModal({
                 </button>
               ))}
             </div>
-            <p className="hint">Hourly = payable hours × hourly rate × multiplier. Base = amount × exchange rate. Both = sum.</p>
+            <p className="hint">Hourly = payable hours × hourly rate × multiplier. Base = amount × exchange rate.</p>
           </div>
 
           {showHourlyFields && (

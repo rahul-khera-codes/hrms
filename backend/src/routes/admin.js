@@ -358,7 +358,7 @@ router.get('/attendance', async (req, res) => {
     sql += `
       GROUP BY u.id, u.name, (s.clock_in AT TIME ZONE 'UTC')::date
       ORDER BY date DESC, u.name
-      LIMIT 500
+      LIMIT 10000
     `
     const result = await query(sql, params)
     let records = result.rows.map((row) => {

@@ -102,7 +102,6 @@ function previewLeavePay(
 
 export default function AdminLeaveRequests() {
   const [rows, setRows] = useState<AdminLeaveRequest[]>([])
-  const [allRows, setAllRows] = useState<AdminLeaveRequest[]>([])
   const [loading, setLoading] = useState(true)
   const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all')
   const [filterLeaveType, setFilterLeaveType] = useState<string>('all')
@@ -209,15 +208,10 @@ export default function AdminLeaveRequests() {
   async function load(showLoader = true) {
     if (showLoader) setLoading(true)
     try {
-      const [filteredData, allData] = await Promise.all([
-        getAdminLeaveRequests(filterStatus),
-        getAdminLeaveRequests('all'),
-      ])
+      const filteredData = await getAdminLeaveRequests(filterStatus)
       setRows(filteredData)
-      setAllRows(allData)
     } catch {
       setRows([])
-      setAllRows([])
     } finally {
       if (showLoader) setLoading(false)
     }
@@ -246,15 +240,6 @@ export default function AdminLeaveRequests() {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
   }, [filterStatus])
-
-  const summary = useMemo(() => {
-    return {
-      total: allRows.length,
-      pending: allRows.filter((r) => r.status === 'pending').length,
-      approved: allRows.filter((r) => r.status === 'approved').length,
-      rejected: allRows.filter((r) => r.status === 'rejected').length,
-    }
-  }, [allRows])
 
   // Apply client-side search + leave-type filter + per-column filters + sort
   const displayedRows = useMemo(() => {
@@ -289,6 +274,21 @@ export default function AdminLeaveRequests() {
     return result
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows, search, filterLeaveType, columnFilters, sortCol, sortDir])
+
+  const summary = useMemo(() => {
+    return {
+      total: displayedRows.length,
+      pending: displayedRows.filter((r) => r.status === 'pending').length,
+      approved: displayedRows.filter((r) => r.status === 'approved').length,
+      rejected: displayedRows.filter((r) => r.status === 'rejected').length,
+      payableAmount: displayedRows
+        .filter((r) => r.status === 'approved')
+        .reduce((a, r) => a + (r.leavePayableAmount ?? 0), 0),
+      payableDays: displayedRows
+        .filter((r) => r.status === 'approved')
+        .reduce((a, r) => a + (r.leavePayableDays ?? 0), 0),
+    }
+  }, [displayedRows])
 
   const preview = useMemo(() => {
     if (!reviewContext) return null
@@ -621,7 +621,7 @@ export default function AdminLeaveRequests() {
         }
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
         <div className="stat-card">
           <p className="stat-label">Total</p>
           <p className="stat-value">{summary.total}</p>
@@ -637,6 +637,14 @@ export default function AdminLeaveRequests() {
         <div className="stat-card border-red-200/70 bg-red-50/40">
           <p className="stat-label text-red-700">Rejected</p>
           <p className="stat-value">{summary.rejected}</p>
+        </div>
+        <div className="stat-card border-brand-200/70 bg-brand-50/40">
+          <p className="stat-label text-brand-700">Payable Amount</p>
+          <p className="stat-value">${summary.payableAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+        </div>
+        <div className="stat-card border-violet-200/70 bg-violet-50/40">
+          <p className="stat-label text-violet-700">Payable Days</p>
+          <p className="stat-value">{summary.payableDays.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</p>
         </div>
       </div>
 
@@ -1097,16 +1105,17 @@ export default function AdminLeaveRequests() {
                 </div>
               </div>
 
-              {/* Conditional: Daily Salary + Payable Amount + Payroll Cycle (shown when payable) */}
+              {/* Conditional: Payable Amount Preview + Payroll Cycle (shown when payable) */}
               {createCalcType !== 'non_payable' && (
                 <>
-                  <div className="rounded-xl border border-surface-200 p-3 space-y-2 text-sm bg-surface-50/50">
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      <span className="text-surface-500">Daily Salary</span>
-                      <span className="tabular-nums text-right font-medium">${createPreview.dailySalary.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                      <span className="text-surface-500 font-medium">Payable Amount</span>
-                      <span className="tabular-nums text-right font-semibold text-surface-900">${createPreview.payableAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  <div className="rounded-xl border border-surface-200 bg-surface-50 p-4 flex items-center justify-between">
+                    <div>
+                      <p className="text-[10px] font-semibold text-surface-500 uppercase tracking-wider">Payable Amount (preview)</p>
+                      <p className="text-xs text-surface-500 mt-0.5">Daily salary: ${createPreview.dailySalary.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                     </div>
+                    <p className="text-2xl font-bold tabular-nums text-brand-700">
+                      ${createPreview.payableAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </p>
                   </div>
 
                   <div>

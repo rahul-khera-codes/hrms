@@ -898,6 +898,18 @@ export default function AdminAttendance() {
                 <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider mb-3">Classification (Editable)</p>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-3">
                   <div>
+                    <label className="text-[10px] font-medium text-surface-400 uppercase block mb-1">Status</label>
+                    <select
+                      value={detailRecord.status}
+                      disabled={detailRecord.isLocked ?? false}
+                      onChange={(e) => handleFieldUpdate(detailRecord, 'status', e.target.value)}
+                      className="text-sm border border-surface-200 rounded-lg px-2 py-1.5 w-full bg-white focus:ring-1 focus:ring-brand-300 outline-none disabled:opacity-60"
+                    >
+                      <option value="">--</option>
+                      {STATUS_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+                    </select>
+                  </div>
+                  <div>
                     <label className="text-[10px] font-medium text-surface-400 uppercase block mb-1">Account</label>
                     <AdminSelect
                       value={detailRecord.accountId ?? ''}
@@ -910,6 +922,30 @@ export default function AdminAttendance() {
                     />
                   </div>
                   <div>
+                    <label className="text-[10px] font-medium text-surface-400 uppercase block mb-1">Task</label>
+                    <select
+                      value={detailRecord.task ?? ''}
+                      disabled={detailRecord.isLocked ?? false}
+                      onChange={(e) => handleFieldUpdate(detailRecord, 'task', e.target.value)}
+                      className="text-sm border border-surface-200 rounded-lg px-2 py-1.5 w-full bg-white focus:ring-1 focus:ring-brand-300 outline-none disabled:opacity-60"
+                    >
+                      <option value="">--</option>
+                      {TASK_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-medium text-surface-400 uppercase block mb-1">Stage</label>
+                    <select
+                      value={detailRecord.stage ?? ''}
+                      disabled={detailRecord.isLocked ?? false}
+                      onChange={(e) => handleFieldUpdate(detailRecord, 'stage', e.target.value)}
+                      className="text-sm border border-surface-200 rounded-lg px-2 py-1.5 w-full bg-white focus:ring-1 focus:ring-brand-300 outline-none disabled:opacity-60"
+                    >
+                      <option value="">--</option>
+                      {STAGE_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+                    </select>
+                  </div>
+                  <div>
                     <label className="text-[10px] font-medium text-surface-400 uppercase block mb-1">Reports To</label>
                     <AdminSelect
                       value={detailRecord.reportsToId ?? ''}
@@ -920,18 +956,6 @@ export default function AdminAttendance() {
                         ...allEmployees.map((e) => ({ value: e.id, label: e.name })),
                       ]}
                     />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-medium text-surface-400 uppercase block mb-1">Status</label>
-                    <select
-                      value={detailRecord.status}
-                      disabled={detailRecord.isLocked ?? false}
-                      onChange={(e) => handleFieldUpdate(detailRecord, 'status', e.target.value)}
-                      className="text-sm border border-surface-200 rounded-lg px-2 py-1.5 w-full bg-white focus:ring-1 focus:ring-brand-300 outline-none disabled:opacity-60"
-                    >
-                      <option value="">--</option>
-                      {STATUS_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
-                    </select>
                   </div>
                   <div>
                     <label className="text-[10px] font-medium text-surface-400 uppercase block mb-1">Pay</label>
@@ -955,30 +979,6 @@ export default function AdminAttendance() {
                     >
                       <option value="">--</option>
                       {BILL_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-medium text-surface-400 uppercase block mb-1">Stage</label>
-                    <select
-                      value={detailRecord.stage ?? ''}
-                      disabled={detailRecord.isLocked ?? false}
-                      onChange={(e) => handleFieldUpdate(detailRecord, 'stage', e.target.value)}
-                      className="text-sm border border-surface-200 rounded-lg px-2 py-1.5 w-full bg-white focus:ring-1 focus:ring-brand-300 outline-none disabled:opacity-60"
-                    >
-                      <option value="">--</option>
-                      {STAGE_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-medium text-surface-400 uppercase block mb-1">Task</label>
-                    <select
-                      value={detailRecord.task ?? ''}
-                      disabled={detailRecord.isLocked ?? false}
-                      onChange={(e) => handleFieldUpdate(detailRecord, 'task', e.target.value)}
-                      className="text-sm border border-surface-200 rounded-lg px-2 py-1.5 w-full bg-white focus:ring-1 focus:ring-brand-300 outline-none disabled:opacity-60"
-                    >
-                      <option value="">--</option>
-                      {TASK_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
                     </select>
                   </div>
                 </div>
