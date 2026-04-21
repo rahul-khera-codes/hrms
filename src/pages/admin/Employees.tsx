@@ -104,6 +104,9 @@ export default function AdminEmployees() {
   const [reportsTo, setReportsTo] = useState('')
   const [contractStatus, setContractStatus] = useState<string>('active')
   const [terminationDate, setTerminationDate] = useState('')
+  const [bank, setBank] = useState('')
+  const [bankAccount, setBankAccount] = useState('')
+  const [payMethod, setPayMethod] = useState('')
 
   const contractTypeOptions = [
     { value: 'employee', label: 'Employee' },
@@ -401,6 +404,9 @@ export default function AdminEmployees() {
     setReportsTo('')
     setContractStatus('active')
     setTerminationDate('')
+    setBank('')
+    setBankAccount('')
+    setPayMethod('')
     setModal('add')
   }
 
@@ -427,6 +433,9 @@ export default function AdminEmployees() {
     setReportsTo(emp.reportsTo || '')
     setContractStatus(emp.contractStatus || 'active')
     setTerminationDate(emp.terminationDate || '')
+    setBank(emp.bank || '')
+    setBankAccount(emp.bankAccount || '')
+    setPayMethod(emp.payMethod || '')
     setModal('edit')
   }
 
@@ -507,6 +516,9 @@ export default function AdminEmployees() {
           reportsTo: reportsTo || undefined,
           contractStatus,
           terminationDate: contractStatus === 'terminated' ? terminationDate || undefined : undefined,
+          bank: bank || undefined,
+          bankAccount: bankAccount || undefined,
+          payMethod: payMethod || undefined,
         })
         if (assignedClientId && assignedShiftId) {
           try {
@@ -543,6 +555,9 @@ export default function AdminEmployees() {
           reportsTo: reportsTo || undefined,
           contractStatus,
           terminationDate: contractStatus === 'terminated' ? terminationDate || undefined : undefined,
+          bank: bank || undefined,
+          bankAccount: bankAccount || undefined,
+          payMethod: payMethod || undefined,
         })
         if (assignedClientId && assignedShiftId) {
           await createScheduleAssignment({
@@ -1163,6 +1178,48 @@ export default function AdminEmployees() {
                   )}
                 </div>
               </div>
+
+              {/* Payment details */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="label">Bank</label>
+                  <AdminSelect
+                    value={bank}
+                    onChange={setBank}
+                    options={[
+                      { value: '', label: 'Select bank' },
+                      { value: 'Banco Popular', label: 'Banco Popular' },
+                      { value: 'Banreservas', label: 'Banreservas' },
+                      { value: 'BHD Leon', label: 'BHD Leon' },
+                      { value: 'Scotiabank', label: 'Scotiabank' },
+                      { value: 'Banco Santa Cruz', label: 'Banco Santa Cruz' },
+                      { value: 'Asociacion Popular', label: 'Asociacion Popular' },
+                      { value: 'Banco Promerica', label: 'Banco Promerica' },
+                      { value: 'Banco Caribe', label: 'Banco Caribe' },
+                      { value: 'Banco BDI', label: 'Banco BDI' },
+                      { value: 'Other', label: 'Other' },
+                    ]}
+                  />
+                </div>
+                <div>
+                  <label className="label">Bank Account</label>
+                  <input type="text" className="input" value={bankAccount} onChange={(e) => setBankAccount(e.target.value)} placeholder="Account number" />
+                </div>
+                <div>
+                  <label className="label">Payment Method</label>
+                  <AdminSelect
+                    value={payMethod}
+                    onChange={setPayMethod}
+                    options={[
+                      { value: '', label: 'Select method' },
+                      { value: 'Deposito', label: 'Deposito' },
+                      { value: 'Cheque', label: 'Cheque' },
+                      { value: 'Transferencia', label: 'Transferencia' },
+                    ]}
+                  />
+                </div>
+              </div>
+
               <div>
                 <label className="label">Salary type</label>
                 <AdminSelect

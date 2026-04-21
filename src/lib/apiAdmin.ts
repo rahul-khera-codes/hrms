@@ -361,6 +361,9 @@ export interface EmployeeRecord {
   reportsToName?: string | null
   contractStatus?: string | null
   terminationDate?: string | null
+  bank?: string | null
+  bankAccount?: string | null
+  payMethod?: string | null
 }
 
 export async function getEmployees(): Promise<EmployeeRecord[]> {
@@ -383,6 +386,9 @@ export async function createEmployee(data: {
   reportsTo?: string
   contractStatus?: string
   terminationDate?: string
+  bank?: string
+  bankAccount?: string
+  payMethod?: string
 }): Promise<EmployeeRecord> {
   return api<EmployeeRecord>('/api/admin/employees', {
     method: 'POST',
@@ -408,6 +414,9 @@ export async function updateEmployee(
     reportsTo?: string
     contractStatus?: string
     terminationDate?: string
+    bank?: string
+    bankAccount?: string
+    payMethod?: string
   }
 ): Promise<EmployeeRecord> {
   return api<EmployeeRecord>(`/api/admin/employees/${id}`, {

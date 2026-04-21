@@ -1715,7 +1715,8 @@ router.patch('/employees/:id', async (req, res) => {
     const { id } = req.params
     const { name, email, password, salaryType, baseSalary,
             cmid, contractType, hireDate, location, department,
-            primaryClientId, jobTitle, reportsTo, contractStatus, terminationDate } = req.body
+            primaryClientId, jobTitle, reportsTo, contractStatus, terminationDate,
+            bank, bankAccount, payMethod } = req.body
     const emp = await query(
       "SELECT id FROM users WHERE id = $1 AND role = 'employee'",
       [id]
@@ -1776,6 +1777,9 @@ router.patch('/employees/:id', async (req, res) => {
       reports_to: reportsTo !== undefined ? (reportsTo || null) : undefined,
       contract_status: contractStatusVal,
       termination_date: termDateVal,
+      bank: bank !== undefined ? (bank || null) : undefined,
+      bank_account: bankAccount !== undefined ? (bankAccount || null) : undefined,
+      pay_method: payMethod !== undefined ? (payMethod || null) : undefined,
     }
 
     // Filter only defined fields
@@ -1814,6 +1818,7 @@ router.patch('/employees/:id', async (req, res) => {
               e.cmid, e.harmony_id, e.contract_type, e.hire_date::text AS hire_date,
               e.location, e.department, e.primary_client_id, e.job_title,
               e.reports_to, e.contract_status, e.termination_date::text AS termination_date,
+              e.bank, e.bank_account, e.pay_method,
               c.name AS primary_client_name,
               mgr.name AS reports_to_name
        FROM users u
@@ -1843,6 +1848,9 @@ router.patch('/employees/:id', async (req, res) => {
       reportsToName: row.reports_to_name || null,
       contractStatus: row.contract_status || 'active',
       terminationDate: row.termination_date?.slice(0, 10) ?? null,
+      bank: row.bank || null,
+      bankAccount: row.bank_account || null,
+      payMethod: row.pay_method || null,
     })
   } catch (err) {
     console.error('Update employee error:', err)
@@ -1899,6 +1907,7 @@ router.get('/employees', async (req, res) => {
               e.cmid, e.harmony_id, e.contract_type, e.hire_date::text AS hire_date,
               e.location, e.department, e.primary_client_id, e.job_title,
               e.reports_to, e.contract_status, e.termination_date::text AS termination_date,
+              e.bank, e.bank_account, e.pay_method,
               c.name AS primary_client_name,
               mgr.name AS reports_to_name
        FROM users u
@@ -1927,6 +1936,9 @@ router.get('/employees', async (req, res) => {
       reportsToName: r.reports_to_name || null,
       contractStatus: r.contract_status || 'active',
       terminationDate: r.termination_date?.slice(0, 10) ?? null,
+      bank: r.bank || null,
+      bankAccount: r.bank_account || null,
+      payMethod: r.pay_method || null,
     })))
   } catch (err) {
     console.error('Admin list employees error:', err)
