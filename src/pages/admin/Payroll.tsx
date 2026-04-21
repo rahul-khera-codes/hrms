@@ -1,882 +1,554 @@
-import { useState, useEffect, useRef } from 'react'
-import { useSearchParams } from 'react-router-dom'
-import { format, subDays } from 'date-fns'
-import { Download, Calculator, Calendar, Clock, TrendingUp, DollarSign, Moon, Settings2, Plus, Trash2, ChevronDown, List, FileDown, FileText } from 'lucide-react'
-import {
-  getPayroll,
-  updateEmployeeSalary,
-  createPayrollLineItem,
-  deletePayrollLineItem,
-  setPayrollDeductions,
-  downloadPayrollSlipPdf,
-  type PayrollResponse,
-  type PayrollEmployeeRow,
-} from '@/lib/apiAdmin'
-import AdminDatePicker from '@/components/AdminDatePicker'
+import { useState, useEffect, useMemo, useCallback } from 'react'
+import { Calculator, Download, Search, AlertTriangle, Users, DollarSign, TrendingDown, Building2, Loader2 } from 'lucide-react'
 import AdminSelect from '@/components/AdminSelect'
 import { PageHeader } from '@/components/PageHeader'
+import { SkeletonTableRows } from '@/components/Skeleton'
+import { useToast } from '@/components/Toast'
+import {
+  getPayrollPeriods,
+  getPayrollCalcResults,
+  calculatePayroll,
+  type PayrollPeriod,
+  type PayrollCalcResult,
+} from '@/lib/apiAdmin'
 
-const PAYROLL_ROWS_PER_PAGE = 10
+/* ------------------------------------------------------------------ */
+/*  Helpers                                                            */
+/* ------------------------------------------------------------------ */
 
-function PayrollRow({
-  row,
-  onEditSalary,
-  onAddItem,
-  onSaveDeductions,
-  onDeleteLineItem,
-  onDownloadPdf,
-  pdfDownloading,
-  deductionSaving,
-}: {
-  row: PayrollEmployeeRow
-  otPercent: number
-  nightPercent: number
-  onEditSalary: () => void
-  onAddItem: (type: 'bonus' | 'incentive' | 'deduction' | 'passthrough_credit') => void
-  onSaveDeductions: (row: PayrollEmployeeRow, ss: number, tax: number, infotep: number) => void
-  onDeleteLineItem: (id: string) => void
-  onDownloadPdf: () => void | Promise<void>
-  pdfDownloading: boolean
-  deductionSaving: boolean
-}) {
-  const [showItemDropdown, setShowItemDropdown] = useState(false)
-  const [showItemsList, setShowItemsList] = useState(false)
-  const dropdownRef = useRef<HTMLDivElement>(null)
-  const itemsListRef = useRef<HTMLDivElement>(null)
-  const num = (v: unknown): string => {
-    if (v === undefined || v === null) return '0.00'
-    const n = Number(v)
-    return Number.isNaN(n) ? '0.00' : n.toFixed(2)
-  }
-  const [ss, setSs] = useState(() => num(row.socialSecurity))
-  const [tax, setTax] = useState(() => num(row.tax))
-  const [infotep, setInfotep] = useState(() => num(row.infotep))
+const money = (v: number): string =>
+  `$${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
-  useEffect(() => {
-    setSs(num(row.socialSecurity))
-    setTax(num(row.tax))
-    setInfotep(num(row.infotep))
-  }, [row.socialSecurity, row.tax, row.infotep])
+const hrs = (v: number): string => v.toFixed(2)
 
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setShowItemDropdown(false)
-      }
-      if (itemsListRef.current && !itemsListRef.current.contains(event.target as Node)) {
-        setShowItemsList(false)
-      }
-    }
-    if (showItemDropdown || showItemsList) {
-      document.addEventListener('mousedown', handleClickOutside)
-      return () => document.removeEventListener('mousedown', handleClickOutside)
-    }
-  }, [showItemDropdown, showItemsList])
+/* ------------------------------------------------------------------ */
+/*  Column definitions for the wide table                              */
+/* ------------------------------------------------------------------ */
 
-  const handleDeductionsBlur = () => {
-    const s = parseFloat(ss)
-    const t = parseFloat(tax)
-    const i = parseFloat(infotep)
-    if (!Number.isNaN(s) && !Number.isNaN(t) && !Number.isNaN(i) && (s >= 0 && t >= 0 && i >= 0)) {
-      onSaveDeductions(row, Number.isNaN(s) ? 0 : s, Number.isNaN(t) ? 0 : t, Number.isNaN(i) ? 0 : i)
-    }
-  }
-
-  return (
-    <tr className="bg-white border-b border-surface-100 hover:bg-surface-50/70 transition-colors">
-      <td className="py-3.5 px-4 text-surface-900 font-medium whitespace-nowrap">{row.employeeName}</td>
-      <td className="py-3.5 px-4 text-center tabular-nums text-surface-700 whitespace-nowrap">
-        ${row.hourlyRate.toFixed(2)} ({row.salaryType})
-      </td>
-      <td className="py-3.5 px-4 text-center tabular-nums whitespace-nowrap">{row.regularHours}</td>
-      <td className="py-3.5 px-4 text-center tabular-nums whitespace-nowrap">{row.ot35Hours}</td>
-      <td className="py-3.5 px-4 text-center tabular-nums whitespace-nowrap">{row.ot100Hours}</td>
-      <td className="py-3.5 px-4 text-center tabular-nums whitespace-nowrap">{row.nightHours}</td>
-      <td className="py-3.5 px-4 text-center tabular-nums whitespace-nowrap">{row.holidayScheduledHours ?? 0}</td>
-      <td className="py-3.5 px-4 text-center tabular-nums whitespace-nowrap">{row.holidayWorkedHours ?? 0}</td>
-      <td className="py-3.5 px-4 text-center tabular-nums font-medium whitespace-nowrap">{row.totalHours}</td>
-      <td className="py-3.5 px-4 text-center tabular-nums whitespace-nowrap">${row.regularPay.toFixed(2)}</td>
-      <td className="py-3.5 px-4 text-center tabular-nums whitespace-nowrap">${row.ot35Pay.toFixed(2)}</td>
-      <td className="py-3.5 px-4 text-center tabular-nums whitespace-nowrap">${row.ot100Pay.toFixed(2)}</td>
-      <td className="py-3.5 px-4 text-center tabular-nums whitespace-nowrap">${row.nightPay.toFixed(2)}</td>
-      <td className="py-3.5 px-4 text-center tabular-nums whitespace-nowrap">${(row.holidayPay ?? 0).toFixed(2)}</td>
-      <td className="py-3.5 px-4 text-center tabular-nums font-semibold whitespace-nowrap">${row.totalPay.toFixed(2)}</td>
-      <td className="py-3.5 px-4 text-center tabular-nums text-green-600 whitespace-nowrap">
-        ${(row.additionsTotal ?? 0).toFixed(2)}
-      </td>
-      <td className="py-3.5 px-4 text-center tabular-nums text-red-600 whitespace-nowrap">
-        ${(row.deductionsTotal ?? 0).toFixed(2)}
-      </td>
-      <td className="py-3.5 px-4 text-center">
-        <input
-          type="number"
-          min={0}
-          step={0.01}
-          className="input w-20 text-center py-1.5 text-sm rounded-lg"
-          value={ss}
-          onChange={(e) => setSs(e.target.value)}
-          onBlur={handleDeductionsBlur}
-          disabled={deductionSaving}
-        />
-      </td>
-      <td className="py-3.5 px-4 text-center">
-        <input
-          type="number"
-          min={0}
-          step={0.01}
-          className="input w-20 text-center py-1.5 text-sm rounded-lg"
-          value={tax}
-          onChange={(e) => setTax(e.target.value)}
-          onBlur={handleDeductionsBlur}
-          disabled={deductionSaving}
-        />
-      </td>
-      <td className="py-3.5 px-4 text-center">
-        <input
-          type="number"
-          min={0}
-          step={0.01}
-          className="input w-20 text-center py-1.5 text-sm rounded-lg"
-          value={infotep}
-          onChange={(e) => setInfotep(e.target.value)}
-          onBlur={handleDeductionsBlur}
-          disabled={deductionSaving}
-        />
-      </td>
-      <td className="py-3.5 px-4 text-center tabular-nums font-semibold whitespace-nowrap">${(row.netPay ?? row.totalPay).toFixed(2)}</td>
-      <td className="py-3.5 px-4">
-        <div className="flex items-center justify-start gap-1.5">
-          {/* Add Item Button */}
-          <div className="relative" ref={dropdownRef}>
-            <button
-              type="button"
-              onClick={() => setShowItemDropdown(!showItemDropdown)}
-              className="inline-flex items-center justify-center gap-1 rounded-lg border border-dashed border-surface-300 bg-surface-50/50 py-1.5 px-2.5 text-xs font-medium text-surface-600 hover:bg-brand-50 hover:border-brand-300 hover:text-brand-600 transition-colors duration-150 whitespace-nowrap"
-              title="Add bonus, incentive, or deduction"
-            >
-              <Plus className="w-3.5 h-3.5 shrink-0" />
-              <span className="hidden sm:inline">Add</span>
-              <ChevronDown className={`w-3 h-3 transition-transform duration-200 shrink-0 ${showItemDropdown ? 'rotate-180' : ''}`} />
-            </button>
-            {showItemDropdown && (
-              <div className="absolute top-full left-0 mt-1 bg-white border border-surface-200 rounded-lg shadow-lg z-50 min-w-max">
-                <button
-                  type="button"
-                  onClick={() => {
-                    onAddItem('bonus')
-                    setShowItemDropdown(false)
-                  }}
-                  className="w-full text-left px-3 py-2 text-xs text-surface-700 hover:bg-surface-50 first:rounded-t-lg transition-colors"
-                >
-                  Bonus
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    onAddItem('incentive')
-                    setShowItemDropdown(false)
-                  }}
-                  className="w-full text-left px-3 py-2 text-xs text-surface-700 hover:bg-surface-50 transition-colors"
-                >
-                  Incentive
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    onAddItem('deduction')
-                    setShowItemDropdown(false)
-                  }}
-                  className="w-full text-left px-3 py-2 text-xs text-surface-700 hover:bg-surface-50 transition-colors"
-                >
-                  Deduction
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    onAddItem('passthrough_credit')
-                    setShowItemDropdown(false)
-                  }}
-                  className="w-full text-left px-3 py-2 text-xs text-surface-700 hover:bg-surface-50 last:rounded-b-lg transition-colors"
-                >
-                  Passthrough credit
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* View Items Button */}
-          {(row.lineItems ?? []).length > 0 && (
-            <div className="relative" ref={itemsListRef}>
-              <button
-                type="button"
-                onClick={() => setShowItemsList(!showItemsList)}
-                className="relative inline-flex items-center justify-center p-1.5 rounded-lg text-surface-500 hover:bg-surface-100 hover:text-surface-700 transition-colors"
-                title="View added items"
-              >
-                <List className="w-4 h-4" />
-                <span className="absolute top-0 right-0 flex items-center justify-center w-4 h-4 bg-brand-500 text-white text-xs rounded-full font-semibold">
-                  {(row.lineItems ?? []).length}
-                </span>
-              </button>
-              {showItemsList && (
-                <div className="absolute top-full right-0 mt-1 bg-white border border-surface-200 rounded-lg shadow-lg z-50 w-80 max-h-72 overflow-y-auto">
-                  <div className="sticky top-0 bg-surface-50 p-3 border-b border-surface-100 rounded-t-lg">
-                    <h3 className="text-xs font-semibold text-surface-900">Added Items ({(row.lineItems ?? []).length})</h3>
-                  </div>
-                  <div className="divide-y divide-surface-100">
-                    {(row.lineItems ?? []).map((it) => (
-                      <div key={it.id} className="p-3 flex items-start justify-between gap-2 hover:bg-surface-50 transition-colors">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-medium text-surface-700 capitalize">
-                            {it.type.replace(/_/g, ' ')}
-                          </p>
-                          {it.label && <p className="text-xs text-surface-600 truncate">{it.label}</p>}
-                          <p className="text-xs font-semibold text-surface-900 mt-1">
-                            ${Math.abs(it.amount).toFixed(2)}
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            onDeleteLineItem(it.id)
-                            setShowItemsList(false)
-                          }}
-                          className="shrink-0 p-1.5 rounded text-surface-400 hover:bg-red-50 hover:text-red-600 transition-colors"
-                          title="Delete item"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      </td>
-      <td className="py-3.5 px-4">
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={onDownloadPdf}
-            disabled={pdfDownloading}
-            className="p-2 rounded-lg text-surface-500 hover:bg-surface-100 hover:text-brand-600 disabled:opacity-50"
-            title="Download PDF pay slip"
-          >
-            {pdfDownloading ? (
-              <span className="inline-block w-4 h-4 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
-            ) : (
-              <FileDown className="w-4 h-4" />
-            )}
-          </button>
-          <button type="button" onClick={onEditSalary} className="p-2 rounded-lg text-surface-500 hover:bg-surface-100 hover:text-surface-700" title="Edit salary">
-            <Settings2 className="w-4 h-4" />
-          </button>
-        </div>
-      </td>
-    </tr>
-  )
+interface ColDef {
+  key: string
+  label: string
+  /** 'money' | 'hours' | 'text' | 'bool' */
+  type: 'money' | 'hours' | 'text' | 'bool'
+  accessor: (r: PayrollCalcResult) => string | number | boolean
 }
 
+interface SectionDef {
+  name: string
+  bg: string          // tailwind bg class for header
+  headerText: string  // tailwind text class for header
+  columns: ColDef[]
+}
+
+const sections: SectionDef[] = [
+  {
+    name: 'Employee',
+    bg: 'bg-white',
+    headerText: 'text-surface-700',
+    columns: [
+      { key: 'employeeName', label: 'Name', type: 'text', accessor: (r) => r.employeeName },
+      { key: 'account', label: 'Account', type: 'text', accessor: (r) => r.account ?? '' },
+      { key: 'salaryType', label: 'Salary Type', type: 'text', accessor: (r) => r.salaryType },
+      { key: 'salary', label: 'Salary', type: 'money', accessor: (r) => r.salary },
+      { key: 'hourlySalary', label: 'Hourly Rate', type: 'money', accessor: (r) => r.hourlySalary },
+      { key: 'contractStatus', label: 'Status', type: 'text', accessor: (r) => r.contractStatus ?? '' },
+    ],
+  },
+  {
+    name: 'Ordinary Salary',
+    bg: 'bg-emerald-50',
+    headerText: 'text-emerald-800',
+    columns: [
+      { key: 'hreg1', label: 'HREG1', type: 'hours', accessor: (r) => r.hreg1 },
+      { key: 'hreg2', label: 'HREG2', type: 'hours', accessor: (r) => r.hreg2 },
+      { key: 'hreg', label: 'HREG', type: 'hours', accessor: (r) => r.hreg },
+      { key: 'ordinarySalary', label: 'Salary', type: 'money', accessor: (r) => r.ordinarySalary },
+    ],
+  },
+  {
+    name: 'Leaves (VPL)',
+    bg: 'bg-emerald-50',
+    headerText: 'text-emerald-800',
+    columns: [
+      { key: 'vacation', label: 'Vacation', type: 'money', accessor: (r) => r.vacation },
+      { key: 'matrimony', label: 'Matrimony', type: 'money', accessor: (r) => r.matrimony },
+      { key: 'maternity', label: 'Maternity', type: 'money', accessor: (r) => r.maternity },
+      { key: 'paternity', label: 'Paternity', type: 'money', accessor: (r) => r.paternity },
+      { key: 'bereavement', label: 'Bereavement', type: 'money', accessor: (r) => r.bereavement },
+      { key: 'medical', label: 'Medical', type: 'money', accessor: (r) => r.medical },
+      { key: 'vpl', label: 'Total', type: 'money', accessor: (r) => r.vpl },
+    ],
+  },
+  {
+    name: 'Commissions',
+    bg: 'bg-emerald-50',
+    headerText: 'text-emerald-800',
+    columns: [
+      { key: 'commissions', label: 'Amount', type: 'money', accessor: (r) => r.commissions },
+    ],
+  },
+  {
+    name: 'Overtime',
+    bg: 'bg-emerald-50',
+    headerText: 'text-emerald-800',
+    columns: [
+      { key: 'hn15Hours', label: 'N15% Hrs', type: 'hours', accessor: (r) => r.hn15Hours },
+      { key: 'hn15Amount', label: 'N15% $', type: 'money', accessor: (r) => r.hn15Amount },
+      { key: 'hx35Hours', label: 'X35% Hrs', type: 'hours', accessor: (r) => r.hx35Hours },
+      { key: 'hx35Amount', label: 'X35% $', type: 'money', accessor: (r) => r.hx35Amount },
+      { key: 'hx100Hours', label: 'X100% Hrs', type: 'hours', accessor: (r) => r.hx100Hours },
+      { key: 'hx100Amount', label: 'X100% $', type: 'money', accessor: (r) => r.hx100Amount },
+      { key: 'hholHours', label: 'Holiday Hrs', type: 'hours', accessor: (r) => r.hholHours },
+      { key: 'hholAmount', label: 'Holiday $', type: 'money', accessor: (r) => r.hholAmount },
+      { key: 'overtimeTotal', label: 'Total', type: 'money', accessor: (r) => r.overtimeTotal },
+    ],
+  },
+  {
+    name: 'Bonuses',
+    bg: 'bg-emerald-50',
+    headerText: 'text-emerald-800',
+    columns: [
+      { key: 'collaboration', label: 'Collaboration', type: 'money', accessor: (r) => r.collaboration },
+      { key: 'recruiting', label: 'Recruiting', type: 'money', accessor: (r) => r.recruiting },
+      { key: 'profitSharing', label: 'Profit Sharing', type: 'money', accessor: (r) => r.profitSharing },
+      { key: 'bonusesTotal', label: 'Total', type: 'money', accessor: (r) => r.bonusesTotal },
+    ],
+  },
+  {
+    name: 'Incentives',
+    bg: 'bg-emerald-50',
+    headerText: 'text-emerald-800',
+    columns: [
+      { key: 'attendanceIncentive', label: 'Attendance', type: 'money', accessor: (r) => r.attendanceIncentive },
+      { key: 'kpiIncentive', label: 'KPI', type: 'money', accessor: (r) => r.kpiIncentive },
+      { key: 'incentivesTotal', label: 'Total', type: 'money', accessor: (r) => r.incentivesTotal },
+    ],
+  },
+  {
+    name: 'Classification',
+    bg: 'bg-sky-50',
+    headerText: 'text-sky-800',
+    columns: [
+      { key: 'grossSalary', label: 'Gross', type: 'money', accessor: (r) => r.grossSalary },
+      { key: 'tssSalary', label: 'TSS Salary', type: 'money', accessor: (r) => r.tssSalary },
+      { key: 'isrSalary', label: 'ISR Salary', type: 'money', accessor: (r) => r.isrSalary },
+    ],
+  },
+  {
+    name: 'Gov. Deductions',
+    bg: 'bg-amber-50',
+    headerText: 'text-amber-800',
+    columns: [
+      { key: 'afp', label: 'AFP', type: 'money', accessor: (r) => r.afp },
+      { key: 'sfs', label: 'SFS', type: 'money', accessor: (r) => r.sfs },
+      { key: 'tssDependents', label: 'TSS Dep.', type: 'money', accessor: (r) => r.tssDependents },
+      { key: 'infotep', label: 'INFOTEP', type: 'money', accessor: (r) => r.infotep },
+      { key: 'isrRetention', label: 'ISR', type: 'money', accessor: (r) => r.isrRetention },
+      { key: 'govDeductionsTotal', label: 'Total', type: 'money', accessor: (r) => r.govDeductionsTotal },
+    ],
+  },
+  {
+    name: 'Other Deductions',
+    bg: 'bg-amber-50',
+    headerText: 'text-amber-800',
+    columns: [
+      { key: 'payLater', label: 'PayLater', type: 'money', accessor: (r) => r.payLater },
+      { key: 'gym', label: 'Gym', type: 'money', accessor: (r) => r.gym },
+      { key: 'insuranceDed', label: 'Insurance', type: 'money', accessor: (r) => r.insuranceDed },
+      { key: 'cafeteria', label: 'Cafeteria', type: 'money', accessor: (r) => r.cafeteria },
+      { key: 'adminDeduction', label: 'Admin', type: 'money', accessor: (r) => r.adminDeduction },
+      { key: 'deduccionX', label: 'DeduccionX', type: 'money', accessor: (r) => r.deduccionX },
+      { key: 'otherDeductionsSpare', label: 'Spare', type: 'money', accessor: (r) => r.otherDeductionsSpare },
+      { key: 'otherDeductionsTotal', label: 'Total', type: 'money', accessor: (r) => r.otherDeductionsTotal },
+    ],
+  },
+  {
+    name: 'Totals',
+    bg: 'bg-violet-50',
+    headerText: 'text-violet-800',
+    columns: [
+      { key: 'deductionValidation', label: 'Validation', type: 'bool', accessor: (r) => r.deductionValidation },
+      { key: 'totalDeductions', label: 'Total Ded.', type: 'money', accessor: (r) => r.totalDeductions },
+      { key: 'netSalary', label: 'Net Salary', type: 'money', accessor: (r) => r.netSalary },
+    ],
+  },
+  {
+    name: 'Employer Cost',
+    bg: 'bg-surface-100',
+    headerText: 'text-surface-700',
+    columns: [
+      { key: 'afpEmployer', label: 'AFP', type: 'money', accessor: (r) => r.afpEmployer },
+      { key: 'sfsEmployer', label: 'SFS', type: 'money', accessor: (r) => r.sfsEmployer },
+      { key: 'arl', label: 'ARL', type: 'money', accessor: (r) => r.arl },
+      { key: 'infotepEmployer', label: 'INFOTEP', type: 'money', accessor: (r) => r.infotepEmployer },
+    ],
+  },
+]
+
+const allColumns = sections.flatMap((s) => s.columns)
+
+/* ------------------------------------------------------------------ */
+/*  Component                                                          */
+/* ------------------------------------------------------------------ */
+
 export default function AdminPayroll() {
-  const [searchParams] = useSearchParams()
-  const fromParam = searchParams.get('from')
-  const toParam = searchParams.get('to')
-  const [periodStart, setPeriodStart] = useState(format(subDays(new Date(), 14), 'yyyy-MM-dd'))
-  const [periodEnd, setPeriodEnd] = useState(format(new Date(), 'yyyy-MM-dd'))
-  const [payroll, setPayroll] = useState<PayrollResponse | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [editEmployee, setEditEmployee] = useState<PayrollEmployeeRow | null>(null)
-  const [editSalaryType, setEditSalaryType] = useState<'hourly' | 'monthly'>('hourly')
-  const [editBaseSalary, setEditBaseSalary] = useState('')
-  const [savingSalary, setSavingSalary] = useState(false)
-  const [addItemRow, setAddItemRow] = useState<PayrollEmployeeRow | null>(null)
-  const [itemType, setItemType] = useState<'bonus' | 'incentive' | 'deduction' | 'passthrough_credit'>('bonus')
-  const [itemLabel, setItemLabel] = useState('')
-  const [itemAmount, setItemAmount] = useState('')
-  const [savingItem, setSavingItem] = useState(false)
-  const [deductionSaving, setDeductionSaving] = useState<string | null>(null)
-  const [pdfLoadingEmployeeId, setPdfLoadingEmployeeId] = useState<string | null>(null)
-  const [currentPage, setCurrentPage] = useState(1)
+  const toast = useToast()
 
+  const [payrollPeriods, setPayrollPeriods] = useState<PayrollPeriod[]>([])
+  const [selectedCycle, setSelectedCycle] = useState('')
+  const [results, setResults] = useState<PayrollCalcResult[]>([])
+  const [loading, setLoading] = useState(true)
+  const [calculating, setCalculating] = useState(false)
+  const [search, setSearch] = useState('')
+
+  /* ---------- Load payroll periods on mount ---------- */
   useEffect(() => {
-    if (fromParam && toParam) {
-      setPeriodStart(fromParam)
-      setPeriodEnd(toParam)
+    let cancelled = false
+    async function init() {
+      setLoading(true)
+      try {
+        const periods = await getPayrollPeriods()
+        if (cancelled) return
+        setPayrollPeriods(periods)
+        if (periods.length > 0) {
+          const mostRecent = periods[periods.length - 1].cycleCode
+          setSelectedCycle(mostRecent)
+        }
+      } catch {
+        if (!cancelled) toast.error('Failed to load payroll periods')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
     }
-  }, [fromParam, toParam])
+    init()
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
-  async function handleCalculate() {
-    setError(null)
-    setLoading(true)
+  /* ---------- Load results when cycle changes ---------- */
+  useEffect(() => {
+    if (!selectedCycle) return
+    let cancelled = false
+    async function load() {
+      setLoading(true)
+      try {
+        const data = await getPayrollCalcResults(selectedCycle)
+        if (!cancelled) setResults(data)
+      } catch {
+        if (!cancelled) setResults([])
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    load()
+    return () => { cancelled = true }
+  }, [selectedCycle])
+
+  /* ---------- Calculate payroll ---------- */
+  const handleCalculate = useCallback(async () => {
+    if (!selectedCycle) return
+    setCalculating(true)
     try {
-      const data = await getPayroll({ from: periodStart, to: periodEnd })
-      setPayroll(data)
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to load payroll')
+      const data = await calculatePayroll(selectedCycle)
+      setResults(data)
+      toast.success(`Payroll calculated for ${selectedCycle} — ${data.length} employees`)
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Calculation failed')
     } finally {
-      setLoading(false)
+      setCalculating(false)
     }
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCycle])
 
-  function openEditSalary(row: PayrollEmployeeRow) {
-    setEditEmployee(row)
-    setEditSalaryType((row.salaryType === 'monthly' ? 'monthly' : 'hourly') as 'hourly' | 'monthly')
-    if (row.salaryType === 'monthly') {
-      const monthly = row.hourlyRate * 23.83 * 8
-      setEditBaseSalary(String(Math.round(monthly * 100) / 100))
-    } else {
-      setEditBaseSalary(row.hourlyRate > 0 ? String(row.hourlyRate) : '')
+  /* ---------- Filtered rows ---------- */
+  const displayedRows = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return results
+    return results.filter((r) =>
+      r.employeeName.toLowerCase().includes(q) ||
+      (r.account ?? '').toLowerCase().includes(q) ||
+      (r.contractStatus ?? '').toLowerCase().includes(q) ||
+      r.salaryType.toLowerCase().includes(q)
+    )
+  }, [results, search])
+
+  /* ---------- Summary stats ---------- */
+  const summary = useMemo(() => {
+    const rows = displayedRows
+    return {
+      employees: rows.length,
+      totalGross: rows.reduce((a, r) => a + r.grossSalary, 0),
+      totalNet: rows.reduce((a, r) => a + r.netSalary, 0),
+      totalDeductions: rows.reduce((a, r) => a + r.totalDeductions, 0),
+      totalEmployerCost: rows.reduce(
+        (a, r) => a + r.afpEmployer + r.sfsEmployer + r.arl + r.infotepEmployer,
+        0,
+      ),
     }
-  }
+  }, [displayedRows])
 
-  async function handleSaveSalary() {
-    if (!editEmployee) return
-    const base = parseFloat(editBaseSalary)
-    if (Number.isNaN(base) || base < 0) return
-    setSavingSalary(true)
-    try {
-      await updateEmployeeSalary(editEmployee.employeeId, {
-        salaryType: editSalaryType,
-        baseSalary: base,
-      })
-      setEditEmployee(null)
-      if (payroll) await handleCalculate()
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to update salary')
-    } finally {
-      setSavingSalary(false)
-    }
-  }
-
-  async function handleSaveDeductions(row: PayrollEmployeeRow, socialSecurity: number, tax: number, infotep: number) {
-    if (!payroll) return
-    setDeductionSaving(row.employeeId)
-    try {
-      await setPayrollDeductions({
-        employeeId: row.employeeId,
-        periodFrom: payroll.from,
-        periodTo: payroll.to,
-        socialSecurity,
-        tax,
-        infotep,
-      })
-      await handleCalculate()
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to save deductions')
-    } finally {
-      setDeductionSaving(null)
-    }
-  }
-
-  async function handleAddLineItem() {
-    if (!addItemRow || !payroll) return
-    const amount = parseFloat(itemAmount)
-    if (Number.isNaN(amount)) return
-    setSavingItem(true)
-    try {
-      await createPayrollLineItem({
-        employeeId: addItemRow.employeeId,
-        periodFrom: payroll.from,
-        periodTo: payroll.to,
-        type: itemType,
-        label: itemLabel.trim() || undefined,
-        amount,
-      })
-      setAddItemRow(null)
-      setItemLabel('')
-      setItemAmount('')
-      await handleCalculate()
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to add item')
-    } finally {
-      setSavingItem(false)
-    }
-  }
-
-  async function handleDeleteLineItem(itemId: string) {
-    try {
-      await deletePayrollLineItem(itemId)
-      if (payroll) await handleCalculate()
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to delete item')
-    }
-  }
-
-  async function handleDownloadPaySlip(employeeId: string) {
-    if (!payroll) return
-    setPdfLoadingEmployeeId(employeeId)
-    setError(null)
-    try {
-      await downloadPayrollSlipPdf({
-        employeeId,
-        from: payroll.from,
-        to: payroll.to,
-      })
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to download pay slip')
-    } finally {
-      setPdfLoadingEmployeeId(null)
-    }
-  }
-
-  function exportPayrollCSV() {
-    if (!payroll?.employees?.length) return
-    const otPct = payroll?.rulesUsed ? Math.round((payroll.rulesUsed.otMultiplier - 1) * 100) : 35
-    const nightPct = payroll?.rulesUsed ? Math.round((payroll.rulesUsed.nightMultiplier - 1) * 100) : 15
-    const headers = [
-      'Employee',
-      'Salary type',
-      'Hourly rate',
-      'Regular hours',
-      `OT ${otPct}% hours`,
-      'OT 100% hours',
-      `Night ${nightPct}% hours`,
-      'Holiday scheduled hours',
-      'Holiday worked hours',
-      'Total hours',
-      'Regular pay',
-      `OT ${otPct}% pay`,
-      'OT 100% pay',
-      `Night ${nightPct}% pay`,
-      'Holiday pay',
-      'Total pay',
-      'Additions',
-      'Deductions',
-      'Social Security',
-      'Tax',
-      'INFOTEP',
-      'Net pay',
-    ]
-    const rows = payroll.employees.map((e) => [
-      e.employeeName,
-      e.salaryType,
-      e.hourlyRate,
-      e.regularHours,
-      e.ot35Hours,
-      e.ot100Hours,
-      e.nightHours,
-      e.holidayScheduledHours ?? 0,
-      e.holidayWorkedHours ?? 0,
-      e.totalHours,
-      e.regularPay,
-      e.ot35Pay,
-      e.ot100Pay,
-      e.nightPay,
-      e.holidayPay ?? 0,
-      e.totalPay,
-      e.additionsTotal ?? 0,
-      e.deductionsTotal ?? 0,
-      e.socialSecurity ?? 0,
-      e.tax ?? 0,
-      e.infotep ?? 0,
-      e.netPay ?? e.totalPay,
-    ])
-    const csv = [headers.join(','), ...rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(','))].join('\n')
+  /* ---------- CSV export ---------- */
+  function exportCSV() {
+    if (!displayedRows.length) return
+    const headers = allColumns.map((c) => c.label)
+    const csvRows = displayedRows.map((r) =>
+      allColumns.map((c) => {
+        const val = c.accessor(r)
+        if (typeof val === 'boolean') return val ? 'YES' : ''
+        if (typeof val === 'number') return val.toString()
+        return String(val)
+      }),
+    )
+    const csv = [
+      headers.join(','),
+      ...csvRows.map((row) => row.map((c) => `"${c.replace(/"/g, '""')}"`).join(',')),
+    ].join('\n')
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `payroll-${payroll.from}-to-${payroll.to}.csv`
+    a.download = `payroll-calculator-${selectedCycle || 'export'}-${new Date().toISOString().slice(0, 10)}.csv`
     a.click()
     URL.revokeObjectURL(url)
   }
 
-  const summary = payroll?.summary
-  const otPercent = payroll?.rulesUsed ? Math.round((payroll.rulesUsed.otMultiplier - 1) * 100) : 35
-  const nightPercent = payroll?.rulesUsed ? Math.round((payroll.rulesUsed.nightMultiplier - 1) * 100) : 15
-  const payrollEmployees = payroll?.employees ?? []
-  const totalPages = Math.max(1, Math.ceil(payrollEmployees.length / PAYROLL_ROWS_PER_PAGE))
-  const safeCurrentPage = Math.min(currentPage, totalPages)
-  const pageStart = (safeCurrentPage - 1) * PAYROLL_ROWS_PER_PAGE
-  const paginatedEmployees = payrollEmployees.slice(pageStart, pageStart + PAYROLL_ROWS_PER_PAGE)
+  /* ---------- Cycle selector options ---------- */
+  const cycleOptions = useMemo(
+    () => payrollPeriods.map((p) => ({ value: p.cycleCode, label: p.cycleCode })),
+    [payrollPeriods],
+  )
 
-  useEffect(() => {
-    if (currentPage > totalPages) {
-      setCurrentPage(totalPages)
-    }
-  }, [currentPage, totalPages])
-
+  /* ================================================================ */
+  /*  Render                                                           */
+  /* ================================================================ */
   return (
     <div className="page overflow-x-hidden">
       <PageHeader
-        title="Payroll"
-        subtitle="Calculate and export payroll from attendance data."
-        icon={<FileText className="w-5 h-5" />}
-      />
-
-
-      <div className="card">
-        <div className="card-header">
-          <div>
-            <h2 className="text-sm font-semibold text-surface-900">Pay period</h2>
-            <p className="text-xs text-surface-500 mt-0.5">Select the date range to calculate</p>
-          </div>
-          <div className="w-8 h-8 rounded-lg bg-brand-50 border border-brand-100 text-brand-600 flex items-center justify-center">
-            <Calendar className="w-4 h-4" />
-          </div>
-        </div>
-        <div className="p-4 sm:p-5 space-y-3">
-          <div className="flex flex-col sm:flex-row gap-3 sm:gap-3 sm:items-end">
-            <div className="flex-1 min-w-0 sm:max-w-[220px]">
-              <label className="label">Start date</label>
-              <AdminDatePicker value={periodStart} onChange={(val) => setPeriodStart(val)} />
-            </div>
-            <div className="flex-1 min-w-0 sm:max-w-[220px]">
-              <label className="label">End date</label>
-              <AdminDatePicker value={periodEnd} onChange={(val) => setPeriodEnd(val)} />
-            </div>
+        title="Payroll Calculator"
+        subtitle="Run payroll calculations per cycle and review the full breakdown."
+        icon={<Calculator className="w-5 h-5" />}
+        actions={
+          <>
+            <button
+              type="button"
+              onClick={exportCSV}
+              disabled={loading || displayedRows.length === 0}
+              className="btn-secondary"
+            >
+              <Download className="w-4 h-4 shrink-0" />
+              Export CSV
+            </button>
             <button
               type="button"
               onClick={handleCalculate}
-              disabled={loading}
-              className="btn-primary sm:ml-auto"
+              disabled={!selectedCycle || calculating}
+              className="btn-primary"
             >
-              <Calculator className="w-4 h-4 shrink-0" />
-              {loading ? 'Calculating…' : 'Calculate payroll'}
+              {calculating ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Calculator className="w-4 h-4" />
+              )}
+              {calculating ? 'Calculating...' : 'Calculate Payroll'}
             </button>
+          </>
+        }
+      />
+
+      {/* ── Stat cards ── */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+        <div className="stat-card">
+          <div className="flex items-center gap-2 mb-1">
+            <Users className="w-4 h-4 text-surface-400" />
+            <p className="stat-label">Employees</p>
           </div>
-          {error && (
-            <div className="alert-error"><span>{error}</span></div>
-          )}
+          <p className="stat-value">{summary.employees}</p>
+        </div>
+        <div className="stat-card border-brand-200/70 bg-brand-50/40">
+          <div className="flex items-center gap-2 mb-1">
+            <DollarSign className="w-4 h-4 text-brand-500" />
+            <p className="stat-label text-brand-700">Total Gross</p>
+          </div>
+          <p className="stat-value">{money(summary.totalGross)}</p>
+        </div>
+        <div className="stat-card border-emerald-200/70 bg-emerald-50/40">
+          <div className="flex items-center gap-2 mb-1">
+            <DollarSign className="w-4 h-4 text-emerald-500" />
+            <p className="stat-label text-emerald-700">Total Net</p>
+          </div>
+          <p className="stat-value">{money(summary.totalNet)}</p>
+        </div>
+        <div className="stat-card border-red-200/70 bg-red-50/40">
+          <div className="flex items-center gap-2 mb-1">
+            <TrendingDown className="w-4 h-4 text-red-500" />
+            <p className="stat-label text-red-700">Total Deductions</p>
+          </div>
+          <p className="stat-value">{money(summary.totalDeductions)}</p>
+        </div>
+        <div className="stat-card border-surface-200/70 bg-surface-50/40">
+          <div className="flex items-center gap-2 mb-1">
+            <Building2 className="w-4 h-4 text-surface-500" />
+            <p className="stat-label text-surface-600">Employer Cost</p>
+          </div>
+          <p className="stat-value">{money(summary.totalEmployerCost)}</p>
         </div>
       </div>
 
-      {summary && (
-        <>
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
-            <div className="rounded-lg sm:rounded-xl border border-surface-200/80 bg-white p-3 sm:p-5 shadow-sm min-w-0">
-              <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-surface-100 flex items-center justify-center shrink-0">
-                  <Calendar className="w-4 h-4 sm:w-5 sm:h-5 text-surface-600" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-[10px] sm:text-xs font-medium text-surface-500 uppercase tracking-wider truncate">Period</p>
-                  <p className="text-xs sm:text-sm font-semibold text-surface-900 mt-0.5 leading-tight truncate">{payroll.period}</p>
-                </div>
-              </div>
-            </div>
-            <div className="rounded-lg sm:rounded-xl border border-surface-200/80 bg-white p-3 sm:p-5 shadow-sm min-w-0">
-              <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-brand-50 flex items-center justify-center shrink-0">
-                  <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-brand-600" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-[10px] sm:text-xs font-medium text-surface-500 uppercase tracking-wider truncate">Regular hours</p>
-                  <p className="text-lg sm:text-xl font-semibold text-surface-900 mt-0.5 tabular-nums truncate">
-                    {summary.totalRegularHours}h
-                  </p>
-                </div>
-              </div>
-            </div>
-            <div className="rounded-lg sm:rounded-xl border border-surface-200/80 bg-white p-3 sm:p-5 shadow-sm min-w-0">
-              <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-amber-50 flex items-center justify-center shrink-0">
-                  <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-amber-600" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-[10px] sm:text-xs font-medium text-surface-500 uppercase tracking-wider truncate">OT {otPercent}%</p>
-                  <p className="text-lg sm:text-xl font-semibold text-surface-900 mt-0.5 tabular-nums truncate">
-                    {summary.totalOt35Hours}h
-                  </p>
-                </div>
-              </div>
-            </div>
-            <div className="rounded-lg sm:rounded-xl border border-surface-200/80 bg-white p-3 sm:p-5 shadow-sm min-w-0">
-              <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-orange-50 flex items-center justify-center shrink-0">
-                  <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-orange-600" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-[10px] sm:text-xs font-medium text-surface-500 uppercase tracking-wider truncate">OT 100%</p>
-                  <p className="text-lg sm:text-xl font-semibold text-surface-900 mt-0.5 tabular-nums truncate">
-                    {summary.totalOt100Hours}h
-                  </p>
-                </div>
-              </div>
-            </div>
-            <div className="rounded-lg sm:rounded-xl border border-surface-200/80 bg-white p-3 sm:p-5 shadow-sm min-w-0">
-              <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-indigo-50 flex items-center justify-center shrink-0">
-                  <Moon className="w-4 h-4 sm:w-5 sm:h-5 text-indigo-600" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-[10px] sm:text-xs font-medium text-surface-500 uppercase tracking-wider truncate">Night {nightPercent}%</p>
-                  <p className="text-lg sm:text-xl font-semibold text-surface-900 mt-0.5 tabular-nums truncate">
-                    {summary.totalNightHours}h
-                  </p>
-                </div>
-              </div>
-            </div>
-            <div className="rounded-lg sm:rounded-xl border border-surface-200/80 bg-white p-3 sm:p-5 shadow-sm min-w-0">
-              <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-rose-50 flex items-center justify-center shrink-0">
-                  <Calendar className="w-4 h-4 sm:w-5 sm:h-5 text-rose-600" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-[10px] sm:text-xs font-medium text-surface-500 uppercase tracking-wider truncate">Holiday pay</p>
-                  <p className="text-lg sm:text-xl font-semibold text-surface-900 mt-0.5 tabular-nums truncate">
-                    ${Number(summary.totalHolidayPay ?? 0).toFixed(2)}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="rounded-lg sm:rounded-xl border border-brand-200/80 bg-brand-50/50 p-3 sm:p-5 shadow-sm min-w-0">
-            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-              <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-brand-100 flex items-center justify-center shrink-0">
-                <DollarSign className="w-4 h-4 sm:w-5 sm:h-5 text-brand-600" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-[10px] sm:text-xs font-medium text-brand-700 uppercase tracking-wider truncate">Total gross</p>
-                <p className="text-lg sm:text-xl font-semibold text-surface-900 mt-0.5 tabular-nums truncate">
-                  ${summary.totalPay.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                </p>
-              </div>
-            </div>
-          </div>
-          {summary.totalNetPay != null && (
-            <div className="rounded-lg sm:rounded-xl border border-green-200/80 bg-green-50/50 p-3 sm:p-5 shadow-sm min-w-0">
-              <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                <div className="min-w-0">
-                  <p className="text-[10px] sm:text-xs font-medium text-green-700 uppercase tracking-wider truncate">Total net pay</p>
-                  <p className="text-lg sm:text-xl font-semibold text-surface-900 mt-0.5 tabular-nums truncate">
-                    ${summary.totalNetPay.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                  </p>
-                  {(summary.totalAdditions !== undefined && summary.totalAdditions > 0) ||
-                   (summary.totalDeductions !== undefined && summary.totalDeductions > 0) ||
-                   (summary.totalGovDeductions !== undefined && summary.totalGovDeductions > 0) ? (
-                    <p className="text-xs text-surface-500 mt-1">
-                      +Additions ${(summary.totalAdditions ?? 0).toFixed(2)} −Deductions ${(summary.totalDeductions ?? 0).toFixed(2)} −Gov ${(summary.totalGovDeductions ?? 0).toFixed(2)}
-                    </p>
-                  ) : null}
-                </div>
-              </div>
-            </div>
-          )}
+      {/* ── Toolbar ── */}
+      <div className="toolbar">
+        <div className="w-full sm:w-56">
+          <AdminSelect
+            value={selectedCycle}
+            onChange={(val) => setSelectedCycle(val)}
+            options={cycleOptions}
+            placeholder="Select cycle..."
+            disabled={loading && payrollPeriods.length === 0}
+          />
+        </div>
+        <div className="relative flex-1 min-w-0">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400 shrink-0" />
+          <input
+            type="text"
+            placeholder="Search by name, account, status..."
+            className="input pl-9"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+      </div>
 
-          <div className="rounded-xl sm:rounded-2xl border border-surface-200/80 bg-white p-4 sm:p-6 shadow-sm">
-            <h2 className="text-sm sm:text-base font-semibold text-surface-900 mb-0.5 sm:mb-1">Employee payroll</h2>
-            <p className="text-xs sm:text-sm text-surface-500 mb-4">SS and Tax are auto-calculated per DR rules (TSS/DGII 2026). </p>
-            <div className="w-full overflow-x-auto -mx-4 sm:-mx-6 rounded-xl border border-surface-200/80">
-            <table className="w-full min-w-max text-left text-sm">
-              <thead className="sticky top-0 z-10 bg-surface-50/95 backdrop-blur supports-[backdrop-filter]:bg-surface-50/80 border-b border-surface-200">
-                <tr>
-                  <th className="py-3 px-4 font-semibold text-surface-700 whitespace-nowrap">Employee</th>
-                  <th className="py-3 px-4 font-semibold text-surface-700 text-center whitespace-nowrap">Rate</th>
-                  <th className="py-3 px-4 font-semibold text-surface-700 text-center whitespace-nowrap">Regular h</th>
-                  <th className="py-3 px-4 font-semibold text-surface-700 text-center whitespace-nowrap">OT {otPercent}% h</th>
-                  <th className="py-3 px-4 font-semibold text-surface-700 text-center whitespace-nowrap">OT 100% h</th>
-                  <th className="py-3 px-4 font-semibold text-surface-700 text-center whitespace-nowrap">Night {nightPercent}% h</th>
-                  <th className="py-3 px-4 font-semibold text-surface-700 text-center whitespace-nowrap">Holiday sched h</th>
-                  <th className="py-3 px-4 font-semibold text-surface-700 text-center whitespace-nowrap">Holiday worked h</th>
-                  <th className="py-3 px-4 font-semibold text-surface-700 text-center whitespace-nowrap">Total h</th>
-                  <th className="py-3 px-4 font-semibold text-surface-700 text-center whitespace-nowrap">Regular pay</th>
-                  <th className="py-3 px-4 font-semibold text-surface-700 text-center whitespace-nowrap">OT {otPercent}% pay</th>
-                  <th className="py-3 px-4 font-semibold text-surface-700 text-center whitespace-nowrap">OT 100% pay</th>
-                  <th className="py-3 px-4 font-semibold text-surface-700 text-center whitespace-nowrap">Night {nightPercent}% pay</th>
-                  <th className="py-3 px-4 font-semibold text-surface-700 text-center whitespace-nowrap">Holiday pay</th>
-                  <th className="py-3 px-4 font-semibold text-surface-700 text-center whitespace-nowrap">Total pay</th>
-                  <th className="py-3 px-4 font-semibold text-surface-700 text-center whitespace-nowrap">Additions</th>
-                  <th className="py-3 px-4 font-semibold text-surface-700 text-center whitespace-nowrap">Deductions</th>
-                  <th className="py-3 px-4 font-semibold text-surface-700 text-center whitespace-nowrap">SS</th>
-                  <th className="py-3 px-4 font-semibold text-surface-700 text-center whitespace-nowrap">Tax</th>
-                  <th className="py-3 px-4 font-semibold text-surface-700 text-center whitespace-nowrap">INFOTEP</th>
-                  <th className="py-3 px-4 font-semibold text-surface-700 text-center whitespace-nowrap">Net pay</th>
-                  <th className="py-3 px-4 font-semibold text-surface-700 whitespace-nowrap">Items</th>
-                  <th className="py-3 px-4 w-24" aria-label="PDF and edit salary">Slip</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paginatedEmployees.map((row) => (
-                  <PayrollRow
-                    key={row.employeeId}
-                    row={row}
-                    otPercent={otPercent}
-                    nightPercent={nightPercent}
-                    onEditSalary={() => openEditSalary(row)}
-                    onAddItem={(type) => {
-                      setAddItemRow(row)
-                      setItemType(type)
-                      setItemLabel('')
-                      setItemAmount('')
-                    }}
-                    onSaveDeductions={handleSaveDeductions}
-                    onDeleteLineItem={handleDeleteLineItem}
-                    onDownloadPdf={() => handleDownloadPaySlip(row.employeeId)}
-                    pdfDownloading={pdfLoadingEmployeeId === row.employeeId}
-                    deductionSaving={deductionSaving === row.employeeId}
-                  />
+      {/* ── Table ── */}
+      <div className="card overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm" style={{ minWidth: '4200px' }}>
+            {/* ── Two-row header ── */}
+            <thead>
+              {/* Row 1: section group headers */}
+              <tr>
+                {sections.map((s) => (
+                  <th
+                    key={s.name}
+                    colSpan={s.columns.length}
+                    className={`px-3 py-2 text-xs font-semibold text-center border-b border-surface-200 ${s.bg} ${s.headerText}`}
+                  >
+                    {s.name}
+                  </th>
                 ))}
-              </tbody>
-            </table>
-            </div>
+              </tr>
+              {/* Row 2: individual column headers */}
+              <tr>
+                {sections.map((s) =>
+                  s.columns.map((col) => (
+                    <th
+                      key={col.key}
+                      className={`px-3 py-2.5 text-xs font-medium whitespace-nowrap border-b border-surface-200 ${
+                        col.type === 'money' || col.type === 'hours' || col.type === 'bool'
+                          ? 'text-right'
+                          : 'text-left'
+                      } ${s.bg} ${s.headerText}`}
+                    >
+                      {col.label}
+                    </th>
+                  )),
+                )}
+              </tr>
+            </thead>
 
-            {payrollEmployees.length > 0 && (
-              <div className="mt-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                <p className="text-xs sm:text-sm text-surface-500">
-                  Showing {pageStart + 1}-{Math.min(pageStart + PAYROLL_ROWS_PER_PAGE, payrollEmployees.length)} of {payrollEmployees.length}
-                </p>
-                <div className="flex items-center gap-2 w-full sm:w-auto">
-                  <button
-                    type="button"
-                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                    disabled={safeCurrentPage === 1}
-                    className="btn-secondary rounded-xl min-h-[2.5rem] px-3 disabled:opacity-50 flex-1 sm:flex-none"
+            <tbody>
+              {loading ? (
+                <SkeletonTableRows rows={8} cols={allColumns.length} />
+              ) : displayedRows.length === 0 ? (
+                <tr>
+                  <td colSpan={allColumns.length} className="py-16 text-center text-surface-400">
+                    <div className="flex flex-col items-center gap-3">
+                      <Calculator className="w-10 h-10 text-surface-300" />
+                      <p className="text-base font-medium text-surface-500">No payroll data</p>
+                      <p className="text-sm text-surface-400">
+                        Select a payroll cycle and click Calculate Payroll
+                      </p>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                displayedRows.map((r) => (
+                  <tr
+                    key={r.id}
+                    className="bg-white border-b border-surface-100 hover:bg-surface-50/70 transition-colors"
                   >
-                    Previous
-                  </button>
-                  <span className="text-xs sm:text-sm text-surface-600 min-w-[80px] text-center flex-none">
-                    Page {safeCurrentPage} / {totalPages}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                    disabled={safeCurrentPage === totalPages}
-                    className="btn-secondary rounded-xl min-h-[2.5rem] px-3 disabled:opacity-50 flex-1 sm:flex-none"
-                  >
-                    Next
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
+                    {sections.map((s) =>
+                      s.columns.map((col) => {
+                        const val = col.accessor(r)
 
-          <div className="rounded-xl sm:rounded-2xl border border-surface-200/80 bg-white p-4 sm:p-6 shadow-sm">
-            <h2 className="text-sm sm:text-base font-semibold text-surface-900 mb-0.5 sm:mb-1">Export</h2>
-            <p className="text-xs sm:text-sm text-surface-500 mb-4">
-              Export payroll data for your accounting or payroll system.
-            </p>
-            <div className="flex flex-col sm:flex-row flex-wrap gap-2 sm:gap-3">
-              <button
-                type="button"
-                onClick={exportPayrollCSV}
-                className="btn-secondary flex items-center justify-center gap-2 rounded-xl w-full sm:w-auto min-h-[2.75rem]"
-              >
-                <Download className="w-4 h-4 shrink-0" />
-                Export CSV
-              </button>
-            </div>
-          </div>
-        </>
-      )}
+                        /* Employee name -- sticky left */
+                        if (col.key === 'employeeName') {
+                          return (
+                            <td
+                              key={col.key}
+                              className="py-3 px-3 text-surface-900 font-medium whitespace-nowrap sticky left-0 bg-white z-10 border-r border-surface-100"
+                            >
+                              {String(val)}
+                            </td>
+                          )
+                        }
 
-      {editEmployee && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" role="dialog" aria-modal="true" aria-labelledby="edit-salary-title">
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6">
-            <h2 id="edit-salary-title" className="text-lg font-semibold text-surface-900 mb-4">
-              Set salary — {editEmployee.employeeName}
-            </h2>
-            <div className="space-y-4">
-              <div>
-                <label className="label">Salary type</label>
-                <AdminSelect
-                  value={editSalaryType}
-                  onChange={(val) => setEditSalaryType(val as 'hourly' | 'monthly')}
-                  options={[
-                    { value: 'hourly', label: 'Hourly' },
-                    { value: 'monthly', label: 'Monthly' },
-                  ]}
-                />
-              </div>
-              <div>
-                <label className="label">
-                  {editSalaryType === 'monthly' ? 'Monthly salary' : 'Hourly rate'}
-                </label>
-                <input
-                  type="number"
-                  min={0}
-                  step={editSalaryType === 'monthly' ? 100 : 0.01}
-                  className="input w-full rounded-xl min-h-[2.75rem]"
-                  value={editBaseSalary}
-                  onChange={(e) => setEditBaseSalary(e.target.value)}
-                  placeholder={editSalaryType === 'monthly' ? 'e.g. 25000' : 'e.g. 150'}
-                />
-              </div>
-            </div>
-            <div className="mt-6 flex flex-col-reverse sm:flex-row gap-3 justify-end">
-              <button
-                type="button"
-                onClick={() => setEditEmployee(null)}
-                className="btn-secondary rounded-xl min-h-[2.75rem] px-4"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleSaveSalary}
-                disabled={savingSalary || !editBaseSalary || parseFloat(editBaseSalary) < 0}
-                className="btn-primary rounded-xl min-h-[2.75rem] px-4 disabled:opacity-60"
-              >
-                {savingSalary ? 'Saving…' : 'Save'}
-              </button>
-            </div>
-          </div>
+                        /* Boolean: deductionValidation */
+                        if (col.type === 'bool') {
+                          return (
+                            <td key={col.key} className="py-3 px-3 text-right whitespace-nowrap">
+                              {val ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">
+                                  <AlertTriangle className="w-3 h-3" />
+                                  Warning
+                                </span>
+                              ) : (
+                                <span className="text-surface-300">--</span>
+                              )}
+                            </td>
+                          )
+                        }
+
+                        /* Money */
+                        if (col.type === 'money') {
+                          return (
+                            <td
+                              key={col.key}
+                              className="py-3 px-3 text-right tabular-nums whitespace-nowrap text-surface-700"
+                            >
+                              {money(val as number)}
+                            </td>
+                          )
+                        }
+
+                        /* Hours */
+                        if (col.type === 'hours') {
+                          return (
+                            <td
+                              key={col.key}
+                              className="py-3 px-3 text-right tabular-nums whitespace-nowrap text-surface-700"
+                            >
+                              {hrs(val as number)}
+                            </td>
+                          )
+                        }
+
+                        /* Text */
+                        return (
+                          <td
+                            key={col.key}
+                            className="py-3 px-3 text-surface-700 whitespace-nowrap"
+                          >
+                            {String(val) || <span className="text-surface-300">--</span>}
+                          </td>
+                        )
+                      }),
+                    )}
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
-      )}
-
-      {addItemRow && payroll && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" role="dialog" aria-modal="true" aria-labelledby="add-item-title">
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6">
-            <h2 id="add-item-title" className="text-lg font-semibold text-surface-900 mb-4">
-              Add payable item — {addItemRow.employeeName}
-            </h2>
-            <p className="text-xs sm:text-sm text-surface-500 mb-4">Bonuses, incentives, or deductions (e.g. passthrough credits) for this period.</p>
-            <div className="space-y-4">
-              <div>
-                <label className="label">Type</label>
-                <AdminSelect
-                  value={itemType}
-                  onChange={(val) =>
-                    setItemType(val as 'bonus' | 'incentive' | 'deduction' | 'passthrough_credit')
-                  }
-                  options={[
-                    { value: 'bonus', label: 'Bonus' },
-                    { value: 'incentive', label: 'Incentive' },
-                    { value: 'deduction', label: 'Deduction' },
-                    { value: 'passthrough_credit', label: 'Passthrough credit' },
-                  ]}
-                />
-              </div>
-              <div>
-                <label className="label">Label (optional)</label>
-                <input
-                  type="text"
-                  className="input w-full rounded-xl min-h-[2.75rem]"
-                  value={itemLabel}
-                  onChange={(e) => setItemLabel(e.target.value)}
-                  placeholder="e.g. Performance bonus"
-                />
-              </div>
-              <div>
-                <label className="label">Amount</label>
-                <input
-                  type="number"
-                  step={0.01}
-                  min={0}
-                  className="input w-full rounded-xl min-h-[2.75rem]"
-                  value={itemAmount}
-                  onChange={(e) => setItemAmount(e.target.value)}
-                  placeholder="0.00"
-                />
-              </div>
-            </div>
-            <div className="mt-6 flex flex-col-reverse sm:flex-row gap-3 justify-end">
-              <button type="button" onClick={() => setAddItemRow(null)} className="btn-secondary rounded-xl min-h-[2.75rem] px-4">Cancel</button>
-              <button
-                type="button"
-                onClick={handleAddLineItem}
-                disabled={savingItem || itemAmount === '' || parseFloat(itemAmount) < 0}
-                className="btn-primary rounded-xl min-h-[2.75rem] px-4 disabled:opacity-60"
-              >
-                {savingItem ? 'Saving…' : 'Add'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      </div>
     </div>
   )
 }

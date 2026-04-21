@@ -734,3 +734,51 @@ export function computePayrollInputAmount(input: {
 export function isDeductionInputType(inputType: string): boolean {
   return inputType.startsWith('Descuento')
 }
+
+// ── Payroll Calculator ──
+export interface PayrollCalcResult {
+  id: string
+  payrollCycleCode: string
+  periodFrom: string
+  periodTo: string
+  payDate: string | null
+  biWeek: number | null
+  userId: string
+  employeeName: string
+  account: string | null
+  salaryType: string
+  salary: number
+  hourlySalary: number
+  contractStatus: string | null
+  bank: string | null
+  bankAccount: string | null
+  payMethod: string | null
+  hreg1: number; hreg2: number; hreg: number; ordinarySalary: number
+  vacation: number; matrimony: number; maternity: number; paternity: number
+  bereavement: number; medical: number; vpl: number
+  commissions: number
+  hn15Hours: number; hn15Amount: number; hx35Hours: number; hx35Amount: number
+  hx100Hours: number; hx100Amount: number; hholHours: number; hholAmount: number
+  overtimeTotal: number
+  collaboration: number; recruiting: number; profitSharing: number; bonusesTotal: number
+  attendanceIncentive: number; kpiIncentive: number; incentivesTotal: number
+  grossSalary: number; tssSalary: number; isrSalary: number
+  afp: number; sfs: number; tssDependents: number; infotep: number
+  isrRetention: number; govDeductionsTotal: number
+  payLater: number; gym: number; insuranceDed: number; cafeteria: number
+  adminDeduction: number; deduccionX: number; otherDeductionsSpare: number
+  otherDeductionsTotal: number
+  deductionValidation: boolean; totalDeductions: number; netSalary: number; notes: string | null
+  afpEmployer: number; sfsEmployer: number; arl: number; infotepEmployer: number
+}
+
+export async function getPayrollCalcResults(cycleCode: string): Promise<PayrollCalcResult[]> {
+  return api<PayrollCalcResult[]>(`/api/admin/payroll-calculator?cycle=${encodeURIComponent(cycleCode)}`)
+}
+
+export async function calculatePayroll(cycleCode: string): Promise<PayrollCalcResult[]> {
+  return api<PayrollCalcResult[]>('/api/admin/payroll-calculator/calculate', {
+    method: 'POST',
+    body: JSON.stringify({ cycleCode }),
+  })
+}

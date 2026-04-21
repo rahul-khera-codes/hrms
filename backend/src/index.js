@@ -5,6 +5,7 @@ import authRoutes from './routes/auth.js'
 import sessionsRoutes from './routes/sessions.js'
 import adminRoutes from './routes/admin.js'
 import payrollInputsRoutes from './routes/payroll-inputs.js'
+import payrollCalculatorRoutes from './routes/payroll-calculator.js'
 import notificationsRoutes from './routes/notifications.js'
 import pool from './config/db.js'
 
@@ -18,6 +19,7 @@ app.use('/api/auth', authRoutes)
 app.use('/api/sessions', sessionsRoutes)
 app.use('/api/admin', adminRoutes)
 app.use('/api/admin/payroll-inputs', payrollInputsRoutes)
+app.use('/api/admin/payroll-calculator', payrollCalculatorRoutes)
 app.use('/api/notifications', notificationsRoutes)
 
 app.get('/health', (_req, res) => {
@@ -164,6 +166,10 @@ try {
   } catch (e) {
     if (e.code !== '42701') console.warn('employees engagement columns migration:', e.message)
   }
+  // Bank/payment fields on employees
+  await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS bank VARCHAR(100)`)
+  await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS bank_account VARCHAR(50)`)
+  await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS pay_method VARCHAR(20) DEFAULT 'Deposito'`)
   await pool.query(`
     CREATE TABLE IF NOT EXISTS shifts (
       id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -423,6 +429,50 @@ try {
   } catch (e) {
     console.warn('Payroll periods init skipped (table may already exist):', e.message)
   }
+  // Payroll Calculator Results — wide 63-column table
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS payroll_calculator_results (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      payroll_cycle_code VARCHAR(20) NOT NULL,
+      period_from DATE NOT NULL, period_to DATE NOT NULL, pay_date DATE, bi_week INT,
+      user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      employee_name VARCHAR(255), account VARCHAR(255), salary_type VARCHAR(10),
+      salary DECIMAL(14,2) DEFAULT 0, hourly_salary DECIMAL(14,4) DEFAULT 0,
+      contract_status VARCHAR(20), bank VARCHAR(100), bank_account VARCHAR(50), pay_method VARCHAR(20),
+      hreg1 DECIMAL(10,2) DEFAULT 0, hreg2 DECIMAL(10,2) DEFAULT 0, hreg DECIMAL(10,2) DEFAULT 0,
+      ordinary_salary DECIMAL(14,2) DEFAULT 0,
+      vacation DECIMAL(14,2) DEFAULT 0, matrimony DECIMAL(14,2) DEFAULT 0,
+      maternity DECIMAL(14,2) DEFAULT 0, paternity DECIMAL(14,2) DEFAULT 0,
+      bereavement DECIMAL(14,2) DEFAULT 0, medical DECIMAL(14,2) DEFAULT 0, vpl DECIMAL(14,2) DEFAULT 0,
+      commissions DECIMAL(14,2) DEFAULT 0,
+      hn15_hours DECIMAL(10,2) DEFAULT 0, hn15_amount DECIMAL(14,2) DEFAULT 0,
+      hx35_hours DECIMAL(10,2) DEFAULT 0, hx35_amount DECIMAL(14,2) DEFAULT 0,
+      hx100_hours DECIMAL(10,2) DEFAULT 0, hx100_amount DECIMAL(14,2) DEFAULT 0,
+      hhol_hours DECIMAL(10,2) DEFAULT 0, hhol_amount DECIMAL(14,2) DEFAULT 0,
+      overtime_total DECIMAL(14,2) DEFAULT 0,
+      collaboration DECIMAL(14,2) DEFAULT 0, recruiting DECIMAL(14,2) DEFAULT 0,
+      profit_sharing DECIMAL(14,2) DEFAULT 0, bonuses_total DECIMAL(14,2) DEFAULT 0,
+      attendance_incentive DECIMAL(14,2) DEFAULT 0, kpi_incentive DECIMAL(14,2) DEFAULT 0,
+      incentives_total DECIMAL(14,2) DEFAULT 0,
+      gross_salary DECIMAL(14,2) DEFAULT 0, tss_salary DECIMAL(14,2) DEFAULT 0, isr_salary DECIMAL(14,2) DEFAULT 0,
+      afp DECIMAL(14,2) DEFAULT 0, sfs DECIMAL(14,2) DEFAULT 0,
+      tss_dependents DECIMAL(14,2) DEFAULT 0, infotep DECIMAL(14,2) DEFAULT 0,
+      isr_retention DECIMAL(14,2) DEFAULT 0, gov_deductions_total DECIMAL(14,2) DEFAULT 0,
+      pay_later DECIMAL(14,2) DEFAULT 0, gym DECIMAL(14,2) DEFAULT 0,
+      insurance_ded DECIMAL(14,2) DEFAULT 0, cafeteria DECIMAL(14,2) DEFAULT 0,
+      admin_deduction DECIMAL(14,2) DEFAULT 0, deduccion_x DECIMAL(14,2) DEFAULT 0,
+      other_deductions_spare DECIMAL(14,2) DEFAULT 0, other_deductions_total DECIMAL(14,2) DEFAULT 0,
+      deduction_validation BOOLEAN DEFAULT FALSE,
+      total_deductions DECIMAL(14,2) DEFAULT 0, net_salary DECIMAL(14,2) DEFAULT 0, notes TEXT,
+      afp_employer DECIMAL(14,2) DEFAULT 0, sfs_employer DECIMAL(14,2) DEFAULT 0,
+      arl DECIMAL(14,2) DEFAULT 0, infotep_employer DECIMAL(14,2) DEFAULT 0,
+      created_at TIMESTAMPTZ DEFAULT NOW(), updated_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE (payroll_cycle_code, user_id)
+    )
+  `)
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_pcr_cycle ON payroll_calculator_results (payroll_cycle_code)')
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_pcr_user ON payroll_calculator_results (user_id)')
+  console.log('Payroll calculator results table ready')
   console.log('Clients, Shifts, Schedule tables ready')
   console.log('Payroll line items, government deductions tables ready')
   console.log('Settings table ready')
