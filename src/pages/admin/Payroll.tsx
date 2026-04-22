@@ -46,12 +46,16 @@ const sections: SectionDef[] = [
     bg: 'bg-white',
     headerText: 'text-surface-700',
     columns: [
+      { key: 'cmid', label: 'CMID', type: 'text', accessor: (r) => r.employeeCmid ?? '-' },
       { key: 'employeeName', label: 'Name', type: 'text', accessor: (r) => r.employeeName },
       { key: 'account', label: 'Account', type: 'text', accessor: (r) => r.account ?? '' },
       { key: 'salaryType', label: 'Salary Type', type: 'text', accessor: (r) => r.salaryType },
       { key: 'salary', label: 'Salary', type: 'money', accessor: (r) => r.salary },
       { key: 'hourlySalary', label: 'Hourly Rate', type: 'money', accessor: (r) => r.hourlySalary },
       { key: 'contractStatus', label: 'Status', type: 'text', accessor: (r) => r.contractStatus ?? '' },
+      { key: 'bank', label: 'Bank', type: 'text', accessor: (r) => r.bank ?? '' },
+      { key: 'bankAccount', label: 'Bank Account', type: 'text', accessor: (r) => r.bankAccount ?? '' },
+      { key: 'payMethod', label: 'Payment Method', type: 'text', accessor: (r) => r.payMethod ?? '' },
     ],
   },
   {
@@ -76,7 +80,7 @@ const sections: SectionDef[] = [
       { key: 'paternity', label: 'Paternity', type: 'money', accessor: (r) => r.paternity },
       { key: 'bereavement', label: 'Bereavement', type: 'money', accessor: (r) => r.bereavement },
       { key: 'medical', label: 'Medical', type: 'money', accessor: (r) => r.medical },
-      { key: 'vpl', label: 'Total', type: 'money', accessor: (r) => r.vpl },
+      { key: 'vpl', label: 'Total VPL', type: 'money', accessor: (r) => r.vpl },
     ],
   },
   {
@@ -84,7 +88,7 @@ const sections: SectionDef[] = [
     bg: 'bg-emerald-50',
     headerText: 'text-emerald-800',
     columns: [
-      { key: 'commissions', label: 'Amount', type: 'money', accessor: (r) => r.commissions },
+      { key: 'commissions', label: 'Commissions', type: 'money', accessor: (r) => r.commissions },
     ],
   },
   {
@@ -100,7 +104,7 @@ const sections: SectionDef[] = [
       { key: 'hx100Amount', label: 'X100% $', type: 'money', accessor: (r) => r.hx100Amount },
       { key: 'hholHours', label: 'Holiday Hrs', type: 'hours', accessor: (r) => r.hholHours },
       { key: 'hholAmount', label: 'Holiday $', type: 'money', accessor: (r) => r.hholAmount },
-      { key: 'overtimeTotal', label: 'Total', type: 'money', accessor: (r) => r.overtimeTotal },
+      { key: 'overtimeTotal', label: 'Total Overtime', type: 'money', accessor: (r) => r.overtimeTotal },
     ],
   },
   {
@@ -111,7 +115,7 @@ const sections: SectionDef[] = [
       { key: 'collaboration', label: 'Collaboration', type: 'money', accessor: (r) => r.collaboration },
       { key: 'recruiting', label: 'Recruiting', type: 'money', accessor: (r) => r.recruiting },
       { key: 'profitSharing', label: 'Profit Sharing', type: 'money', accessor: (r) => r.profitSharing },
-      { key: 'bonusesTotal', label: 'Total', type: 'money', accessor: (r) => r.bonusesTotal },
+      { key: 'bonusesTotal', label: 'Total Bonuses', type: 'money', accessor: (r) => r.bonusesTotal },
     ],
   },
   {
@@ -121,7 +125,17 @@ const sections: SectionDef[] = [
     columns: [
       { key: 'attendanceIncentive', label: 'Attendance', type: 'money', accessor: (r) => r.attendanceIncentive },
       { key: 'kpiIncentive', label: 'KPI', type: 'money', accessor: (r) => r.kpiIncentive },
-      { key: 'incentivesTotal', label: 'Total', type: 'money', accessor: (r) => r.incentivesTotal },
+      { key: 'incentivesTotal', label: 'Total Incentives', type: 'money', accessor: (r) => r.incentivesTotal },
+    ],
+  },
+  {
+    name: 'Other Income',
+    bg: 'bg-emerald-50',
+    headerText: 'text-emerald-800',
+    columns: [
+      { key: 'subsidio', label: 'Subsidio', type: 'money', accessor: (r) => r.subsidio ?? 0 },
+      { key: 'reembolso', label: 'Reembolso', type: 'money', accessor: (r) => r.reembolso ?? 0 },
+      { key: 'totalOtherIncome', label: 'Total Other Income', type: 'money', accessor: (r) => r.totalOtherIncome ?? 0 },
     ],
   },
   {
@@ -129,9 +143,10 @@ const sections: SectionDef[] = [
     bg: 'bg-sky-50',
     headerText: 'text-sky-800',
     columns: [
-      { key: 'grossSalary', label: 'Gross', type: 'money', accessor: (r) => r.grossSalary },
+      { key: 'grossSalary', label: 'Gross Salary', type: 'money', accessor: (r) => r.grossSalary },
       { key: 'tssSalary', label: 'TSS Salary', type: 'money', accessor: (r) => r.tssSalary },
       { key: 'isrSalary', label: 'ISR Salary', type: 'money', accessor: (r) => r.isrSalary },
+      { key: 'infotepSalary', label: 'INFOTEP Salary', type: 'money', accessor: (r) => r.infotepSalary ?? 0 },
     ],
   },
   {
@@ -144,7 +159,7 @@ const sections: SectionDef[] = [
       { key: 'tssDependents', label: 'TSS Dep.', type: 'money', accessor: (r) => r.tssDependents },
       { key: 'infotep', label: 'INFOTEP', type: 'money', accessor: (r) => r.infotep },
       { key: 'isrRetention', label: 'ISR', type: 'money', accessor: (r) => r.isrRetention },
-      { key: 'govDeductionsTotal', label: 'Total', type: 'money', accessor: (r) => r.govDeductionsTotal },
+      { key: 'govDeductionsTotal', label: 'Total Gov. Ded.', type: 'money', accessor: (r) => r.govDeductionsTotal },
     ],
   },
   {
@@ -159,7 +174,7 @@ const sections: SectionDef[] = [
       { key: 'adminDeduction', label: 'Admin', type: 'money', accessor: (r) => r.adminDeduction },
       { key: 'deduccionX', label: 'DeduccionX', type: 'money', accessor: (r) => r.deduccionX },
       { key: 'otherDeductionsSpare', label: 'Spare', type: 'money', accessor: (r) => r.otherDeductionsSpare },
-      { key: 'otherDeductionsTotal', label: 'Total', type: 'money', accessor: (r) => r.otherDeductionsTotal },
+      { key: 'otherDeductionsTotal', label: 'Total Other Ded.', type: 'money', accessor: (r) => r.otherDeductionsTotal },
     ],
   },
   {
@@ -420,7 +435,7 @@ export default function AdminPayroll() {
       {/* ── Table ── */}
       <div className="card overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm" style={{ minWidth: '4200px' }}>
+          <table className="w-full text-sm" style={{ minWidth: '5000px' }}>
             {/* ── Two-row header ── */}
             <thead>
               {/* Row 1: section group headers */}

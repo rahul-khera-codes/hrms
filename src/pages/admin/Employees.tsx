@@ -106,17 +106,19 @@ export default function AdminEmployees() {
   const [terminationDate, setTerminationDate] = useState('')
   const [bank, setBank] = useState('')
   const [bankAccount, setBankAccount] = useState('')
-  const [payMethod, setPayMethod] = useState('')
+  // payMethod removed from employee form — it's per payroll cycle now
 
   const contractTypeOptions = [
-    { value: 'employee', label: 'Employee' },
-    { value: 'contractor', label: 'Contractor' },
+    { value: 'Employee (I)', label: 'Employee (I)' },
+    { value: 'Employee (T)', label: 'Employee (T)' },
+    { value: 'Contractor', label: 'Contractor' },
+    { value: 'Intern', label: 'Intern' },
   ]
 
   const locationOptions = [
     { value: '', label: 'Select location' },
-    { value: 'DO-SDQ1', label: 'DO-SDQ1' },
-    { value: 'DO-SDQ2', label: 'DO-SDQ2' },
+    { value: 'SD1', label: 'SD1' },
+    { value: 'SD2', label: 'SD2' },
   ]
 
   const departmentOptions = [
@@ -131,17 +133,39 @@ export default function AdminEmployees() {
 
   const jobTitleOptions = [
     { value: '', label: 'Select job title' },
-    { value: 'Agent', label: 'Agent' },
-    { value: 'Team Lead', label: 'Team Lead' },
-    { value: 'Supervisor', label: 'Supervisor' },
-    { value: 'Manager', label: 'Manager' },
-    { value: 'Director', label: 'Director' },
-    { value: 'Analyst', label: 'Analyst' },
-    { value: 'Specialist', label: 'Specialist' },
+    { value: 'Cust. Support Specialist', label: 'Cust. Support Specialist' },
+    { value: 'Cust. Support Specialist (Sr)', label: 'Cust. Support Specialist (Sr)' },
+    { value: 'Tech Support Specialist', label: 'Tech Support Specialist' },
+    { value: 'Tech Support Specialist (Sr)', label: 'Tech Support Specialist (Sr)' },
+    { value: 'Sales Support Specialist', label: 'Sales Support Specialist' },
+    { value: 'Sales Support Specialist (Sr)', label: 'Sales Support Specialist (Sr)' },
+    { value: 'Team Supervisor', label: 'Team Supervisor' },
+    { value: 'Team Supervisor (Asst)', label: 'Team Supervisor (Asst)' },
+    { value: 'Team Supervisor (Sr)', label: 'Team Supervisor (Sr)' },
+    { value: 'Account Manager', label: 'Account Manager' },
+    { value: 'Account Manager (Sr)', label: 'Account Manager (Sr)' },
+    { value: 'Operations Manager', label: 'Operations Manager' },
+    { value: 'Operations Manager (Sr)', label: 'Operations Manager (Sr)' },
+    { value: 'OX Coordinator', label: 'OX Coordinator' },
+    { value: 'QA Specialist', label: 'QA Specialist' },
+    { value: 'Trainer', label: 'Trainer' },
+    { value: 'Recruiter', label: 'Recruiter' },
+    { value: 'Recruiting Coordinator', label: 'Recruiting Coordinator' },
+    { value: 'WFM Specialist', label: 'WFM Specialist' },
+    { value: 'HR Coordinator', label: 'HR Coordinator' },
+    { value: 'Reporting Specialist', label: 'Reporting Specialist' },
+    { value: 'Receptionist', label: 'Receptionist' },
+    { value: 'IT Specialist', label: 'IT Specialist' },
+    { value: 'Finance Coordinator', label: 'Finance Coordinator' },
+    { value: 'Administrative Assistant', label: 'Administrative Assistant' },
+    { value: 'Driver', label: 'Driver' },
+    { value: 'Site Manager', label: 'Site Manager' },
+    { value: 'Janitorial Support', label: 'Janitorial Support' },
   ]
 
   const contractStatusOptions = [
     { value: 'active', label: 'Active' },
+    { value: 'onboarding', label: 'Onboarding' },
     { value: 'terminated', label: 'Terminated' },
     { value: 'suspended', label: 'Suspended' },
   ]
@@ -406,7 +430,6 @@ export default function AdminEmployees() {
     setTerminationDate('')
     setBank('')
     setBankAccount('')
-    setPayMethod('')
     setModal('add')
   }
 
@@ -435,7 +458,6 @@ export default function AdminEmployees() {
     setTerminationDate(emp.terminationDate || '')
     setBank(emp.bank || '')
     setBankAccount(emp.bankAccount || '')
-    setPayMethod(emp.payMethod || '')
     setModal('edit')
   }
 
@@ -518,7 +540,6 @@ export default function AdminEmployees() {
           terminationDate: contractStatus === 'terminated' ? terminationDate || undefined : undefined,
           bank: bank || undefined,
           bankAccount: bankAccount || undefined,
-          payMethod: payMethod || undefined,
         })
         if (assignedClientId && assignedShiftId) {
           try {
@@ -557,7 +578,6 @@ export default function AdminEmployees() {
           terminationDate: contractStatus === 'terminated' ? terminationDate || undefined : undefined,
           bank: bank || undefined,
           bankAccount: bankAccount || undefined,
-          payMethod: payMethod || undefined,
         })
         if (assignedClientId && assignedShiftId) {
           await createScheduleAssignment({
@@ -1179,8 +1199,8 @@ export default function AdminEmployees() {
                 </div>
               </div>
 
-              {/* Payment details */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {/* Bank details (no payment method — that's in payroll module) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="label">Bank</label>
                   <AdminSelect
@@ -1205,43 +1225,48 @@ export default function AdminEmployees() {
                   <label className="label">Bank Account</label>
                   <input type="text" className="input" value={bankAccount} onChange={(e) => setBankAccount(e.target.value)} placeholder="Account number" />
                 </div>
+              </div>
+
+              {/* Salary — always show type, amount, and computed hourly rate */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <label className="label">Payment Method</label>
+                  <label className="label">Salary Type</label>
                   <AdminSelect
-                    value={payMethod}
-                    onChange={setPayMethod}
+                    value={salaryType}
+                    onChange={(val) => setSalaryType(val as 'hourly' | 'monthly')}
                     options={[
-                      { value: '', label: 'Select method' },
-                      { value: 'Deposito', label: 'Deposito' },
-                      { value: 'Cheque', label: 'Cheque' },
-                      { value: 'Transferencia', label: 'Transferencia' },
+                      { value: 'hourly', label: 'Hourly' },
+                      { value: 'monthly', label: 'Monthly' },
                     ]}
                   />
                 </div>
-              </div>
-
-              <div>
-                <label className="label">Salary type</label>
-                <AdminSelect
-                  value={salaryType}
-                  onChange={(val) => setSalaryType(val as 'hourly' | 'monthly')}
-                  options={[
-                    { value: 'hourly', label: 'Hourly' },
-                    { value: 'monthly', label: 'Monthly' },
-                  ]}
-                />
-              </div>
-              <div>
-                <label className="label">{salaryType === 'monthly' ? 'Monthly base salary' : 'Hourly rate'}</label>
-                <input
-                  type="number"
-                  min={0}
-                  step={salaryType === 'monthly' ? 100 : 0.01}
-                  className="input w-full"
-                  value={baseSalary}
-                  onChange={(e) => setBaseSalary(e.target.value)}
-                  placeholder={salaryType === 'monthly' ? 'e.g. 25000' : 'e.g. 150'}
-                />
+                <div>
+                  <label className="label">Salary</label>
+                  <input
+                    type="number"
+                    min={0}
+                    step={salaryType === 'monthly' ? 100 : 0.01}
+                    className="input"
+                    value={baseSalary}
+                    onChange={(e) => setBaseSalary(e.target.value)}
+                    placeholder={salaryType === 'monthly' ? 'e.g. 40000' : 'e.g. 180'}
+                  />
+                </div>
+                <div>
+                  <label className="label">Hourly Rate</label>
+                  <input
+                    type="text"
+                    className="input bg-surface-50 text-surface-600"
+                    readOnly
+                    value={(() => {
+                      const s = parseFloat(baseSalary) || 0
+                      if (s === 0) return '$0.00'
+                      const rate = salaryType === 'monthly' ? (s * 12) / 26 / 88 : s
+                      return `$${rate.toFixed(4)}`
+                    })()}
+                  />
+                  {salaryType === 'monthly' && <p className="hint">= (salary × 12) / 26 / 88</p>}
+                </div>
               </div>
               {(modal === 'add' || modal === 'edit') && (
                 <>

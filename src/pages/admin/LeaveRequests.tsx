@@ -50,7 +50,7 @@ const leaveCategoryOptions = [
   { value: 'vacation', label: 'Vacaciones' },
 ]
 
-const assetOptions = ['Access Card', 'Uber', 'O-365', 'G-Suite']
+const assetOptions = ['Access Card', 'Uber', 'O-365', 'G-Suite', 'HHAX']
 const DAYS_OF_WEEK = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 function hourlyRateFromEmployee(
@@ -599,8 +599,8 @@ export default function AdminLeaveRequests() {
   return (
     <div className="page overflow-x-hidden">
       <PageHeader
-        title="Leave requests"
-        subtitle="Review and approve employee leave requests."
+        title="Leaves"
+        subtitle="Review and approve employee leaves."
         icon={<CalendarCheck2 className="w-5 h-5" />}
         actions={
           <>

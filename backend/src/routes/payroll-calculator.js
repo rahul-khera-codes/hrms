@@ -20,6 +20,7 @@ function mapRow(r) {
     payDate: r.pay_date,
     biWeek: r.bi_week != null ? Number(r.bi_week) : null,
     userId: r.user_id,
+    employeeCmid: r.employee_cmid != null ? Number(r.employee_cmid) : null,
     employeeName: r.employee_name,
     account: r.account,
     salaryType: r.salary_type,
@@ -57,8 +58,12 @@ function mapRow(r) {
     attendanceIncentive: Number(r.attendance_incentive) || 0,
     kpiIncentive: Number(r.kpi_incentive) || 0,
     incentivesTotal: Number(r.incentives_total) || 0,
+    subsidio: Number(r.subsidio) || 0,
+    reembolso: Number(r.reembolso) || 0,
+    totalOtherIncome: Number(r.total_other_income) || 0,
     grossSalary: Number(r.gross_salary) || 0,
     tssSalary: Number(r.tss_salary) || 0,
+    infotepSalary: Number(r.infotep_salary) || 0,
     isrSalary: Number(r.isr_salary) || 0,
     afp: Number(r.afp) || 0,
     sfs: Number(r.sfs) || 0,
@@ -143,7 +148,7 @@ router.post('/calculate', async (req, res) => {
 
     // 3. Get all employees
     const empRes = await query(`
-      SELECT u.id, u.name, e.salary_type, e.base_salary, e.contract_status,
+      SELECT u.id, u.name, e.cmid, e.salary_type, e.base_salary, e.contract_status,
              e.bank, e.bank_account, e.pay_method, c.name AS account_name
       FROM users u
       LEFT JOIN employees e ON e.user_id = u.id
@@ -160,7 +165,7 @@ router.post('/calculate', async (req, res) => {
       // Hourly salary
       const hourlySalary = salaryType === 'hourly'
         ? round4(salary)
-        : round4((salary * 12) / 365 / 8)
+        : round4((salary * 12) / 26 / 88)
 
       // 4a. Attendance hours from sessions
       const sessRes = await query(`
@@ -197,6 +202,7 @@ router.post('/calculate', async (req, res) => {
       let gym = 0
       let insuranceDed = 0
       let adminDeduction = 0
+      let subsidio = 0, reembolso = 0
 
       for (const inp of inputsRes.rows) {
         const total = Number(inp.total) || 0
@@ -254,6 +260,12 @@ router.post('/calculate', async (req, res) => {
           case 'Descuento Admin':
             adminDeduction = round2(total)
             break
+          case 'Subsidio':
+            subsidio = round2(total)
+            break
+          case 'Reembolso No Gravable':
+            reembolso = round2(total)
+            break
         }
       }
 
@@ -291,15 +303,17 @@ router.post('/calculate', async (req, res) => {
 
       const bonusesTotal = round2(collaboration + recruiting + profitSharing)
       const incentivesTotal = round2(attendanceIncentive + kpiIncentive)
+      const totalOtherIncome = round2(subsidio + reembolso)
 
-      const grossSalary = round2(ordinarySalary + vpl + commissions + overtimeTotal + bonusesTotal + incentivesTotal)
+      const grossSalary = round2(ordinarySalary + vpl + commissions + overtimeTotal + bonusesTotal + incentivesTotal + totalOtherIncome)
       const tssSalary = round2(ordinarySalary + commissions + vacation)
-      const isrSalary = round2(grossSalary)
+      const infotepSalary = round2(ordinarySalary + vpl + commissions)
 
       // Government deductions
       const afp = round2(Math.min(tssSalary, SS_BIWEEKLY.AFP_MAX_QUOTABLE) * SS_BIWEEKLY.AFP_EMPLOYEE_PCT)
       const sfs = round2(Math.min(tssSalary, SS_BIWEEKLY.SFS_MAX_QUOTABLE) * SS_BIWEEKLY.SFS_EMPLOYEE_PCT)
       const infotep = 0
+      const isrSalary = round2(grossSalary - afp - sfs - tssDependents - reembolso)
       const isrRetention = computeTaxForPeriod(isrSalary - afp - sfs, true)
       const govDeductionsTotal = round2(afp + sfs + tssDependents + infotep + isrRetention)
 
@@ -321,7 +335,7 @@ router.post('/calculate', async (req, res) => {
       await query(`
         INSERT INTO payroll_calculator_results (
           payroll_cycle_code, period_from, period_to, pay_date, bi_week,
-          user_id, employee_name, account, salary_type,
+          user_id, employee_cmid, employee_name, account, salary_type,
           salary, hourly_salary, contract_status, bank, bank_account, pay_method,
           hreg1, hreg2, hreg, ordinary_salary,
           vacation, matrimony, maternity, paternity, bereavement, medical, vpl,
@@ -331,7 +345,8 @@ router.post('/calculate', async (req, res) => {
           overtime_total,
           collaboration, recruiting, profit_sharing, bonuses_total,
           attendance_incentive, kpi_incentive, incentives_total,
-          gross_salary, tss_salary, isr_salary,
+          subsidio, reembolso, total_other_income,
+          gross_salary, tss_salary, infotep_salary, isr_salary,
           afp, sfs, tss_dependents, infotep, isr_retention, gov_deductions_total,
           pay_later, gym, insurance_ded, cafeteria, admin_deduction,
           deduccion_x, other_deductions_spare, other_deductions_total,
@@ -345,30 +360,32 @@ router.post('/calculate', async (req, res) => {
           $31,$32,$33,$34,$35,$36,$37,$38,$39,$40,
           $41,$42,$43,$44,$45,$46,$47,$48,$49,$50,
           $51,$52,$53,$54,$55,$56,$57,$58,$59,$60,
-          $61,$62,$63,$64,$65,$66,$67,$68, NOW()
+          $61,$62,$63,$64,$65,$66,$67,$68,$69,$70,
+          $71,$72,$73, NOW()
         )
         ON CONFLICT (payroll_cycle_code, user_id) DO UPDATE SET
           period_from=$2, period_to=$3, pay_date=$4, bi_week=$5,
-          employee_name=$7, account=$8, salary_type=$9,
-          salary=$10, hourly_salary=$11, contract_status=$12, bank=$13, bank_account=$14, pay_method=$15,
-          hreg1=$16, hreg2=$17, hreg=$18, ordinary_salary=$19,
-          vacation=$20, matrimony=$21, maternity=$22, paternity=$23, bereavement=$24, medical=$25, vpl=$26,
-          commissions=$27,
-          hn15_hours=$28, hn15_amount=$29, hx35_hours=$30, hx35_amount=$31,
-          hx100_hours=$32, hx100_amount=$33, hhol_hours=$34, hhol_amount=$35,
-          overtime_total=$36,
-          collaboration=$37, recruiting=$38, profit_sharing=$39, bonuses_total=$40,
-          attendance_incentive=$41, kpi_incentive=$42, incentives_total=$43,
-          gross_salary=$44, tss_salary=$45, isr_salary=$46,
-          afp=$47, sfs=$48, tss_dependents=$49, infotep=$50, isr_retention=$51, gov_deductions_total=$52,
-          pay_later=$53, gym=$54, insurance_ded=$55, cafeteria=$56, admin_deduction=$57,
-          deduccion_x=$58, other_deductions_spare=$59, other_deductions_total=$60,
-          deduction_validation=$61, total_deductions=$62, net_salary=$63, notes=$64,
-          afp_employer=$65, sfs_employer=$66, arl=$67, infotep_employer=$68,
+          employee_cmid=$7, employee_name=$8, account=$9, salary_type=$10,
+          salary=$11, hourly_salary=$12, contract_status=$13, bank=$14, bank_account=$15, pay_method=$16,
+          hreg1=$17, hreg2=$18, hreg=$19, ordinary_salary=$20,
+          vacation=$21, matrimony=$22, maternity=$23, paternity=$24, bereavement=$25, medical=$26, vpl=$27,
+          commissions=$28,
+          hn15_hours=$29, hn15_amount=$30, hx35_hours=$31, hx35_amount=$32,
+          hx100_hours=$33, hx100_amount=$34, hhol_hours=$35, hhol_amount=$36,
+          overtime_total=$37,
+          collaboration=$38, recruiting=$39, profit_sharing=$40, bonuses_total=$41,
+          attendance_incentive=$42, kpi_incentive=$43, incentives_total=$44,
+          subsidio=$45, reembolso=$46, total_other_income=$47,
+          gross_salary=$48, tss_salary=$49, infotep_salary=$50, isr_salary=$51,
+          afp=$52, sfs=$53, tss_dependents=$54, infotep=$55, isr_retention=$56, gov_deductions_total=$57,
+          pay_later=$58, gym=$59, insurance_ded=$60, cafeteria=$61, admin_deduction=$62,
+          deduccion_x=$63, other_deductions_spare=$64, other_deductions_total=$65,
+          deduction_validation=$66, total_deductions=$67, net_salary=$68, notes=$69,
+          afp_employer=$70, sfs_employer=$71, arl=$72, infotep_employer=$73,
           updated_at=NOW()
       `, [
         cycleCode, periodFrom, periodTo, payDate, biWeek,
-        emp.id, emp.name, emp.account_name || null, salaryType,
+        emp.id, emp.cmid != null ? Number(emp.cmid) : null, emp.name, emp.account_name || null, salaryType,
         salary, hourlySalary, emp.contract_status || null, emp.bank || null, emp.bank_account || null, emp.pay_method || null,
         hreg1, hreg2, hreg, ordinarySalary,
         vacation, matrimony, maternity, paternity, bereavement, medical, vpl,
@@ -378,7 +395,8 @@ router.post('/calculate', async (req, res) => {
         overtimeTotal,
         collaboration, recruiting, profitSharing, bonusesTotal,
         attendanceIncentive, kpiIncentive, incentivesTotal,
-        grossSalary, tssSalary, isrSalary,
+        subsidio, reembolso, totalOtherIncome,
+        grossSalary, tssSalary, infotepSalary, isrSalary,
         afp, sfs, tssDependents, infotep, isrRetention, govDeductionsTotal,
         payLater, gym, insuranceDed, cafeteria, adminDeduction,
         deduccionX, otherDeductionsSpare, otherDeductionsTotal,

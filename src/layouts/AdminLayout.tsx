@@ -33,7 +33,7 @@ const navSections: { title?: string; items: { to: string; label: string; icon: t
       { to: '/admin/employees', label: 'Employees', icon: Users },
       { to: '/admin/attendance', label: 'Attendance', icon: Clock },
       { to: '/admin/schedule', label: 'Schedule', icon: CalendarDays },
-      { to: '/admin/leave-requests', label: 'Leave requests', icon: CalendarCheck2 },
+      { to: '/admin/leave-requests', label: 'Leaves', icon: CalendarCheck2 },
     ],
   },
   {

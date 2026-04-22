@@ -624,6 +624,8 @@ export const PAYROLL_INPUT_TYPES = [
   'Descuento PayLater',
   'Descuento Seguro',
   'Descuento Admin',
+  'Subsidio',
+  'Reembolso No Gravable',
 ] as const
 export type PayrollInputType = (typeof PAYROLL_INPUT_TYPES)[number]
 
@@ -753,6 +755,7 @@ export interface PayrollCalcResult {
   payDate: string | null
   biWeek: number | null
   userId: string
+  employeeCmid: number | null
   employeeName: string
   account: string | null
   salaryType: string
@@ -766,6 +769,7 @@ export interface PayrollCalcResult {
   vacation: number; matrimony: number; maternity: number; paternity: number
   bereavement: number; medical: number; vpl: number
   commissions: number
+  subsidio: number; reembolso: number; totalOtherIncome: number; infotepSalary: number
   hn15Hours: number; hn15Amount: number; hx35Hours: number; hx35Amount: number
   hx100Hours: number; hx100Amount: number; hholHours: number; hholAmount: number
   overtimeTotal: number

@@ -707,7 +707,16 @@ function PayrollInputModal({
                 disabled={locked}
                 options={[
                   { value: '', label: 'Select approver' },
-                  ...admins.filter((a) => a.id !== userId).map((a) => ({ value: a.id, label: a.name })),
+                  ...['Cristopher Mojica', 'Orlando Santana', 'Jamel Rodriguez']
+                    .map((name) => {
+                      const match = admins.find((a) => a.name.toLowerCase() === name.toLowerCase())
+                      return match ? { value: match.id, label: name } : null
+                    })
+                    .filter((o): o is { value: string; label: string } => o !== null),
+                  // Fallback: if the fixed names aren't found, show all employees
+                  ...(!admins.some((a) => ['cristopher mojica', 'orlando santana', 'jamel rodriguez'].includes(a.name.toLowerCase()))
+                    ? admins.filter((a) => a.id !== userId).map((a) => ({ value: a.id, label: a.name }))
+                    : []),
                 ]}
               />
             </div>

@@ -1758,8 +1758,8 @@ router.patch('/employees/:id', async (req, res) => {
 
     const cmidVal = cmid !== undefined ? (cmid != null && Number.isInteger(Number(cmid)) ? Number(cmid) : null) : undefined
     const harmonyIdVal = cmidVal !== undefined ? (cmidVal != null ? `HRM-${String(cmidVal).padStart(5, '0')}` : null) : undefined
-    const contractTypeVal = contractType !== undefined ? (contractType === 'contractor' ? 'contractor' : 'employee') : undefined
-    const contractStatusVal = contractStatus !== undefined ? (['active', 'terminated', 'suspended'].includes(contractStatus) ? contractStatus : 'active') : undefined
+    const contractTypeVal = contractType !== undefined ? (contractType || 'Employee (I)') : undefined
+    const contractStatusVal = contractStatus !== undefined ? (['active', 'onboarding', 'terminated', 'suspended'].includes(contractStatus) ? contractStatus : 'active') : undefined
     const termDateVal = contractStatusVal === 'terminated' && terminationDate ? terminationDate : (contractStatusVal && contractStatusVal !== 'terminated' ? null : undefined)
 
     // Build the employees upsert with all engagement fields
