@@ -351,15 +351,19 @@ router.post('/calculate', async (req, res) => {
       const totalOtherIncome = round2(subsidio + reembolso)
 
       const grossSalary = round2(ordinarySalary + vpl + commissions + overtimeTotal + bonusesTotal + incentivesTotal + totalOtherIncome)
-      const tssSalary = round2(ordinarySalary + commissions + vacation)
+      const tssSalary = round2(ordinarySalary + vpl + commissions)
       const infotepSalary = round2(ordinarySalary + vpl + commissions)
 
       // Government deductions
+      // AFP: employee pays 2.87% of TSS Salary, capped at AFP_MAX_QUOTABLE
       const afp = round2(Math.min(tssSalary, SS_BIWEEKLY.AFP_MAX_QUOTABLE) * SS_BIWEEKLY.AFP_EMPLOYEE_PCT)
+      // SFS: employee pays 3.04% of TSS Salary, capped at SFS_MAX_QUOTABLE
       const sfs = round2(Math.min(tssSalary, SS_BIWEEKLY.SFS_MAX_QUOTABLE) * SS_BIWEEKLY.SFS_EMPLOYEE_PCT)
       const infotep = 0
+      // ISR Salary = Gross - AFP - SFS - TSS Dependents - Reembolso (non-taxable)
       const isrSalary = round2(grossSalary - afp - sfs - tssDependents - reembolso)
-      const isrRetention = computeTaxForPeriod(isrSalary - afp - sfs, true)
+      // ISR retention is computed on the ISR salary (AFP/SFS already deducted above)
+      const isrRetention = computeTaxForPeriod(isrSalary, true)
       const govDeductionsTotal = round2(afp + sfs + tssDependents + infotep + isrRetention)
 
       // Other deductions
