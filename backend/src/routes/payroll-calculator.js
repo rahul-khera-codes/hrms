@@ -167,20 +167,65 @@ router.post('/calculate', async (req, res) => {
         ? round4(salary)
         : round4((salary * 12) / 26 / 88)
 
-      // 4a. Attendance hours from sessions
+      // 4a. Attendance hours from sessions — grouped by week for reconciliation
+      // We group by the Sunday-start week so we can apply weekly caps.
+      // date_trunc('week', ...) uses Monday by default in PostgreSQL,
+      // so we shift by +1 day before truncating, then shift back to get Sunday-start weeks.
       const sessRes = await query(`
-        SELECT COALESCE(SUM(reg_hours),0) as reg, COALESCE(SUM(n15_hours),0) as n15,
-               COALESCE(SUM(x35_hours),0) as x35, COALESCE(SUM(x100_hours),0) as x100,
-               COALESCE(SUM(hol_hours),0) as hol
+        SELECT
+          date_trunc('week', (clock_in AT TIME ZONE 'UTC')::date + 1)::date - 1 AS week_start,
+          COALESCE(SUM(reg_hours),0) as reg,
+          COALESCE(SUM(n15_hours),0) as n15,
+          COALESCE(SUM(x35_hours),0) as x35,
+          COALESCE(SUM(x100_hours),0) as x100,
+          COALESCE(SUM(hol_hours),0) as hol
         FROM sessions WHERE user_id=$1 AND clock_in IS NOT NULL
           AND (clock_in AT TIME ZONE 'UTC')::date >= $2 AND (clock_in AT TIME ZONE 'UTC')::date <= $3
+        GROUP BY week_start
+        ORDER BY week_start
       `, [emp.id, periodFrom, periodTo])
-      const sess = sessRes.rows[0]
-      const hreg1 = round2(Number(sess.reg) || 0)
-      let hn15Hours = round2(Number(sess.n15) || 0)
-      let hx35Hours = round2(Number(sess.x35) || 0)
-      let hx100Hours = round2(Number(sess.x100) || 0)
-      let hholHours = round2(Number(sess.hol) || 0)
+
+      // Weekly reconciliation constants (Dominican Republic labor law)
+      const WEEKLY_REG_CAP = 44
+      const WEEKLY_X35_CAP = 24
+
+      // Accumulate reconciled hours across all weeks in the period
+      let hreg1 = 0
+      let hn15Hours = 0
+      let hx35Hours = 0
+      let hx100Hours = 0
+      let hholHours = 0
+
+      for (const week of sessRes.rows) {
+        const rawReg = Number(week.reg) || 0
+        const rawN15 = Number(week.n15) || 0
+        const rawX35 = Number(week.x35) || 0
+        const rawX100 = Number(week.x100) || 0
+        const rawHol = Number(week.hol) || 0
+
+        // Step 1: Cap regular at 44, overflow goes to X35
+        const reconciledReg = Math.min(rawReg, WEEKLY_REG_CAP)
+        const regOverflow = Math.max(0, rawReg - WEEKLY_REG_CAP)
+
+        // Step 2: Total X35 pool = raw X35 + overflow from regular. Cap at 24, overflow goes to X100
+        const totalX35Pool = rawX35 + regOverflow
+        const reconciledX35 = Math.min(totalX35Pool, WEEKLY_X35_CAP)
+        const x35Overflow = Math.max(0, totalX35Pool - WEEKLY_X35_CAP)
+
+        // Step 3: X100 = raw X100 + overflow from X35 (no cap)
+        const reconciledX100 = rawX100 + x35Overflow
+
+        // N15 and Holiday pass through unchanged (no caps)
+        const reconciledN15 = rawN15
+        const reconciledHol = rawHol
+
+        // Accumulate reconciled totals
+        hreg1 = round2(hreg1 + reconciledReg)
+        hn15Hours = round2(hn15Hours + reconciledN15)
+        hx35Hours = round2(hx35Hours + reconciledX35)
+        hx100Hours = round2(hx100Hours + reconciledX100)
+        hholHours = round2(hholHours + reconciledHol)
+      }
 
       // 4b. Payroll inputs (approved, matching cycle)
       const inputsRes = await query(`
