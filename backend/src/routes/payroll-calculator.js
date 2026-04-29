@@ -344,7 +344,9 @@ router.post('/calculate', async (req, res) => {
       const ordinarySalary = round2(hreg * hourlySalary)
       const vpl = round2(vacation + matrimony + maternity + paternity + bereavement + medical)
 
-      const hn15Amount = round2(hn15Hours * hourlySalary * 1.15)
+      // N15% is just the night differential premium (0.15), not full rate
+      // Night hours are already counted in regular hours — this is the extra 15% only
+      const hn15Amount = round2(hn15Hours * hourlySalary * 0.15)
       const hx35Amount = round2(hx35Hours * hourlySalary * 1.35)
       const hx100Amount = round2(hx100Hours * hourlySalary * 2.00)
       const hholAmount = round2(hholHours * hourlySalary * 1.00)
@@ -404,13 +406,13 @@ router.post('/calculate', async (req, res) => {
       }
 
       // Calculate monthly ISR using brackets, then determine this period's retention
+      // Excel: IF(BS<2, ISRMes/Pagos_Este_Mes, ISRMes-ISR1)
       const monthlyISR = computeISRMonthly(monthlyISRProjection)
+      const paymentsThisMonth = 2  // Bi-weekly = 2 payments per month
       let isrRetention = 0
       if (biWeek === 1) {
-        // 1st payout: deduct the full projected monthly ISR (will reconcile in 2nd)
-        // Actually per client: deduct proportionally — the monthly ISR is the total for the month
-        // For 1st pay, deduct a portion. Client says he deducts the amount and reconciles in 2nd.
-        isrRetention = round2(monthlyISR)
+        // 1st payout: divide monthly ISR by payments this month
+        isrRetention = round2(monthlyISR / paymentsThisMonth)
       } else {
         // 2nd payout: monthly ISR minus what was already deducted in 1st payout
         isrRetention = round2(Math.max(0, monthlyISR - prevISRRetention))

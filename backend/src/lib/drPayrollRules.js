@@ -70,22 +70,32 @@ const TAX_BRACKETS_2026_MONTHLY = [
 
 /**
  * Compute AFP employee deduction for a bi-weekly period.
- * @param {number} tssSalary - TSS Salary (Ordinary + VPL + Commissions) for the period
+ * Excel formula: IF(TSS > TopeAFP/2, TopeAFP*AFPEmpleado, TSS*AFPEmpleado)
+ * When bi-weekly TSS exceeds half the monthly cap, apply rate to full monthly cap.
+ * Otherwise, apply rate to the actual bi-weekly TSS salary.
+ * @param {number} tssSalary - TSS Salary (Ordinary + VPL + Commissions) for the bi-weekly period
  * @returns {number}
  */
 function computeAFPEmployee(tssSalary) {
-  const base = Math.min(Number(tssSalary) || 0, TSS_BIWEEKLY_CAPS.AFP)
-  return Math.round(base * TSS_CONFIG.AFP_EMPLOYEE_PCT * 100) / 100
+  const tss = Number(tssSalary) || 0
+  if (tss > TSS_MONTHLY_CAPS.AFP / 2) {
+    return Math.round(TSS_MONTHLY_CAPS.AFP * TSS_CONFIG.AFP_EMPLOYEE_PCT * 100) / 100
+  }
+  return Math.round(tss * TSS_CONFIG.AFP_EMPLOYEE_PCT * 100) / 100
 }
 
 /**
  * Compute SFS employee deduction for a bi-weekly period.
- * @param {number} tssSalary - TSS Salary for the period
+ * Excel formula: IF(TSS > TopeSFS/2, TopeSFS*SFSEmpleado, TSS*SFSEmpleado)
+ * @param {number} tssSalary - TSS Salary for the bi-weekly period
  * @returns {number}
  */
 function computeSFSEmployee(tssSalary) {
-  const base = Math.min(Number(tssSalary) || 0, TSS_BIWEEKLY_CAPS.SFS)
-  return Math.round(base * TSS_CONFIG.SFS_EMPLOYEE_PCT * 100) / 100
+  const tss = Number(tssSalary) || 0
+  if (tss > TSS_MONTHLY_CAPS.SFS / 2) {
+    return Math.round(TSS_MONTHLY_CAPS.SFS * TSS_CONFIG.SFS_EMPLOYEE_PCT * 100) / 100
+  }
+  return Math.round(tss * TSS_CONFIG.SFS_EMPLOYEE_PCT * 100) / 100
 }
 
 /**
@@ -99,6 +109,12 @@ function computeINFOTEPEmployee(profitSharing) {
 
 /**
  * Compute employer TSS costs for a bi-weekly period.
+ * Excel formulas:
+ *   AFP_E: IF(TSS > TopeAFP, TopeAFP*AFPEmpresa, TSS*AFPEmpresa)
+ *   SFS_E: IF(TSS > TopeSFS, TopeSFS*SFSEmpresa, TSS*SFSEmpresa)
+ *   ARL:   IF(TSS > TopeARL/2, TopeARL*ARLEmpresa, TSS*ARLEmpresa)
+ *   INFOTEP_E: 1% * INFOTEP Salary
+ * Note: AFP_E and SFS_E compare to FULL monthly cap (not /2)
  * @param {number} tssSalary - TSS Salary (Ordinary + VPL + Commissions)
  * @param {number} infotepSalary - INFOTEP Salary (Ordinary + Commissions, no VPL)
  * @returns {{ afp: number, sfs: number, arl: number, infotep: number }}
@@ -107,9 +123,15 @@ function computeEmployerCosts(tssSalary, infotepSalary) {
   const tss = Number(tssSalary) || 0
   const inf = Number(infotepSalary) || 0
   return {
-    afp: Math.round(Math.min(tss, TSS_BIWEEKLY_CAPS.AFP) * TSS_CONFIG.AFP_EMPLOYER_PCT * 100) / 100,
-    sfs: Math.round(Math.min(tss, TSS_BIWEEKLY_CAPS.SFS) * TSS_CONFIG.SFS_EMPLOYER_PCT * 100) / 100,
-    arl: Math.round(Math.min(tss, TSS_BIWEEKLY_CAPS.ARL) * TSS_CONFIG.ARL_EMPLOYER_PCT * 100) / 100,
+    afp: tss > TSS_MONTHLY_CAPS.AFP
+      ? Math.round(TSS_MONTHLY_CAPS.AFP * TSS_CONFIG.AFP_EMPLOYER_PCT * 100) / 100
+      : Math.round(tss * TSS_CONFIG.AFP_EMPLOYER_PCT * 100) / 100,
+    sfs: tss > TSS_MONTHLY_CAPS.SFS
+      ? Math.round(TSS_MONTHLY_CAPS.SFS * TSS_CONFIG.SFS_EMPLOYER_PCT * 100) / 100
+      : Math.round(tss * TSS_CONFIG.SFS_EMPLOYER_PCT * 100) / 100,
+    arl: tss > TSS_MONTHLY_CAPS.ARL / 2
+      ? Math.round(TSS_MONTHLY_CAPS.ARL * TSS_CONFIG.ARL_EMPLOYER_PCT * 100) / 100
+      : Math.round(tss * TSS_CONFIG.ARL_EMPLOYER_PCT * 100) / 100,
     infotep: Math.round(inf * TSS_CONFIG.INFOTEP_EMPLOYER_PCT * 100) / 100,
   }
 }
