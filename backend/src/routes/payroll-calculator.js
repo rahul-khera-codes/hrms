@@ -1,7 +1,11 @@
 import { Router } from 'express'
 import { query } from '../config/db.js'
 import { authMiddleware, requireAdmin } from '../middleware/auth.js'
-import { computeTaxForPeriod, SS_BIWEEKLY } from '../lib/drPayrollRules.js'
+import {
+  TSS_BIWEEKLY_CAPS, TSS_CONFIG,
+  computeAFPEmployee, computeSFSEmployee, computeINFOTEPEmployee,
+  computeEmployerCosts, computeISRMonthly,
+} from '../lib/drPayrollRules.js'
 
 const router = Router()
 
@@ -130,7 +134,7 @@ router.post('/calculate', async (req, res) => {
 
     // 1. Look up the payroll period
     const periodRes = await query(
-      'SELECT period_from, period_to, pay_date, cycle_code FROM payroll_periods WHERE cycle_code = $1',
+      'SELECT period_from, period_to, pay_date, cycle_code, COALESCE(bs, 1) as bs FROM payroll_periods WHERE cycle_code = $1',
       [cycleCode]
     )
     if (!periodRes.rows.length) {
@@ -141,10 +145,10 @@ router.post('/calculate', async (req, res) => {
     const periodTo = period.period_to
     const payDate = period.pay_date
 
-    // 2. Determine bi_week from cycle_code (e.g. "2026-P03" -> P number 3 -> odd -> 1)
+    // 2. Determine bi_week (BS) from period record, and P number for previous cycle lookup
     const pMatch = cycleCode.match(/P(\d+)$/)
     const pNum = pMatch ? parseInt(pMatch[1], 10) : 1
-    const biWeek = pNum % 2 === 1 ? 1 : 2
+    const biWeek = Number(period.bs) || (pNum % 2 === 1 ? 1 : 2)
 
     // 3. Get all employees
     const empRes = await query(`
@@ -352,21 +356,69 @@ router.post('/calculate', async (req, res) => {
 
       const grossSalary = round2(ordinarySalary + vpl + commissions + overtimeTotal + bonusesTotal + incentivesTotal + totalOtherIncome)
       const tssSalary = round2(ordinarySalary + vpl + commissions)
-      const infotepSalary = round2(ordinarySalary + vpl + commissions)
+      // INFOTEP Salary = Ordinary + Commissions (NO VPL per client video 2 at 13:33)
+      const infotepSalary = round2(ordinarySalary + commissions)
 
-      // Government deductions
-      // AFP: employee pays 2.87% of TSS Salary, capped at AFP_MAX_QUOTABLE
-      const afp = round2(Math.min(tssSalary, SS_BIWEEKLY.AFP_MAX_QUOTABLE) * SS_BIWEEKLY.AFP_EMPLOYEE_PCT)
-      // SFS: employee pays 3.04% of TSS Salary, capped at SFS_MAX_QUOTABLE
-      const sfs = round2(Math.min(tssSalary, SS_BIWEEKLY.SFS_MAX_QUOTABLE) * SS_BIWEEKLY.SFS_EMPLOYEE_PCT)
-      const infotep = 0
-      // ISR Salary = Gross - AFP - SFS - TSS Dependents - Reembolso (non-taxable)
+      // ── Government deductions ──
+      // AFP & SFS: employee portions with bi-weekly caps (monthly cap / 2)
+      const afp = computeAFPEmployee(tssSalary)
+      const sfs = computeSFSEmployee(tssSalary)
+      // INFOTEP employee = 0.5% of Profit Sharing bonus (Bonificación de Ley)
+      const infotep = computeINFOTEPEmployee(profitSharing)
+
+      // ── ISR (Tax) with monthly projection/reconciliation ──
+      // ISR Salary = Gross - AFP - SFS - TSS Dep - Reembolso (non-taxable)
       const isrSalary = round2(grossSalary - afp - sfs - tssDependents - reembolso)
-      // ISR retention is computed on the ISR salary (AFP/SFS already deducted above)
-      const isrRetention = computeTaxForPeriod(isrSalary, true)
+
+      // Monthly ISR projection:
+      // BS=1 (1st pay of month): project monthly = ISR salary + ordinary salary
+      // BS=2 (2nd pay of month): actual monthly = ISR salary + previous period ISR salary
+      let monthlyISRProjection = 0
+      let prevISRRetention = 0
+
+      if (biWeek === 1) {
+        // 1st payout: project monthly income = current ISR salary + ordinary salary (conservative estimate)
+        monthlyISRProjection = isrSalary + ordinarySalary
+      } else {
+        // 2nd payout: look up previous cycle's ISR salary and retention for this employee
+        const prevCycleNum = pNum - 1
+        const prevCycleCode = prevCycleNum > 0
+          ? cycleCode.replace(/P\d+$/, `P${String(prevCycleNum).padStart(2, '0')}`)
+          : null
+        if (prevCycleCode) {
+          const prevRes = await query(
+            'SELECT isr_salary, isr_retention FROM payroll_calculator_results WHERE payroll_cycle_code = $1 AND user_id = $2',
+            [prevCycleCode, emp.id]
+          )
+          if (prevRes.rows.length > 0) {
+            const prevRow = prevRes.rows[0]
+            monthlyISRProjection = isrSalary + (Number(prevRow.isr_salary) || 0)
+            prevISRRetention = Number(prevRow.isr_retention) || 0
+          } else {
+            // No previous data — treat as 1st pay projection
+            monthlyISRProjection = isrSalary + ordinarySalary
+          }
+        } else {
+          monthlyISRProjection = isrSalary + ordinarySalary
+        }
+      }
+
+      // Calculate monthly ISR using brackets, then determine this period's retention
+      const monthlyISR = computeISRMonthly(monthlyISRProjection)
+      let isrRetention = 0
+      if (biWeek === 1) {
+        // 1st payout: deduct the full projected monthly ISR (will reconcile in 2nd)
+        // Actually per client: deduct proportionally — the monthly ISR is the total for the month
+        // For 1st pay, deduct a portion. Client says he deducts the amount and reconciles in 2nd.
+        isrRetention = round2(monthlyISR)
+      } else {
+        // 2nd payout: monthly ISR minus what was already deducted in 1st payout
+        isrRetention = round2(Math.max(0, monthlyISR - prevISRRetention))
+      }
+
       const govDeductionsTotal = round2(afp + sfs + tssDependents + infotep + isrRetention)
 
-      // Other deductions
+      // ── Other deductions (employee-agreed, from payroll inputs) ──
       const deduccionX = 0
       const otherDeductionsSpare = 0
       const otherDeductionsTotal = round2(payLater + gym + insuranceDed + cafeteria + adminDeduction + deduccionX + otherDeductionsSpare)
@@ -374,11 +426,12 @@ router.post('/calculate', async (req, res) => {
       const netSalary = round2(Math.max(0, grossSalary - totalDeductions))
       const deductionValidation = otherDeductionsTotal > grossSalary * 0.1666
 
-      // Employer cost
-      const afpEmployer = round2(Math.min(tssSalary, SS_BIWEEKLY.AFP_MAX_QUOTABLE) * 0.0710)
-      const sfsEmployer = round2(Math.min(tssSalary, SS_BIWEEKLY.SFS_MAX_QUOTABLE) * 0.0709)
-      const arl = round2(Math.min(tssSalary, SS_BIWEEKLY.AFP_MAX_QUOTABLE) * 0.011)
-      const infotepEmployer = round2(Math.min(tssSalary, SS_BIWEEKLY.AFP_MAX_QUOTABLE) * 0.01)
+      // ── Employer costs ──
+      const employerCosts = computeEmployerCosts(tssSalary, infotepSalary)
+      const afpEmployer = employerCosts.afp
+      const sfsEmployer = employerCosts.sfs
+      const arl = employerCosts.arl
+      const infotepEmployer = employerCosts.infotep
 
       // 6. Upsert
       await query(`

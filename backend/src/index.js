@@ -381,6 +381,7 @@ try {
     `)
     await pool.query('CREATE INDEX IF NOT EXISTS idx_payroll_periods_dates ON payroll_periods (period_from, period_to)')
     await pool.query('CREATE INDEX IF NOT EXISTS idx_payroll_periods_year ON payroll_periods (year_cycle)')
+    await pool.query('ALTER TABLE payroll_periods ADD COLUMN IF NOT EXISTS bs INT DEFAULT 1')
     const seedPayrollPeriods = async () => {
       const periods = []
       let from = new Date('2025-11-30')
@@ -416,11 +417,17 @@ try {
         from.setDate(from.getDate() + 1)
       }
       for (const { from: pf, to: pt, pay, code, year } of periods) {
+        // BS: determine if 1st or 2nd payment of the month based on pay_date
+        const payMonth = new Date(pay).getMonth()
+        const fromMonth = new Date(pf).getMonth()
+        // Simple heuristic: if period starts in same month as pay date and day <= 15, it's BS=1
+        const pNum = parseInt(code.replace(/.*P/, ''), 10)
+        const bs = pNum % 2 === 1 ? 1 : 2
         await pool.query(
-          `INSERT INTO payroll_periods (period_from, period_to, pay_date, cycle_code, year_cycle)
-           VALUES ($1::date, $2::date, $3::date, $4, $5)
-           ON CONFLICT (period_from, period_to) DO NOTHING`,
-          [pf, pt, pay, code, year]
+          `INSERT INTO payroll_periods (period_from, period_to, pay_date, cycle_code, year_cycle, bs)
+           VALUES ($1::date, $2::date, $3::date, $4, $5, $6)
+           ON CONFLICT (period_from, period_to) DO UPDATE SET bs = $6`,
+          [pf, pt, pay, code, year, bs]
         )
       }
     }

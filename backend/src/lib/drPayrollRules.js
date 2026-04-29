@@ -1,72 +1,170 @@
 /**
- * Dominican Republic payroll rules (TSS Resolución 01-2023, DGII 2026 brackets).
- * Applicable Deductions: only Regular Salary (and Commissions, Vacation if applicable) are SS Quotable.
- * Extra hours, bonuses, incentives, subsidies, profit sharing: Taxable but NOT SS Quotable.
- * Non-taxable reimbursements and Salario Navidad: neither SS nor Tax.
+ * Dominican Republic payroll rules 2026.
+ * TSS: Resolución TSS No. 01-2023, No. 72-03
+ * ISR: Resolución DGII No. DDG-AR1-2024-00001
+ *
+ * TSS quotable income: Regular Salary + VPL + Commissions only.
+ * INFOTEP salary: Ordinary Salary + Commissions (no VPL).
+ * ISR taxable: Gross - AFP - SFS - TSS Dep - Reimbursement.
+ * Non-taxable: Reembolso No Gravable.
  */
 
-// --- Social Security (bi-weekly) ---
-const SS_BIWEEKLY = {
-  MIN_QUOTABLE: 8931.9,
-  SFS_EMPLOYEE_PCT: 0.0304,
-  SFS_MAX_QUOTABLE: 89319.2,
-  AFP_EMPLOYEE_PCT: 0.0287,
-  AFP_MAX_QUOTABLE: 178638.5,
+// ─── TSS Configuration (2026 values from client's Definitions sheet) ─────────
+// Monthly values. For bi-weekly payroll, divide caps by 2.
+const TSS_CONFIG = {
+  MIN_SALARY_MONTHLY: 23223,         // Salario Mínimo Cotizable 2026
+
+  // AFP (Pension)
+  AFP_SALARY_MULTIPLES: 20,          // Cap = 20 × min salary
+  AFP_EMPLOYEE_PCT: 0.0287,          // 2.87% employee
+  AFP_EMPLOYER_PCT: 0.071,           // 7.10% company
+
+  // SFS (Health Insurance)
+  SFS_SALARY_MULTIPLES: 10,          // Cap = 10 × min salary
+  SFS_EMPLOYEE_PCT: 0.0304,          // 3.04% employee
+  SFS_EMPLOYER_PCT: 0.0709,          // 7.09% company
+
+  // ARL (Labor Risk) — company only, employee does NOT pay ARL
+  ARL_SALARY_MULTIPLES: 4,           // Cap = 4 × min salary
+  ARL_EMPLOYER_PCT: 0.011,           // 1.10% company
+
+  // INFOTEP
+  INFOTEP_EMPLOYEE_PCT: 0.005,       // 0.5% of Profit Sharing bonus (employee)
+  INFOTEP_EMPLOYER_PCT: 0.01,        // 1% of INFOTEP Salary (company)
 }
 
-// --- Tax retention brackets 2026 - MONTHLY (DGII) ---
+// Computed monthly caps
+const TSS_MONTHLY_CAPS = {
+  AFP: TSS_CONFIG.MIN_SALARY_MONTHLY * TSS_CONFIG.AFP_SALARY_MULTIPLES,   // 464,460
+  SFS: TSS_CONFIG.MIN_SALARY_MONTHLY * TSS_CONFIG.SFS_SALARY_MULTIPLES,   // 232,230
+  ARL: TSS_CONFIG.MIN_SALARY_MONTHLY * TSS_CONFIG.ARL_SALARY_MULTIPLES,   //  92,892
+}
+
+// Bi-weekly caps (monthly / 2) — client's approach for bi-weekly payroll
+const TSS_BIWEEKLY_CAPS = {
+  AFP: TSS_MONTHLY_CAPS.AFP / 2,   // 232,230
+  SFS: TSS_MONTHLY_CAPS.SFS / 2,   // 116,115
+  ARL: TSS_MONTHLY_CAPS.ARL / 2,   //  46,446
+}
+
+// Legacy compat export (used by payroll-calculator.js)
+const SS_BIWEEKLY = {
+  MIN_QUOTABLE: TSS_CONFIG.MIN_SALARY_MONTHLY / 2,   // bi-weekly min
+  AFP_EMPLOYEE_PCT: TSS_CONFIG.AFP_EMPLOYEE_PCT,
+  AFP_MAX_QUOTABLE: TSS_BIWEEKLY_CAPS.AFP,
+  SFS_EMPLOYEE_PCT: TSS_CONFIG.SFS_EMPLOYEE_PCT,
+  SFS_MAX_QUOTABLE: TSS_BIWEEKLY_CAPS.SFS,
+}
+
+// ─── ISR Tax Brackets 2026 — MONTHLY (DGII) ─────────────────────────────────
+// Annual brackets divided by 12 to get monthly.
+// From Excel Definitions sheet: TablaISRAnual / 12
 const TAX_BRACKETS_2026_MONTHLY = [
-  { from: 1, to: 34685, baseAmount: 0, pct: 0, surpass: 0 },
-  { from: 34685, to: 52027.42, baseAmount: 0, pct: 0.15, surpass: 34685 },
-  { from: 52027.42, to: 72260.25, baseAmount: 2601.33, pct: 0.2, surpass: 52027.42 },
-  { from: 72260.25, to: Infinity, baseAmount: 6648, pct: 0.25, surpass: 72260.25 },
+  { from: 0,         to: 34685,    baseAmount: 0,       pct: 0,    surpass: 0 },
+  { from: 34685,     to: 52027.42, baseAmount: 0,       pct: 0.15, surpass: 34685 },
+  { from: 52027.42,  to: 72260.25, baseAmount: 2601.33, pct: 0.20, surpass: 52027.42 },
+  { from: 72260.25,  to: Infinity, baseAmount: 6648,    pct: 0.25, surpass: 72260.25 },
 ]
 
+// ─── Functions ───────────────────────────────────────────────────────────────
+
 /**
- * Quotable for SS = Regular Salary only (per Applicable Deductions).
- * Extra hours, bonuses, incentives are NOT quotable.
- * @param {number} regularPay - Regular pay for the period (bi-weekly)
- * @returns {number} Employee SS deduction (SFS + AFP) for bi-weekly period
+ * Compute AFP employee deduction for a bi-weekly period.
+ * @param {number} tssSalary - TSS Salary (Ordinary + VPL + Commissions) for the period
+ * @returns {number}
  */
-function computeSSEmployeeBiWeekly(regularPay) {
-  const q = Number(regularPay) || 0
-  if (q < SS_BIWEEKLY.MIN_QUOTABLE) return 0
-  const sfsBase = Math.min(q, SS_BIWEEKLY.SFS_MAX_QUOTABLE)
-  const afpBase = Math.min(q, SS_BIWEEKLY.AFP_MAX_QUOTABLE)
-  const sfs = sfsBase * SS_BIWEEKLY.SFS_EMPLOYEE_PCT
-  const afp = afpBase * SS_BIWEEKLY.AFP_EMPLOYEE_PCT
-  return Math.round((sfs + afp) * 100) / 100
+function computeAFPEmployee(tssSalary) {
+  const base = Math.min(Number(tssSalary) || 0, TSS_BIWEEKLY_CAPS.AFP)
+  return Math.round(base * TSS_CONFIG.AFP_EMPLOYEE_PCT * 100) / 100
 }
 
 /**
- * Tax 2026: apply monthly brackets to monthly taxable, then scale to period.
- * For bi-weekly: taxable_monthly_equivalent = period_taxable * (26/12), then tax_period = tax_monthly * (12/26).
- * @param {number} periodTaxable - Taxable income for the period (gross + additions - deductions; excludes non-taxable)
- * @param {boolean} isBiWeekly - If true, period is 2 weeks (26 periods/year); else treat as monthly
- * @returns {number} Tax retention for the period
+ * Compute SFS employee deduction for a bi-weekly period.
+ * @param {number} tssSalary - TSS Salary for the period
+ * @returns {number}
+ */
+function computeSFSEmployee(tssSalary) {
+  const base = Math.min(Number(tssSalary) || 0, TSS_BIWEEKLY_CAPS.SFS)
+  return Math.round(base * TSS_CONFIG.SFS_EMPLOYEE_PCT * 100) / 100
+}
+
+/**
+ * Compute INFOTEP employee deduction = 0.5% of Profit Sharing bonus.
+ * @param {number} profitSharing - Bonificación de Ley amount for the period
+ * @returns {number}
+ */
+function computeINFOTEPEmployee(profitSharing) {
+  return Math.round((Number(profitSharing) || 0) * TSS_CONFIG.INFOTEP_EMPLOYEE_PCT * 100) / 100
+}
+
+/**
+ * Compute employer TSS costs for a bi-weekly period.
+ * @param {number} tssSalary - TSS Salary (Ordinary + VPL + Commissions)
+ * @param {number} infotepSalary - INFOTEP Salary (Ordinary + Commissions, no VPL)
+ * @returns {{ afp: number, sfs: number, arl: number, infotep: number }}
+ */
+function computeEmployerCosts(tssSalary, infotepSalary) {
+  const tss = Number(tssSalary) || 0
+  const inf = Number(infotepSalary) || 0
+  return {
+    afp: Math.round(Math.min(tss, TSS_BIWEEKLY_CAPS.AFP) * TSS_CONFIG.AFP_EMPLOYER_PCT * 100) / 100,
+    sfs: Math.round(Math.min(tss, TSS_BIWEEKLY_CAPS.SFS) * TSS_CONFIG.SFS_EMPLOYER_PCT * 100) / 100,
+    arl: Math.round(Math.min(tss, TSS_BIWEEKLY_CAPS.ARL) * TSS_CONFIG.ARL_EMPLOYER_PCT * 100) / 100,
+    infotep: Math.round(inf * TSS_CONFIG.INFOTEP_EMPLOYER_PCT * 100) / 100,
+  }
+}
+
+/**
+ * Compute ISR (tax) for a MONTHLY taxable amount using 2026 brackets.
+ * @param {number} monthlyTaxable - Monthly ISR salary
+ * @returns {number} Monthly tax amount
+ */
+function computeISRMonthly(monthlyTaxable) {
+  const taxable = Number(monthlyTaxable) || 0
+  if (taxable <= 0) return 0
+  let bracket = TAX_BRACKETS_2026_MONTHLY[TAX_BRACKETS_2026_MONTHLY.length - 1]
+  for (const b of TAX_BRACKETS_2026_MONTHLY) {
+    if (taxable <= b.to) { bracket = b; break }
+  }
+  const excess = Math.max(0, taxable - bracket.surpass)
+  return Math.round((bracket.baseAmount + excess * bracket.pct) * 100) / 100
+}
+
+/**
+ * Legacy compat: compute tax for a period (bi-weekly or monthly).
+ * For bi-weekly: scales up to monthly, computes, scales back.
+ * @param {number} periodTaxable - Taxable income for the period
+ * @param {boolean} isBiWeekly
+ * @returns {number}
  */
 function computeTaxForPeriod(periodTaxable, isBiWeekly = true) {
   const taxable = Number(periodTaxable) || 0
   if (taxable <= 0) return 0
-  let monthlyTaxable
-  if (isBiWeekly) {
-    monthlyTaxable = taxable * (26 / 12)
-  } else {
-    monthlyTaxable = taxable
-  }
-  let bracket = TAX_BRACKETS_2026_MONTHLY[TAX_BRACKETS_2026_MONTHLY.length - 1]
-  for (const b of TAX_BRACKETS_2026_MONTHLY) {
-    if (monthlyTaxable >= b.from && monthlyTaxable <= b.to) {
-      bracket = b
-      break
-    }
-    if (monthlyTaxable < b.from) break
-    bracket = b
-  }
-  const excess = Math.max(0, monthlyTaxable - bracket.surpass)
-  const taxMonthly = bracket.baseAmount + excess * bracket.pct
-  const taxPeriod = isBiWeekly ? taxMonthly * (12 / 26) : taxMonthly
-  return Math.round(taxPeriod * 100) / 100
+  const monthlyTaxable = isBiWeekly ? taxable * (26 / 12) : taxable
+  const taxMonthly = computeISRMonthly(monthlyTaxable)
+  return Math.round((isBiWeekly ? taxMonthly * (12 / 26) : taxMonthly) * 100) / 100
 }
 
-export { computeSSEmployeeBiWeekly, computeTaxForPeriod, SS_BIWEEKLY, TAX_BRACKETS_2026_MONTHLY }
+/**
+ * Combined SS employee deduction (legacy compat).
+ */
+function computeSSEmployeeBiWeekly(regularPay) {
+  const q = Number(regularPay) || 0
+  if (q < SS_BIWEEKLY.MIN_QUOTABLE) return 0
+  return Math.round((computeAFPEmployee(q) + computeSFSEmployee(q)) * 100) / 100
+}
+
+export {
+  TSS_CONFIG,
+  TSS_MONTHLY_CAPS,
+  TSS_BIWEEKLY_CAPS,
+  SS_BIWEEKLY,
+  TAX_BRACKETS_2026_MONTHLY,
+  computeAFPEmployee,
+  computeSFSEmployee,
+  computeINFOTEPEmployee,
+  computeEmployerCosts,
+  computeISRMonthly,
+  computeTaxForPeriod,
+  computeSSEmployeeBiWeekly,
+}
