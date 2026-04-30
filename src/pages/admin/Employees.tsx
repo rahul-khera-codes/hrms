@@ -573,13 +573,14 @@ export default function AdminEmployees() {
 
   async function handleSave() {
     const trimmedName = name.trim()
-    const trimmedEmail = email.trim()
+    // Company email is the login email
+    const trimmedEmail = (companyEmail || email).trim()
     if (!trimmedName) {
       setError('Name is required')
       return
     }
     if (!trimmedEmail) {
-      setError('Email is required')
+      setError('Company email is required (used as login)')
       return
     }
     if (modal === 'add' && !password) {
@@ -1183,18 +1184,7 @@ export default function AdminEmployees() {
                 </div>
               </div>
 
-              {/* Login credentials */}
-              <div>
-                <label className="label">Login Email <span className="text-red-500" aria-hidden>*</span></label>
-                <input
-                  type="email"
-                  className="input w-full"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="email@example.com"
-                  required
-                />
-              </div>
+              {/* Password only — company email is the login email */}
               {modal === 'add' && (
                 <div>
                   <label className="label">Password <span className="text-red-500" aria-hidden>*</span></label>
@@ -1541,7 +1531,7 @@ export default function AdminEmployees() {
               <button
                 type="button"
                 onClick={handleSave}
-                disabled={saving || !name.trim() || !email.trim() || (modal === 'add' && (!password || password.length < 6))}
+                disabled={saving || !name.trim() || !(companyEmail || email).trim() || (modal === 'add' && (!password || password.length < 6))}
                 className="btn-primary"
               >
                 {saving ? 'Saving…' : 'Save'}
