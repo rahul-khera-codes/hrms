@@ -106,6 +106,14 @@ export default function AdminEmployees() {
   const [terminationDate, setTerminationDate] = useState('')
   const [bank, setBank] = useState('')
   const [bankAccount, setBankAccount] = useState('')
+  const [governmentId, setGovernmentId] = useState('')
+  const [gender, setGender] = useState('')
+  const [dateOfBirth, setDateOfBirth] = useState('')
+  const [personalEmail, setPersonalEmail] = useState('')
+  const [companyEmail, setCompanyEmail] = useState('')
+  const [homePhone, setHomePhone] = useState('')
+  const [mobilePhone, setMobilePhone] = useState('')
+  const [terminationReason, setTerminationReason] = useState('')
   // payMethod removed from employee form — it's per payroll cycle now
 
   const contractTypeOptions = [
@@ -124,11 +132,19 @@ export default function AdminEmployees() {
   const departmentOptions = [
     { value: '', label: 'Select department' },
     { value: 'Operations', label: 'Operations' },
-    { value: 'HR', label: 'HR' },
-    { value: 'Finance', label: 'Finance' },
-    { value: 'IT', label: 'IT' },
-    { value: 'Sales', label: 'Sales' },
-    { value: 'Support', label: 'Support' },
+    { value: 'Client Services', label: 'Client Services' },
+    { value: 'Quality Assurance (QA)', label: 'Quality Assurance (QA)' },
+    { value: 'Training & Development', label: 'Training & Development' },
+    { value: 'Workforce Management (WFM)', label: 'Workforce Management (WFM)' },
+    { value: 'Human Resources (HR)', label: 'Human Resources (HR)' },
+    { value: 'Recruitment', label: 'Recruitment' },
+    { value: 'Information Technology (IT)', label: 'Information Technology (IT)' },
+    { value: 'Facilities/Administration', label: 'Facilities/Administration' },
+    { value: 'Finance & Accounting', label: 'Finance & Accounting' },
+    { value: 'Business Intelligence', label: 'Business Intelligence' },
+    { value: 'Business Development', label: 'Business Development' },
+    { value: 'Marketing', label: 'Marketing' },
+    { value: 'Other', label: 'Other' },
   ]
 
   const jobTitleOptions = [
@@ -166,8 +182,67 @@ export default function AdminEmployees() {
   const contractStatusOptions = [
     { value: 'active', label: 'Active' },
     { value: 'onboarding', label: 'Onboarding' },
+    { value: 'prenotice', label: 'Prenotice' },
     { value: 'terminated', label: 'Terminated' },
     { value: 'suspended', label: 'Suspended' },
+  ]
+
+  const terminationReasonOptions = [
+    { value: '', label: 'Select reason' },
+    { value: 'V-Career Change', label: 'V-Career Change' },
+    { value: 'V-Dsat with Growth Opportunities', label: 'V-Dsat with Growth Opportunities' },
+    { value: 'V-Dsat with Compensation/Benefits', label: 'V-Dsat with Compensation/Benefits' },
+    { value: 'V-Dsat with Management/Leadership', label: 'V-Dsat with Management/Leadership' },
+    { value: 'V-Dsat with Policy/Process Change', label: 'V-Dsat with Policy/Process Change' },
+    { value: 'V-Dsat with Primary Account Change', label: 'V-Dsat with Primary Account Change' },
+    { value: 'V-Dsat with Team/Supervisor Change', label: 'V-Dsat with Team/Supervisor Change' },
+    { value: 'V-Dsat with Work Mode Change', label: 'V-Dsat with Work Mode Change' },
+    { value: 'V-Dsat with Relocation', label: 'V-Dsat with Relocation' },
+    { value: 'V-Dsat with Job Duties', label: 'V-Dsat with Job Duties' },
+    { value: 'V-Dsat with Schedule', label: 'V-Dsat with Schedule' },
+    { value: 'V-Dsat with Work-Life Balance', label: 'V-Dsat with Work-Life Balance' },
+    { value: 'V-Dsat with Workplace Environment', label: 'V-Dsat with Workplace Environment' },
+    { value: 'V-Another Job Offer BPO Industry', label: 'V-Another Job Offer BPO Industry' },
+    { value: 'V-Another Job Offer Different Industry', label: 'V-Another Job Offer Different Industry' },
+    { value: 'V-Another Job Offer Summer Work', label: 'V-Another Job Offer Summer Work' },
+    { value: 'V-Medical Reasons', label: 'V-Medical Reasons' },
+    { value: 'V-Military Service/Deployment', label: 'V-Military Service/Deployment' },
+    { value: 'V-Personal Reasons', label: 'V-Personal Reasons' },
+    { value: 'V-Relocating Out of Country', label: 'V-Relocating Out of Country' },
+    { value: 'V-Relocating Within Country', label: 'V-Relocating Within Country' },
+    { value: 'V-Retirement', label: 'V-Retirement' },
+    { value: 'V-School/Education Reasons', label: 'V-School/Education Reasons' },
+    { value: 'V-Other', label: 'V-Other' },
+    { value: 'I-Attendance Policy Violation', label: 'I-Attendance Policy Violation' },
+    { value: 'I-Breach of Confidentiality', label: 'I-Breach of Confidentiality' },
+    { value: 'I-Contract Expired (Non-Renewal)', label: 'I-Contract Expired (Non-Renewal)' },
+    { value: 'I-Customer Abuse', label: 'I-Customer Abuse' },
+    { value: 'I-Data Privacy Violation', label: 'I-Data Privacy Violation' },
+    { value: 'I-Deceased', label: 'I-Deceased' },
+    { value: 'I-Destruction of Company Property', label: 'I-Destruction of Company Property' },
+    { value: 'I-Discriminatory Behavior', label: 'I-Discriminatory Behavior' },
+    { value: 'I-Electronic Security Violation', label: 'I-Electronic Security Violation' },
+    { value: 'I-End of Seasonal/Temporary Assignment', label: 'I-End of Seasonal/Temporary Assignment' },
+    { value: 'I-Failure to Pass New Hire Training', label: 'I-Failure to Pass New Hire Training' },
+    { value: 'I-Failure to Pass Screening', label: 'I-Failure to Pass Screening' },
+    { value: 'I-Falsification of Records/Information', label: 'I-Falsification of Records/Information' },
+    { value: 'I-Fraud', label: 'I-Fraud' },
+    { value: 'I-Incarceration', label: 'I-Incarceration' },
+    { value: 'I-Insubordination/Disrespect', label: 'I-Insubordination/Disrespect' },
+    { value: 'I-Job Abandonment', label: 'I-Job Abandonment' },
+    { value: 'I-Loss of Client/Contract', label: 'I-Loss of Client/Contract' },
+    { value: 'I-Loss of Required License/Certification', label: 'I-Loss of Required License/Certification' },
+    { value: 'I-Medical Unfit for Duty', label: 'I-Medical Unfit for Duty' },
+    { value: 'I-Physical Security Violation', label: 'I-Physical Security Violation' },
+    { value: 'I-Poor Performance', label: 'I-Poor Performance' },
+    { value: 'I-Reduction in Force/Restructuring', label: 'I-Reduction in Force/Restructuring' },
+    { value: 'I-Refused to Comply with Work Mode Change', label: 'I-Refused to Comply with Work Mode Change' },
+    { value: 'I-Sexual Harassment', label: 'I-Sexual Harassment' },
+    { value: 'I-Theft', label: 'I-Theft' },
+    { value: 'I-Work Avoidance', label: 'I-Work Avoidance' },
+    { value: 'I-Working Under the Influence (WUI)', label: 'I-Working Under the Influence (WUI)' },
+    { value: 'I-Workplace Violence/Aggression', label: 'I-Workplace Violence/Aggression' },
+    { value: 'I-Other', label: 'I-Other' },
   ]
 
   async function loadAssignments(clientList: Client[]) {
@@ -430,6 +505,14 @@ export default function AdminEmployees() {
     setTerminationDate('')
     setBank('')
     setBankAccount('')
+    setGovernmentId('')
+    setGender('')
+    setDateOfBirth('')
+    setPersonalEmail('')
+    setCompanyEmail('')
+    setHomePhone('')
+    setMobilePhone('')
+    setTerminationReason('')
     setModal('add')
   }
 
@@ -458,6 +541,14 @@ export default function AdminEmployees() {
     setTerminationDate(emp.terminationDate || '')
     setBank(emp.bank || '')
     setBankAccount(emp.bankAccount || '')
+    setGovernmentId(emp.governmentId || '')
+    setGender(emp.gender || '')
+    setDateOfBirth(emp.dateOfBirth || '')
+    setPersonalEmail(emp.personalEmail || '')
+    setCompanyEmail(emp.companyEmail || '')
+    setHomePhone(emp.homePhone || '')
+    setMobilePhone(emp.mobilePhone || '')
+    setTerminationReason(emp.terminationReason || '')
     setModal('edit')
   }
 
@@ -537,9 +628,17 @@ export default function AdminEmployees() {
           jobTitle: jobTitle || undefined,
           reportsTo: reportsTo || undefined,
           contractStatus,
-          terminationDate: contractStatus === 'terminated' ? terminationDate || undefined : undefined,
+          terminationDate: (contractStatus === 'terminated' || contractStatus === 'prenotice') ? terminationDate || undefined : undefined,
+          terminationReason: (contractStatus === 'terminated' || contractStatus === 'prenotice') ? terminationReason || undefined : undefined,
           bank: bank || undefined,
           bankAccount: bankAccount || undefined,
+          governmentId: governmentId || undefined,
+          gender: gender || undefined,
+          dateOfBirth: dateOfBirth || undefined,
+          personalEmail: personalEmail || undefined,
+          companyEmail: companyEmail || undefined,
+          homePhone: homePhone || undefined,
+          mobilePhone: mobilePhone || undefined,
         })
         if (assignedClientId && assignedShiftId) {
           try {
@@ -575,9 +674,17 @@ export default function AdminEmployees() {
           jobTitle: jobTitle || undefined,
           reportsTo: reportsTo || undefined,
           contractStatus,
-          terminationDate: contractStatus === 'terminated' ? terminationDate || undefined : undefined,
+          terminationDate: (contractStatus === 'terminated' || contractStatus === 'prenotice') ? terminationDate || undefined : undefined,
+          terminationReason: (contractStatus === 'terminated' || contractStatus === 'prenotice') ? terminationReason || undefined : undefined,
           bank: bank || undefined,
           bankAccount: bankAccount || undefined,
+          governmentId: governmentId || undefined,
+          gender: gender || undefined,
+          dateOfBirth: dateOfBirth || undefined,
+          personalEmail: personalEmail || undefined,
+          companyEmail: companyEmail || undefined,
+          homePhone: homePhone || undefined,
+          mobilePhone: mobilePhone || undefined,
         })
         if (assignedClientId && assignedShiftId) {
           await createScheduleAssignment({
@@ -895,8 +1002,8 @@ export default function AdminEmployees() {
                   </tr>
                 ) : null}
                 {paginatedEmployees.map((emp) => (
-                  <tr key={emp.id} className={`border-b border-surface-100 hover:bg-brand-50/40 transition-colors ${selectedEmpIds.has(emp.id) ? 'bg-brand-50/30' : ''}`}>
-                    <td className="px-3 py-2.5 w-10">
+                  <tr key={emp.id} className={`border-b border-surface-100 hover:bg-brand-50/40 transition-colors cursor-pointer ${selectedEmpIds.has(emp.id) ? 'bg-brand-50/30' : ''}`} onClick={() => openEdit(emp)}>
+                    <td className="px-3 py-2.5 w-10" onClick={(e) => e.stopPropagation()}>
                       <input
                         type="checkbox"
                         aria-label={`Select ${emp.name}`}
@@ -929,7 +1036,7 @@ export default function AdminEmployees() {
                         </span>
                       ) : '-'}
                     </td>
-                    <td className="px-3 py-2.5 whitespace-nowrap text-right">
+                    <td className="px-3 py-2.5 whitespace-nowrap text-right" onClick={(e) => e.stopPropagation()}>
                       <button type="button" onClick={() => openEdit(emp)} className="p-1.5 rounded-lg text-surface-500 hover:bg-surface-100" title="Edit">
                         <Pencil className="w-3.5 h-3.5" />
                       </button>
@@ -1028,8 +1135,10 @@ export default function AdminEmployees() {
               </div>
             )}
             <div className="modal-body">
+              {/* ── PERSONAL DETAILS ── */}
+              <p className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-2">Personal Details</p>
               <div>
-                <label className="label">Name <span className="text-red-500" aria-hidden>*</span></label>
+                <label className="label">Full Name <span className="text-red-500" aria-hidden>*</span></label>
                 <input
                   type="text"
                   className="input w-full"
@@ -1040,7 +1149,43 @@ export default function AdminEmployees() {
                 />
               </div>
               <div>
-                <label className="label">Email <span className="text-red-500" aria-hidden>*</span></label>
+                <label className="label">Government ID</label>
+                <input
+                  type="text"
+                  className="input w-full"
+                  value={governmentId}
+                  onChange={(e) => setGovernmentId(e.target.value)}
+                  placeholder="000-0000000-0"
+                />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="label">Date of Birth</label>
+                  <input
+                    type="date"
+                    className="input w-full"
+                    value={dateOfBirth}
+                    onChange={(e) => setDateOfBirth(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="label">Gender</label>
+                  <AdminSelect
+                    value={gender}
+                    onChange={(val) => setGender(val)}
+                    options={[
+                      { value: '', label: 'Select gender' },
+                      { value: 'Male', label: 'Male' },
+                      { value: 'Female', label: 'Female' },
+                      { value: 'Non-binary', label: 'Non-binary' },
+                    ]}
+                  />
+                </div>
+              </div>
+
+              {/* Login credentials */}
+              <div>
+                <label className="label">Login Email <span className="text-red-500" aria-hidden>*</span></label>
                 <input
                   type="email"
                   className="input w-full"
@@ -1076,116 +1221,125 @@ export default function AdminEmployees() {
                   />
                 </div>
               )}
-              {/* Engagement Details Section */}
-              <div className="border-t border-surface-200 pt-4 mt-4">
-                <p className="text-xs font-semibold uppercase tracking-wider text-surface-500 mb-3">Engagement Details</p>
-                <div className="space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="label">CMID</label>
-                      <input
-                        type="number"
-                        min={0}
-                        step={1}
-                        className="input w-full"
-                        value={cmid}
-                        onChange={(e) => setCmid(e.target.value)}
-                        placeholder="e.g. 1001"
-                      />
-                    </div>
-                    <div>
-                      <label className="label">Harmony ID</label>
-                      <input
-                        type="text"
-                        className="input w-full bg-surface-50 text-surface-500"
-                        value={cmid ? `HRM-${cmid.padStart(5, '0')}` : ''}
-                        readOnly
-                        disabled
-                        placeholder="Auto-calculated from CMID"
-                      />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="label">Contract Type</label>
-                      <AdminSelect
-                        value={contractType}
-                        onChange={(val) => setContractType(val)}
-                        options={contractTypeOptions}
-                      />
-                    </div>
-                    <div>
-                      <label className="label">Hire Date</label>
-                      <input
-                        type="date"
-                        className="input w-full"
-                        value={hireDate}
-                        onChange={(e) => setHireDate(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="label">Location</label>
-                      <AdminSelect
-                        value={location}
-                        onChange={(val) => setLocation(val)}
-                        options={locationOptions}
-                      />
-                    </div>
-                    <div>
-                      <label className="label">Department</label>
-                      <AdminSelect
-                        value={department}
-                        onChange={(val) => setDepartment(val)}
-                        options={departmentOptions}
-                      />
-                    </div>
+
+              {/* ── ENGAGEMENT DETAILS ── */}
+              <p className="text-xs font-semibold text-surface-500 uppercase tracking-wider mt-4 mb-2 pt-3 border-t border-surface-100">Engagement Details</p>
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="label">CMID</label>
+                    <input
+                      type="number"
+                      min={0}
+                      step={1}
+                      className="input w-full"
+                      value={cmid}
+                      onChange={(e) => setCmid(e.target.value)}
+                      placeholder="e.g. 1001"
+                    />
                   </div>
                   <div>
-                    <label className="label">Primary Account</label>
+                    <label className="label">Harmony ID</label>
+                    <input
+                      type="text"
+                      className="input w-full bg-surface-50 text-surface-500"
+                      value={cmid ? `HRM-${cmid.padStart(5, '0')}` : ''}
+                      readOnly
+                      disabled
+                      placeholder="Auto-calculated from CMID"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="label">Contract Type</label>
                     <AdminSelect
-                      value={primaryClientId}
-                      onChange={(val) => setPrimaryClientId(val)}
+                      value={contractType}
+                      onChange={(val) => setContractType(val)}
+                      options={contractTypeOptions}
+                    />
+                  </div>
+                  <div>
+                    <label className="label">Hire Date</label>
+                    <input
+                      type="date"
+                      className="input w-full"
+                      value={hireDate}
+                      onChange={(e) => setHireDate(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="label">Location</label>
+                    <AdminSelect
+                      value={location}
+                      onChange={(val) => setLocation(val)}
+                      options={locationOptions}
+                    />
+                  </div>
+                  <div>
+                    <label className="label">Department</label>
+                    <AdminSelect
+                      value={department}
+                      onChange={(val) => setDepartment(val)}
+                      options={departmentOptions}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="label">Primary Account</label>
+                  <AdminSelect
+                    value={primaryClientId}
+                    onChange={(val) => setPrimaryClientId(val)}
+                    options={[
+                      { value: '', label: 'Select client' },
+                      ...clients.map((c) => ({ value: c.id, label: c.name })),
+                    ]}
+                  />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="label">Job Title</label>
+                    <AdminSelect
+                      value={jobTitle}
+                      onChange={(val) => setJobTitle(val)}
+                      options={jobTitleOptions}
+                    />
+                  </div>
+                  <div>
+                    <label className="label">Reports To</label>
+                    <AdminSelect
+                      value={reportsTo}
+                      onChange={(val) => setReportsTo(val)}
                       options={[
-                        { value: '', label: 'Select client' },
-                        ...clients.map((c) => ({ value: c.id, label: c.name })),
+                        { value: '', label: 'Select supervisor' },
+                        ...employees.filter((e) => e.id !== editing?.id).map((e) => ({ value: e.id, label: e.name })),
                       ]}
                     />
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="label">Job Title</label>
-                      <AdminSelect
-                        value={jobTitle}
-                        onChange={(val) => setJobTitle(val)}
-                        options={jobTitleOptions}
-                      />
-                    </div>
-                    <div>
-                      <label className="label">Reports To</label>
-                      <AdminSelect
-                        value={reportsTo}
-                        onChange={(val) => setReportsTo(val)}
-                        options={[
-                          { value: '', label: 'Select supervisor' },
-                          ...employees.filter((e) => e.id !== editing?.id).map((e) => ({ value: e.id, label: e.name })),
-                        ]}
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="label">Contract Status</label>
-                    <AdminSelect
-                      value={contractStatus}
-                      onChange={(val) => {
-                        setContractStatus(val)
-                        if (val !== 'terminated') setTerminationDate('')
-                      }}
-                      options={contractStatusOptions}
-                    />
-                  </div>
-                  {contractStatus === 'terminated' && (
+                </div>
+              </div>
+
+              {/* ── CONTRACT STATUS ── */}
+              <p className="text-xs font-semibold text-surface-500 uppercase tracking-wider mt-4 mb-2 pt-3 border-t border-surface-100">Contract Status</p>
+              <div className="space-y-4">
+                <div>
+                  <label className="label">Contract Status</label>
+                  <AdminSelect
+                    value={contractStatus}
+                    onChange={(val) => {
+                      setContractStatus(val)
+                      if (val !== 'terminated' && val !== 'prenotice') {
+                        setTerminationDate('')
+                        setTerminationReason('')
+                      }
+                    }}
+                    options={contractStatusOptions}
+                  />
+                </div>
+                {(contractStatus === 'terminated' || contractStatus === 'prenotice') && (
+                  <>
                     <div>
                       <label className="label">Termination Date</label>
                       <input
@@ -1195,11 +1349,20 @@ export default function AdminEmployees() {
                         onChange={(e) => setTerminationDate(e.target.value)}
                       />
                     </div>
-                  )}
-                </div>
+                    <div>
+                      <label className="label">Termination Reason</label>
+                      <AdminSelect
+                        value={terminationReason}
+                        onChange={(val) => setTerminationReason(val)}
+                        options={terminationReasonOptions}
+                      />
+                    </div>
+                  </>
+                )}
               </div>
 
-              {/* Bank details (no payment method — that's in payroll module) */}
+              {/* ── BANK DETAILS ── */}
+              <p className="text-xs font-semibold text-surface-500 uppercase tracking-wider mt-4 mb-2 pt-3 border-t border-surface-100">Bank Details</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="label">Bank</label>
@@ -1227,7 +1390,8 @@ export default function AdminEmployees() {
                 </div>
               </div>
 
-              {/* Salary — always show type, amount, and computed hourly rate */}
+              {/* ── SALARY ── */}
+              <p className="text-xs font-semibold text-surface-500 uppercase tracking-wider mt-4 mb-2 pt-3 border-t border-surface-100">Salary</p>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="label">Salary Type</label>
@@ -1268,8 +1432,58 @@ export default function AdminEmployees() {
                   {salaryType === 'monthly' && <p className="hint">= (salary × 12) / 26 / 88</p>}
                 </div>
               </div>
+
+              {/* ── CONTACT DETAILS ── */}
+              <p className="text-xs font-semibold text-surface-500 uppercase tracking-wider mt-4 mb-2 pt-3 border-t border-surface-100">Contact Details</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="label">Personal Email</label>
+                  <input
+                    type="email"
+                    className="input w-full"
+                    value={personalEmail}
+                    onChange={(e) => setPersonalEmail(e.target.value)}
+                    placeholder="personal@example.com"
+                  />
+                </div>
+                <div>
+                  <label className="label">Company Email</label>
+                  <input
+                    type="email"
+                    className="input w-full"
+                    value={companyEmail}
+                    onChange={(e) => setCompanyEmail(e.target.value)}
+                    placeholder="name@company.com"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="label">Home Phone</label>
+                  <input
+                    type="tel"
+                    className="input w-full"
+                    value={homePhone}
+                    onChange={(e) => setHomePhone(e.target.value)}
+                    placeholder="Home phone number"
+                  />
+                </div>
+                <div>
+                  <label className="label">Mobile Phone</label>
+                  <input
+                    type="tel"
+                    className="input w-full"
+                    value={mobilePhone}
+                    onChange={(e) => setMobilePhone(e.target.value)}
+                    placeholder="Mobile phone number"
+                  />
+                </div>
+              </div>
+
+              {/* ── SCHEDULE ASSIGNMENT ── */}
               {(modal === 'add' || modal === 'edit') && (
                 <>
+                  <p className="text-xs font-semibold text-surface-500 uppercase tracking-wider mt-4 mb-2 pt-3 border-t border-surface-100">Schedule Assignment</p>
                   <div>
                     <label className="label">Assign client</label>
                     <AdminSelect

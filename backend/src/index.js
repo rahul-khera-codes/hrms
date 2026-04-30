@@ -170,6 +170,15 @@ try {
   await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS bank VARCHAR(100)`)
   await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS bank_account VARCHAR(50)`)
   await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS pay_method VARCHAR(20) DEFAULT 'Deposito'`)
+  // New personal/contact fields (Employee Punchlist 29APR2026)
+  await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS government_id VARCHAR(20)`)
+  await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS gender VARCHAR(15)`)
+  await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS date_of_birth DATE`)
+  await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS personal_email VARCHAR(255)`)
+  await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS company_email VARCHAR(255)`)
+  await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS home_phone VARCHAR(30)`)
+  await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS mobile_phone VARCHAR(30)`)
+  await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS termination_reason VARCHAR(100)`)
   await pool.query(`
     CREATE TABLE IF NOT EXISTS shifts (
       id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),

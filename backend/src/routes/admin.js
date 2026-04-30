@@ -1716,7 +1716,8 @@ router.patch('/employees/:id', async (req, res) => {
     const { name, email, password, salaryType, baseSalary,
             cmid, contractType, hireDate, location, department,
             primaryClientId, jobTitle, reportsTo, contractStatus, terminationDate,
-            bank, bankAccount, payMethod } = req.body
+            bank, bankAccount, payMethod,
+            governmentId, gender, dateOfBirth, personalEmail, companyEmail, homePhone, mobilePhone, terminationReason } = req.body
     const emp = await query(
       "SELECT id FROM users WHERE id = $1 AND role = 'employee'",
       [id]
@@ -1759,8 +1760,8 @@ router.patch('/employees/:id', async (req, res) => {
     const cmidVal = cmid !== undefined ? (cmid != null && Number.isInteger(Number(cmid)) ? Number(cmid) : null) : undefined
     const harmonyIdVal = cmidVal !== undefined ? (cmidVal != null ? `HRM-${String(cmidVal).padStart(5, '0')}` : null) : undefined
     const contractTypeVal = contractType !== undefined ? (contractType || 'Employee (I)') : undefined
-    const contractStatusVal = contractStatus !== undefined ? (['active', 'onboarding', 'terminated', 'suspended'].includes(contractStatus) ? contractStatus : 'active') : undefined
-    const termDateVal = contractStatusVal === 'terminated' && terminationDate ? terminationDate : (contractStatusVal && contractStatusVal !== 'terminated' ? null : undefined)
+    const contractStatusVal = contractStatus !== undefined ? (['active', 'onboarding', 'terminated', 'suspended', 'prenotice'].includes(contractStatus) ? contractStatus : 'active') : undefined
+    const termDateVal = (contractStatusVal === 'terminated' || contractStatusVal === 'prenotice') && terminationDate ? terminationDate : (contractStatusVal && contractStatusVal !== 'terminated' && contractStatusVal !== 'prenotice' ? null : undefined)
 
     // Build the employees upsert with all engagement fields
     const empFields = {
@@ -1780,6 +1781,14 @@ router.patch('/employees/:id', async (req, res) => {
       bank: bank !== undefined ? (bank || null) : undefined,
       bank_account: bankAccount !== undefined ? (bankAccount || null) : undefined,
       pay_method: payMethod !== undefined ? (payMethod || null) : undefined,
+      government_id: governmentId !== undefined ? (governmentId || null) : undefined,
+      gender: gender !== undefined ? (gender || null) : undefined,
+      date_of_birth: dateOfBirth !== undefined ? (dateOfBirth || null) : undefined,
+      personal_email: personalEmail !== undefined ? (personalEmail || null) : undefined,
+      company_email: companyEmail !== undefined ? (companyEmail || null) : undefined,
+      home_phone: homePhone !== undefined ? (homePhone || null) : undefined,
+      mobile_phone: mobilePhone !== undefined ? (mobilePhone || null) : undefined,
+      termination_reason: terminationReason !== undefined ? (terminationReason || null) : undefined,
     }
 
     // Filter only defined fields
@@ -1793,7 +1802,7 @@ router.patch('/employees/:id', async (req, res) => {
         const vals = [id, ...definedFields.map(([, v]) => v)]
         const placeholders = vals.map((_, idx) => {
           const col = cols[idx]
-          if (['hire_date', 'termination_date'].includes(col)) return `$${idx + 1}::date`
+          if (['hire_date', 'termination_date', 'date_of_birth'].includes(col)) return `$${idx + 1}::date`
           if (['primary_client_id', 'reports_to'].includes(col)) return `$${idx + 1}::uuid`
           return `$${idx + 1}`
         })
@@ -1801,7 +1810,7 @@ router.patch('/employees/:id', async (req, res) => {
       } else {
         // Update existing
         const setClauses = definedFields.map(([k], idx) => {
-          if (['hire_date', 'termination_date'].includes(k)) return `${k} = $${idx + 1}::date`
+          if (['hire_date', 'termination_date', 'date_of_birth'].includes(k)) return `${k} = $${idx + 1}::date`
           if (['primary_client_id', 'reports_to'].includes(k)) return `${k} = $${idx + 1}::uuid`
           return `${k} = $${idx + 1}`
         })
@@ -1819,6 +1828,8 @@ router.patch('/employees/:id', async (req, res) => {
               e.location, e.department, e.primary_client_id, e.job_title,
               e.reports_to, e.contract_status, e.termination_date::text AS termination_date,
               e.bank, e.bank_account, e.pay_method,
+              e.government_id, e.gender, e.date_of_birth::text AS date_of_birth,
+              e.personal_email, e.company_email, e.home_phone, e.mobile_phone, e.termination_reason,
               c.name AS primary_client_name,
               mgr.name AS reports_to_name
        FROM users u
@@ -1851,6 +1862,14 @@ router.patch('/employees/:id', async (req, res) => {
       bank: row.bank || null,
       bankAccount: row.bank_account || null,
       payMethod: row.pay_method || null,
+      governmentId: row.government_id || null,
+      gender: row.gender || null,
+      dateOfBirth: row.date_of_birth?.slice(0, 10) ?? null,
+      personalEmail: row.personal_email || null,
+      companyEmail: row.company_email || null,
+      homePhone: row.home_phone || null,
+      mobilePhone: row.mobile_phone || null,
+      terminationReason: row.termination_reason || null,
     })
   } catch (err) {
     console.error('Update employee error:', err)
@@ -1908,6 +1927,8 @@ router.get('/employees', async (req, res) => {
               e.location, e.department, e.primary_client_id, e.job_title,
               e.reports_to, e.contract_status, e.termination_date::text AS termination_date,
               e.bank, e.bank_account, e.pay_method,
+              e.government_id, e.gender, e.date_of_birth::text AS date_of_birth,
+              e.personal_email, e.company_email, e.home_phone, e.mobile_phone, e.termination_reason,
               c.name AS primary_client_name,
               mgr.name AS reports_to_name
        FROM users u
@@ -1939,6 +1960,14 @@ router.get('/employees', async (req, res) => {
       bank: r.bank || null,
       bankAccount: r.bank_account || null,
       payMethod: r.pay_method || null,
+      governmentId: r.government_id || null,
+      gender: r.gender || null,
+      dateOfBirth: r.date_of_birth?.slice(0, 10) ?? null,
+      personalEmail: r.personal_email || null,
+      companyEmail: r.company_email || null,
+      homePhone: r.home_phone || null,
+      mobilePhone: r.mobile_phone || null,
+      terminationReason: r.termination_reason || null,
     })))
   } catch (err) {
     console.error('Admin list employees error:', err)

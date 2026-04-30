@@ -36,7 +36,7 @@ export function DetailModalHeader({
           <h2 className="text-base font-semibold text-surface-900 truncate">{employeeName}</h2>
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1">
             <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-surface-100 border border-surface-200 text-[11px] font-mono font-medium text-surface-700">
-              CMID {cmid ?? '-'}
+              CMID: {cmid ?? '-'}
             </span>
             {reportsTo && (
               <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-surface-100 border border-surface-200 text-[11px] font-medium text-surface-700">
@@ -45,7 +45,7 @@ export function DetailModalHeader({
             )}
             {accountName && (
               <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-brand-50 border border-brand-100 text-[11px] font-medium text-brand-700">
-                {accountName}
+                Primary Account: {accountName}
               </span>
             )}
             {extra}
