@@ -267,6 +267,9 @@ try {
     await pool.query(`ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS payroll_cycle_code VARCHAR(20)`)
     // 14APR2026 feedback: lock toggle on leave requests
     await pool.query(`ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS is_locked BOOLEAN NOT NULL DEFAULT FALSE`)
+    // 29APR2026 leaves punchlist: payroll status + approver
+    await pool.query(`ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS payroll_status VARCHAR(20) DEFAULT 'Pending'`)
+    await pool.query(`ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS approver_name VARCHAR(255)`)
   } catch (e) {
     if (e.code !== '42701') console.warn('leave_requests admin create columns migration:', e.message)
   }

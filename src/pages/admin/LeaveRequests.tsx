@@ -50,7 +50,7 @@ const leaveCategoryOptions = [
   { value: 'vacation', label: 'Vacaciones' },
 ]
 
-const assetOptions = ['Access Card', 'Uber', 'O-365', 'G-Suite', 'HHAX']
+const assetOptions = ['Access Card', 'Uber', 'O-365', 'G-Suite', 'HHAX', 'Phone Ext.', 'Cafeteria']
 const DAYS_OF_WEEK = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 function hourlyRateFromEmployee(
@@ -105,6 +105,7 @@ export default function AdminLeaveRequests() {
   const [loading, setLoading] = useState(true)
   const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all')
   const [filterLeaveType, setFilterLeaveType] = useState<string>('all')
+  const [filterCycle, setFilterCycle] = useState<string>('all')
   const [search, setSearch] = useState('')
   // Per-column sort/filter (standard from 14APR2026 — "every table")
   const [sortCol, setSortCol] = useState<string | null>(null)
@@ -203,6 +204,8 @@ export default function AdminLeaveRequests() {
   const [createAssetDeactivation, setCreateAssetDeactivation] = useState<string[]>([])
   const [createPayrollCycleCode, setCreatePayrollCycleCode] = useState('')
   const [createReason, setCreateReason] = useState('')
+  const [createApproverName, setCreateApproverName] = useState('')
+  const [createPayrollStatus, setCreatePayrollStatus] = useState('Pending')
   const [createSaving, setCreateSaving] = useState(false)
 
   async function load(showLoader = true) {
@@ -246,6 +249,7 @@ export default function AdminLeaveRequests() {
     const q = search.trim().toLowerCase()
     let result = rows.filter((r) => {
       if (filterLeaveType !== 'all' && r.leaveCategory !== filterLeaveType) return false
+      if (filterCycle !== 'all' && r.payrollCycleCode !== filterCycle) return false
       if (!q) return true
       return (
         r.employeeName.toLowerCase().includes(q) ||
@@ -273,7 +277,7 @@ export default function AdminLeaveRequests() {
     }
     return result
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, search, filterLeaveType, columnFilters, sortCol, sortDir])
+  }, [rows, search, filterLeaveType, filterCycle, columnFilters, sortCol, sortDir])
 
   const summary = useMemo(() => {
     return {
@@ -337,6 +341,14 @@ export default function AdminLeaveRequests() {
       setNotice('Employee, start date, and end date are required.')
       return
     }
+    if (createEndDate < createStartDate) {
+      toast.error('End date cannot be earlier than start date')
+      return
+    }
+    if (createReturnDate && (createReturnDate < createStartDate || createReturnDate < createEndDate)) {
+      toast.error('Return date cannot be earlier than start or end date')
+      return
+    }
     setCreateSaving(true)
     try {
       const leaveType = createLeaveCategory === 'time_off' ? 'unpaid' : 'paid'
@@ -359,6 +371,8 @@ export default function AdminLeaveRequests() {
         assetDeactivation: createAssetDeactivation.length > 0 ? createAssetDeactivation : undefined,
         payrollCycleCode: createCalcType !== 'non_payable' && createPayrollCycleCode ? createPayrollCycleCode : undefined,
         reason: createReason.trim() || undefined,
+        approverName: createApproverName || undefined,
+        payrollStatus: createPayrollStatus || undefined,
       })
       setNotice('Leave created successfully.')
       setShowCreateModal(false)
@@ -380,6 +394,8 @@ export default function AdminLeaveRequests() {
       setCreateAssetDeactivation([])
       setCreatePayrollCycleCode('')
       setCreateReason('')
+      setCreateApproverName('')
+      setCreatePayrollStatus('Pending')
       await load(false)
     } catch (err: unknown) {
       const msg = err && typeof err === 'object' && 'message' in err ? String((err as Error).message) : 'Failed to create leave.'
@@ -621,7 +637,7 @@ export default function AdminLeaveRequests() {
         }
       />
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
         <div className="stat-card">
           <p className="stat-label">Total</p>
           <p className="stat-value">{summary.total}</p>
@@ -641,10 +657,6 @@ export default function AdminLeaveRequests() {
         <div className="stat-card border-brand-200/70 bg-brand-50/40">
           <p className="stat-label text-brand-700">Payable Amount</p>
           <p className="stat-value">${summary.payableAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-        </div>
-        <div className="stat-card border-violet-200/70 bg-violet-50/40">
-          <p className="stat-label text-violet-700">Payable Days</p>
-          <p className="stat-value">{summary.payableDays.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</p>
         </div>
       </div>
 
@@ -678,6 +690,16 @@ export default function AdminLeaveRequests() {
               { value: 'pending', label: 'Pending' },
               { value: 'approved', label: 'Approved' },
               { value: 'rejected', label: 'Rejected' },
+            ]}
+          />
+        </div>
+        <div className="w-full sm:w-52">
+          <AdminSelect
+            value={filterCycle}
+            onChange={(val) => setFilterCycle(val)}
+            options={[
+              { value: 'all', label: 'All cycles' },
+              ...payrollPeriods.map((p) => ({ value: p.cycleCode, label: p.cycleCode })),
             ]}
           />
         </div>
@@ -916,27 +938,27 @@ export default function AdminLeaveRequests() {
             <p className="mt-1 text-sm text-surface-500">Create a leave on behalf of an employee.</p>
 
             <div className="mt-4 space-y-4">
-              {/* Employee Selection */}
-              <div>
-                <label className="label">Employee</label>
-                <AdminSelect
-                  value={createEmployeeId}
-                  onChange={(val) => setCreateEmployeeId(val)}
-                  options={[
-                    { value: '', label: 'Select employee' },
-                    ...employees.map((e) => ({ value: e.id, label: e.name })),
-                  ]}
-                />
-              </div>
-
-              {/* Leave Type */}
-              <div>
-                <label className="label">Leave Type</label>
-                <AdminSelect
-                  value={createLeaveCategory}
-                  onChange={(val) => setCreateLeaveCategory(val)}
-                  options={leaveCategoryOptions}
-                />
+              {/* Employee + Leave Type side by side */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="label">Employee</label>
+                  <AdminSelect
+                    value={createEmployeeId}
+                    onChange={(val) => setCreateEmployeeId(val)}
+                    options={[
+                      { value: '', label: 'Select employee' },
+                      ...employees.map((e) => ({ value: e.id, label: e.name })),
+                    ]}
+                  />
+                </div>
+                <div>
+                  <label className="label">Leave Type</label>
+                  <AdminSelect
+                    value={createLeaveCategory}
+                    onChange={(val) => setCreateLeaveCategory(val)}
+                    options={leaveCategoryOptions}
+                  />
+                </div>
               </div>
 
               {/* Calculation Type - toggle buttons */}
@@ -964,23 +986,19 @@ export default function AdminLeaveRequests() {
                 </div>
               </div>
 
-              {/* Conditional: Payable Days (shown when hourly or monthly) */}
-              {createCalcType !== 'non_payable' && (
-                <div>
-                  <label className="label">Payable Days</label>
-                  <input
-                    type="number" min={0} max={366} step={0.5}
-                    className="input w-full rounded-xl"
-                    value={createPayableDays}
-                    onChange={(e) => setCreatePayableDays(e.target.value)}
-                    placeholder="Number of payable days"
-                  />
-                </div>
-              )}
-
-              {/* Conditional: Hourly Rate + Daily Hours (shown when hourly) */}
+              {/* Conditional: Payable Days + rate fields in single row */}
               {createCalcType === 'hourly_salary' && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="label">Payable Days</label>
+                    <input
+                      type="number" min={0} max={366} step={0.5}
+                      className="input w-full rounded-xl"
+                      value={createPayableDays}
+                      onChange={(e) => setCreatePayableDays(e.target.value)}
+                      placeholder="Days"
+                    />
+                  </div>
                   <div>
                     <label className="label">Hourly Rate</label>
                     <input
@@ -1004,17 +1022,28 @@ export default function AdminLeaveRequests() {
                 </div>
               )}
 
-              {/* Conditional: Monthly Rate (shown when monthly) */}
               {createCalcType === 'monthly_salary' && (
-                <div>
-                  <label className="label">Monthly Rate</label>
-                  <input
-                    type="number" min={0} step={100}
-                    className="input w-full rounded-xl"
-                    value={createMonthlyRate}
-                    onChange={(e) => setCreateMonthlyRate(e.target.value)}
-                    placeholder="e.g. 50000"
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="label">Payable Days</label>
+                    <input
+                      type="number" min={0} max={366} step={0.5}
+                      className="input w-full rounded-xl"
+                      value={createPayableDays}
+                      onChange={(e) => setCreatePayableDays(e.target.value)}
+                      placeholder="Days"
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="label">Monthly Rate</label>
+                    <input
+                      type="number" min={0} step={100}
+                      className="input w-full rounded-xl"
+                      value={createMonthlyRate}
+                      onChange={(e) => setCreateMonthlyRate(e.target.value)}
+                      placeholder="e.g. 50000"
+                    />
+                  </div>
                 </div>
               )}
 
@@ -1118,19 +1147,46 @@ export default function AdminLeaveRequests() {
                     </p>
                   </div>
 
-                  <div>
-                    <label className="label">Payroll Cycle</label>
-                    <AdminSelect
-                      value={createPayrollCycleCode}
-                      onChange={(val) => setCreatePayrollCycleCode(val)}
-                      options={[
-                        { value: '', label: 'Select payroll cycle' },
-                        ...payrollPeriods.map((p) => ({ value: p.cycleCode, label: `${p.cycleCode} (${p.periodFrom} - ${p.periodTo})` })),
-                      ]}
-                    />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="label">Payroll Cycle</label>
+                      <AdminSelect
+                        value={createPayrollCycleCode}
+                        onChange={(val) => setCreatePayrollCycleCode(val)}
+                        options={[
+                          { value: '', label: 'Select payroll cycle' },
+                          ...payrollPeriods.map((p) => ({ value: p.cycleCode, label: `${p.cycleCode} (${p.periodFrom} - ${p.periodTo})` })),
+                        ]}
+                      />
+                    </div>
+                    <div>
+                      <label className="label">Approver</label>
+                      <AdminSelect
+                        value={createApproverName}
+                        onChange={(val) => setCreateApproverName(val)}
+                        options={[
+                          { value: '', label: 'Select approver' },
+                          ...['Cristopher Mojica', 'Orlando Santana', 'Jamel Rodriguez'].map((name) => ({ value: name, label: name })),
+                        ]}
+                      />
+                    </div>
                   </div>
                 </>
               )}
+
+              {/* Payroll Status */}
+              <div>
+                <label className="label">Payroll Status</label>
+                <AdminSelect
+                  value={createPayrollStatus}
+                  onChange={(val) => setCreatePayrollStatus(val)}
+                  options={[
+                    { value: 'Pending', label: 'Pending' },
+                    { value: 'Processed', label: 'Processed' },
+                    { value: 'N/A', label: 'N/A' },
+                  ]}
+                />
+              </div>
 
               {/* Reason */}
               <div>

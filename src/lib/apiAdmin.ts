@@ -534,6 +534,8 @@ export interface AdminLeaveRequest {
   accountName?: string | null
   reportsTo?: string | null
   isLocked?: boolean
+  payrollStatus?: string | null
+  approverName?: string | null
 }
 
 export interface LeaveReviewContext {
@@ -618,6 +620,8 @@ export async function createAdminLeaveRequest(data: {
   assetDeactivation?: string[]
   payrollCycleCode?: string
   reason?: string
+  approverName?: string
+  payrollStatus?: string
 }): Promise<AdminLeaveRequest> {
   return api<AdminLeaveRequest>('/api/admin/leave-requests', {
     method: 'POST',

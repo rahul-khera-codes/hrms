@@ -700,7 +700,8 @@ router.post('/leave-requests', async (req, res) => {
       payableDays, hourlyRate, dailyHours, monthlyRate,
       associateDaysOff, startDate, endDate, returnDate,
       startTime, endTime, returnTime,
-      assetDeactivation, payrollCycleCode, reason
+      assetDeactivation, payrollCycleCode, reason,
+      payrollStatus, approverName
     } = req.body
 
     if (!employeeId || !startDate || !endDate) {
@@ -760,7 +761,8 @@ router.post('/leave-requests', async (req, res) => {
          leave_payable_days, leave_hourly_rate, leave_daily_hours, leave_daily_salary, leave_payable_amount,
          hourly_rate_input, daily_hours_input, monthly_rate_input,
          asset_deactivation, payroll_cycle_code,
-         reviewed_by, reviewed_at
+         reviewed_by, reviewed_at,
+         payroll_status, approver_name
        ) VALUES (
          $1, $2, $3::date, $4::date, $5, 'approved',
          $6, $7, $8,
@@ -768,14 +770,16 @@ router.post('/leave-requests', async (req, res) => {
          $13, $14, $15, $16, $17,
          $18, $19, $20,
          $21, $22,
-         $23, NOW()
+         $23, NOW(),
+         $24, $25
        )
        RETURNING id, leave_type, start_date::text AS start_date_str, end_date::text AS end_date_str,
          reason, status, created_at, leave_category, leave_calculation_type, leave_associate_days_off,
          return_date::text AS return_date_str, start_time::text, end_time::text, return_time::text,
          leave_payable_days, leave_payable_amount, leave_daily_salary,
          hourly_rate_input, daily_hours_input, monthly_rate_input,
-         asset_deactivation, payroll_cycle_code`,
+         asset_deactivation, payroll_cycle_code,
+         payroll_status, approver_name`,
       [
         employeeId, type, startDate, endDate, reason ? String(reason).trim() : null,
         category, calcType, assocStr,
@@ -783,7 +787,9 @@ router.post('/leave-requests', async (req, res) => {
         pd, Math.round(snapshotHourlyRate * 10000) / 10000, Number(dailyHours) || settings.hoursPerDay, dailySalary, payableAmount,
         Number(hourlyRate) || null, Number(dailyHours) || null, Number(monthlyRate) || null,
         assetStr, payrollCycleCode || null,
-        req.user.id
+        req.user.id,
+        payrollStatus ? String(payrollStatus).trim() : null,
+        approverName ? String(approverName).trim() : null
       ]
     )
     const r = result.rows[0]
@@ -821,6 +827,8 @@ router.post('/leave-requests', async (req, res) => {
       monthlyRateInput: r.monthly_rate_input != null ? Number(r.monthly_rate_input) : null,
       assetDeactivation: r.asset_deactivation || null,
       payrollCycleCode: r.payroll_cycle_code || null,
+      payrollStatus: r.payroll_status || 'Pending',
+      approverName: r.approver_name || null,
     })
   } catch (err) {
     console.error('Admin create leave request error:', err)
@@ -849,6 +857,7 @@ router.get('/leave-requests', async (req, res) => {
               lr.asset_deactivation, lr.payroll_cycle_code,
               lr.leave_daily_salary,
               lr.is_locked,
+              lr.payroll_status, lr.approver_name,
               e.cmid AS employee_cmid,
               c.name AS account_name,
               mgr.name AS reports_to_name
@@ -898,6 +907,8 @@ router.get('/leave-requests', async (req, res) => {
       accountName: r.account_name || null,
       reportsTo: r.reports_to_name || null,
       isLocked: r.is_locked === true,
+      payrollStatus: r.payroll_status || 'Pending',
+      approverName: r.approver_name || null,
     })))
   } catch (err) {
     console.error('Admin list leave requests error:', err)
@@ -919,7 +930,8 @@ router.get('/leave-requests/:id/review-context', async (req, res) => {
               lr.leave_category, lr.leave_calculation_type, lr.leave_associate_days_off,
               lr.leave_payable_days, lr.reviewed_note,
               lr.return_date::text AS return_date_str,
-              lr.start_time::text, lr.end_time::text, lr.return_time::text
+              lr.start_time::text, lr.end_time::text, lr.return_time::text,
+              lr.payroll_status, lr.approver_name
        FROM leave_requests lr
        WHERE lr.id = $1`,
       [id]
@@ -965,6 +977,8 @@ router.get('/leave-requests/:id/review-context', async (req, res) => {
         startTime: row.start_time || null,
         endTime: row.end_time || null,
         returnTime: row.return_time || null,
+        payrollStatus: row.payroll_status || 'Pending',
+        approverName: row.approver_name || null,
       },
       employee: {
         salaryType,
@@ -990,7 +1004,7 @@ router.patch('/leave-requests/:id', async (req, res) => {
     if (!UUID_RE.test(id)) {
       return res.status(400).json({ error: 'Bad request', message: 'Leave request id must be a valid UUID.' })
     }
-    const { status, reviewedNote, calculationType, associateDaysOff, payableDays, isLocked, force } = req.body
+    const { status, reviewedNote, calculationType, associateDaysOff, payableDays, isLocked, force, payrollStatus, approverName } = req.body
 
     // 14APR2026 feedback: lock toggle. Handle lock-only updates separately so they work on any record.
     const existing = await query(
@@ -1012,7 +1026,8 @@ router.patch('/leave-requests/:id', async (req, res) => {
          RETURNING id, user_id, leave_type, start_date::text AS start_date_str, end_date::text AS end_date_str,
                    reason, status, reviewed_note, reviewed_at, created_at,
                    leave_calculation_type, leave_associate_days_off, leave_payable_days, leave_payable_amount,
-                   leave_category, return_date::text AS return_date_str, start_time::text, end_time::text, return_time::text, is_locked`,
+                   leave_category, return_date::text AS return_date_str, start_time::text, end_time::text, return_time::text, is_locked,
+                   payroll_status, approver_name`,
         [!!isLocked, id]
       )
       return res.json(mapLeaveRowToJson(upd.rows[0]))
@@ -1046,13 +1061,18 @@ router.patch('/leave-requests/:id', async (req, res) => {
              leave_hourly_rate = NULL,
              leave_daily_hours = NULL,
              leave_daily_salary = NULL,
-             leave_payable_amount = NULL
+             leave_payable_amount = NULL,
+             payroll_status = COALESCE($4, payroll_status),
+             approver_name = COALESCE($5, approver_name)
          WHERE id = $3
          RETURNING id, user_id, leave_type, start_date::text AS start_date_str, end_date::text AS end_date_str,
                    reason, status, reviewed_note, reviewed_at, created_at,
                    leave_calculation_type, leave_associate_days_off, leave_payable_days, leave_payable_amount,
-                   leave_category, return_date::text AS return_date_str, start_time::text, end_time::text, return_time::text`,
-        [req.user.id, noteVal, id]
+                   leave_category, return_date::text AS return_date_str, start_time::text, end_time::text, return_time::text,
+                   payroll_status, approver_name`,
+        [req.user.id, noteVal, id,
+         payrollStatus ? String(payrollStatus).trim() : null,
+         approverName ? String(approverName).trim() : null]
       )
       if (!result.rows.length) {
         return res.status(404).json({ error: 'Not found', message: 'Leave request not found or already reviewed' })
@@ -1137,12 +1157,15 @@ router.patch('/leave-requests/:id', async (req, res) => {
            leave_hourly_rate = $6,
            leave_daily_hours = $7,
            leave_daily_salary = $8,
-           leave_payable_amount = $9
+           leave_payable_amount = $9,
+           payroll_status = COALESCE($11, payroll_status),
+           approver_name = COALESCE($12, approver_name)
        WHERE id = $10
        RETURNING id, user_id, leave_type, start_date::text AS start_date_str, end_date::text AS end_date_str,
                  reason, status, reviewed_note, reviewed_at, created_at,
                  leave_calculation_type, leave_associate_days_off, leave_payable_days, leave_payable_amount,
-                 leave_category, return_date::text AS return_date_str, start_time::text, end_time::text, return_time::text`,
+                 leave_category, return_date::text AS return_date_str, start_time::text, end_time::text, return_time::text,
+                 payroll_status, approver_name`,
       [
         req.user.id,
         noteVal,
@@ -1154,6 +1177,8 @@ router.patch('/leave-requests/:id', async (req, res) => {
         snap.dailySalary,
         snap.payableAmount,
         id,
+        payrollStatus ? String(payrollStatus).trim() : null,
+        approverName ? String(approverName).trim() : null,
       ]
     )
     if (!result.rows.length) {
@@ -1226,6 +1251,8 @@ function mapLeaveRowToJson(r) {
     endTime: r.end_time || null,
     returnTime: r.return_time || null,
     isLocked: r.is_locked === true,
+    payrollStatus: r.payroll_status || 'Pending',
+    approverName: r.approver_name || null,
   }
 }
 
