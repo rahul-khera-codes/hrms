@@ -395,7 +395,7 @@ export default function AdminPayrollInputs() {
                 {displayedRows.map((r) => {
                   const isDed = isDeductionInputType(r.inputType)
                   return (
-                    <tr key={r.id} className="border-b border-surface-100 hover:bg-brand-50/30 transition-colors">
+                    <tr key={r.id} className="border-b border-surface-100 hover:bg-brand-50/30 transition-colors cursor-pointer" onClick={() => (r.isLocked ? null : openEdit(r))}>
                       <td className="px-3 py-2.5 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">{r.employeeCmid ?? '-'}</td>
                       <td className="px-3 py-2.5 text-xs font-medium text-surface-900 whitespace-nowrap">{r.employeeName ?? '-'}</td>
                       <td className="px-3 py-2.5 text-xs text-surface-700 whitespace-nowrap">{r.accountName ?? '-'}</td>
