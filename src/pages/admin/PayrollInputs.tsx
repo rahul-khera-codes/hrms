@@ -28,12 +28,16 @@ import {
   type PayrollPeriod,
 } from '@/lib/apiAdmin'
 
-type StatusFilter = 'all' | 'pending' | 'approved' | 'rejected'
+type StatusFilter = 'all' | 'pending' | 'processed'
 
-const statusColors: Record<string, string> = {
-  pending: 'badge-warning',
-  approved: 'badge-success',
-  rejected: 'badge-danger',
+/** Map display payroll status to backend status value */
+function payrollStatusToBackend(ps: 'pending' | 'processed'): string {
+  return ps === 'processed' ? 'approved' : 'pending'
+}
+
+/** Map backend status to display payroll status */
+function backendToPayrollStatus(bs: string): 'Pending' | 'Processed' {
+  return bs === 'approved' ? 'Processed' : 'Pending'
 }
 
 export default function AdminPayrollInputs() {
@@ -49,6 +53,7 @@ export default function AdminPayrollInputs() {
   }
 
   const [filterStatus, setFilterStatus] = useState<StatusFilter>('all')
+  const [filterCycle, setFilterCycle] = useState<string>('all')
   const [filterType, setFilterType] = useState<string>('all')
   const [search, setSearch] = useState('')
   const [viewMode, setViewMode] = useState<'card' | 'table'>('table')
@@ -69,7 +74,8 @@ export default function AdminPayrollInputs() {
   async function load(showLoader = true) {
     if (showLoader) setLoading(true)
     try {
-      const data = await getPayrollInputs({ status: filterStatus, type: filterType === 'all' ? undefined : filterType })
+      const backendStatus = filterStatus === 'all' ? 'all' : (filterStatus === 'processed' ? 'approved' : 'pending')
+      const data = await getPayrollInputs({ status: backendStatus as 'all' | 'pending' | 'approved' | 'rejected', type: filterType === 'all' ? undefined : filterType })
       setRows(data)
     } catch {
       setRows([])
@@ -107,7 +113,7 @@ export default function AdminPayrollInputs() {
       case 'Input Amount': return r.inputAmount
       case 'Payroll Cycle': return (r.payrollCycleCode ?? '').toLowerCase()
       case 'Approver': return (r.approverName ?? '').toLowerCase()
-      case 'Status': return r.status
+      case 'Payroll Status': return backendToPayrollStatus(r.status)
       default: return ''
     }
   }
@@ -115,6 +121,7 @@ export default function AdminPayrollInputs() {
   const displayedRows = useMemo(() => {
     const q = search.trim().toLowerCase()
     let result = rows.filter((r) => {
+      if (filterCycle !== 'all' && r.payrollCycleCode !== filterCycle) return false
       if (!q) return true
       return (
         (r.employeeName ?? '').toLowerCase().includes(q) ||
@@ -139,7 +146,7 @@ export default function AdminPayrollInputs() {
     }
     return result
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, search, columnFilters, sortCol, sortDir])
+  }, [rows, search, filterCycle, columnFilters, sortCol, sortDir])
 
   function handleSort(col: string) {
     if (sortCol === col) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
@@ -149,16 +156,15 @@ export default function AdminPayrollInputs() {
   const summary = useMemo(() => {
     const total = displayedRows.length
     const pending = displayedRows.filter((r) => r.status === 'pending').length
-    const approved = displayedRows.filter((r) => r.status === 'approved').length
-    const rejected = displayedRows.filter((r) => r.status === 'rejected').length
+    const processed = displayedRows.filter((r) => r.status === 'approved').length
     const income = displayedRows.filter((r) => !isDeductionInputType(r.inputType) && r.status === 'approved').reduce((a, r) => a + r.inputAmount, 0)
     const deductions = displayedRows.filter((r) => isDeductionInputType(r.inputType) && r.status === 'approved').reduce((a, r) => a + r.inputAmount, 0)
-    return { total, pending, approved, rejected, income, deductions }
+    return { total, pending, processed, income, deductions }
   }, [displayedRows])
 
   function exportCSV() {
     if (!displayedRows.length) return
-    const headers = ['CMID', 'Employee', 'Account', 'Input Type', 'Calculation', 'Payable Hours', 'Hourly Rate', 'Multiplier', 'Currency', 'Base Amount', 'Exchange Rate', 'Input Amount', 'Payroll Cycle', 'Approver', 'Status']
+    const headers = ['CMID', 'Employee', 'Account', 'Input Type', 'Calculation', 'Payable Hours', 'Hourly Rate', 'Multiplier', 'Currency', 'Base Amount', 'Exchange Rate', 'Input Amount', 'Payroll Cycle', 'Approver', 'Payroll Status']
     const rowsCsv = displayedRows.map((r) => [
       r.employeeCmid ?? '',
       r.employeeName ?? '',
@@ -174,7 +180,7 @@ export default function AdminPayrollInputs() {
       r.inputAmount,
       r.payrollCycleCode ?? '',
       r.approverName ?? '',
-      r.status,
+      backendToPayrollStatus(r.status),
     ])
     const csv = [
       headers.join(','),
@@ -246,7 +252,7 @@ export default function AdminPayrollInputs() {
       />
 
       {/* Summary cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
         <div className="stat-card">
           <p className="stat-label">Total</p>
           <p className="stat-value">{summary.total}</p>
@@ -256,19 +262,15 @@ export default function AdminPayrollInputs() {
           <p className="stat-value">{summary.pending}</p>
         </div>
         <div className="stat-card border-emerald-200/70 bg-emerald-50/40">
-          <p className="stat-label text-emerald-700">Approved</p>
-          <p className="stat-value">{summary.approved}</p>
-        </div>
-        <div className="stat-card border-red-200/70 bg-red-50/40">
-          <p className="stat-label text-red-700">Rejected</p>
-          <p className="stat-value">{summary.rejected}</p>
+          <p className="stat-label text-emerald-700">Processed</p>
+          <p className="stat-value">{summary.processed}</p>
         </div>
         <div className="stat-card border-brand-200/70 bg-brand-50/40">
-          <p className="stat-label text-brand-700">Income (approved)</p>
+          <p className="stat-label text-brand-700">Income (processed)</p>
           <p className="stat-value">${summary.income.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
         </div>
         <div className="stat-card border-red-200/70 bg-red-50/40">
-          <p className="stat-label text-red-700">Deductions (approved)</p>
+          <p className="stat-label text-red-700">Deductions (processed)</p>
           <p className="stat-value">${summary.deductions.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
         </div>
       </div>
@@ -295,6 +297,16 @@ export default function AdminPayrollInputs() {
             ]}
           />
         </div>
+        <div className="w-full sm:w-52">
+          <AdminSelect
+            value={filterCycle}
+            onChange={(val) => setFilterCycle(val)}
+            options={[
+              { value: 'all', label: 'All cycles' },
+              ...payrollPeriods.map((p) => ({ value: p.cycleCode, label: p.cycleCode })),
+            ]}
+          />
+        </div>
         <div className="w-full sm:w-40">
           <AdminSelect
             value={filterStatus}
@@ -302,8 +314,7 @@ export default function AdminPayrollInputs() {
             options={[
               { value: 'all', label: 'All status' },
               { value: 'pending', label: 'Pending' },
-              { value: 'approved', label: 'Approved' },
-              { value: 'rejected', label: 'Rejected' },
+              { value: 'processed', label: 'Processed' },
             ]}
           />
         </div>
@@ -330,8 +341,8 @@ export default function AdminPayrollInputs() {
         ) : displayedRows.length === 0 ? (
           <div className="empty-state">
             <div className="empty-state-icon"><Receipt className="w-5 h-5" /></div>
-            <p className="empty-state-title">{search || filterStatus !== 'all' || filterType !== 'all' ? 'No matches' : 'No payroll inputs yet'}</p>
-            <p className="empty-state-description">{search || filterStatus !== 'all' || filterType !== 'all' ? 'Try a different filter.' : 'Add your first bonus, commission, or deduction.'}</p>
+            <p className="empty-state-title">{search || filterStatus !== 'all' || filterType !== 'all' || filterCycle !== 'all' ? 'No matches' : 'No payroll inputs yet'}</p>
+            <p className="empty-state-description">{search || filterStatus !== 'all' || filterType !== 'all' || filterCycle !== 'all' ? 'Try a different filter.' : 'Add your first bonus, commission, or deduction.'}</p>
           </div>
         ) : viewMode === 'card' ? (
           <ul className="p-3 sm:p-4 grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -356,7 +367,7 @@ export default function AdminPayrollInputs() {
                   {r.payrollCycleCode && <p className="text-[11px] text-surface-500 mt-0.5">Cycle {r.payrollCycleCode}</p>}
                 </div>
                 <div className="flex flex-col items-end gap-1 shrink-0">
-                  <span className={`${statusColors[r.status] || 'badge-neutral'} capitalize`}>{r.status}</span>
+                  <span className={`${r.status === 'approved' ? 'badge-success' : 'badge-warning'}`}>{backendToPayrollStatus(r.status)}</span>
                   {r.isLocked && <span className="badge-neutral"><Lock className="w-3 h-3" /> Locked</span>}
                 </div>
               </li>
@@ -367,7 +378,7 @@ export default function AdminPayrollInputs() {
             <table className="min-w-[1400px] w-full text-left border-collapse">
               <thead className="sticky top-0 z-10 bg-surface-50 shadow-[0_1px_0_0_theme(colors.surface.200)]">
                 <tr>
-                  {['CMID', 'Employee Name', 'Account', 'Input Type', 'Calculation', 'Input Amount', 'Payroll Cycle', 'Approver', 'Status', 'Actions'].map((col) => (
+                  {['CMID', 'Employee Name', 'Account', 'Input Type', 'Calculation', 'Input Amount', 'Payroll Cycle', 'Approver', 'Payroll Status', 'Actions'].map((col) => (
                     <th key={col} className={`px-3 py-1.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 ${col === 'Actions' ? 'text-right' : col === 'Input Amount' ? 'text-right' : ''}`}>
                       {col === 'Actions' ? col : (
                         <>
@@ -410,7 +421,7 @@ export default function AdminPayrollInputs() {
                       <td className="px-3 py-2.5 text-xs text-surface-700 whitespace-nowrap">{r.approverName ?? '-'}</td>
                       <td className="px-3 py-2.5 whitespace-nowrap">
                         <div className="flex items-center gap-1">
-                          <span className={`${statusColors[r.status] || 'badge-neutral'} capitalize`}>{r.status}</span>
+                          <span className={`${r.status === 'approved' ? 'badge-success' : 'badge-warning'}`}>{backendToPayrollStatus(r.status)}</span>
                           {r.isLocked && <span className="badge-neutral" title="Locked"><Lock className="w-3 h-3" /></span>}
                         </div>
                       </td>
@@ -449,6 +460,9 @@ export default function AdminPayrollInputs() {
             setNotice('Saved.')
             await load(false)
           }}
+          onToggleLock={async (id: string, locked: boolean) => {
+            await handleToggleLock(id, locked)
+          }}
         />
       )}
     </div>
@@ -462,6 +476,7 @@ function PayrollInputModal({
   payrollPeriods,
   onClose,
   onSaved,
+  onToggleLock,
 }: {
   existing?: PayrollInput
   employees: EmployeeRecord[]
@@ -469,6 +484,7 @@ function PayrollInputModal({
   payrollPeriods: PayrollPeriod[]
   onClose: () => void
   onSaved: () => Promise<void>
+  onToggleLock: (id: string, locked: boolean) => Promise<void>
 }) {
   const isEdit = !!existing
   const locked = existing?.isLocked ?? false
@@ -490,7 +506,9 @@ function PayrollInputModal({
   const [exchangeRate, setExchangeRate] = useState(existing?.exchangeRate != null ? String(existing.exchangeRate) : '1')
   const [payrollCycleCode, setPayrollCycleCode] = useState(existing?.payrollCycleCode ?? '')
   const [approverId, setApproverId] = useState(existing?.approverId ?? '')
-  const [status, setStatus] = useState<'pending' | 'approved' | 'rejected'>(existing?.status ?? 'pending')
+  const [payrollStatus, setPayrollStatus] = useState<'pending' | 'processed'>(
+    existing?.status === 'approved' ? 'processed' : 'pending'
+  )
   const [notes, setNotes] = useState(existing?.notes ?? '')
   const [reviewedNote, setReviewedNote] = useState(existing?.reviewedNote ?? '')
 
@@ -529,7 +547,7 @@ function PayrollInputModal({
         exchangeRate: showBaseFields && exchangeRate ? Number(exchangeRate) : null,
         payrollCycleCode: payrollCycleCode || null,
         approverId: approverId || null,
-        status,
+        status: payrollStatusToBackend(payrollStatus) as 'pending' | 'approved' | 'rejected',
         notes: notes || null,
       }
       if (isEdit && existing) {
@@ -561,7 +579,9 @@ function PayrollInputModal({
             extra={
               <>
                 <span className="badge-neutral">{inputType}</span>
-                {locked && <span className="badge-neutral"><Lock className="w-3 h-3" /> Locked</span>}
+                <span className={payrollStatus === 'processed' ? 'badge-success' : 'badge-warning'}>
+                  {payrollStatus === 'processed' ? 'Processed' : 'Pending'}
+                </span>
               </>
             }
           />
@@ -655,6 +675,10 @@ function PayrollInputModal({
               <p className="text-[10px] font-semibold text-violet-700 uppercase tracking-wider mb-2">Base amount calculation</p>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
+                  <label className="label">Base Amount</label>
+                  <input type="number" min="0" step="0.01" className="input" value={baseAmount} onChange={(e) => setBaseAmount(e.target.value)} disabled={locked} placeholder="e.g. 2000" />
+                </div>
+                <div>
                   <label className="label">Currency</label>
                   <AdminSelect
                     value={currency}
@@ -662,10 +686,6 @@ function PayrollInputModal({
                     disabled={locked}
                     options={PAYROLL_CURRENCIES.map((c) => ({ value: c, label: c }))}
                   />
-                </div>
-                <div>
-                  <label className="label">Base Amount</label>
-                  <input type="number" min="0" step="0.01" className="input" value={baseAmount} onChange={(e) => setBaseAmount(e.target.value)} disabled={locked} placeholder="e.g. 2000" />
                 </div>
                 <div>
                   <label className="label">Exchange Rate</label>
@@ -723,20 +743,19 @@ function PayrollInputModal({
           </div>
 
           <div>
-            <label className="label">Status</label>
+            <label className="label">Payroll Status</label>
             <div className="flex gap-0 rounded-xl overflow-hidden border border-surface-200">
               {([
                 { value: 'pending' as const, label: 'Pending' },
-                { value: 'approved' as const, label: 'Approved' },
-                { value: 'rejected' as const, label: 'Rejected' },
+                { value: 'processed' as const, label: 'Processed' },
               ]).map((opt) => (
                 <button
                   key={opt.value}
                   type="button"
                   disabled={locked}
-                  onClick={() => setStatus(opt.value)}
+                  onClick={() => setPayrollStatus(opt.value)}
                   className={`flex-1 px-3 py-2.5 text-xs font-medium transition-colors ${
-                    status === opt.value ? 'bg-brand-600 text-white' : 'bg-surface-50 text-surface-600 hover:bg-surface-100'
+                    payrollStatus === opt.value ? 'bg-brand-600 text-white' : 'bg-surface-50 text-surface-600 hover:bg-surface-100'
                   } disabled:opacity-60`}
                 >
                   {opt.label}
@@ -757,7 +776,7 @@ function PayrollInputModal({
             />
           </div>
 
-          {isEdit && (status === 'approved' || status === 'rejected') && (
+          {isEdit && payrollStatus === 'processed' && (
             <div>
               <label className="label">Review note</label>
               <textarea
@@ -766,8 +785,28 @@ function PayrollInputModal({
                 disabled={locked}
                 rows={2}
                 className="input"
-                placeholder="Optional note for approval/rejection"
+                placeholder="Optional note when marking as processed"
               />
+            </div>
+          )}
+
+          {/* Lock toggle */}
+          {isEdit && existing && (
+            <div className="flex items-center justify-between rounded-xl border border-surface-200 bg-surface-50 p-4">
+              <div>
+                <p className="text-sm font-semibold text-surface-900 flex items-center gap-2">
+                  {locked ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
+                  {locked ? 'Record is locked' : 'Record is editable'}
+                </p>
+                <p className="text-[11px] text-surface-500 mt-0.5">Locking prevents further changes.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => onToggleLock(existing.id, locked)}
+                className={locked ? 'btn-secondary btn-sm' : 'btn-danger btn-sm'}
+              >
+                {locked ? <><Unlock className="w-3.5 h-3.5" /> Unlock</> : <><Lock className="w-3.5 h-3.5" /> Lock</>}
+              </button>
             </div>
           )}
         </div>

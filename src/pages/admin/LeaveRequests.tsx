@@ -1188,10 +1188,10 @@ export default function AdminLeaveRequests() {
                 />
               </div>
 
-              {/* Reason */}
+              {/* Notes */}
               <div>
-                <label className="label">Reason (optional)</label>
-                <textarea value={createReason} onChange={(e) => setCreateReason(e.target.value)} rows={2} className="input w-full rounded-xl" placeholder="Short reason" />
+                <label className="label">Notes</label>
+                <textarea value={createReason} onChange={(e) => setCreateReason(e.target.value)} rows={2} className="input w-full rounded-xl" placeholder="Optional notes for this leave" />
               </div>
             </div>
 
