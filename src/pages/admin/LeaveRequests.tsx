@@ -372,7 +372,7 @@ export default function AdminLeaveRequests() {
         payrollCycleCode: createCalcType !== 'non_payable' && createPayrollCycleCode ? createPayrollCycleCode : undefined,
         reason: createReason.trim() || undefined,
         approverName: createApproverName || undefined,
-        payrollStatus: createPayrollStatus || undefined,
+        payrollStatus: createCalcType === 'non_payable' ? 'N/A' : (createPayrollStatus || 'Pending'),
       })
       setNotice('Leave created successfully.')
       setShowCreateModal(false)
@@ -973,7 +973,7 @@ export default function AdminLeaveRequests() {
                     <button
                       key={opt.value}
                       type="button"
-                      onClick={() => setCreateCalcType(opt.value)}
+                      onClick={() => { setCreateCalcType(opt.value); if (opt.value === 'non_payable') setCreatePayrollStatus('N/A'); else if (createPayrollStatus === 'N/A') setCreatePayrollStatus('Pending'); }}
                       className={`flex-1 px-3 py-2.5 text-xs sm:text-sm font-medium transition-colors ${
                         createCalcType === opt.value
                           ? 'bg-brand-600 text-white'
@@ -1174,19 +1174,21 @@ export default function AdminLeaveRequests() {
                 </>
               )}
 
-              {/* Payroll Status */}
-              <div>
-                <label className="label">Payroll Status</label>
-                <AdminSelect
-                  value={createPayrollStatus}
-                  onChange={(val) => setCreatePayrollStatus(val)}
-                  options={[
-                    { value: 'Pending', label: 'Pending' },
-                    { value: 'Processed', label: 'Processed' },
-                    { value: 'N/A', label: 'N/A' },
-                  ]}
-                />
-              </div>
+              {/* Payroll Status — hidden when Non Payable (defaults to N/A) */}
+              {createCalcType !== 'non_payable' && (
+                <div>
+                  <label className="label">Payroll Status</label>
+                  <AdminSelect
+                    value={createPayrollStatus}
+                    onChange={(val) => setCreatePayrollStatus(val)}
+                    options={[
+                      { value: 'Pending', label: 'Pending' },
+                      { value: 'Processed', label: 'Processed' },
+                      { value: 'N/A', label: 'N/A' },
+                    ]}
+                  />
+                </div>
+              )}
 
               {/* Notes */}
               <div>
@@ -1233,13 +1235,17 @@ export default function AdminLeaveRequests() {
                     employeeName={reviewContext?.leave.employeeName ?? reviewRow?.employeeName ?? ''}
                     cmid={reviewRow?.employeeCmid}
                     reportsTo={reviewRow?.reportsTo}
+                    accountName={reviewRow?.accountName}
                     onClose={() => { setReviewingId(null); setReviewContext(null) }}
                     extra={
-                      reviewContext && reviewContext.leave.status !== 'pending' ? (
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold capitalize ${statusColors[reviewContext.leave.status] || 'bg-surface-100 text-surface-600'}`}>
-                          {reviewContext.leave.status}
+                      <>
+                        {reviewRow?.leaveCategory && (
+                          <span className="badge-neutral">{CATEGORY_LABELS[reviewRow.leaveCategory] || reviewRow.leaveCategory}</span>
+                        )}
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold capitalize ${statusColors[reviewRow?.status ?? 'pending'] || 'bg-surface-100 text-surface-600'}`}>
+                          {reviewRow?.status ?? 'pending'}
                         </span>
-                      ) : null
+                      </>
                     }
                   />
                 </div>
@@ -1470,11 +1476,17 @@ export default function AdminLeaveRequests() {
                 employeeName={detailRow.employeeName}
                 cmid={detailRow.employeeCmid}
                 reportsTo={detailRow.reportsTo}
+                accountName={detailRow.accountName}
                 onClose={() => setDetailRow(null)}
                 extra={
-                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold capitalize ${statusColors[detailRow.status] || 'bg-surface-100 text-surface-600'}`}>
-                    {detailRow.status}
-                  </span>
+                  <>
+                    {detailRow.leaveCategory && (
+                      <span className="badge-neutral">{CATEGORY_LABELS[detailRow.leaveCategory] || detailRow.leaveCategory}</span>
+                    )}
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold capitalize ${statusColors[detailRow.status] || 'bg-surface-100 text-surface-600'}`}>
+                      {detailRow.status}
+                    </span>
+                  </>
                 }
               />
             </div>
