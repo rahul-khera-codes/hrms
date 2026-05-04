@@ -15,6 +15,7 @@ import {
   type PayrollPeriod,
 } from '@/lib/apiAdmin'
 import AdminSelect from '@/components/AdminSelect'
+import DocumentUpload from '@/components/DocumentUpload'
 import { DetailModalHeader } from '@/components/DetailModalHeader'
 import { SkeletonTableRows } from '@/components/Skeleton'
 import { BulkActionBar } from '@/components/BulkActionBar'
@@ -165,6 +166,13 @@ export default function AdminLeaveRequests() {
   const [payableDaysInput, setPayableDaysInput] = useState('0')
   const [saving, setSaving] = useState(false)
   const [reviewLocked, setReviewLocked] = useState(false)
+
+  // Editable leave-info fields in review modal
+  const [reviewLeaveCategory, setReviewLeaveCategory] = useState('')
+  const [reviewStartDate, setReviewStartDate] = useState('')
+  const [reviewEndDate, setReviewEndDate] = useState('')
+  const [reviewReturnDate, setReviewReturnDate] = useState('')
+  const [reviewPayrollCycle, setReviewPayrollCycle] = useState('')
 
   // View mode and detail modal
   const [viewMode, setViewMode] = useState<'card' | 'table'>('table')
@@ -411,6 +419,12 @@ export default function AdminLeaveRequests() {
     // Default to the row's existing decision so re-review is a diff, not a reset.
     setReviewStatus(row.status === 'rejected' ? 'rejected' : 'approved')
     setReviewNote(row.reviewedNote ?? '')
+    // Initialize editable leave-info fields from the row snapshot
+    setReviewLeaveCategory(row.leaveCategory ?? '')
+    setReviewStartDate(row.startDate ?? '')
+    setReviewEndDate(row.endDate ?? '')
+    setReviewReturnDate(row.returnDate ?? '')
+    setReviewPayrollCycle(row.payrollCycleCode ?? '')
     setReviewContext(null)
     setContextLoading(true)
     void getLeaveReviewContext(row.id)
@@ -436,6 +450,11 @@ export default function AdminLeaveRequests() {
         if (!row.reviewedNote && ctx.leave.reviewedNote) {
           setReviewNote(ctx.leave.reviewedNote)
         }
+        // Refine editable fields from context (more accurate than row snapshot)
+        if (ctx.leave.leaveCategory) setReviewLeaveCategory(ctx.leave.leaveCategory)
+        if (ctx.leave.startDate) setReviewStartDate(ctx.leave.startDate)
+        if (ctx.leave.endDate) setReviewEndDate(ctx.leave.endDate)
+        if (ctx.leave.returnDate) setReviewReturnDate(ctx.leave.returnDate)
       })
       .catch(() => {
         setNotice('Could not load review details.')
@@ -515,11 +534,20 @@ export default function AdminLeaveRequests() {
   async function submitReview() {
     if (!reviewingId) return
     setSaving(true)
+    // Common editable leave-info fields sent with every save
+    const editableFields = {
+      leaveCategory: reviewLeaveCategory || undefined,
+      startDate: reviewStartDate || undefined,
+      endDate: reviewEndDate || undefined,
+      returnDate: reviewReturnDate || undefined,
+      payrollCycleCode: reviewPayrollCycle || undefined,
+    }
     try {
       if (reviewStatus === 'rejected') {
         await reviewAdminLeaveRequest(reviewingId, {
           status: 'rejected',
           reviewedNote: reviewNote.trim() || undefined,
+          ...editableFields,
         })
       } else {
         if (!reviewContext) {
@@ -539,12 +567,14 @@ export default function AdminLeaveRequests() {
             reviewedNote: reviewNote.trim() || undefined,
             calculationType,
             payableDays: pd,
+            ...editableFields,
           })
         } else {
           await reviewAdminLeaveRequest(reviewingId, {
             status: 'approved',
             reviewedNote: reviewNote.trim() || undefined,
             payableDays: 0,
+            ...editableFields,
           })
         }
       }
@@ -1273,12 +1303,15 @@ export default function AdminLeaveRequests() {
                 <div className="mx-5 mt-4 rounded-xl border border-surface-200 bg-surface-50/80 p-3 text-sm">
                   <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider mb-3">Leave Info</p>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-3">
-                    {reviewContext.leave.leaveCategory ? (
-                      <div>
-                        <p className="text-[10px] font-medium text-surface-400 uppercase">Leave Type</p>
-                        <p className="font-medium text-surface-900 mt-0.5">{CATEGORY_LABELS[reviewContext.leave.leaveCategory] || reviewContext.leave.leaveCategory}</p>
-                      </div>
-                    ) : null}
+                    <div>
+                      <label className="text-[10px] font-medium text-surface-400 uppercase">Leave Type</label>
+                      <AdminSelect
+                        value={reviewLeaveCategory}
+                        onChange={(val) => setReviewLeaveCategory(val)}
+                        disabled={reviewLocked}
+                        options={leaveCategoryOptions}
+                      />
+                    </div>
                     <div>
                       <p className="text-[10px] font-medium text-surface-400 uppercase">Type</p>
                       <p className="font-medium text-surface-900 mt-0.5">{reviewContext.leave.leaveType === 'paid' ? 'Paid' : 'Unpaid'}</p>
@@ -1301,20 +1334,48 @@ export default function AdminLeaveRequests() {
                       <p className="text-[10px] font-medium text-surface-400 uppercase">Salary</p>
                       <p className="font-medium text-surface-900 mt-0.5">{reviewContext.employee.salaryType} · base ${reviewContext.employee.baseSalary.toFixed(2)}</p>
                     </div>
-                    <div className="col-span-2 sm:col-span-3">
-                      <p className="text-[10px] font-medium text-surface-400 uppercase">Period</p>
-                      <p className="font-medium text-surface-900 tabular-nums mt-0.5">
-                        {reviewContext.leave.startDate}{reviewContext.leave.startTime ? ` ${reviewContext.leave.startTime}` : ''}
-                        <span className="text-surface-400 mx-1.5">&rarr;</span>
-                        {reviewContext.leave.endDate}{reviewContext.leave.endTime ? ` ${reviewContext.leave.endTime}` : ''}
-                      </p>
+                    <div>
+                      <label className="text-[10px] font-medium text-surface-400 uppercase">Start Date</label>
+                      <input
+                        type="date"
+                        value={reviewStartDate}
+                        onChange={(e) => setReviewStartDate(e.target.value)}
+                        disabled={reviewLocked}
+                        className="input w-full rounded-xl mt-0.5"
+                      />
                     </div>
-                    {reviewContext.leave.returnDate ? (
-                      <div>
-                        <p className="text-[10px] font-medium text-surface-400 uppercase">Return Date</p>
-                        <p className="font-medium text-surface-900 tabular-nums mt-0.5">{reviewContext.leave.returnDate}{reviewContext.leave.returnTime ? ` ${reviewContext.leave.returnTime}` : ''}</p>
-                      </div>
-                    ) : null}
+                    <div>
+                      <label className="text-[10px] font-medium text-surface-400 uppercase">End Date</label>
+                      <input
+                        type="date"
+                        value={reviewEndDate}
+                        onChange={(e) => setReviewEndDate(e.target.value)}
+                        disabled={reviewLocked}
+                        className="input w-full rounded-xl mt-0.5"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-medium text-surface-400 uppercase">Return Date</label>
+                      <input
+                        type="date"
+                        value={reviewReturnDate}
+                        onChange={(e) => setReviewReturnDate(e.target.value)}
+                        disabled={reviewLocked}
+                        className="input w-full rounded-xl mt-0.5"
+                      />
+                    </div>
+                    <div className="col-span-2 sm:col-span-3">
+                      <label className="text-[10px] font-medium text-surface-400 uppercase">Payroll Cycle</label>
+                      <AdminSelect
+                        value={reviewPayrollCycle}
+                        onChange={(val) => setReviewPayrollCycle(val)}
+                        disabled={reviewLocked}
+                        options={[
+                          { value: '', label: 'Select payroll cycle' },
+                          ...payrollPeriods.map((p) => ({ value: p.cycleCode, label: `${p.cycleCode} (${p.periodFrom} - ${p.periodTo})` })),
+                        ]}
+                      />
+                    </div>
                   </div>
                   {reviewContext.leave.reason ? (
                     <p className="text-xs text-surface-600 pt-2 mt-3 border-t border-surface-200/80">{reviewContext.leave.reason}</p>
@@ -1410,6 +1471,13 @@ export default function AdminLeaveRequests() {
                   />
                 </div>
               </>
+            )}
+
+            {/* Documents */}
+            {reviewingId && (
+              <div className="mx-5 mt-4">
+                <DocumentUpload entityType="leave" entityId={reviewingId} />
+              </div>
             )}
 
             {/* Lock toggle — same pattern as attendance modal */}

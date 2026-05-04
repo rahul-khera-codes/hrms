@@ -585,6 +585,19 @@ export async function reviewAdminLeaveRequest(
     payableDays?: number
     isLocked?: boolean
     force?: boolean
+    leaveCategory?: string
+    startDate?: string
+    endDate?: string
+    returnDate?: string
+    startTime?: string
+    endTime?: string
+    returnTime?: string
+    payrollCycleCode?: string
+    hourlyRateInput?: number
+    dailyHoursInput?: number
+    monthlyRateInput?: number
+    assetDeactivation?: string
+    reason?: string
   }
 ): Promise<AdminLeaveRequest> {
   return api<AdminLeaveRequest>(`/api/admin/leave-requests/${id}`, {
@@ -822,4 +835,38 @@ export async function calculatePayroll(cycleCode: string): Promise<PayrollCalcRe
     method: 'POST',
     body: JSON.stringify({ cycleCode }),
   })
+}
+
+// ── Documents ──
+
+export interface DocumentRecord {
+  id: string
+  entityType: string
+  entityId: string
+  fileName: string
+  originalName: string
+  mimeType: string
+  fileSize: number
+  createdAt: string
+}
+
+export async function getDocuments(entityType: string, entityId: string): Promise<DocumentRecord[]> {
+  return api<DocumentRecord[]>(`/api/documents/${encodeURIComponent(entityType)}/${encodeURIComponent(entityId)}`)
+}
+
+export async function uploadDocument(data: {
+  entityType: string
+  entityId: string
+  fileName: string
+  mimeType: string
+  data: string
+}): Promise<DocumentRecord> {
+  return api<DocumentRecord>('/api/documents/upload', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
+export async function deleteDocument(id: string): Promise<void> {
+  return api<void>(`/api/documents/${id}`, { method: 'DELETE' })
 }

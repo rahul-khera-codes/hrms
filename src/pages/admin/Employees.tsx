@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { Users, Plus, Pencil, LayoutGrid, Table2, Search, Download, ArrowUp, ArrowDown, Filter, AlertCircle, CheckCircle2, Ban, X } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
+import DocumentUpload from '@/components/DocumentUpload'
 import { DetailModalHeader } from '@/components/DetailModalHeader'
 import { statusBadgeClass } from '@/lib/badges'
 import { SkeletonTableRows } from '@/components/Skeleton'
@@ -1524,6 +1525,11 @@ export default function AdminEmployees() {
                     <AdminDatePicker value={assignmentDate} onChange={setAssignmentDate} />
                   </div>
                 </>
+              )}
+
+              {/* Documents — only shown when editing an existing employee */}
+              {modal === 'edit' && editing && (
+                <DocumentUpload entityType="employee" entityId={editing.id} />
               )}
             </div>
             <div className="modal-footer">

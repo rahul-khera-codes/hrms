@@ -4,6 +4,7 @@ import {
   Lock, Unlock, X, Trash2, Pencil,
 } from 'lucide-react'
 import AdminSelect from '@/components/AdminSelect'
+import DocumentUpload from '@/components/DocumentUpload'
 import { PageHeader } from '@/components/PageHeader'
 import { DetailModalHeader } from '@/components/DetailModalHeader'
 import { SkeletonTableRows } from '@/components/Skeleton'
@@ -788,6 +789,11 @@ function PayrollInputModal({
                 placeholder="Optional note when marking as processed"
               />
             </div>
+          )}
+
+          {/* Documents */}
+          {isEdit && existing && (
+            <DocumentUpload entityType="payroll_input" entityId={existing.id} />
           )}
 
           {/* Lock toggle */}

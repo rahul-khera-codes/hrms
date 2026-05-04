@@ -7,13 +7,14 @@ import adminRoutes from './routes/admin.js'
 import payrollInputsRoutes from './routes/payroll-inputs.js'
 import payrollCalculatorRoutes from './routes/payroll-calculator.js'
 import notificationsRoutes from './routes/notifications.js'
+import documentsRoutes from './routes/documents.js'
 import pool from './config/db.js'
 
 const app = express()
 const PORT = process.env.PORT || 4000
 
 app.use(cors({ origin: true, credentials: true }))
-app.use(express.json())
+app.use(express.json({ limit: '30mb' }))
 
 app.use('/api/auth', authRoutes)
 app.use('/api/sessions', sessionsRoutes)
@@ -21,6 +22,7 @@ app.use('/api/admin', adminRoutes)
 app.use('/api/admin/payroll-inputs', payrollInputsRoutes)
 app.use('/api/admin/payroll-calculator', payrollCalculatorRoutes)
 app.use('/api/notifications', notificationsRoutes)
+app.use('/api/documents', documentsRoutes)
 
 app.get('/health', (_req, res) => {
   res.json({ ok: true })
@@ -378,7 +380,24 @@ try {
   await pool.query('CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications (user_id)')
   await pool.query('CREATE INDEX IF NOT EXISTS idx_notifications_is_read ON notifications (is_read)')
   await pool.query('CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications (created_at DESC)')
-  
+
+  // Documents table for file uploads (employee, leave, payroll_input attachments)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS documents (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      entity_type VARCHAR(20) NOT NULL,
+      entity_id UUID NOT NULL,
+      file_name VARCHAR(255) NOT NULL,
+      original_name VARCHAR(255) NOT NULL,
+      mime_type VARCHAR(100),
+      file_size INTEGER,
+      uploaded_by UUID REFERENCES users(id),
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `)
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_documents_entity ON documents (entity_type, entity_id)')
+  console.log('Documents table ready')
+
   try {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS payroll_periods (

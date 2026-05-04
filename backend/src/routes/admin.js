@@ -1004,7 +1004,12 @@ router.patch('/leave-requests/:id', async (req, res) => {
     if (!UUID_RE.test(id)) {
       return res.status(400).json({ error: 'Bad request', message: 'Leave request id must be a valid UUID.' })
     }
-    const { status, reviewedNote, calculationType, associateDaysOff, payableDays, isLocked, force, payrollStatus, approverName } = req.body
+    const {
+      status, reviewedNote, calculationType, associateDaysOff, payableDays, isLocked, force, payrollStatus, approverName,
+      // Editable core fields (only when not locked)
+      leaveCategory, startDate, endDate, returnDate, startTime, endTime, returnTime,
+      payrollCycleCode, hourlyRateInput, dailyHoursInput, monthlyRateInput, assetDeactivation, reason
+    } = req.body
 
     // 14APR2026 feedback: lock toggle. Handle lock-only updates separately so they work on any record.
     const existing = await query(
@@ -1033,13 +1038,53 @@ router.patch('/leave-requests/:id', async (req, res) => {
       return res.json(mapLeaveRowToJson(upd.rows[0]))
     }
 
-    if (!['approved', 'rejected'].includes(String(status))) {
-      return res.status(400).json({ error: 'Bad request', message: 'status must be approved or rejected' })
-    }
-
     // Block edits on locked records unless caller explicitly forces
     if (existingRow.is_locked && !force) {
       return res.status(409).json({ error: 'Locked', message: 'This leave request is locked. Unlock it first to edit.' })
+    }
+
+    // Helper: build and run an UPDATE for editable core fields (when not locked)
+    const applyEditableFields = async (recordId) => {
+      const editSets = []
+      const editVals = []
+      let pi = 0
+      const add = (col, val) => { pi++; editSets.push(`${col} = $${pi}`); editVals.push(val) }
+      if (leaveCategory !== undefined) add('leave_category', leaveCategory)
+      if (startDate !== undefined) add('start_date', startDate)
+      if (endDate !== undefined) add('end_date', endDate)
+      if (returnDate !== undefined) add('return_date', returnDate || null)
+      if (startTime !== undefined) add('start_time', startTime || null)
+      if (endTime !== undefined) add('end_time', endTime || null)
+      if (returnTime !== undefined) add('return_time', returnTime || null)
+      if (payrollCycleCode !== undefined) add('payroll_cycle_code', payrollCycleCode || null)
+      if (hourlyRateInput !== undefined) add('hourly_rate_input', hourlyRateInput != null ? Number(hourlyRateInput) : null)
+      if (dailyHoursInput !== undefined) add('daily_hours_input', dailyHoursInput != null ? Number(dailyHoursInput) : null)
+      if (monthlyRateInput !== undefined) add('monthly_rate_input', monthlyRateInput != null ? Number(monthlyRateInput) : null)
+      if (assetDeactivation !== undefined) add('asset_deactivation', assetDeactivation || null)
+      if (reason !== undefined) add('reason', reason || null)
+      if (editSets.length === 0) return null
+      pi++; editVals.push(recordId)
+      const sql = `UPDATE leave_requests SET ${editSets.join(', ')}, updated_at = NOW() WHERE id = $${pi}
+         RETURNING id, user_id, leave_type, start_date::text AS start_date_str, end_date::text AS end_date_str,
+                   reason, status, reviewed_note, reviewed_at, created_at,
+                   leave_calculation_type, leave_associate_days_off, leave_payable_days, leave_payable_amount,
+                   leave_category, return_date::text AS return_date_str, start_time::text, end_time::text, return_time::text,
+                   is_locked, payroll_status, approver_name`
+      const res = await query(sql, editVals)
+      return res.rows[0] || null
+    }
+
+    // Edit-only path: no status change, just update core fields
+    if (status === undefined || status === null) {
+      const updated = await applyEditableFields(id)
+      if (!updated) {
+        return res.status(400).json({ error: 'Bad request', message: 'No editable fields provided and no status change requested' })
+      }
+      return res.json(mapLeaveRowToJson(updated))
+    }
+
+    if (!['approved', 'rejected'].includes(String(status))) {
+      return res.status(400).json({ error: 'Bad request', message: 'status must be approved or rejected' })
     }
 
     // Allow re-review of any non-locked record (approved → rejected, rejected → approved, or re-apply settings)
@@ -1077,7 +1122,10 @@ router.patch('/leave-requests/:id', async (req, res) => {
       if (!result.rows.length) {
         return res.status(404).json({ error: 'Not found', message: 'Leave request not found or already reviewed' })
       }
-      const r = result.rows[0]
+      let r = result.rows[0]
+      // Apply core-field edits alongside rejection
+      const editedRej = await applyEditableFields(id)
+      if (editedRej) r = editedRej
       await sendLeaveDecisionNotification(r, req.user.id, 'rejected', noteVal)
       return res.json(mapLeaveRowToJson(r))
     }
@@ -1184,7 +1232,10 @@ router.patch('/leave-requests/:id', async (req, res) => {
     if (!result.rows.length) {
       return res.status(404).json({ error: 'Not found', message: 'Leave request not found or already reviewed' })
     }
-    const r = result.rows[0]
+    let r = result.rows[0]
+    // Apply core-field edits alongside approval
+    const editedAppr = await applyEditableFields(id)
+    if (editedAppr) r = editedAppr
     await sendLeaveDecisionNotification(r, req.user.id, 'approved', noteVal)
     res.json(mapLeaveRowToJson(r))
   } catch (err) {
