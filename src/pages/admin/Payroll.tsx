@@ -226,8 +226,10 @@ export default function AdminPayroll() {
         if (cancelled) return
         setPayrollPeriods(periods)
         if (periods.length > 0) {
-          const mostRecent = periods[periods.length - 1].cycleCode
-          setSelectedCycle(mostRecent)
+          // Default to the cycle covering today's date, or the latest cycle
+          const today = new Date().toISOString().slice(0, 10)
+          const currentCycle = periods.find((p) => p.periodFrom <= today && p.periodTo >= today)
+          setSelectedCycle(currentCycle?.cycleCode ?? periods[periods.length - 1].cycleCode)
         }
       } catch {
         if (!cancelled) toast.error('Failed to load payroll periods')
