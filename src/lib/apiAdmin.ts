@@ -312,6 +312,27 @@ export interface Client {
   id: string
   name: string
   code: string | null
+  vertical: string | null
+  salesOwnerId: string | null
+  salesOwnerName: string | null
+  opsOwnerId: string | null
+  opsOwnerName: string | null
+  registeredAddress: string | null
+  website: string | null
+  mainPhone: string | null
+  opsPoc: string | null
+  opsPocEmail: string | null
+  opsPhone: string | null
+  billingPoc: string | null
+  billingPocEmail: string | null
+  billingPocPhone: string | null
+  billableHeadcount: number | null
+  billableType: string | null
+  billingRate: number | null
+  otPremium: number | null
+  contractStatus: string | null
+  terminationDate: string | null
+  terminationReason: string | null
 }
 
 export interface Shift {
@@ -453,11 +474,55 @@ export async function getClients(): Promise<Client[]> {
   return api<Client[]>('/api/admin/clients')
 }
 
-export async function createClient(data: { name: string; code?: string }): Promise<Client> {
+export async function createClient(data: {
+  name: string
+  code?: string
+  vertical?: string | null
+  salesOwnerId?: string | null
+  opsOwnerId?: string | null
+  registeredAddress?: string | null
+  website?: string | null
+  mainPhone?: string | null
+  opsPoc?: string | null
+  opsPocEmail?: string | null
+  opsPhone?: string | null
+  billingPoc?: string | null
+  billingPocEmail?: string | null
+  billingPocPhone?: string | null
+  billableHeadcount?: number | null
+  billableType?: string | null
+  billingRate?: number | null
+  otPremium?: number | null
+  contractStatus?: string | null
+  terminationDate?: string | null
+  terminationReason?: string | null
+}): Promise<Client> {
   return api<Client>('/api/admin/clients', { method: 'POST', body: JSON.stringify(data) })
 }
 
-export async function updateClient(id: string, data: { name?: string; code?: string }): Promise<Client> {
+export async function updateClient(id: string, data: {
+  name?: string
+  code?: string
+  vertical?: string | null
+  salesOwnerId?: string | null
+  opsOwnerId?: string | null
+  registeredAddress?: string | null
+  website?: string | null
+  mainPhone?: string | null
+  opsPoc?: string | null
+  opsPocEmail?: string | null
+  opsPhone?: string | null
+  billingPoc?: string | null
+  billingPocEmail?: string | null
+  billingPocPhone?: string | null
+  billableHeadcount?: number | null
+  billableType?: string | null
+  billingRate?: number | null
+  otPremium?: number | null
+  contractStatus?: string | null
+  terminationDate?: string | null
+  terminationReason?: string | null
+}): Promise<Client> {
   return api<Client>(`/api/admin/clients/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
 }
 

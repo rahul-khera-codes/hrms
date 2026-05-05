@@ -2137,11 +2137,49 @@ router.post('/employees', requireAdmin, async (req, res) => {
   }
 })
 
+// --- Client row mapper ---
+function mapClientRow(r) {
+  return {
+    id: r.id,
+    name: r.name,
+    code: r.code || null,
+    vertical: r.vertical || null,
+    salesOwnerId: r.sales_owner_id || null,
+    salesOwnerName: r.sales_owner_name || null,
+    opsOwnerId: r.ops_owner_id || null,
+    opsOwnerName: r.ops_owner_name || null,
+    registeredAddress: r.registered_address || null,
+    website: r.website || null,
+    mainPhone: r.main_phone || null,
+    opsPoc: r.ops_poc || null,
+    opsPocEmail: r.ops_poc_email || null,
+    opsPhone: r.ops_phone || null,
+    billingPoc: r.billing_poc || null,
+    billingPocEmail: r.billing_poc_email || null,
+    billingPocPhone: r.billing_poc_phone || null,
+    billableHeadcount: r.billable_headcount != null ? Number(r.billable_headcount) : null,
+    billableType: r.billable_type || null,
+    billingRate: r.billing_rate != null ? Number(r.billing_rate) : null,
+    otPremium: r.ot_premium != null ? Number(r.ot_premium) : null,
+    contractStatus: r.contract_status || 'active',
+    terminationDate: r.termination_date || null,
+    terminationReason: r.termination_reason || null,
+  }
+}
+
 // GET /api/admin/clients
 router.get('/clients', async (req, res) => {
   try {
-    const result = await query('SELECT id, name, code, created_at FROM clients ORDER BY name')
-    res.json(result.rows.map((r) => ({ id: r.id, name: r.name, code: r.code || null })))
+    const result = await query(`
+      SELECT c.*,
+        so.name AS sales_owner_name,
+        oo.name AS ops_owner_name
+      FROM clients c
+      LEFT JOIN users so ON so.id = c.sales_owner_id
+      LEFT JOIN users oo ON oo.id = c.ops_owner_id
+      ORDER BY c.name
+    `)
+    res.json(result.rows.map(mapClientRow))
   } catch (err) {
     console.error('Admin list clients error:', err)
     res.status(500).json({ error: 'Internal server error' })
@@ -2151,15 +2189,63 @@ router.get('/clients', async (req, res) => {
 // POST /api/admin/clients
 router.post('/clients', async (req, res) => {
   try {
-    const { name, code } = req.body
+    const {
+      name, code, vertical, salesOwnerId, opsOwnerId,
+      registeredAddress, website, mainPhone,
+      opsPoc, opsPocEmail, opsPhone,
+      billingPoc, billingPocEmail, billingPocPhone,
+      billableHeadcount, billableType, billingRate, otPremium,
+      contractStatus, terminationDate, terminationReason,
+    } = req.body
     if (!name || String(name).trim() === '') {
       return res.status(400).json({ error: 'Bad request', message: 'Name is required' })
     }
+    const cols = ['name', 'code', 'vertical', 'sales_owner_id', 'ops_owner_id',
+      'registered_address', 'website', 'main_phone',
+      'ops_poc', 'ops_poc_email', 'ops_phone',
+      'billing_poc', 'billing_poc_email', 'billing_poc_phone',
+      'billable_headcount', 'billable_type', 'billing_rate', 'ot_premium',
+      'contract_status', 'termination_date', 'termination_reason']
+    const vals = [
+      String(name).trim(),
+      code ? String(code).trim() : null,
+      vertical || null,
+      salesOwnerId || null,
+      opsOwnerId || null,
+      registeredAddress || null,
+      website || null,
+      mainPhone || null,
+      opsPoc || null,
+      opsPocEmail || null,
+      opsPhone || null,
+      billingPoc || null,
+      billingPocEmail || null,
+      billingPocPhone || null,
+      billableHeadcount != null ? billableHeadcount : null,
+      billableType || null,
+      billingRate != null ? billingRate : null,
+      otPremium != null ? otPremium : null,
+      contractStatus || 'active',
+      terminationDate || null,
+      terminationReason || null,
+    ]
+    const placeholders = cols.map((_, idx) => `$${idx + 1}`).join(', ')
     const result = await query(
-      'INSERT INTO clients (name, code) VALUES ($1, $2) RETURNING id, name, code',
-      [String(name).trim(), code ? String(code).trim() : null]
+      `INSERT INTO clients (${cols.join(', ')}) VALUES (${placeholders}) RETURNING *`,
+      vals
     )
-    res.status(201).json(result.rows[0])
+    const row = result.rows[0]
+    // Fetch with owner names
+    const full = await query(`
+      SELECT c.*,
+        so.name AS sales_owner_name,
+        oo.name AS ops_owner_name
+      FROM clients c
+      LEFT JOIN users so ON so.id = c.sales_owner_id
+      LEFT JOIN users oo ON oo.id = c.ops_owner_id
+      WHERE c.id = $1
+    `, [row.id])
+    res.status(201).json(mapClientRow(full.rows[0]))
   } catch (err) {
     console.error('Admin create client error:', err)
     res.status(500).json({ error: 'Internal server error' })
@@ -2170,23 +2256,62 @@ router.post('/clients', async (req, res) => {
 router.patch('/clients/:id', async (req, res) => {
   try {
     const { id } = req.params
-    const { name, code } = req.body
+    const {
+      name, code, vertical, salesOwnerId, opsOwnerId,
+      registeredAddress, website, mainPhone,
+      opsPoc, opsPocEmail, opsPhone,
+      billingPoc, billingPocEmail, billingPocPhone,
+      billableHeadcount, billableType, billingRate, otPremium,
+      contractStatus, terminationDate, terminationReason,
+    } = req.body
     const updates = []
     const params = []
     let i = 1
+    const maybeAdd = (col, val) => { if (val !== undefined) { updates.push(`${col} = $${i++}`); params.push(val) } }
     if (name !== undefined) { updates.push(`name = $${i++}`); params.push(String(name).trim()) }
     if (code !== undefined) { updates.push(`code = $${i++}`); params.push(code ? String(code).trim() : null) }
+    maybeAdd('vertical', vertical !== undefined ? (vertical || null) : undefined)
+    maybeAdd('sales_owner_id', salesOwnerId !== undefined ? (salesOwnerId || null) : undefined)
+    maybeAdd('ops_owner_id', opsOwnerId !== undefined ? (opsOwnerId || null) : undefined)
+    maybeAdd('registered_address', registeredAddress !== undefined ? (registeredAddress || null) : undefined)
+    maybeAdd('website', website !== undefined ? (website || null) : undefined)
+    maybeAdd('main_phone', mainPhone !== undefined ? (mainPhone || null) : undefined)
+    maybeAdd('ops_poc', opsPoc !== undefined ? (opsPoc || null) : undefined)
+    maybeAdd('ops_poc_email', opsPocEmail !== undefined ? (opsPocEmail || null) : undefined)
+    maybeAdd('ops_phone', opsPhone !== undefined ? (opsPhone || null) : undefined)
+    maybeAdd('billing_poc', billingPoc !== undefined ? (billingPoc || null) : undefined)
+    maybeAdd('billing_poc_email', billingPocEmail !== undefined ? (billingPocEmail || null) : undefined)
+    maybeAdd('billing_poc_phone', billingPocPhone !== undefined ? (billingPocPhone || null) : undefined)
+    maybeAdd('billable_headcount', billableHeadcount !== undefined ? (billableHeadcount != null ? billableHeadcount : null) : undefined)
+    maybeAdd('billable_type', billableType !== undefined ? (billableType || null) : undefined)
+    maybeAdd('billing_rate', billingRate !== undefined ? (billingRate != null ? billingRate : null) : undefined)
+    maybeAdd('ot_premium', otPremium !== undefined ? (otPremium != null ? otPremium : null) : undefined)
+    maybeAdd('contract_status', contractStatus !== undefined ? (contractStatus || 'active') : undefined)
+    maybeAdd('termination_date', terminationDate !== undefined ? (terminationDate || null) : undefined)
+    maybeAdd('termination_reason', terminationReason !== undefined ? (terminationReason || null) : undefined)
     if (updates.length === 0) {
-      const r = await query('SELECT id, name, code FROM clients WHERE id = $1', [id])
+      const r = await query(`
+        SELECT c.*, so.name AS sales_owner_name, oo.name AS ops_owner_name
+        FROM clients c
+        LEFT JOIN users so ON so.id = c.sales_owner_id
+        LEFT JOIN users oo ON oo.id = c.ops_owner_id
+        WHERE c.id = $1
+      `, [id])
       if (r.rows.length === 0) return res.status(404).json({ error: 'Not found' })
-      return res.json(r.rows[0])
+      return res.json(mapClientRow(r.rows[0]))
     }
     updates.push('updated_at = NOW()')
     params.push(id)
     await query(`UPDATE clients SET ${updates.join(', ')} WHERE id = $${i}`, params)
-    const r = await query('SELECT id, name, code FROM clients WHERE id = $1', [id])
+    const r = await query(`
+      SELECT c.*, so.name AS sales_owner_name, oo.name AS ops_owner_name
+      FROM clients c
+      LEFT JOIN users so ON so.id = c.sales_owner_id
+      LEFT JOIN users oo ON oo.id = c.ops_owner_id
+      WHERE c.id = $1
+    `, [id])
     if (r.rows.length === 0) return res.status(404).json({ error: 'Not found' })
-    res.json(r.rows[0])
+    res.json(mapClientRow(r.rows[0]))
   } catch (err) {
     console.error('Admin update client error:', err)
     res.status(500).json({ error: 'Internal server error' })

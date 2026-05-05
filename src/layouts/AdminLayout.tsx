@@ -48,7 +48,7 @@ const navSections: { title?: string; items: { to: string; label: string; icon: t
   {
     title: 'Configuration',
     items: [
-      { to: '/admin/clients', label: 'Clients', icon: Building2 },
+      { to: '/admin/clients', label: 'Accounts', icon: Building2 },
       { to: '/admin/shifts', label: 'Shifts', icon: Timer },
       { to: '/admin/settings', label: 'Settings', icon: Settings },
     ],

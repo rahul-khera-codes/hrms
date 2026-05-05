@@ -151,6 +151,30 @@ try {
       updated_at TIMESTAMPTZ DEFAULT NOW()
     )
   `)
+  // New columns for clients table
+  try {
+    await pool.query(`ALTER TABLE clients ADD COLUMN IF NOT EXISTS vertical VARCHAR(100)`)
+    await pool.query(`ALTER TABLE clients ADD COLUMN IF NOT EXISTS sales_owner_id UUID REFERENCES users(id) ON DELETE SET NULL`)
+    await pool.query(`ALTER TABLE clients ADD COLUMN IF NOT EXISTS ops_owner_id UUID REFERENCES users(id) ON DELETE SET NULL`)
+    await pool.query(`ALTER TABLE clients ADD COLUMN IF NOT EXISTS registered_address TEXT`)
+    await pool.query(`ALTER TABLE clients ADD COLUMN IF NOT EXISTS website VARCHAR(255)`)
+    await pool.query(`ALTER TABLE clients ADD COLUMN IF NOT EXISTS main_phone VARCHAR(30)`)
+    await pool.query(`ALTER TABLE clients ADD COLUMN IF NOT EXISTS ops_poc VARCHAR(255)`)
+    await pool.query(`ALTER TABLE clients ADD COLUMN IF NOT EXISTS ops_poc_email VARCHAR(255)`)
+    await pool.query(`ALTER TABLE clients ADD COLUMN IF NOT EXISTS ops_phone VARCHAR(30)`)
+    await pool.query(`ALTER TABLE clients ADD COLUMN IF NOT EXISTS billing_poc VARCHAR(255)`)
+    await pool.query(`ALTER TABLE clients ADD COLUMN IF NOT EXISTS billing_poc_email VARCHAR(255)`)
+    await pool.query(`ALTER TABLE clients ADD COLUMN IF NOT EXISTS billing_poc_phone VARCHAR(30)`)
+    await pool.query(`ALTER TABLE clients ADD COLUMN IF NOT EXISTS billable_headcount DECIMAL(10,2)`)
+    await pool.query(`ALTER TABLE clients ADD COLUMN IF NOT EXISTS billable_type VARCHAR(30)`)
+    await pool.query(`ALTER TABLE clients ADD COLUMN IF NOT EXISTS billing_rate DECIMAL(14,2)`)
+    await pool.query(`ALTER TABLE clients ADD COLUMN IF NOT EXISTS ot_premium DECIMAL(10,2)`)
+    await pool.query(`ALTER TABLE clients ADD COLUMN IF NOT EXISTS contract_status VARCHAR(20) DEFAULT 'active'`)
+    await pool.query(`ALTER TABLE clients ADD COLUMN IF NOT EXISTS termination_date DATE`)
+    await pool.query(`ALTER TABLE clients ADD COLUMN IF NOT EXISTS termination_reason VARCHAR(100)`)
+  } catch (e) {
+    if (e.code !== '42701') console.warn('clients new columns migration:', e.message)
+  }
   // Engagement details columns on employees table (must be after clients table exists)
   try {
     await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS cmid INTEGER`)
