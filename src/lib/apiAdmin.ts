@@ -847,6 +847,19 @@ export function computePayrollInputAmount(input: {
   return Math.round((hourlyPart + basePart) * 100) / 100
 }
 
+export interface BulkUploadResult {
+  created: number
+  skipped: number
+  errors: string[]
+}
+
+export async function bulkUploadPayrollInputs(rows: Record<string, unknown>[]): Promise<BulkUploadResult> {
+  return api<BulkUploadResult>('/api/admin/payroll-inputs/bulk-upload', {
+    method: 'POST',
+    body: JSON.stringify({ rows }),
+  })
+}
+
 /** Helper: is this input type a deduction? (for payroll calculations next phase) */
 export function isDeductionInputType(inputType: string): boolean {
   return inputType.startsWith('Descuento')

@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { query } from '../config/db.js'
+import pool from '../config/db.js'
 import { authMiddleware, requireAdmin } from '../middleware/auth.js'
 
 const router = Router()
@@ -27,6 +28,8 @@ const INPUT_TYPES = new Set([
   'Descuento PayLater',
   'Descuento Seguro',
   'Descuento Admin',
+  'Subsidio',
+  'Reembolso No Gravable',
 ])
 
 const CURRENCIES = new Set(['DOP', 'USD'])
@@ -139,6 +142,159 @@ router.get('/', async (req, res) => {
     res.json(result.rows.map(mapRow))
   } catch (err) {
     console.error('List payroll inputs error:', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// GET /api/admin/payroll-inputs/bulk-template
+router.get('/bulk-template', async (_req, res) => {
+  res.json({
+    columns: [
+      { key: 'employeeCmid', label: 'Employee CMID', required: true, type: 'number' },
+      { key: 'inputType', label: 'Input Type', required: true, type: 'text', options: [...INPUT_TYPES] },
+      { key: 'calculationType', label: 'Calculation', required: true, type: 'text', options: ['hourly', 'base_amount'] },
+      { key: 'payableHours', label: 'Payable Hours', required: false, type: 'number' },
+      { key: 'hourlyRate', label: 'Hourly Rate', required: false, type: 'number' },
+      { key: 'hourlyMultiplier', label: 'Hourly Multiplier', required: false, type: 'number' },
+      { key: 'currency', label: 'Currency', required: false, type: 'text', options: ['DOP', 'USD'] },
+      { key: 'baseAmount', label: 'Base Amount', required: false, type: 'number' },
+      { key: 'exchangeRate', label: 'Exchange Rate', required: false, type: 'number' },
+      { key: 'payrollCycleCode', label: 'Payroll Cycle', required: true, type: 'text' },
+      { key: 'approverName', label: 'Approver', required: false, type: 'text' },
+      { key: 'status', label: 'Status', required: false, type: 'text', options: ['pending', 'approved'] },
+      { key: 'notes', label: 'Notes', required: false, type: 'text' },
+    ],
+  })
+})
+
+// POST /api/admin/payroll-inputs/bulk-upload
+router.post('/bulk-upload', async (req, res) => {
+  const { rows } = req.body
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return res.status(400).json({ error: 'Bad request', message: 'rows must be a non-empty array' })
+  }
+
+  try {
+    // --- Batch CMID lookups ---
+    const uniqueCmids = [...new Set(rows.map((r) => r.employeeCmid).filter((c) => c != null))]
+    const cmidMap = new Map() // cmid -> user_id
+    if (uniqueCmids.length > 0) {
+      const placeholders = uniqueCmids.map((_, i) => `$${i + 1}`).join(', ')
+      const cmidResult = await query(
+        `SELECT u.id, e.cmid FROM users u
+         LEFT JOIN employees e ON e.user_id = u.id
+         WHERE e.cmid IN (${placeholders})`,
+        uniqueCmids
+      )
+      for (const row of cmidResult.rows) {
+        cmidMap.set(Number(row.cmid), row.id)
+      }
+    }
+
+    // --- Batch approver name lookups ---
+    const uniqueApprovers = [...new Set(
+      rows.map((r) => r.approverName).filter((n) => n != null && n.trim() !== '')
+    )]
+    const approverMap = new Map() // lowercase name -> user id
+    if (uniqueApprovers.length > 0) {
+      const placeholders = uniqueApprovers.map((_, i) => `$${i + 1}`).join(', ')
+      const approverResult = await query(
+        `SELECT DISTINCT ON (LOWER(name)) id, name FROM users
+         WHERE role = 'admin' AND LOWER(name) IN (${placeholders})
+         ORDER BY LOWER(name), created_at ASC`,
+        uniqueApprovers.map((n) => n.toLowerCase())
+      )
+      for (const row of approverResult.rows) {
+        approverMap.set(row.name.toLowerCase(), row.id)
+      }
+    }
+
+    // --- Process rows inside a transaction ---
+    const client = await pool.connect()
+    const errors = []
+    let created = 0
+    let skipped = 0
+
+    try {
+      await client.query('BEGIN')
+
+      for (let idx = 0; idx < rows.length; idx++) {
+        const r = rows[idx]
+        const rowLabel = `Row ${idx + 1}`
+
+        // Resolve user_id from CMID
+        const userId = cmidMap.get(Number(r.employeeCmid))
+        if (!userId) {
+          errors.push(`${rowLabel}: Employee CMID ${r.employeeCmid} not found`)
+          skipped++
+          continue
+        }
+
+        // Validate inputType
+        if (!r.inputType || !INPUT_TYPES.has(r.inputType)) {
+          errors.push(`${rowLabel}: Invalid inputType "${r.inputType}"`)
+          skipped++
+          continue
+        }
+
+        // Validate calculationType
+        const calcType = r.calculationType || 'base_amount'
+        if (!CALC_TYPES.has(calcType)) {
+          errors.push(`${rowLabel}: Invalid calculationType "${r.calculationType}"`)
+          skipped++
+          continue
+        }
+
+        // Resolve approver
+        let approverId = null
+        if (r.approverName && r.approverName.trim() !== '') {
+          approverId = approverMap.get(r.approverName.toLowerCase()) || null
+          if (!approverId) {
+            errors.push(`${rowLabel}: Approver "${r.approverName}" not found (row still created without approver)`)
+          }
+        }
+
+        // Compute amount
+        const inputAmount = computeInputAmount({
+          payableHours: r.payableHours,
+          hourlyRate: r.hourlyRate,
+          hourlyMultiplier: r.hourlyMultiplier,
+          baseAmount: r.baseAmount,
+          exchangeRate: r.exchangeRate,
+        })
+
+        const status = r.status && STATUSES.has(r.status) ? r.status : 'pending'
+
+        await client.query(
+          `INSERT INTO payroll_inputs (
+             user_id, input_type, calculation_type,
+             payable_hours, hourly_rate, hourly_multiplier,
+             currency, base_amount, exchange_rate,
+             input_amount, payroll_cycle_code, approver_id,
+             status, notes
+           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+          [
+            userId, r.inputType, calcType,
+            r.payableHours ?? null, r.hourlyRate ?? null, r.hourlyMultiplier ?? null,
+            r.currency || null, r.baseAmount ?? null, r.exchangeRate ?? null,
+            inputAmount, r.payrollCycleCode || null, approverId,
+            status, r.notes || null,
+          ]
+        )
+        created++
+      }
+
+      await client.query('COMMIT')
+    } catch (txErr) {
+      await client.query('ROLLBACK')
+      throw txErr
+    } finally {
+      client.release()
+    }
+
+    res.status(201).json({ created, errors, skipped })
+  } catch (err) {
+    console.error('Bulk upload payroll inputs error:', err)
     res.status(500).json({ error: 'Internal server error' })
   }
 })

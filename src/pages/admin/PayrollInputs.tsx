@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  Receipt, Plus, Download, LayoutGrid, Table2, Search, ArrowUp, ArrowDown, Filter,
-  Lock, Unlock, X, Trash2, Pencil,
+  Receipt, Plus, Download, Upload, LayoutGrid, Table2, Search, ArrowUp, ArrowDown, Filter,
+  Lock, Unlock, X, Trash2, Pencil, FileSpreadsheet, CheckCircle2, AlertCircle,
 } from 'lucide-react'
+import * as XLSX from 'xlsx'
 import AdminSelect from '@/components/AdminSelect'
 import DocumentUpload from '@/components/DocumentUpload'
 import { PageHeader } from '@/components/PageHeader'
@@ -19,6 +20,7 @@ import {
   isDeductionInputType,
   getEmployees,
   getPayrollPeriods,
+  bulkUploadPayrollInputs,
   PAYROLL_INPUT_TYPES,
   PAYROLL_CURRENCIES,
   type PayrollInput,
@@ -27,6 +29,7 @@ import {
   type PayrollCurrency,
   type EmployeeRecord,
   type PayrollPeriod,
+  type BulkUploadResult,
 } from '@/lib/apiAdmin'
 
 type StatusFilter = 'all' | 'pending' | 'processed'
@@ -66,6 +69,9 @@ export default function AdminPayrollInputs() {
   // Create/edit modal
   const [editingId, setEditingId] = useState<string | null>(null) // null when closed, '' when creating
   const [modalOpen, setModalOpen] = useState(false)
+
+  // Bulk import modal
+  const [bulkImportOpen, setBulkImportOpen] = useState(false)
 
   // Lookup data
   const [employees, setEmployees] = useState<EmployeeRecord[]>([])
@@ -240,6 +246,10 @@ export default function AdminPayrollInputs() {
         icon={<Receipt className="w-5 h-5" />}
         actions={
           <>
+            <button type="button" onClick={() => setBulkImportOpen(true)} className="btn-secondary">
+              <Upload className="w-4 h-4 shrink-0" />
+              Import Excel
+            </button>
             <button type="button" onClick={exportCSV} disabled={loading || displayedRows.length === 0} className="btn-secondary">
               <Download className="w-4 h-4 shrink-0" />
               Export CSV
@@ -463,6 +473,18 @@ export default function AdminPayrollInputs() {
           }}
           onToggleLock={async (id: string, locked: boolean) => {
             await handleToggleLock(id, locked)
+          }}
+        />
+      )}
+
+      {/* Bulk Import Modal */}
+      {bulkImportOpen && (
+        <BulkImportModal
+          onClose={() => setBulkImportOpen(false)}
+          onComplete={async (result) => {
+            setBulkImportOpen(false)
+            setNotice(`Bulk upload: ${result.created} created, ${result.skipped} skipped, ${result.errors.length} errors.`)
+            await load(false)
           }}
         />
       )}
@@ -822,6 +844,361 @@ function PayrollInputModal({
           <button type="button" onClick={handleSave} disabled={saving || locked || !userId || !inputType} className="btn-primary">
             {saving ? 'Saving…' : isEdit ? 'Save changes' : 'Create input'}
           </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ============================================================
+ * BULK IMPORT MODAL
+ * ============================================================ */
+
+const TEMPLATE_COLUMNS = [
+  'Employee CMID',
+  'Input Type',
+  'Calculation',
+  'Payable Hours',
+  'Hourly Rate',
+  'Hourly Multiplier',
+  'Currency',
+  'Base Amount',
+  'Exchange Rate',
+  'Payroll Cycle',
+  'Approver',
+  'Status',
+  'Notes',
+] as const
+
+const COLUMN_MAP: Record<string, string> = {
+  'employee cmid': 'employeeCmid',
+  'input type': 'inputType',
+  'calculation': 'calculationType',
+  'payable hours': 'payableHours',
+  'hourly rate': 'hourlyRate',
+  'hourly multiplier': 'hourlyMultiplier',
+  'currency': 'currency',
+  'base amount': 'baseAmount',
+  'exchange rate': 'exchangeRate',
+  'payroll cycle': 'payrollCycleCode',
+  'approver': 'approverName',
+  'status': 'status',
+  'notes': 'notes',
+}
+
+function mapRowToApi(raw: Record<string, unknown>): Record<string, unknown> {
+  const mapped: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(raw)) {
+    const normalizedKey = String(key).trim().toLowerCase()
+    const apiKey = COLUMN_MAP[normalizedKey]
+    if (apiKey) {
+      mapped[apiKey] = value
+    }
+  }
+  return mapped
+}
+
+function downloadTemplate() {
+  const sampleRow: Record<string, string | number> = {
+    'Employee CMID': 1001,
+    'Input Type': 'Bono Colaboración',
+    'Calculation': 'base_amount',
+    'Payable Hours': '',
+    'Hourly Rate': '',
+    'Hourly Multiplier': '',
+    'Currency': 'DOP',
+    'Base Amount': 5000,
+    'Exchange Rate': 1,
+    'Payroll Cycle': '2026-P10',
+    'Approver': 'Orlando Santana',
+    'Status': 'pending',
+    'Notes': 'Sample row — delete before uploading',
+  }
+  const ws = XLSX.utils.json_to_sheet([sampleRow], { header: [...TEMPLATE_COLUMNS] })
+  // Set column widths for readability
+  ws['!cols'] = TEMPLATE_COLUMNS.map((col) => ({ wch: Math.max(col.length + 4, 16) }))
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'Payroll Inputs')
+  XLSX.writeFile(wb, 'payroll-inputs-template.xlsx')
+}
+
+function BulkImportModal({
+  onClose,
+  onComplete,
+}: {
+  onClose: () => void
+  onComplete: (result: BulkUploadResult) => Promise<void>
+}) {
+  const [step, setStep] = useState<'upload' | 'preview' | 'uploading' | 'done'>('upload')
+  const [parsedRows, setParsedRows] = useState<Record<string, unknown>[]>([])
+  const [fileName, setFileName] = useState<string | null>(null)
+  const [parseError, setParseError] = useState<string | null>(null)
+  const [uploadResult, setUploadResult] = useState<BulkUploadResult | null>(null)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  const [dragOver, setDragOver] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const processFile = useCallback((file: File) => {
+    setParseError(null)
+    setFileName(file.name)
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target?.result as ArrayBuffer)
+        const workbook = XLSX.read(data, { type: 'array' })
+        const sheetName = workbook.SheetNames[0]
+        if (!sheetName) { setParseError('No sheets found in the file.'); return }
+        const sheet = workbook.Sheets[sheetName]
+        const jsonRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' })
+        if (jsonRows.length === 0) { setParseError('The file appears to be empty (no data rows).'); return }
+        const mapped = jsonRows.map(mapRowToApi)
+        setParsedRows(mapped)
+        setStep('preview')
+      } catch {
+        setParseError('Failed to parse the file. Please check it is a valid .xlsx, .xls, or .csv file.')
+      }
+    }
+    reader.onerror = () => setParseError('Failed to read the file.')
+    reader.readAsArrayBuffer(file)
+  }, [])
+
+  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (file) processFile(file)
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault()
+    setDragOver(false)
+    const file = e.dataTransfer.files?.[0]
+    if (file) processFile(file)
+  }
+
+  async function handleUpload() {
+    setStep('uploading')
+    setUploadError(null)
+    try {
+      const result = await bulkUploadPayrollInputs(parsedRows)
+      setUploadResult(result)
+      setStep('done')
+    } catch (err: unknown) {
+      setUploadError(err && typeof err === 'object' && 'message' in err ? String((err as Error).message) : 'Upload failed.')
+      setStep('preview')
+    }
+  }
+
+  function handleDone() {
+    if (uploadResult) {
+      void onComplete(uploadResult)
+    } else {
+      onClose()
+    }
+  }
+
+  // Preview columns (use API field names from mapped rows)
+  const previewCols = parsedRows.length > 0 ? Object.keys(parsedRows[0]) : []
+  const previewSlice = parsedRows.slice(0, 10)
+
+  return (
+    <div className="modal-backdrop" role="dialog" aria-modal="true">
+      <button type="button" className="absolute inset-0" onClick={onClose} aria-label="Close" />
+      <div className="modal-frame-xl">
+        <div className="modal-header">
+          <div>
+            <h2 className="modal-title">Import payroll inputs</h2>
+            <p className="text-[11px] text-surface-500 mt-0.5">Download the template, fill it in, then upload</p>
+          </div>
+          <button type="button" onClick={onClose} className="btn-icon text-surface-400 hover:text-surface-900 hover:bg-surface-100">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="modal-body">
+          {/* Step 1: Download template + file upload */}
+          {(step === 'upload' || step === 'preview') && (
+            <>
+              {/* Download template */}
+              <div className="rounded-xl border border-brand-100 bg-brand-50/30 p-4">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-xl border border-brand-200 bg-brand-100 flex items-center justify-center shrink-0">
+                    <FileSpreadsheet className="w-5 h-5 text-brand-600" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-surface-900">Step 1: Download Template</p>
+                    <p className="text-xs text-surface-600 mt-0.5">
+                      Download the Excel template with the correct column headers and a sample row.
+                    </p>
+                    <button type="button" onClick={downloadTemplate} className="btn-secondary btn-sm mt-2">
+                      <Download className="w-3.5 h-3.5" />
+                      Download template (.xlsx)
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* File upload area */}
+              <div className="rounded-xl border border-surface-200 bg-surface-50/50 p-4">
+                <p className="text-sm font-semibold text-surface-900 mb-2">Step 2: Upload your file</p>
+                <div
+                  className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer ${
+                    dragOver ? 'border-brand-400 bg-brand-50/40' : 'border-surface-300 hover:border-brand-300 hover:bg-brand-50/20'
+                  }`}
+                  onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
+                  onDragLeave={() => setDragOver(false)}
+                  onDrop={handleDrop}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <Upload className="w-8 h-8 text-surface-400 mx-auto mb-2" />
+                  <p className="text-sm text-surface-700">
+                    Drag and drop your file here, or <span className="text-brand-600 font-medium">click to browse</span>
+                  </p>
+                  <p className="text-xs text-surface-500 mt-1">Accepts .xlsx, .xls, or .csv files</p>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".xlsx,.xls,.csv"
+                    className="hidden"
+                    onChange={handleFileSelect}
+                  />
+                </div>
+                {fileName && step === 'upload' && !parseError && (
+                  <p className="text-xs text-surface-600 mt-2">Selected: {fileName}</p>
+                )}
+                {parseError && (
+                  <div className="alert-error mt-2">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>{parseError}</span>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+
+          {/* Step 2: Preview */}
+          {step === 'preview' && (
+            <div className="rounded-xl border border-surface-200 bg-white p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <p className="text-sm font-semibold text-surface-900">Step 3: Preview</p>
+                  <p className="text-xs text-surface-500 mt-0.5">
+                    Showing {previewSlice.length} of {parsedRows.length} rows. Verify the data before uploading.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="btn-secondary btn-sm"
+                  onClick={() => { setStep('upload'); setParsedRows([]); setFileName(null) }}
+                >
+                  Choose different file
+                </button>
+              </div>
+              {uploadError && (
+                <div className="alert-error mb-3">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{uploadError}</span>
+                </div>
+              )}
+              <div className="overflow-x-auto max-h-64 border border-surface-200 rounded-lg">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead className="sticky top-0 bg-surface-50">
+                    <tr>
+                      <th className="px-2 py-1.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider border-b border-surface-200">#</th>
+                      {previewCols.map((col) => (
+                        <th key={col} className="px-2 py-1.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider border-b border-surface-200 whitespace-nowrap">
+                          {col}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {previewSlice.map((row, idx) => (
+                      <tr key={idx} className="border-b border-surface-100 hover:bg-surface-50/50">
+                        <td className="px-2 py-1.5 text-surface-400 tabular-nums">{idx + 1}</td>
+                        {previewCols.map((col) => (
+                          <td key={col} className="px-2 py-1.5 text-surface-700 whitespace-nowrap max-w-[200px] truncate">
+                            {String(row[col] ?? '')}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {parsedRows.length > 10 && (
+                <p className="text-[11px] text-surface-500 mt-2 text-center">
+                  ...and {parsedRows.length - 10} more rows not shown in preview
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Uploading */}
+          {step === 'uploading' && (
+            <div className="flex flex-col items-center justify-center py-12">
+              <div className="w-10 h-10 border-4 border-brand-200 border-t-brand-600 rounded-full animate-spin mb-4" />
+              <p className="text-sm font-semibold text-surface-900">Uploading {parsedRows.length} rows...</p>
+              <p className="text-xs text-surface-500 mt-1">Please wait while we process your data.</p>
+            </div>
+          )}
+
+          {/* Done / Results */}
+          {step === 'done' && uploadResult && (
+            <div className="space-y-4">
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50/40 p-4 flex items-start gap-3">
+                <CheckCircle2 className="w-6 h-6 text-emerald-600 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-semibold text-surface-900">Upload complete</p>
+                  <div className="flex flex-wrap gap-4 mt-2">
+                    <div>
+                      <p className="text-2xl font-bold text-emerald-700 tabular-nums">{uploadResult.created}</p>
+                      <p className="text-xs text-surface-500">Created</p>
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold text-amber-600 tabular-nums">{uploadResult.skipped}</p>
+                      <p className="text-xs text-surface-500">Skipped</p>
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold text-red-600 tabular-nums">{uploadResult.errors.length}</p>
+                      <p className="text-xs text-surface-500">Errors</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              {uploadResult.errors.length > 0 && (
+                <div className="rounded-xl border border-red-200 bg-red-50/40 p-4">
+                  <p className="text-sm font-semibold text-red-800 mb-2">Errors</p>
+                  <ul className="space-y-1 max-h-40 overflow-y-auto">
+                    {uploadResult.errors.map((err, i) => (
+                      <li key={i} className="text-xs text-red-700 flex items-start gap-1.5">
+                        <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                        {err}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="modal-footer">
+          {step === 'done' ? (
+            <button type="button" onClick={handleDone} className="btn-primary">
+              Close
+            </button>
+          ) : (
+            <>
+              <button type="button" onClick={onClose} className="btn-secondary" disabled={step === 'uploading'}>
+                Cancel
+              </button>
+              {step === 'preview' && (
+                <button type="button" onClick={handleUpload} className="btn-primary" disabled={parsedRows.length === 0}>
+                  <Upload className="w-4 h-4" />
+                  Upload {parsedRows.length} row{parsedRows.length !== 1 ? 's' : ''}
+                </button>
+              )}
+            </>
+          )}
         </div>
       </div>
     </div>
