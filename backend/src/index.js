@@ -491,6 +491,8 @@ try {
       }
     }
     await seedPayrollPeriods()
+    await pool.query(`ALTER TABLE payroll_periods ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'upcoming'`)
+    await pool.query(`UPDATE payroll_periods SET status = 'closed' WHERE pay_date < CURRENT_DATE AND status != 'closed'`)
     console.log('Payroll periods table ready')
   } catch (e) {
     console.warn('Payroll periods init skipped (table may already exist):', e.message)

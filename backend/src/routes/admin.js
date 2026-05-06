@@ -1898,17 +1898,20 @@ router.put('/payroll/deductions', async (req, res) => {
 router.get('/payroll/periods', async (req, res) => {
   try {
     const year = req.query.year ? parseInt(req.query.year, 10) : new Date().getFullYear()
-    const result = await query(
-      `SELECT period_from, period_to, pay_date, cycle_code, year_cycle
-       FROM payroll_periods WHERE year_cycle = $1 ORDER BY period_from`,
-      [year]
-    )
+    let sql = `SELECT period_from, period_to, pay_date, cycle_code, year_cycle, COALESCE(status, 'upcoming') as status
+       FROM payroll_periods WHERE year_cycle = $1`
+    if (req.query.open === 'true') {
+      sql += ` AND pay_date >= CURRENT_DATE`
+    }
+    sql += ` ORDER BY period_from`
+    const result = await query(sql, [year])
     res.json(result.rows.map((r) => ({
       periodFrom: r.period_from ? new Date(r.period_from).toISOString().slice(0, 10) : '',
       periodTo: r.period_to ? new Date(r.period_to).toISOString().slice(0, 10) : '',
       payDate: r.pay_date ? new Date(r.pay_date).toISOString().slice(0, 10) : '',
       cycleCode: r.cycle_code,
       yearCycle: r.year_cycle,
+      status: r.status,
     })))
   } catch (err) {
     console.error('List payroll periods error:', err)

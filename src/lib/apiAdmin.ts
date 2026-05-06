@@ -277,6 +277,7 @@ export interface PayrollPeriod {
   payDate: string
   cycleCode: string
   yearCycle: number
+  status: string
 }
 
 export async function getPayrollPeriods(year?: number): Promise<PayrollPeriod[]> {
@@ -913,6 +914,20 @@ export async function calculatePayroll(cycleCode: string): Promise<PayrollCalcRe
     method: 'POST',
     body: JSON.stringify({ cycleCode }),
   })
+}
+
+export async function updatePayrollResultField(
+  id: string,
+  fields: { bank?: string; bankAccount?: string; payMethod?: string },
+): Promise<PayrollCalcResult> {
+  return api<PayrollCalcResult>(`/api/admin/payroll-calculator/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(fields),
+  })
+}
+
+export async function updatePayrollResult(id: string, data: { bank?: string; bankAccount?: string; payMethod?: string; notes?: string }): Promise<PayrollCalcResult> {
+  return api<PayrollCalcResult>(`/api/admin/payroll-calculator/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
 }
 
 // ── Documents ──

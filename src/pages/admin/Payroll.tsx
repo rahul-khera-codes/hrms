@@ -43,7 +43,7 @@ interface SectionDef {
 const sections: SectionDef[] = [
   {
     name: 'Employee',
-    bg: 'bg-white',
+    bg: 'bg-surface-50',
     headerText: 'text-surface-700',
     columns: [
       { key: 'cmid', label: 'CMID', type: 'text', accessor: (r) => r.employeeCmid ?? '-' },
@@ -71,8 +71,8 @@ const sections: SectionDef[] = [
   },
   {
     name: 'Leaves (VPL)',
-    bg: 'bg-emerald-50',
-    headerText: 'text-emerald-800',
+    bg: 'bg-white',
+    headerText: 'text-surface-700',
     columns: [
       { key: 'vacation', label: 'Vacation', type: 'money', accessor: (r) => r.vacation },
       { key: 'matrimony', label: 'Matrimony', type: 'money', accessor: (r) => r.matrimony },
@@ -93,8 +93,8 @@ const sections: SectionDef[] = [
   },
   {
     name: 'Overtime',
-    bg: 'bg-emerald-50',
-    headerText: 'text-emerald-800',
+    bg: 'bg-white',
+    headerText: 'text-surface-700',
     columns: [
       { key: 'hn15Hours', label: 'N15% Hrs', type: 'hours', accessor: (r) => r.hn15Hours },
       { key: 'hn15Amount', label: 'N15% $', type: 'money', accessor: (r) => r.hn15Amount },
@@ -120,8 +120,8 @@ const sections: SectionDef[] = [
   },
   {
     name: 'Incentives',
-    bg: 'bg-emerald-50',
-    headerText: 'text-emerald-800',
+    bg: 'bg-white',
+    headerText: 'text-surface-700',
     columns: [
       { key: 'attendanceIncentive', label: 'Attendance', type: 'money', accessor: (r) => r.attendanceIncentive },
       { key: 'kpiIncentive', label: 'KPI', type: 'money', accessor: (r) => r.kpiIncentive },
@@ -151,29 +151,29 @@ const sections: SectionDef[] = [
   },
   {
     name: 'Gov. Deductions',
-    bg: 'bg-amber-50',
-    headerText: 'text-amber-800',
+    bg: 'bg-red-50',
+    headerText: 'text-red-800',
     columns: [
+      { key: 'isrRetention', label: 'ISR', type: 'money', accessor: (r) => r.isrRetention },
       { key: 'afp', label: 'AFP', type: 'money', accessor: (r) => r.afp },
       { key: 'sfs', label: 'SFS', type: 'money', accessor: (r) => r.sfs },
-      { key: 'tssDependents', label: 'TSS Dep.', type: 'money', accessor: (r) => r.tssDependents },
       { key: 'infotep', label: 'INFOTEP', type: 'money', accessor: (r) => r.infotep },
-      { key: 'isrRetention', label: 'ISR', type: 'money', accessor: (r) => r.isrRetention },
       { key: 'govDeductionsTotal', label: 'Total Gov. Ded.', type: 'money', accessor: (r) => r.govDeductionsTotal },
     ],
   },
   {
     name: 'Other Deductions',
-    bg: 'bg-amber-50',
-    headerText: 'text-amber-800',
+    bg: 'bg-white',
+    headerText: 'text-surface-700',
     columns: [
+      { key: 'tssDependents', label: 'TSS Dep.', type: 'money', accessor: (r) => r.tssDependents },
       { key: 'payLater', label: 'PayLater', type: 'money', accessor: (r) => r.payLater },
       { key: 'gym', label: 'Gym', type: 'money', accessor: (r) => r.gym },
       { key: 'insuranceDed', label: 'Insurance', type: 'money', accessor: (r) => r.insuranceDed },
       { key: 'cafeteria', label: 'Cafeteria', type: 'money', accessor: (r) => r.cafeteria },
       { key: 'adminDeduction', label: 'Admin', type: 'money', accessor: (r) => r.adminDeduction },
-      { key: 'deduccionX', label: 'DeduccionX', type: 'money', accessor: (r) => r.deduccionX },
-      { key: 'otherDeductionsSpare', label: 'Spare', type: 'money', accessor: (r) => r.otherDeductionsSpare },
+      { key: 'deduccionX', label: 'Deduction X', type: 'money', accessor: (r) => r.deduccionX },
+      { key: 'otherDeductionsSpare', label: 'Deduction Y', type: 'money', accessor: (r) => r.otherDeductionsSpare },
       { key: 'otherDeductionsTotal', label: 'Total Other Ded.', type: 'money', accessor: (r) => r.otherDeductionsTotal },
     ],
   },
@@ -183,7 +183,7 @@ const sections: SectionDef[] = [
     headerText: 'text-violet-800',
     columns: [
       { key: 'deductionValidation', label: 'Validation', type: 'bool', accessor: (r) => r.deductionValidation },
-      { key: 'totalDeductions', label: 'Total Ded.', type: 'money', accessor: (r) => r.totalDeductions },
+      { key: 'totalDeductions', label: 'Total Deductions', type: 'money', accessor: (r) => r.totalDeductions },
       { key: 'netSalary', label: 'Net Salary', type: 'money', accessor: (r) => r.netSalary },
     ],
   },

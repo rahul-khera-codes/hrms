@@ -528,4 +528,35 @@ router.post('/calculate', async (req, res) => {
   }
 })
 
+// ---------------------------------------------------------------------------
+// PATCH /:id — Update individual payroll result fields
+// Only allow updating: bank, bank_account, pay_method, notes
+// ---------------------------------------------------------------------------
+router.patch('/:id', async (req, res) => {
+  try {
+    const { id } = req.params
+    const { bank, bankAccount, payMethod, notes } = req.body
+
+    const updates = []
+    const params = []
+    let i = 1
+    if (bank !== undefined) { updates.push(`bank = $${i++}`); params.push(bank || null) }
+    if (bankAccount !== undefined) { updates.push(`bank_account = $${i++}`); params.push(bankAccount || null) }
+    if (payMethod !== undefined) { updates.push(`pay_method = $${i++}`); params.push(payMethod || null) }
+    if (notes !== undefined) { updates.push(`notes = $${i++}`); params.push(notes || null) }
+
+    if (updates.length === 0) return res.status(400).json({ error: 'No fields to update' })
+
+    params.push(id)
+    await query(`UPDATE payroll_calculator_results SET ${updates.join(', ')}, updated_at = NOW() WHERE id = $${i}`, params)
+
+    const result = await query('SELECT * FROM payroll_calculator_results WHERE id = $1', [id])
+    if (!result.rows.length) return res.status(404).json({ error: 'Not found' })
+    res.json(mapRow(result.rows[0]))
+  } catch (err) {
+    console.error('Patch payroll calculator result error:', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
 export default router
