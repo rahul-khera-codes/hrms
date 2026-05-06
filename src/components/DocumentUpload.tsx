@@ -3,7 +3,7 @@ import { Upload, File, Trash2, Download } from 'lucide-react'
 import { getDocuments, uploadDocument, deleteDocument, type DocumentRecord } from '@/lib/apiAdmin'
 
 interface DocumentUploadProps {
-  entityType: 'employee' | 'leave' | 'payroll_input'
+  entityType: 'employee' | 'leave' | 'payroll_input' | 'account'
   entityId: string
 }
 

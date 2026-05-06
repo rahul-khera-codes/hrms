@@ -6,6 +6,7 @@ import { PageHeader } from '@/components/PageHeader'
 import { SkeletonTableRows } from '@/components/Skeleton'
 import AdminSelect from '@/components/AdminSelect'
 import AdminDatePicker from '@/components/AdminDatePicker'
+import DocumentUpload from '@/components/DocumentUpload'
 
 const VERTICALS = [
   'Home Care',
@@ -206,7 +207,7 @@ export default function AdminClients() {
     setBillableType('')
     setBillingRate('')
     setOtPremium('')
-    setContractStatus('')
+    setContractStatus('Onboarding')
     setTerminationDate('')
     setTerminationReason('')
   }
@@ -629,197 +630,96 @@ export default function AdminClients() {
               {/* ── ACCOUNT INFORMATION ── */}
               <p className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-2">Account Information</p>
 
-              <div>
-                <label className="label">Company Name <span className="text-red-500" aria-hidden>*</span></label>
-                <input
-                  type="text"
-                  className="input w-full"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Company name"
-                  required
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="label">Company Name <span className="text-red-500" aria-hidden>*</span></label>
+                  <input type="text" className="input w-full" value={name} onChange={(e) => setName(e.target.value)} placeholder="Company name" required />
+                </div>
+                <div>
+                  <label className="label">Vertical</label>
+                  <AdminSelect value={vertical} onChange={setVertical} options={[{ value: '', label: 'None' }, ...VERTICALS.map((v) => ({ value: v, label: v }))]} />
+                </div>
               </div>
 
-              <div>
-                <label className="label">Vertical</label>
-                <AdminSelect
-                  value={vertical}
-                  onChange={setVertical}
-                  options={[{ value: '', label: 'None' }, ...VERTICALS.map((v) => ({ value: v, label: v }))]}
-                  placeholder="Select vertical..."
-                />
-              </div>
-
-              <div>
-                <label className="label">Sales Owner</label>
-                <AdminSelect
-                  value={salesOwnerId}
-                  onChange={setSalesOwnerId}
-                  options={employeeOptions}
-                  placeholder="Select sales owner..."
-                />
-              </div>
-
-              <div>
-                <label className="label">Ops Owner</label>
-                <AdminSelect
-                  value={opsOwnerId}
-                  onChange={setOpsOwnerId}
-                  options={employeeOptions}
-                  placeholder="Select ops owner..."
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="label">Sales Owner</label>
+                  <AdminSelect value={salesOwnerId} onChange={setSalesOwnerId} options={employeeOptions} />
+                </div>
+                <div>
+                  <label className="label">Ops Owner</label>
+                  <AdminSelect value={opsOwnerId} onChange={setOpsOwnerId} options={employeeOptions} />
+                </div>
               </div>
 
               {/* ── CONTACT INFORMATION ── */}
               <p className="text-xs font-semibold text-surface-500 uppercase tracking-wider mt-4 mb-2 pt-3 border-t border-surface-100">Contact Information</p>
 
-              <div>
-                <label className="label">Registered Address</label>
-                <input
-                  type="text"
-                  className="input w-full"
-                  value={registeredAddress}
-                  onChange={(e) => setRegisteredAddress(e.target.value)}
-                  placeholder="Street, city, country"
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="label">Registered Address</label>
+                  <input type="text" className="input w-full" value={registeredAddress} onChange={(e) => setRegisteredAddress(e.target.value)} placeholder="Street, city, country" />
+                </div>
+                <div>
+                  <label className="label">Website</label>
+                  <input type="url" className="input w-full" value={website} onChange={(e) => setWebsite(e.target.value)} placeholder="https://example.com" />
+                </div>
+                <div>
+                  <label className="label">Main Phone</label>
+                  <input type="text" className="input w-full" value={mainPhone} onChange={(e) => setMainPhone(e.target.value)} placeholder="Main phone number" />
+                </div>
               </div>
 
-              <div>
-                <label className="label">Website</label>
-                <input
-                  type="url"
-                  className="input w-full"
-                  value={website}
-                  onChange={(e) => setWebsite(e.target.value)}
-                  placeholder="https://example.com"
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="label">Ops POC</label>
+                  <input type="text" className="input w-full" value={opsPoc} onChange={(e) => setOpsPoc(e.target.value)} placeholder="Operations point of contact" />
+                </div>
+                <div>
+                  <label className="label">Ops POC Email</label>
+                  <input type="email" className="input w-full" value={opsPocEmail} onChange={(e) => setOpsPocEmail(e.target.value)} placeholder="ops@example.com" />
+                </div>
+                <div>
+                  <label className="label">Ops Phone</label>
+                  <input type="text" className="input w-full" value={opsPhone} onChange={(e) => setOpsPhone(e.target.value)} placeholder="Ops phone number" />
+                </div>
               </div>
 
-              <div>
-                <label className="label">Main Phone</label>
-                <input
-                  type="text"
-                  className="input w-full"
-                  value={mainPhone}
-                  onChange={(e) => setMainPhone(e.target.value)}
-                  placeholder="Main phone number"
-                />
-              </div>
-
-              <div>
-                <label className="label">Ops POC</label>
-                <input
-                  type="text"
-                  className="input w-full"
-                  value={opsPoc}
-                  onChange={(e) => setOpsPoc(e.target.value)}
-                  placeholder="Operations point of contact"
-                />
-              </div>
-
-              <div>
-                <label className="label">Ops POC Email</label>
-                <input
-                  type="email"
-                  className="input w-full"
-                  value={opsPocEmail}
-                  onChange={(e) => setOpsPocEmail(e.target.value)}
-                  placeholder="ops@example.com"
-                />
-              </div>
-
-              <div>
-                <label className="label">Ops Phone</label>
-                <input
-                  type="text"
-                  className="input w-full"
-                  value={opsPhone}
-                  onChange={(e) => setOpsPhone(e.target.value)}
-                  placeholder="Ops phone number"
-                />
-              </div>
-
-              <div>
-                <label className="label">Billing POC</label>
-                <input
-                  type="text"
-                  className="input w-full"
-                  value={billingPoc}
-                  onChange={(e) => setBillingPoc(e.target.value)}
-                  placeholder="Billing point of contact"
-                />
-              </div>
-
-              <div>
-                <label className="label">Billing POC Email</label>
-                <input
-                  type="email"
-                  className="input w-full"
-                  value={billingPocEmail}
-                  onChange={(e) => setBillingPocEmail(e.target.value)}
-                  placeholder="billing@example.com"
-                />
-              </div>
-
-              <div>
-                <label className="label">Billing POC Phone</label>
-                <input
-                  type="text"
-                  className="input w-full"
-                  value={billingPocPhone}
-                  onChange={(e) => setBillingPocPhone(e.target.value)}
-                  placeholder="Billing phone number"
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="label">Billing POC</label>
+                  <input type="text" className="input w-full" value={billingPoc} onChange={(e) => setBillingPoc(e.target.value)} placeholder="Billing point of contact" />
+                </div>
+                <div>
+                  <label className="label">Billing POC Email</label>
+                  <input type="email" className="input w-full" value={billingPocEmail} onChange={(e) => setBillingPocEmail(e.target.value)} placeholder="billing@example.com" />
+                </div>
+                <div>
+                  <label className="label">Billing POC Phone</label>
+                  <input type="text" className="input w-full" value={billingPocPhone} onChange={(e) => setBillingPocPhone(e.target.value)} placeholder="Billing phone number" />
+                </div>
               </div>
 
               {/* ── BILLING INFORMATION ── */}
               <p className="text-xs font-semibold text-surface-500 uppercase tracking-wider mt-4 mb-2 pt-3 border-t border-surface-100">Billing Information</p>
 
-              <div>
-                <label className="label">Billable Headcount</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  className="input w-full"
-                  value={billableHeadcount}
-                  onChange={(e) => setBillableHeadcount(e.target.value)}
-                  placeholder="0.00"
-                />
-              </div>
-
-              <div>
-                <label className="label">Billable Type</label>
-                <AdminSelect
-                  value={billableType}
-                  onChange={setBillableType}
-                  options={[{ value: '', label: 'None' }, ...BILLABLE_TYPES.map((t) => ({ value: t, label: t }))]}
-                  placeholder="Select billable type..."
-                />
-              </div>
-
-              <div>
-                <label className="label">Billing Rate</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  className="input w-full"
-                  value={billingRate}
-                  onChange={(e) => setBillingRate(e.target.value)}
-                  placeholder="0.00"
-                />
-              </div>
-
-              <div>
-                <label className="label">OT Premium</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  className="input w-full"
-                  value={otPremium}
-                  onChange={(e) => setOtPremium(e.target.value)}
-                  placeholder="0.00"
-                />
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div>
+                  <label className="label">Billable Headcount</label>
+                  <input type="number" step="0.01" className="input w-full" value={billableHeadcount} onChange={(e) => setBillableHeadcount(e.target.value)} placeholder="0" />
+                </div>
+                <div>
+                  <label className="label">Billable Type</label>
+                  <AdminSelect value={billableType} onChange={setBillableType} options={[{ value: '', label: 'None' }, ...BILLABLE_TYPES.map((t) => ({ value: t, label: t }))]} />
+                </div>
+                <div>
+                  <label className="label">Billing Rate</label>
+                  <input type="number" step="0.01" className="input w-full" value={billingRate} onChange={(e) => setBillingRate(e.target.value)} placeholder="0.00" />
+                </div>
+                <div>
+                  <label className="label">OT Premium</label>
+                  <input type="number" step="0.01" className="input w-full" value={otPremium} onChange={(e) => setOtPremium(e.target.value)} placeholder="1.2" />
+                </div>
               </div>
 
               {/* ── CONTRACT STATUS ── */}
@@ -837,29 +737,27 @@ export default function AdminClients() {
                     }
                   }}
                   options={[{ value: '', label: 'None' }, ...CONTRACT_STATUSES.map((s) => ({ value: s, label: s }))]}
-                  placeholder="Select status..."
                 />
               </div>
 
               {showTerminationFields && (
-                <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="label">Termination Date</label>
-                    <AdminDatePicker
-                      value={terminationDate}
-                      onChange={setTerminationDate}
-                    />
+                    <AdminDatePicker value={terminationDate} onChange={setTerminationDate} />
                   </div>
-
                   <div>
                     <label className="label">Termination Reason</label>
-                    <AdminSelect
-                      value={terminationReason}
-                      onChange={setTerminationReason}
-                      options={[{ value: '', label: 'None' }, ...TERMINATION_REASONS.map((r) => ({ value: r, label: r }))]}
-                      placeholder="Select reason..."
-                    />
+                    <AdminSelect value={terminationReason} onChange={setTerminationReason} options={[{ value: '', label: 'None' }, ...TERMINATION_REASONS.map((r) => ({ value: r, label: r }))]} />
                   </div>
+                </div>
+              )}
+
+              {/* ── DOCUMENTS ── */}
+              {editing && (
+                <>
+                  <p className="text-xs font-semibold text-surface-500 uppercase tracking-wider mt-4 mb-2 pt-3 border-t border-surface-100">Documents</p>
+                  <DocumentUpload entityType="account" entityId={editing.id} />
                 </>
               )}
             </div>
