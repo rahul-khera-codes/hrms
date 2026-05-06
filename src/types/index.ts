@@ -53,6 +53,10 @@ export interface AttendanceRecord {
   x100Hours?: number
   hdyHours?: number
   holHours?: number
+  payableRvwHours?: number
+  billableRegHours?: number
+  billablePrmHours?: number
+  billableRvwHours?: number
   comments?: string
   isLocked?: boolean
   // Backward compatibility

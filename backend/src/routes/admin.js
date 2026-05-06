@@ -163,6 +163,33 @@ function toAttendanceRecord(row) {
     hdyHours = Math.max(0, actualHours - adbtHours)
   }
 
+  // --- Payable Review: IF(Pay="Review", ACT-ADBT, 0) ---
+  let payableRvwHours = 0
+  if (payType === 'Review') {
+    payableRvwHours = Math.max(0, actualHours - adbtHours)
+    // When pay type is Review, zero out all other payable buckets
+    regHours = 0
+    n15Hours = 0
+    x35Hours = 0
+    x100Hours = 0
+    hdyHours = 0
+  }
+
+  // --- Billable hour classification (based on bill_type) ---
+  const billType = row.bill_type || 'Regular'
+  let billableRegHours = 0
+  let billablePrmHours = 0
+  let billableRvwHours = 0
+
+  if (billType === 'Regular') {
+    billableRegHours = Math.max(0, actualHours - adbtHours)
+  } else if (billType === 'Premium') {
+    billablePrmHours = Math.max(0, actualHours)
+  } else if (billType === 'Review') {
+    billableRvwHours = Math.max(0, actualHours)
+  }
+  // billType === 'DNB' → all billable = 0 (already default)
+
   // Backward-compatible dbtHours (use adbt for legacy consumers)
   const dbtHours = adbtHours
 
@@ -195,6 +222,10 @@ function toAttendanceRecord(row) {
     x35Hours: r2(x35Hours),
     x100Hours: r2(x100Hours),
     hdyHours: r2(hdyHours),
+    billableRegHours: r2(billableRegHours),
+    billablePrmHours: r2(billablePrmHours),
+    billableRvwHours: r2(billableRvwHours),
+    payableRvwHours: r2(payableRvwHours),
     comments: row.comments || '',
     accountName: row.account_name || null,
     accountId: row.account_override || row.account_id || null,
@@ -207,6 +238,92 @@ function toAttendanceRecord(row) {
     dbtHours: r2(dbtHours),
     holHours: r2(hdyHours),
   }
+}
+
+/**
+ * After saving/updating a session, re-compute the stored billable + payable-review
+ * hour columns so aggregate queries (payroll, reports) can SUM them directly.
+ * Reads the session's clock_in, clock_out, pay_type, bill_type and writes the
+ * computed values back into the same row.
+ */
+async function persistComputedHours(sessionId) {
+  const res = await query(
+    `SELECT clock_in, clock_out, shift_start, shift_end,
+            pay_type, bill_type, scheduled_minutes
+     FROM sessions WHERE id = $1`,
+    [sessionId]
+  )
+  if (!res.rows.length) return
+  const s = res.rows[0]
+
+  // Actual hours
+  let actualHours = 0
+  if (s.clock_in && s.clock_out) {
+    actualHours = (new Date(s.clock_out).getTime() - new Date(s.clock_in).getTime()) / 3600000
+  }
+
+  // Scheduled hours
+  let scheduledHours = 0
+  if (s.shift_start && s.shift_end) {
+    scheduledHours = (new Date(s.shift_end).getTime() - new Date(s.shift_start).getTime()) / 3600000
+    if (scheduledHours < 0) scheduledHours += 24
+  } else if (Number(s.scheduled_minutes ?? 0) > 0) {
+    scheduledHours = Number(s.scheduled_minutes) / 60
+  }
+
+  // ADBT
+  let adbtHours = 0
+  if (actualHours >= 12) adbtHours = 1.5
+  else if (actualHours >= 8) adbtHours = 1
+  else if (actualHours >= 4) adbtHours = 0.5
+
+  // SDBT
+  let sdbtHours = 0
+  if (scheduledHours >= 12) sdbtHours = 1.5
+  else if (scheduledHours >= 8) sdbtHours = 1
+  else if (scheduledHours >= 4) sdbtHours = 0.5
+
+  const payType = s.pay_type || 'Regular'
+  const billType = s.bill_type || 'Regular'
+
+  // Payable hours
+  let regHours = 0
+  if (payType === 'Holiday') regHours = Math.max(0, scheduledHours - sdbtHours)
+  else if (payType === 'Regular') regHours = Math.max(0, actualHours - adbtHours)
+
+  let x35Hours = payType === 'X35%' ? Math.max(0, actualHours - adbtHours) : 0
+  let x100Hours = payType === 'X100%' ? Math.max(0, actualHours - adbtHours) : 0
+  let holHours = payType === 'Holiday' ? Math.max(0, actualHours - adbtHours) : 0
+
+  // Payable Review
+  let payableRvwHours = 0
+  if (payType === 'Review') {
+    payableRvwHours = Math.max(0, actualHours - adbtHours)
+    regHours = 0; x35Hours = 0; x100Hours = 0; holHours = 0
+  }
+
+  // Billable hours
+  let billableRegHours = 0, billablePrmHours = 0, billableRvwHours = 0
+  if (billType === 'Regular') billableRegHours = Math.max(0, actualHours - adbtHours)
+  else if (billType === 'Premium') billablePrmHours = Math.max(0, actualHours)
+  else if (billType === 'Review') billableRvwHours = Math.max(0, actualHours)
+  // DNB → all zero
+
+  const r2 = (v) => Math.round(v * 100) / 100
+
+  await query(
+    `UPDATE sessions SET
+       reg_hours = $1, x35_hours = $2, x100_hours = $3, hol_hours = $4,
+       billable_reg_hours = $5, billable_prm_hours = $6, billable_rvw_hours = $7,
+       payable_rvw_hours = $8
+     WHERE id = $9`,
+    [
+      r2(regHours), r2(x35Hours), r2(x100Hours), r2(holHours),
+      r2(billableRegHours), r2(billablePrmHours), r2(billableRvwHours),
+      r2(payableRvwHours),
+      sessionId,
+    ]
+  )
 }
 
 router.use(authMiddleware)
@@ -306,6 +423,10 @@ router.get('/attendance', async (req, res) => {
         COALESCE(SUM(s.x35_hours), 0) AS x35_hours,
         COALESCE(SUM(s.x100_hours), 0) AS x100_hours,
         COALESCE(SUM(s.hol_hours), 0) AS hol_hours,
+        COALESCE(SUM(s.billable_reg_hours), 0) AS billable_reg_hours,
+        COALESCE(SUM(s.billable_prm_hours), 0) AS billable_prm_hours,
+        COALESCE(SUM(s.billable_rvw_hours), 0) AS billable_rvw_hours,
+        COALESCE(SUM(s.payable_rvw_hours), 0) AS payable_rvw_hours,
         MAX(COALESCE(mgr_ov.name, mgr.name)) AS reports_to_name,
         MAX(COALESCE(c_ov.name, c.name)) AS account_name,
         MAX(e.cmid) AS employee_cmid,
@@ -562,6 +683,9 @@ router.patch('/attendance/:sessionId', async (req, res) => {
     params.push(sessionId)
     await query(`UPDATE sessions SET ${updates.join(', ')} WHERE id = $${i}`, params)
 
+    // Recompute and persist billable + payable hour columns
+    await persistComputedHours(sessionId)
+
     // Re-fetch the updated record with joins
     const updated = await query(
       `SELECT s.id AS session_id, u.id AS user_id, u.name AS user_name,
@@ -578,6 +702,7 @@ router.patch('/attendance/:sessionId', async (req, res) => {
               s.task, s.status_override, s.pay_type, s.bill_type, s.comments,
               s.scheduled_minutes, s.actual_minutes, s.dbt_minutes, s.holiday_name,
               s.reg_hours, s.n15_hours, s.x35_hours, s.x100_hours, s.hol_hours,
+              s.billable_reg_hours, s.billable_prm_hours, s.billable_rvw_hours, s.payable_rvw_hours,
               s.is_locked,
               s.reports_to_override, s.account_override,
               COALESCE(mgr_ov.name, mgr.name) AS reports_to_name,
@@ -653,6 +778,9 @@ router.post('/attendance', async (req, res) => {
     )
     const newId = inserted.rows[0].id
 
+    // Compute and persist billable + payable hour columns
+    await persistComputedHours(newId)
+
     // Re-fetch with joins (same as PATCH endpoint)
     const full = await query(
       `SELECT s.id AS session_id, u.id AS user_id, u.name AS user_name,
@@ -669,6 +797,7 @@ router.post('/attendance', async (req, res) => {
               s.task, s.status_override, s.pay_type, s.bill_type, s.comments,
               s.scheduled_minutes, s.actual_minutes, s.dbt_minutes, s.holiday_name,
               s.reg_hours, s.n15_hours, s.x35_hours, s.x100_hours, s.hol_hours,
+              s.billable_reg_hours, s.billable_prm_hours, s.billable_rvw_hours, s.payable_rvw_hours,
               s.is_locked, s.reports_to_override, s.account_override,
               COALESCE(mgr_ov.name, mgr.name) AS reports_to_name,
               COALESCE(c_ov.name, c.name) AS account_name,

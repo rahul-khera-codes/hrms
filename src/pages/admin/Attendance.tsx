@@ -23,11 +23,10 @@ const STATUS_OPTIONS = [
   'Terminated',
   'Prenotice',
   'Breastfeeding',
-  'REVIEW',
 ] as const
 
-const PAY_OPTIONS = ['Regular', 'X35%', 'X100%', 'Holiday', 'DNP'] as const
-const BILL_OPTIONS = ['Regular', 'Premium', 'Holiday', 'DNB', 'Review'] as const
+const PAY_OPTIONS = ['Regular', 'X35%', 'X100%', 'Holiday', 'DNP', 'Review'] as const
+const BILL_OPTIONS = ['Regular', 'Premium', 'DNB', 'Review'] as const
 const STAGE_OPTIONS = ['Production', 'Nesting', 'Training'] as const
 const TASK_OPTIONS = [
   'Admin',
@@ -306,11 +305,15 @@ export default function AdminAttendance() {
       'SDBT',
       'ACT',
       'ADBT',
-      'REG',
-      'N15%',
-      'X35%',
-      'X100%',
-      'HDY',
+      'P-REG',
+      'P-N15%',
+      'P-X35%',
+      'P-X100%',
+      'P-HDY',
+      'P-RVW',
+      'B-REG',
+      'B-PRM',
+      'B-RVW',
       'Comments',
     ]
     const rows = records.map((r) => [
@@ -337,6 +340,10 @@ export default function AdminAttendance() {
       fmtHours(r.x35Hours),
       fmtHours(r.x100Hours),
       fmtHours(r.hdyHours),
+      fmtHours(r.payableRvwHours),
+      fmtHours(r.billableRegHours),
+      fmtHours(r.billablePrmHours),
+      fmtHours(r.billableRvwHours),
       r.comments ?? '',
     ])
     const csv = [
@@ -381,16 +388,16 @@ export default function AdminAttendance() {
     const totalX100 = records.reduce((a, r) => a + (r.x100Hours ?? 0), 0)
     const totalHdy = records.reduce((a, r) => a + (r.hdyHours ?? 0), 0)
     const totalDnp = records.filter((r) => r.payType === 'DNP').reduce((a, r) => a + (r.actualHours ?? 0) - (r.adbtHours ?? 0), 0)
+    const totalPayableRvw = records.reduce((a, r) => a + (r.payableRvwHours ?? 0), 0)
     // Billable hours
-    const billReg = records.filter((r) => r.billType === 'Regular').reduce((a, r) => a + (r.actualHours ?? 0) - (r.adbtHours ?? 0), 0)
-    const billPremium = records.filter((r) => r.billType === 'Premium').reduce((a, r) => a + (r.actualHours ?? 0) - (r.adbtHours ?? 0), 0)
-    const billHoliday = records.filter((r) => r.billType === 'Holiday').reduce((a, r) => a + (r.actualHours ?? 0) - (r.adbtHours ?? 0), 0)
+    const totalBillableReg = records.reduce((a, r) => a + (r.billableRegHours ?? 0), 0)
+    const totalBillablePrm = records.reduce((a, r) => a + (r.billablePrmHours ?? 0), 0)
+    const totalBillableRvw = records.reduce((a, r) => a + (r.billableRvwHours ?? 0), 0)
     const billDnb = records.filter((r) => r.billType === 'DNB').reduce((a, r) => a + (r.actualHours ?? 0) - (r.adbtHours ?? 0), 0)
-    const billReview = records.filter((r) => r.billType === 'Review').reduce((a, r) => a + (r.actualHours ?? 0) - (r.adbtHours ?? 0), 0)
     return {
       total, present, absent, late, timeOff,
-      totalReg, totalN15, totalX35, totalX100, totalHdy, totalDnp,
-      billReg, billPremium, billHoliday, billDnb, billReview,
+      totalReg, totalN15, totalX35, totalX100, totalHdy, totalDnp, totalPayableRvw,
+      totalBillableReg, totalBillablePrm, totalBillableRvw, billDnb,
     }
   }, [records])
 
@@ -417,11 +424,15 @@ export default function AdminAttendance() {
       case 'SDBT': return r.sdbtHours ?? 0
       case 'ACT': return r.actualHours ?? 0
       case 'ADBT': return r.adbtHours ?? 0
-      case 'REG': return r.regHours ?? 0
-      case 'N15%': return r.n15Hours ?? 0
-      case 'X35%': return r.x35Hours ?? 0
-      case 'X100%': return r.x100Hours ?? 0
-      case 'HDY': return r.hdyHours ?? 0
+      case 'P-REG': return r.regHours ?? 0
+      case 'P-N15%': return r.n15Hours ?? 0
+      case 'P-X35%': return r.x35Hours ?? 0
+      case 'P-X100%': return r.x100Hours ?? 0
+      case 'P-HDY': return r.hdyHours ?? 0
+      case 'P-RVW': return r.payableRvwHours ?? 0
+      case 'B-REG': return r.billableRegHours ?? 0
+      case 'B-PRM': return r.billablePrmHours ?? 0
+      case 'B-RVW': return r.billableRvwHours ?? 0
       case 'Comments': return (r.comments ?? '').toLowerCase()
       default: return ''
     }
@@ -530,24 +541,24 @@ export default function AdminAttendance() {
       {/* Summary cards - Row 2: Payable Hours */}
       <div>
         <p className="text-[10px] sm:text-xs font-semibold text-surface-500 uppercase tracking-wider mb-2">Payable Hours</p>
-        <div className="grid grid-cols-3 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
+        <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-7 gap-3 sm:gap-4">
           <SummaryCard label="Regular" value={fmtHours(summary.totalReg)} color="brand" />
           <SummaryCard label="Night (15%)" value={fmtHours(summary.totalN15)} color="violet" />
           <SummaryCard label="X35%" value={fmtHours(summary.totalX35)} color="amber" />
           <SummaryCard label="X100%" value={fmtHours(summary.totalX100)} color="red" />
           <SummaryCard label="Holiday" value={fmtHours(summary.totalHdy)} color="emerald" />
           <SummaryCard label="DNP" value={fmtHours(summary.totalDnp)} color="surface" />
+          <SummaryCard label="Review" value={fmtHours(summary.totalPayableRvw)} color="red" />
         </div>
       </div>
 
       {/* Summary cards - Row 3: Billable Hours */}
       <div>
         <p className="text-[10px] sm:text-xs font-semibold text-surface-500 uppercase tracking-wider mb-2">Billable Hours</p>
-        <div className="grid grid-cols-3 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
-          <SummaryCard label="Regular" value={fmtHours(summary.billReg)} color="brand" />
-          <SummaryCard label="Premium" value={fmtHours(summary.billPremium)} color="violet" />
-          <SummaryCard label="Holiday" value={fmtHours(summary.billHoliday)} color="emerald" />
-          <SummaryCard label="Review" value={fmtHours(summary.billReview)} color="indigo" />
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-4 gap-3 sm:gap-4">
+          <SummaryCard label="Regular" value={fmtHours(summary.totalBillableReg)} color="brand" />
+          <SummaryCard label="Premium" value={fmtHours(summary.totalBillablePrm)} color="violet" />
+          <SummaryCard label="Review" value={fmtHours(summary.totalBillableRvw)} color="red" />
           <SummaryCard label="DNB" value={fmtHours(summary.billDnb)} color="surface" />
         </div>
       </div>
@@ -566,9 +577,20 @@ export default function AdminAttendance() {
           </div>
         ) : (
           <div className="overflow-x-auto" onClick={(e) => { if ((e.target as HTMLElement).closest('select, input')) e.stopPropagation() }}>
-            <table className="min-w-[2000px] w-full text-left border-collapse">
+            <table className="min-w-[2400px] w-full text-left border-collapse">
               {/* Header */}
               <thead className="sticky top-0 z-10 bg-surface-50">
+                {/* Group header row */}
+                <tr>
+                  <th colSpan={3} className="px-2 py-1 text-[9px] font-bold text-brand-600 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 bg-brand-50/40 text-center">Employee</th>
+                  <th colSpan={4} className="px-2 py-1 text-[9px] font-bold text-violet-600 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 bg-violet-50/40 text-center">Shift</th>
+                  <th colSpan={5} className="px-2 py-1 text-[9px] font-bold text-amber-600 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 bg-amber-50/40 text-center">Classification</th>
+                  <th colSpan={4} className="px-2 py-1 text-[9px] font-bold text-surface-500 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 bg-surface-50 text-center">Time</th>
+                  <th colSpan={6} className="px-2 py-1 text-[9px] font-bold text-blue-600 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 bg-blue-50/40 text-center">Payable Hours</th>
+                  <th colSpan={3} className="px-2 py-1 text-[9px] font-bold text-emerald-600 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 bg-emerald-50/40 text-center">Billable Hours</th>
+                  <th colSpan={2} className="px-2 py-1 text-[9px] font-bold text-surface-500 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 bg-surface-50 text-center">&nbsp;</th>
+                </tr>
+                {/* Column header row */}
                 <tr>
                   {[
                     'EID',
@@ -578,21 +600,24 @@ export default function AdminAttendance() {
                     'Clock In',
                     'Shift End',
                     'Clock Out',
-                    'Stage',
-                    'Reports To',
-                    'Task',
                     'Status',
                     'Pay',
                     'Bill',
+                    'Stage',
+                    'Task',
                     'SCH',
                     'SDBT',
                     'ACT',
                     'ADBT',
-                    'REG',
-                    'N15%',
-                    'X35%',
-                    'X100%',
-                    'HDY',
+                    'P-REG',
+                    'P-N15%',
+                    'P-X35%',
+                    'P-X100%',
+                    'P-HDY',
+                    'P-RVW',
+                    'B-REG',
+                    'B-PRM',
+                    'B-RVW',
                     'Comments',
                     'Actions',
                   ].map((col) => (
@@ -679,26 +704,6 @@ export default function AdminAttendance() {
                       <td className="px-2 py-1.5 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">
                         {fmtDateTime(r.clockOut)}
                       </td>
-                      {/* Stage (editable) */}
-                      <td className="px-2 py-1.5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                        <InlineSelect
-                          value={r.stage ?? ''}
-                          options={STAGE_OPTIONS}
-                          onChange={(v) => handleFieldUpdate(r, 'stage', v)}
-                        />
-                      </td>
-                      {/* Reports To */}
-                      <td className="px-2 py-1.5 text-xs text-surface-700 whitespace-nowrap">
-                        {r.reportsTo ?? ''}
-                      </td>
-                      {/* Task (editable) */}
-                      <td className="px-2 py-1.5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                        <InlineSelect
-                          value={r.task ?? ''}
-                          options={TASK_OPTIONS}
-                          onChange={(v) => handleFieldUpdate(r, 'task', v)}
-                        />
-                      </td>
                       {/* Status (editable) */}
                       <td className="px-2 py-1.5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                         <InlineSelect
@@ -714,6 +719,7 @@ export default function AdminAttendance() {
                           value={r.payType ?? ''}
                           options={PAY_OPTIONS}
                           onChange={(v) => handleFieldUpdate(r, 'payType', v)}
+                          colorMap={{ Review: 'text-red-600 font-semibold' }}
                         />
                       </td>
                       {/* Bill (editable) */}
@@ -722,6 +728,23 @@ export default function AdminAttendance() {
                           value={r.billType ?? ''}
                           options={BILL_OPTIONS}
                           onChange={(v) => handleFieldUpdate(r, 'billType', v)}
+                          colorMap={{ Review: 'text-red-600 font-semibold' }}
+                        />
+                      </td>
+                      {/* Stage (editable) */}
+                      <td className="px-2 py-1.5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                        <InlineSelect
+                          value={r.stage ?? ''}
+                          options={STAGE_OPTIONS}
+                          onChange={(v) => handleFieldUpdate(r, 'stage', v)}
+                        />
+                      </td>
+                      {/* Task (editable) */}
+                      <td className="px-2 py-1.5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                        <InlineSelect
+                          value={r.task ?? ''}
+                          options={TASK_OPTIONS}
+                          onChange={(v) => handleFieldUpdate(r, 'task', v)}
                         />
                       </td>
                       {/* SCH */}
@@ -740,25 +763,41 @@ export default function AdminAttendance() {
                       <td className={`px-2 py-1.5 text-xs tabular-nums whitespace-nowrap text-right ${(r.adbtHours ?? 0) > 0 ? 'text-surface-700 font-medium' : 'text-surface-300'}`}>
                         {fmtHours(r.adbtHours)}
                       </td>
-                      {/* REG */}
+                      {/* P-REG */}
                       <td className={`px-2 py-1.5 text-xs tabular-nums whitespace-nowrap text-right font-medium ${(r.regHours ?? 0) > 0 ? 'text-brand-600' : 'text-surface-300'}`}>
                         {fmtHours(r.regHours)}
                       </td>
-                      {/* N15% */}
+                      {/* P-N15% */}
                       <td className={`px-2 py-1.5 text-xs tabular-nums whitespace-nowrap text-right font-medium ${(r.n15Hours ?? 0) > 0 ? 'text-violet-600' : 'text-surface-300'}`}>
                         {fmtHours(r.n15Hours)}
                       </td>
-                      {/* X35% */}
+                      {/* P-X35% */}
                       <td className={`px-2 py-1.5 text-xs tabular-nums whitespace-nowrap text-right font-medium ${(r.x35Hours ?? 0) > 0 ? 'text-amber-600' : 'text-surface-300'}`}>
                         {fmtHours(r.x35Hours)}
                       </td>
-                      {/* X100% */}
+                      {/* P-X100% */}
                       <td className={`px-2 py-1.5 text-xs tabular-nums whitespace-nowrap text-right font-medium ${(r.x100Hours ?? 0) > 0 ? 'text-red-600' : 'text-surface-300'}`}>
                         {fmtHours(r.x100Hours)}
                       </td>
-                      {/* HDY */}
+                      {/* P-HDY */}
                       <td className={`px-2 py-1.5 text-xs tabular-nums whitespace-nowrap text-right font-medium ${(r.hdyHours ?? 0) > 0 ? 'text-emerald-600' : 'text-surface-300'}`}>
                         {fmtHours(r.hdyHours)}
+                      </td>
+                      {/* P-RVW */}
+                      <td className={`px-2 py-1.5 text-xs tabular-nums whitespace-nowrap text-right font-medium ${(r.payableRvwHours ?? 0) > 0 ? 'text-red-600' : 'text-surface-300'}`}>
+                        {fmtHours(r.payableRvwHours)}
+                      </td>
+                      {/* B-REG */}
+                      <td className={`px-2 py-1.5 text-xs tabular-nums whitespace-nowrap text-right font-medium ${(r.billableRegHours ?? 0) > 0 ? 'text-brand-600' : 'text-surface-300'}`}>
+                        {fmtHours(r.billableRegHours)}
+                      </td>
+                      {/* B-PRM */}
+                      <td className={`px-2 py-1.5 text-xs tabular-nums whitespace-nowrap text-right font-medium ${(r.billablePrmHours ?? 0) > 0 ? 'text-violet-600' : 'text-surface-300'}`}>
+                        {fmtHours(r.billablePrmHours)}
+                      </td>
+                      {/* B-RVW */}
+                      <td className={`px-2 py-1.5 text-xs tabular-nums whitespace-nowrap text-right font-medium ${(r.billableRvwHours ?? 0) > 0 ? 'text-red-600' : 'text-surface-300'}`}>
+                        {fmtHours(r.billableRvwHours)}
                       </td>
                       {/* Comments (editable) */}
                       <td className="px-2 py-1.5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
@@ -854,7 +893,7 @@ export default function AdminAttendance() {
               {/* Hours */}
               <div className="rounded-xl border border-surface-200 bg-surface-50 p-4">
                 <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider mb-3">Hours</p>
-                <div className="grid grid-cols-4 gap-2 mb-2">
+                <div className="grid grid-cols-4 gap-2 mb-3">
                   {([
                     { label: 'SCH', val: detailRecord.scheduledHours },
                     { label: 'SDBT', val: detailRecord.sdbtHours },
@@ -867,13 +906,15 @@ export default function AdminAttendance() {
                     </div>
                   ))}
                 </div>
-                <div className="grid grid-cols-5 gap-2">
+                <p className="text-[10px] font-semibold text-blue-500 uppercase tracking-wider mb-2">Payable</p>
+                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-3">
                   {([
-                    { label: 'REG', val: detailRecord.regHours, color: 'brand' },
-                    { label: 'N15%', val: detailRecord.n15Hours, color: 'violet' },
-                    { label: 'X35%', val: detailRecord.x35Hours, color: 'amber' },
-                    { label: 'X100%', val: detailRecord.x100Hours, color: 'red' },
-                    { label: 'HDY', val: detailRecord.hdyHours, color: 'emerald' },
+                    { label: 'P-REG', val: detailRecord.regHours, color: 'brand' },
+                    { label: 'P-N15%', val: detailRecord.n15Hours, color: 'violet' },
+                    { label: 'P-X35%', val: detailRecord.x35Hours, color: 'amber' },
+                    { label: 'P-X100%', val: detailRecord.x100Hours, color: 'red' },
+                    { label: 'P-HDY', val: detailRecord.hdyHours, color: 'emerald' },
+                    { label: 'P-RVW', val: detailRecord.payableRvwHours, color: 'red' },
                   ] as const).map((item) => {
                     const isNonZero = (item.val ?? 0) > 0
                     const badgeBg = isNonZero
@@ -882,6 +923,27 @@ export default function AdminAttendance() {
                         : item.color === 'amber' ? 'bg-amber-50 border-amber-200 text-amber-700'
                         : item.color === 'red' ? 'bg-red-50 border-red-200 text-red-700'
                         : 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                      : 'bg-white border-surface-100 text-surface-300'
+                    return (
+                      <div key={item.label} className={`text-center rounded-lg border py-2 px-1 ${badgeBg}`}>
+                        <p className="text-[10px] font-medium uppercase opacity-70">{item.label}</p>
+                        <p className="text-sm font-semibold tabular-nums mt-0.5">{fmtHours(item.val)}</p>
+                      </div>
+                    )
+                  })}
+                </div>
+                <p className="text-[10px] font-semibold text-emerald-500 uppercase tracking-wider mb-2">Billable</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {([
+                    { label: 'B-REG', val: detailRecord.billableRegHours, color: 'brand' },
+                    { label: 'B-PRM', val: detailRecord.billablePrmHours, color: 'violet' },
+                    { label: 'B-RVW', val: detailRecord.billableRvwHours, color: 'red' },
+                  ] as const).map((item) => {
+                    const isNonZero = (item.val ?? 0) > 0
+                    const badgeBg = isNonZero
+                      ? item.color === 'brand' ? 'bg-blue-50 border-blue-200 text-blue-700'
+                        : item.color === 'violet' ? 'bg-violet-50 border-violet-200 text-violet-700'
+                        : 'bg-red-50 border-red-200 text-red-700'
                       : 'bg-white border-surface-100 text-surface-300'
                     return (
                       <div key={item.label} className={`text-center rounded-lg border py-2 px-1 ${badgeBg}`}>

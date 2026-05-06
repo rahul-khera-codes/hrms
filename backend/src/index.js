@@ -79,6 +79,10 @@ try {
     await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS x35_hours DECIMAL(8,2) DEFAULT 0`)
     await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS x100_hours DECIMAL(8,2) DEFAULT 0`)
     await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS hol_hours DECIMAL(8,2) DEFAULT 0`)
+    await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS billable_reg_hours DECIMAL(8,2) DEFAULT 0`)
+    await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS billable_prm_hours DECIMAL(8,2) DEFAULT 0`)
+    await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS billable_rvw_hours DECIMAL(8,2) DEFAULT 0`)
+    await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS payable_rvw_hours DECIMAL(8,2) DEFAULT 0`)
     // 14APR2026 feedback: make attendance records fully editable + lockable
     await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS is_locked BOOLEAN NOT NULL DEFAULT FALSE`)
     await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS shift_start_override TIMESTAMPTZ`)
