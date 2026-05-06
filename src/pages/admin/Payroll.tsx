@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { Calculator, Download, Search, AlertTriangle, Users, DollarSign, TrendingDown, Building2, Loader2 } from 'lucide-react'
+import { Calculator, Download, Search, AlertTriangle, Users, DollarSign, TrendingDown, Building2, Loader2, X } from 'lucide-react'
 import AdminSelect from '@/components/AdminSelect'
 import { PageHeader } from '@/components/PageHeader'
 import { SkeletonTableRows } from '@/components/Skeleton'
@@ -8,6 +8,7 @@ import {
   getPayrollPeriods,
   getPayrollCalcResults,
   calculatePayroll,
+  updatePayrollResultField,
   type PayrollPeriod,
   type PayrollCalcResult,
 } from '@/lib/apiAdmin'
@@ -39,6 +40,15 @@ interface SectionDef {
   headerText: string  // tailwind text class for header
   columns: ColDef[]
 }
+
+/** Bank dropdown options */
+const BANK_OPTIONS = [
+  '', 'Banreservas', 'Popular', 'BHD Leon', 'Scotiabank', 'Santa Cruz',
+  'Promerica', 'Caribe', 'Lopez de Haro', 'Ademi', 'BDI', 'Vimenca',
+]
+
+/** Payment method dropdown options */
+const PAY_METHOD_OPTIONS = ['', 'Deposito', 'Cheque']
 
 const sections: SectionDef[] = [
   {
@@ -215,6 +225,7 @@ export default function AdminPayroll() {
   const [loading, setLoading] = useState(true)
   const [calculating, setCalculating] = useState(false)
   const [search, setSearch] = useState('')
+  const [detailRow, setDetailRow] = useState<PayrollCalcResult | null>(null)
 
   /* ---------- Load payroll periods on mount ---------- */
   useEffect(() => {
@@ -226,10 +237,13 @@ export default function AdminPayroll() {
         if (cancelled) return
         setPayrollPeriods(periods)
         if (periods.length > 0) {
-          // Default to the cycle covering today's date, or the latest cycle
           const today = new Date().toISOString().slice(0, 10)
-          const currentCycle = periods.find((p) => p.periodFrom <= today && p.periodTo >= today)
-          setSelectedCycle(currentCycle?.cycleCode ?? periods[periods.length - 1].cycleCode)
+          const openPeriods = periods.filter((p) => p.payDate >= today)
+          const currentCycle = openPeriods.find((p) => p.periodFrom <= today && p.periodTo >= today)
+          setSelectedCycle(
+            currentCycle?.cycleCode ??
+            (openPeriods.length > 0 ? openPeriods[openPeriods.length - 1].cycleCode : periods[periods.length - 1].cycleCode),
+          )
         }
       } catch {
         if (!cancelled) toast.error('Failed to load payroll periods')
@@ -277,6 +291,20 @@ export default function AdminPayroll() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCycle])
 
+  /* ---------- Inline edit handler for bank / bankAccount / payMethod ---------- */
+  const handleInlineUpdate = useCallback(
+    async (row: PayrollCalcResult, field: 'bank' | 'bankAccount' | 'payMethod', value: string) => {
+      try {
+        const updated = await updatePayrollResultField(row.id, { [field]: value })
+        setResults((prev) => prev.map((r) => (r.id === row.id ? updated : r)))
+      } catch {
+        toast.error('Failed to update field')
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  )
+
   /* ---------- Filtered rows ---------- */
   const displayedRows = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -285,7 +313,7 @@ export default function AdminPayroll() {
       r.employeeName.toLowerCase().includes(q) ||
       (r.account ?? '').toLowerCase().includes(q) ||
       (r.contractStatus ?? '').toLowerCase().includes(q) ||
-      r.salaryType.toLowerCase().includes(q)
+      r.salaryType.toLowerCase().includes(q),
     )
   }, [results, search])
 
@@ -329,11 +357,13 @@ export default function AdminPayroll() {
     URL.revokeObjectURL(url)
   }
 
-  /* ---------- Cycle selector options ---------- */
-  const cycleOptions = useMemo(
-    () => payrollPeriods.map((p) => ({ value: p.cycleCode, label: p.cycleCode })),
-    [payrollPeriods],
-  )
+  /* ---------- Cycle selector options (only open cycles where payDate >= today) ---------- */
+  const cycleOptions = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10)
+    return payrollPeriods
+      .filter((p) => p.payDate >= today)
+      .map((p) => ({ value: p.cycleCode, label: p.cycleCode }))
+  }, [payrollPeriods])
 
   /* ================================================================ */
   /*  Render                                                           */
@@ -372,7 +402,7 @@ export default function AdminPayroll() {
         }
       />
 
-      {/* ── Stat cards ── */}
+      {/* -- Stat cards -- */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
         <div className="stat-card">
           <div className="flex items-center gap-2 mb-1">
@@ -411,7 +441,7 @@ export default function AdminPayroll() {
         </div>
       </div>
 
-      {/* ── Toolbar ── */}
+      {/* -- Toolbar -- */}
       <div className="toolbar">
         <div className="w-full sm:w-56">
           <AdminSelect
@@ -434,11 +464,11 @@ export default function AdminPayroll() {
         </div>
       </div>
 
-      {/* ── Table ── */}
+      {/* -- Table -- */}
       <div className="card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm" style={{ minWidth: '5000px' }}>
-            {/* ── Two-row header ── */}
+            {/* -- Two-row header -- */}
             <thead>
               {/* Row 1: section group headers */}
               <tr>
@@ -490,11 +520,67 @@ export default function AdminPayroll() {
                 displayedRows.map((r) => (
                   <tr
                     key={r.id}
-                    className="bg-white border-b border-surface-100 hover:bg-surface-50/70 transition-colors"
+                    className="bg-white border-b border-surface-100 hover:bg-surface-50/70 transition-colors cursor-pointer"
+                    onClick={() => setDetailRow(r)}
                   >
                     {sections.map((s) =>
                       s.columns.map((col) => {
                         const val = col.accessor(r)
+
+                        /* Inline-editable: Bank (select dropdown) */
+                        if (col.key === 'bank') {
+                          return (
+                            <td key={col.key} className="py-1 px-1 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                              <select
+                                className="w-full text-xs border border-surface-200 rounded px-1.5 py-1.5 bg-white text-surface-700 focus:ring-1 focus:ring-brand-400 focus:border-brand-400 outline-none"
+                                value={String(val)}
+                                onChange={(e) => handleInlineUpdate(r, 'bank', e.target.value)}
+                              >
+                                {BANK_OPTIONS.map((b) => (
+                                  <option key={b} value={b}>{b || '--'}</option>
+                                ))}
+                              </select>
+                            </td>
+                          )
+                        }
+
+                        /* Inline-editable: Bank Account (text input) */
+                        if (col.key === 'bankAccount') {
+                          return (
+                            <td key={col.key} className="py-1 px-1 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                              <input
+                                type="text"
+                                className="w-full text-xs border border-surface-200 rounded px-1.5 py-1.5 bg-white text-surface-700 focus:ring-1 focus:ring-brand-400 focus:border-brand-400 outline-none"
+                                defaultValue={String(val)}
+                                onBlur={(e) => {
+                                  if (e.target.value !== String(val)) {
+                                    handleInlineUpdate(r, 'bankAccount', e.target.value)
+                                  }
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+                                }}
+                              />
+                            </td>
+                          )
+                        }
+
+                        /* Inline-editable: Payment Method (select dropdown) */
+                        if (col.key === 'payMethod') {
+                          return (
+                            <td key={col.key} className="py-1 px-1 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                              <select
+                                className="w-full text-xs border border-surface-200 rounded px-1.5 py-1.5 bg-white text-surface-700 focus:ring-1 focus:ring-brand-400 focus:border-brand-400 outline-none"
+                                value={String(val)}
+                                onChange={(e) => handleInlineUpdate(r, 'payMethod', e.target.value)}
+                              >
+                                {PAY_METHOD_OPTIONS.map((m) => (
+                                  <option key={m} value={m}>{m || '--'}</option>
+                                ))}
+                              </select>
+                            </td>
+                          )
+                        }
 
                         /* Employee name -- sticky left */
                         if (col.key === 'employeeName') {
@@ -548,7 +634,7 @@ export default function AdminPayroll() {
                           )
                         }
 
-                        /* Text */
+                        /* Text (default) */
                         return (
                           <td
                             key={col.key}
@@ -566,6 +652,51 @@ export default function AdminPayroll() {
           </table>
         </div>
       </div>
+
+      {/* -- Detail modal -- */}
+      {detailRow && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setDetailRow(null)}>
+          <div
+            className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[85vh] overflow-y-auto mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-6 py-4 border-b border-surface-200">
+              <div>
+                <h2 className="text-lg font-semibold text-surface-900">{detailRow.employeeName}</h2>
+                <p className="text-sm text-surface-500">
+                  {detailRow.payrollCycleCode} &middot; {detailRow.salaryType} &middot; {detailRow.contractStatus ?? ''}
+                </p>
+              </div>
+              <button type="button" onClick={() => setDetailRow(null)} className="p-1 rounded hover:bg-surface-100">
+                <X className="w-5 h-5 text-surface-500" />
+              </button>
+            </div>
+            <div className="px-6 py-4 space-y-4">
+              {sections.map((s) => (
+                <div key={s.name}>
+                  <h3 className={`text-xs font-semibold uppercase tracking-wider mb-2 ${s.headerText}`}>{s.name}</h3>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-1.5">
+                    {s.columns.map((col) => {
+                      const val = col.accessor(detailRow)
+                      let display: string
+                      if (col.type === 'money') display = money(val as number)
+                      else if (col.type === 'hours') display = hrs(val as number)
+                      else if (col.type === 'bool') display = val ? 'Warning' : '--'
+                      else display = String(val) || '--'
+                      return (
+                        <div key={col.key} className="flex justify-between text-sm py-0.5">
+                          <span className="text-surface-500">{col.label}</span>
+                          <span className="text-surface-800 font-medium tabular-nums">{display}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
