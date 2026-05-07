@@ -181,8 +181,9 @@ function toAttendanceRecord(row) {
   let billablePrmHours = 0
   let billableRvwHours = 0
 
+  // Billable hours = actual hours WITHOUT deducting break time (we bill clients for break/lunch)
   if (billType === 'Regular') {
-    billableRegHours = Math.max(0, actualHours - adbtHours)
+    billableRegHours = Math.max(0, actualHours)
   } else if (billType === 'Premium') {
     billablePrmHours = Math.max(0, actualHours)
   } else if (billType === 'Review') {
@@ -304,7 +305,8 @@ async function persistComputedHours(sessionId) {
 
   // Billable hours
   let billableRegHours = 0, billablePrmHours = 0, billableRvwHours = 0
-  if (billType === 'Regular') billableRegHours = Math.max(0, actualHours - adbtHours)
+  // Billable = actual hours, NO break deduction (we bill clients for break/lunch)
+  if (billType === 'Regular') billableRegHours = Math.max(0, actualHours)
   else if (billType === 'Premium') billablePrmHours = Math.max(0, actualHours)
   else if (billType === 'Review') billableRvwHours = Math.max(0, actualHours)
   // DNB → all zero

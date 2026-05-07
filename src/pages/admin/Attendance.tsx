@@ -188,6 +188,9 @@ export default function AdminAttendance() {
   const [allEmployees, setAllEmployees] = useState<EmployeeRecord[]>([])
   const [allClients, setAllClients] = useState<Client[]>([])
 
+  // Account filter
+  const [filterAccount, setFilterAccount] = useState('')
+
   // Add Attendance Record modal
   const [showAddModal, setShowAddModal] = useState(false)
 
@@ -374,12 +377,16 @@ export default function AdminAttendance() {
       (r) => r.status.toLowerCase() === 'absent',
     ).length
     const late = records.filter((r) =>
-      ['late', 'left early', 'late & left early', 'late in', 'early out', 'late in-early out'].includes(
-        r.status.toLowerCase(),
-      ),
+      r.status.toLowerCase().includes('late'),
+    ).length
+    const leftEarly = records.filter((r) =>
+      r.status.toLowerCase().includes('left early'),
     ).length
     const timeOff = records.filter(
       (r) => r.status.toLowerCase() === 'time off',
+    ).length
+    const systemIssues = records.filter(
+      (r) => r.status.toLowerCase() === 'system issues',
     ).length
     // Payable hours
     const totalReg = records.reduce((a, r) => a + (r.regHours ?? 0), 0)
@@ -395,7 +402,7 @@ export default function AdminAttendance() {
     const totalBillableRvw = records.reduce((a, r) => a + (r.billableRvwHours ?? 0), 0)
     const billDnb = records.filter((r) => r.billType === 'DNB').reduce((a, r) => a + (r.actualHours ?? 0) - (r.adbtHours ?? 0), 0)
     return {
-      total, present, absent, late, timeOff,
+      total, present, absent, late, leftEarly, timeOff, systemIssues,
       totalReg, totalN15, totalX35, totalX100, totalHdy, totalDnp, totalPayableRvw,
       totalBillableReg, totalBillablePrm, totalBillableRvw, billDnb,
     }
@@ -441,6 +448,11 @@ export default function AdminAttendance() {
   const filteredAndSorted = useMemo(() => {
     let result = [...records]
 
+    // Apply account filter
+    if (filterAccount) {
+      result = result.filter((r) => (r.accountName ?? '') === filterAccount)
+    }
+
     // Apply column filters
     for (const [col, filterVal] of Object.entries(columnFilters)) {
       if (!filterVal) continue
@@ -464,7 +476,7 @@ export default function AdminAttendance() {
       })
     }
     return result
-  }, [records, columnFilters, sortCol, sortDir, colAccessor])
+  }, [records, filterAccount, columnFilters, sortCol, sortDir, colAccessor])
 
   function handleSort(col: string) {
     if (sortCol === col) {
@@ -527,15 +539,29 @@ export default function AdminAttendance() {
         <div className="w-full sm:w-auto sm:min-w-[320px]">
           <DateRangePicker startDate={dateFrom} endDate={dateTo} onChange={handleDateRangeChange} />
         </div>
+        <div className="w-full sm:w-auto sm:min-w-[180px]">
+          <select
+            value={filterAccount}
+            onChange={(e) => setFilterAccount(e.target.value)}
+            className="input text-sm w-full"
+          >
+            <option value="">All accounts</option>
+            {allClients.map((c) => (
+              <option key={c.id} value={c.name}>{c.name}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {/* Summary cards - Row 1: Counts */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 sm:gap-4">
         <SummaryCard label="Records" value={summary.total} />
         <SummaryCard label="Present" value={summary.present} color="brand" />
         <SummaryCard label="Absent" value={summary.absent} color="red" />
-        <SummaryCard label="Late / Early" value={summary.late} color="amber" />
+        <SummaryCard label="Late" value={summary.late} color="amber" />
+        <SummaryCard label="Left Early" value={summary.leftEarly} color="amber" />
         <SummaryCard label="Time Off" value={summary.timeOff} color="sky" />
+        <SummaryCard label="System Issues" value={summary.systemIssues} color="surface" />
       </div>
 
       {/* Summary cards - Row 2: Payable Hours */}
@@ -558,8 +584,8 @@ export default function AdminAttendance() {
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-4 gap-3 sm:gap-4">
           <SummaryCard label="Regular" value={fmtHours(summary.totalBillableReg)} color="brand" />
           <SummaryCard label="Premium" value={fmtHours(summary.totalBillablePrm)} color="violet" />
-          <SummaryCard label="Review" value={fmtHours(summary.totalBillableRvw)} color="red" />
           <SummaryCard label="DNB" value={fmtHours(summary.billDnb)} color="surface" />
+          <SummaryCard label="Review" value={fmtHours(summary.totalBillableRvw)} color="red" />
         </div>
       </div>
 
@@ -907,22 +933,24 @@ export default function AdminAttendance() {
                   ))}
                 </div>
                 <p className="text-[10px] font-semibold text-blue-500 uppercase tracking-wider mb-2">Payable</p>
-                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-3">
+                <div className="grid grid-cols-4 sm:grid-cols-7 gap-2 mb-3">
                   {([
                     { label: 'P-REG', val: detailRecord.regHours, color: 'brand' },
                     { label: 'P-N15%', val: detailRecord.n15Hours, color: 'violet' },
                     { label: 'P-X35%', val: detailRecord.x35Hours, color: 'amber' },
                     { label: 'P-X100%', val: detailRecord.x100Hours, color: 'red' },
                     { label: 'P-HDY', val: detailRecord.hdyHours, color: 'emerald' },
+                    { label: 'P-DNP', val: detailRecord.payType === 'DNP' ? (detailRecord.actualHours ?? 0) - (detailRecord.adbtHours ?? 0) : 0, color: 'surface' },
                     { label: 'P-RVW', val: detailRecord.payableRvwHours, color: 'red' },
-                  ] as const).map((item) => {
+                  ] as { label: string; val: number | null | undefined; color: string }[]).map((item) => {
                     const isNonZero = (item.val ?? 0) > 0
                     const badgeBg = isNonZero
                       ? item.color === 'brand' ? 'bg-blue-50 border-blue-200 text-blue-700'
                         : item.color === 'violet' ? 'bg-violet-50 border-violet-200 text-violet-700'
                         : item.color === 'amber' ? 'bg-amber-50 border-amber-200 text-amber-700'
                         : item.color === 'red' ? 'bg-red-50 border-red-200 text-red-700'
-                        : 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                        : item.color === 'emerald' ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                        : 'bg-surface-50 border-surface-200 text-surface-500'
                       : 'bg-white border-surface-100 text-surface-300'
                     return (
                       <div key={item.label} className={`text-center rounded-lg border py-2 px-1 ${badgeBg}`}>
@@ -933,16 +961,18 @@ export default function AdminAttendance() {
                   })}
                 </div>
                 <p className="text-[10px] font-semibold text-emerald-500 uppercase tracking-wider mb-2">Billable</p>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-4 gap-2">
                   {([
                     { label: 'B-REG', val: detailRecord.billableRegHours, color: 'brand' },
                     { label: 'B-PRM', val: detailRecord.billablePrmHours, color: 'violet' },
+                    { label: 'B-DNB', val: detailRecord.billType === 'DNB' ? (detailRecord.actualHours ?? 0) - (detailRecord.adbtHours ?? 0) : 0, color: 'surface' },
                     { label: 'B-RVW', val: detailRecord.billableRvwHours, color: 'red' },
-                  ] as const).map((item) => {
+                  ] as { label: string; val: number | null | undefined; color: string }[]).map((item) => {
                     const isNonZero = (item.val ?? 0) > 0
                     const badgeBg = isNonZero
                       ? item.color === 'brand' ? 'bg-blue-50 border-blue-200 text-blue-700'
                         : item.color === 'violet' ? 'bg-violet-50 border-violet-200 text-violet-700'
+                        : item.color === 'surface' ? 'bg-surface-50 border-surface-200 text-surface-500'
                         : 'bg-red-50 border-red-200 text-red-700'
                       : 'bg-white border-surface-100 text-surface-300'
                     return (
@@ -1019,6 +1049,8 @@ export default function AdminAttendance() {
                       ]}
                     />
                   </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3 mt-3">
                   <div>
                     <label className="text-[10px] font-medium text-surface-400 uppercase block mb-1">Pay</label>
                     <select
@@ -1206,11 +1238,30 @@ function AddAttendanceRecordModal({
             </div>
           </div>
 
+          <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider">Classification</p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label className="label">Status</label>
               <AdminSelect value={status} onChange={setStatus} options={STATUS_OPTIONS.map((s) => ({ value: s, label: s }))} />
             </div>
+            <div>
+              <label className="label">Account</label>
+              <AdminSelect value={accountOverride} onChange={setAccountOverride} options={[{ value: '', label: '— None —' }, ...clients.map((c) => ({ value: c.id, label: c.name }))]} />
+            </div>
+            <div>
+              <label className="label">Task</label>
+              <AdminSelect value={task} onChange={setTask} options={[{ value: '', label: '— None —' }, ...TASK_OPTIONS.map((s) => ({ value: s, label: s }))]} />
+            </div>
+            <div>
+              <label className="label">Stage</label>
+              <AdminSelect value={stage} onChange={setStage} options={STAGE_OPTIONS.map((s) => ({ value: s, label: s }))} />
+            </div>
+            <div>
+              <label className="label">Reports To</label>
+              <AdminSelect value={reportsToOverride} onChange={setReportsToOverride} options={[{ value: '', label: '— None —' }, ...employees.map((e) => ({ value: e.id, label: e.name }))]} />
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="label">Pay</label>
               <AdminSelect value={payType} onChange={setPayType} options={PAY_OPTIONS.map((s) => ({ value: s, label: s }))} />
@@ -1219,23 +1270,6 @@ function AddAttendanceRecordModal({
               <label className="label">Bill</label>
               <AdminSelect value={billType} onChange={setBillType} options={BILL_OPTIONS.map((s) => ({ value: s, label: s }))} />
             </div>
-            <div>
-              <label className="label">Stage</label>
-              <AdminSelect value={stage} onChange={setStage} options={STAGE_OPTIONS.map((s) => ({ value: s, label: s }))} />
-            </div>
-            <div>
-              <label className="label">Task</label>
-              <AdminSelect value={task} onChange={setTask} options={[{ value: '', label: '— None —' }, ...TASK_OPTIONS.map((s) => ({ value: s, label: s }))]} />
-            </div>
-            <div>
-              <label className="label">Account</label>
-              <AdminSelect value={accountOverride} onChange={setAccountOverride} options={[{ value: '', label: '— None —' }, ...clients.map((c) => ({ value: c.id, label: c.name }))]} />
-            </div>
-          </div>
-
-          <div>
-            <label className="label">Reports To</label>
-            <AdminSelect value={reportsToOverride} onChange={setReportsToOverride} options={[{ value: '', label: '— None —' }, ...employees.map((e) => ({ value: e.id, label: e.name }))]} />
           </div>
 
           <div>
