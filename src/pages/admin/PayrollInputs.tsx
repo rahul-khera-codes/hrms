@@ -809,9 +809,15 @@ function PayrollInputModal({
           )}
 
           {/* Documents */}
-          {isEdit && existing && (
+          {isEdit && existing ? (
             <DocumentUpload entityType="payroll_input" entityId={existing.id} />
-          )}
+          ) : !isEdit ? (
+            <div className="rounded-xl border border-dashed border-surface-300 bg-surface-50/60 p-4 text-center">
+              <Upload className="w-5 h-5 text-surface-400 mx-auto mb-1.5" />
+              <p className="text-xs font-medium text-surface-500">Documents</p>
+              <p className="text-[11px] text-surface-400 mt-0.5">Save the record first, then you can upload documents.</p>
+            </div>
+          ) : null}
 
           {/* Lock toggle */}
           {isEdit && existing && (

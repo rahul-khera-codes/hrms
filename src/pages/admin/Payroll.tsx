@@ -672,27 +672,69 @@ export default function AdminPayroll() {
               </button>
             </div>
             <div className="px-6 py-4 space-y-4">
-              {sections.map((s) => (
-                <div key={s.name}>
-                  <h3 className={`text-xs font-semibold uppercase tracking-wider mb-2 ${s.headerText}`}>{s.name}</h3>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-1.5">
-                    {s.columns.map((col) => {
-                      const val = col.accessor(detailRow)
-                      let display: string
-                      if (col.type === 'money') display = money(val as number)
-                      else if (col.type === 'hours') display = hrs(val as number)
-                      else if (col.type === 'bool') display = val ? 'Warning' : '--'
-                      else display = String(val) || '--'
-                      return (
-                        <div key={col.key} className="flex justify-between text-sm py-0.5">
-                          <span className="text-surface-500">{col.label}</span>
-                          <span className="text-surface-800 font-medium tabular-nums">{display}</span>
-                        </div>
-                      )
-                    })}
+              {sections.map((s) => {
+                // Compute section total for money columns
+                const moneyColumns = s.columns.filter((c) => c.type === 'money')
+                const lastMoneyCol = moneyColumns.length > 0 ? moneyColumns[moneyColumns.length - 1] : null
+                const sectionTotal = lastMoneyCol ? (lastMoneyCol.accessor(detailRow) as number) : null
+
+                // Determine section background tint
+                const isIncome = ['Ordinary Salary', 'Commissions', 'Bonuses', 'Incentives', 'Other Income'].includes(s.name)
+                const isDeduction = ['Gov. Deductions', 'Other Deductions'].includes(s.name)
+                const sectionBg = isIncome ? 'bg-emerald-50/30' : isDeduction ? 'bg-red-50/30' : 'bg-surface-50'
+
+                return (
+                  <div key={s.name} className={`rounded-xl border border-surface-200 p-3 space-y-2 ${sectionBg}`}>
+                    <div className="flex items-center justify-between">
+                      <h3 className={`text-xs font-semibold uppercase tracking-wider ${s.headerText}`}>{s.name}</h3>
+                      {sectionTotal != null && sectionTotal !== 0 && (
+                        <span className={`text-xs font-semibold tabular-nums ${isDeduction ? 'text-red-700' : isIncome ? 'text-emerald-700' : 'text-surface-700'}`}>
+                          {money(sectionTotal)}
+                        </span>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-1.5">
+                      {s.columns.map((col) => {
+                        const val = col.accessor(detailRow)
+                        let display: React.ReactNode
+
+                        /* Payment Method — editable inline */
+                        if (col.key === 'payMethod') {
+                          display = (
+                            <select
+                              className="text-sm font-medium border border-surface-200 rounded px-1.5 py-0.5 bg-white text-surface-800 focus:ring-1 focus:ring-brand-400 focus:border-brand-400 outline-none"
+                              value={String(val)}
+                              onChange={(e) => {
+                                handleInlineUpdate(detailRow, 'payMethod', e.target.value)
+                                setDetailRow((prev) => prev ? { ...prev, payMethod: e.target.value } : prev)
+                              }}
+                            >
+                              {PAY_METHOD_OPTIONS.map((m) => (
+                                <option key={m} value={m}>{m || '--'}</option>
+                              ))}
+                            </select>
+                          )
+                        } else if (col.type === 'money') {
+                          display = <span className="text-surface-800 font-medium tabular-nums">{money(val as number)}</span>
+                        } else if (col.type === 'hours') {
+                          display = <span className="text-surface-800 font-medium tabular-nums">{hrs(val as number)}</span>
+                        } else if (col.type === 'bool') {
+                          display = <span className="text-surface-800 font-medium tabular-nums">{val ? 'Warning' : '--'}</span>
+                        } else {
+                          display = <span className="text-surface-800 font-medium tabular-nums">{String(val) || '--'}</span>
+                        }
+
+                        return (
+                          <div key={col.key} className="flex justify-between text-sm py-0.5">
+                            <span className="text-surface-500">{col.label}</span>
+                            {display}
+                          </div>
+                        )
+                      })}
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </div>
         </div>

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { Users, Plus, Pencil, LayoutGrid, Table2, Search, Download, ArrowUp, ArrowDown, Filter, AlertCircle, CheckCircle2, Ban, X } from 'lucide-react'
+import { Users, Plus, Pencil, LayoutGrid, Table2, Search, Download, ArrowUp, ArrowDown, Filter, AlertCircle, CheckCircle2, Ban, X, Upload } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
 import DocumentUpload from '@/components/DocumentUpload'
 import { DetailModalHeader } from '@/components/DetailModalHeader'
@@ -1576,9 +1576,15 @@ export default function AdminEmployees() {
               )}
 
               {/* Documents — only shown when editing an existing employee */}
-              {modal === 'edit' && editing && (
+              {modal === 'edit' && editing ? (
                 <DocumentUpload entityType="employee" entityId={editing.id} />
-              )}
+              ) : modal === 'add' ? (
+                <div className="rounded-xl border border-dashed border-surface-300 bg-surface-50/60 p-4 text-center">
+                  <Upload className="w-5 h-5 text-surface-400 mx-auto mb-1.5" />
+                  <p className="text-xs font-medium text-surface-500">Documents</p>
+                  <p className="text-[11px] text-surface-400 mt-0.5">Save the record first, then you can upload documents.</p>
+                </div>
+              ) : null}
             </div>
             <div className="modal-footer">
               <button type="button" onClick={() => setModal(null)} className="btn-secondary">Cancel</button>

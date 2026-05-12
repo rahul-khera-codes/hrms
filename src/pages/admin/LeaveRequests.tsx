@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { CalendarCheck2, Lock, Unlock, Plus, Calendar, Clock3, Download, LayoutGrid, Table2, Search, ArrowUp, ArrowDown, Filter, Pencil, XCircle } from 'lucide-react'
+import { CalendarCheck2, Lock, Unlock, Plus, Calendar, Clock3, Download, LayoutGrid, Table2, Search, ArrowUp, ArrowDown, Filter, Pencil, XCircle, Upload } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
 import {
   getAdminLeaveRequests,
@@ -170,9 +170,14 @@ export default function AdminLeaveRequests() {
   // Editable leave-info fields in review modal
   const [reviewLeaveCategory, setReviewLeaveCategory] = useState('')
   const [reviewStartDate, setReviewStartDate] = useState('')
+  const [reviewStartTime, setReviewStartTime] = useState('')
   const [reviewEndDate, setReviewEndDate] = useState('')
+  const [reviewEndTime, setReviewEndTime] = useState('')
   const [reviewReturnDate, setReviewReturnDate] = useState('')
+  const [reviewReturnTime, setReviewReturnTime] = useState('')
   const [reviewPayrollCycle, setReviewPayrollCycle] = useState('')
+  const [reviewDailyHours, setReviewDailyHours] = useState('')
+  const [reviewHourlyRate, setReviewHourlyRate] = useState('')
 
   // View mode and detail modal
   const [viewMode, setViewMode] = useState<'card' | 'table'>('table')
@@ -422,9 +427,14 @@ export default function AdminLeaveRequests() {
     // Initialize editable leave-info fields from the row snapshot
     setReviewLeaveCategory(row.leaveCategory ?? '')
     setReviewStartDate(row.startDate ?? '')
+    setReviewStartTime(row.startTime ?? '')
     setReviewEndDate(row.endDate ?? '')
+    setReviewEndTime(row.endTime ?? '')
     setReviewReturnDate(row.returnDate ?? '')
+    setReviewReturnTime(row.returnTime ?? '')
     setReviewPayrollCycle(row.payrollCycleCode ?? '')
+    setReviewDailyHours('')
+    setReviewHourlyRate('')
     setReviewContext(null)
     setContextLoading(true)
     void getLeaveReviewContext(row.id)
@@ -455,6 +465,18 @@ export default function AdminLeaveRequests() {
         if (ctx.leave.startDate) setReviewStartDate(ctx.leave.startDate)
         if (ctx.leave.endDate) setReviewEndDate(ctx.leave.endDate)
         if (ctx.leave.returnDate) setReviewReturnDate(ctx.leave.returnDate)
+        if (ctx.leave.startTime) setReviewStartTime(ctx.leave.startTime)
+        if (ctx.leave.endTime) setReviewEndTime(ctx.leave.endTime)
+        if (ctx.leave.returnTime) setReviewReturnTime(ctx.leave.returnTime)
+        // Initialize daily hours and hourly rate from settings / existing row
+        setReviewDailyHours(String(ctx.settings.hoursPerDay ?? 8))
+        const hrRate = hourlyRateFromEmployee(
+          ctx.employee.salaryType,
+          ctx.employee.baseSalary,
+          ctx.settings.workingDaysPerMonth,
+          ctx.settings.hoursPerDay
+        )
+        setReviewHourlyRate(String(Math.round(hrRate * 10000) / 10000))
       })
       .catch(() => {
         setNotice('Could not load review details.')
@@ -535,12 +557,19 @@ export default function AdminLeaveRequests() {
     if (!reviewingId) return
     setSaving(true)
     // Common editable leave-info fields sent with every save
+    const parsedDailyHours = parseFloat(reviewDailyHours)
+    const parsedHourlyRate = parseFloat(reviewHourlyRate)
     const editableFields = {
       leaveCategory: reviewLeaveCategory || undefined,
       startDate: reviewStartDate || undefined,
       endDate: reviewEndDate || undefined,
       returnDate: reviewReturnDate || undefined,
+      startTime: reviewStartTime || undefined,
+      endTime: reviewEndTime || undefined,
+      returnTime: reviewReturnTime || undefined,
       payrollCycleCode: reviewPayrollCycle || undefined,
+      dailyHoursInput: Number.isFinite(parsedDailyHours) ? parsedDailyHours : undefined,
+      hourlyRateInput: Number.isFinite(parsedHourlyRate) ? parsedHourlyRate : undefined,
     }
     try {
       if (reviewStatus === 'rejected') {
@@ -1221,6 +1250,13 @@ export default function AdminLeaveRequests() {
                 <label className="label">Notes</label>
                 <textarea value={createReason} onChange={(e) => setCreateReason(e.target.value)} rows={2} className="input w-full rounded-xl" placeholder="Optional notes for this leave" />
               </div>
+
+              {/* Documents placeholder for new records */}
+              <div className="rounded-xl border border-dashed border-surface-300 bg-surface-50/60 p-4 text-center">
+                <Upload className="w-5 h-5 text-surface-400 mx-auto mb-1.5" />
+                <p className="text-xs font-medium text-surface-500">Documents</p>
+                <p className="text-[11px] text-surface-400 mt-0.5">Save the record first, then you can upload documents.</p>
+              </div>
             </div>
 
             <div className="mt-5 flex flex-col-reverse sm:flex-row justify-end gap-2">
@@ -1330,35 +1366,44 @@ export default function AdminLeaveRequests() {
                       <p className="text-[10px] font-medium text-surface-400 uppercase">Salary</p>
                       <p className="font-medium text-surface-900 mt-0.5">{reviewContext.employee.salaryType} · base ${reviewContext.employee.baseSalary.toFixed(2)}</p>
                     </div>
-                    <div>
-                      <label className="text-[10px] font-medium text-surface-400 uppercase">Start Date</label>
-                      <input
-                        type="date"
-                        value={reviewStartDate}
-                        onChange={(e) => setReviewStartDate(e.target.value)}
-                        disabled={reviewLocked}
-                        className="input w-full rounded-xl mt-0.5"
-                      />
+                    <div className="col-span-2 sm:col-span-3">
+                      <label className="text-[10px] font-medium text-surface-400 uppercase">Start Date & Time</label>
+                      <div className="grid grid-cols-2 gap-2 mt-0.5">
+                        <div className="relative">
+                          <Calendar className="w-4 h-4 text-surface-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                          <input type="date" value={reviewStartDate} onChange={(e) => setReviewStartDate(e.target.value)} disabled={reviewLocked} className="input w-full rounded-xl pl-9" />
+                        </div>
+                        <div className="relative">
+                          <Clock3 className="w-4 h-4 text-surface-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                          <input type="time" value={reviewStartTime} onChange={(e) => setReviewStartTime(e.target.value)} disabled={reviewLocked} className="input w-full rounded-xl pl-9" />
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <label className="text-[10px] font-medium text-surface-400 uppercase">End Date</label>
-                      <input
-                        type="date"
-                        value={reviewEndDate}
-                        onChange={(e) => setReviewEndDate(e.target.value)}
-                        disabled={reviewLocked}
-                        className="input w-full rounded-xl mt-0.5"
-                      />
+                    <div className="col-span-2 sm:col-span-3">
+                      <label className="text-[10px] font-medium text-surface-400 uppercase">End Date & Time</label>
+                      <div className="grid grid-cols-2 gap-2 mt-0.5">
+                        <div className="relative">
+                          <Calendar className="w-4 h-4 text-surface-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                          <input type="date" value={reviewEndDate} onChange={(e) => setReviewEndDate(e.target.value)} disabled={reviewLocked} className="input w-full rounded-xl pl-9" />
+                        </div>
+                        <div className="relative">
+                          <Clock3 className="w-4 h-4 text-surface-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                          <input type="time" value={reviewEndTime} onChange={(e) => setReviewEndTime(e.target.value)} disabled={reviewLocked} className="input w-full rounded-xl pl-9" />
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <label className="text-[10px] font-medium text-surface-400 uppercase">Return Date</label>
-                      <input
-                        type="date"
-                        value={reviewReturnDate}
-                        onChange={(e) => setReviewReturnDate(e.target.value)}
-                        disabled={reviewLocked}
-                        className="input w-full rounded-xl mt-0.5"
-                      />
+                    <div className="col-span-2 sm:col-span-3">
+                      <label className="text-[10px] font-medium text-surface-400 uppercase">Return Date & Time</label>
+                      <div className="grid grid-cols-2 gap-2 mt-0.5">
+                        <div className="relative">
+                          <Calendar className="w-4 h-4 text-surface-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                          <input type="date" value={reviewReturnDate} onChange={(e) => setReviewReturnDate(e.target.value)} disabled={reviewLocked} className="input w-full rounded-xl pl-9" />
+                        </div>
+                        <div className="relative">
+                          <Clock3 className="w-4 h-4 text-surface-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                          <input type="time" value={reviewReturnTime} onChange={(e) => setReviewReturnTime(e.target.value)} disabled={reviewLocked} className="input w-full rounded-xl pl-9" />
+                        </div>
+                      </div>
                     </div>
                     <div className="col-span-2 sm:col-span-3">
                       <label className="text-[10px] font-medium text-surface-400 uppercase">Payroll Cycle</label>
@@ -1431,16 +1476,38 @@ export default function AdminLeaveRequests() {
 
                       {preview && (isPaidLeave || reviewContext.leave.leaveType === 'unpaid') ? (
                         <div className="rounded-xl border border-surface-200 p-3 space-y-2 text-sm">
-                          <p className="text-xs font-semibold text-surface-700 uppercase tracking-wide">Pay preview (locked)</p>
+                          <p className="text-xs font-semibold text-surface-700 uppercase tracking-wide">Pay preview</p>
                           <div className="grid grid-cols-2 gap-2 text-xs">
                             <span className="text-surface-500">Hourly rate</span>
-                            <span className="tabular-nums text-right flex items-center justify-end gap-1">
-                              <Lock className="w-3 h-3 text-surface-400" />${preview.hourlyRate.toFixed(4)}
+                            <span className="tabular-nums text-right">
+                              {reviewLocked ? (
+                                <span className="flex items-center justify-end gap-1"><Lock className="w-3 h-3 text-surface-400" />${preview.hourlyRate.toFixed(4)}</span>
+                              ) : (
+                                <input
+                                  type="number"
+                                  min={0}
+                                  step={0.0001}
+                                  value={reviewHourlyRate}
+                                  onChange={(e) => setReviewHourlyRate(e.target.value)}
+                                  className="input w-full rounded-lg text-xs py-1 px-2 text-right tabular-nums"
+                                />
+                              )}
                             </span>
                             <span className="text-surface-500">Daily hours</span>
-                            <span className="tabular-nums text-right flex items-center justify-end gap-1">
-                              <Lock className="w-3 h-3 text-surface-400" />
-                              {preview.dailyHours}
+                            <span className="tabular-nums text-right">
+                              {reviewLocked ? (
+                                <span className="flex items-center justify-end gap-1"><Lock className="w-3 h-3 text-surface-400" />{preview.dailyHours}</span>
+                              ) : (
+                                <input
+                                  type="number"
+                                  min={0}
+                                  max={24}
+                                  step={0.5}
+                                  value={reviewDailyHours}
+                                  onChange={(e) => setReviewDailyHours(e.target.value)}
+                                  className="input w-full rounded-lg text-xs py-1 px-2 text-right tabular-nums"
+                                />
+                              )}
                             </span>
                             <span className="text-surface-500">Daily salary</span>
                             <span className="tabular-nums text-right flex items-center justify-end gap-1">
@@ -1451,7 +1518,7 @@ export default function AdminLeaveRequests() {
                               <Lock className="w-3 h-3 text-surface-400" />${preview.payableAmount.toFixed(2)}
                             </span>
                           </div>
-                          <p className="text-[10px] text-surface-500">Payable amount = daily salary × payable days (computed on save).</p>
+                          <p className="text-[10px] text-surface-500">Payable amount = daily salary x payable days (computed on save).</p>
                         </div>
                       ) : null}
                     </>
