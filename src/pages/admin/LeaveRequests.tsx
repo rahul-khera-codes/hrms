@@ -1177,7 +1177,7 @@ export default function AdminLeaveRequests() {
                     </p>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div>
                       <label className="label">Payroll Cycle</label>
                       <AdminSelect
@@ -1185,7 +1185,7 @@ export default function AdminLeaveRequests() {
                         onChange={(val) => setCreatePayrollCycleCode(val)}
                         options={[
                           { value: '', label: 'Select payroll cycle' },
-                          ...payrollPeriods.map((p) => ({ value: p.cycleCode, label: `${p.cycleCode} (${p.periodFrom} - ${p.periodTo})` })),
+                          ...payrollPeriods.map((p) => ({ value: p.cycleCode, label: p.cycleCode })),
                         ]}
                       />
                     </div>
@@ -1196,28 +1196,24 @@ export default function AdminLeaveRequests() {
                         onChange={(val) => setCreateApproverName(val)}
                         options={[
                           { value: '', label: 'Select approver' },
-                          ...['Cristopher Mojica', 'Orlando Santana', 'Jamel Rodriguez'].map((name) => ({ value: name, label: name })),
+                          ...['Orlando Santana', 'Jamel Rodriguez', 'Luis Peña', 'Other'].map((name) => ({ value: name, label: name })),
+                        ]}
+                      />
+                    </div>
+                    <div>
+                      <label className="label">Payroll Status</label>
+                      <AdminSelect
+                        value={createPayrollStatus}
+                        onChange={(val) => setCreatePayrollStatus(val)}
+                        options={[
+                          { value: 'Pending', label: 'Pending' },
+                          { value: 'Processed', label: 'Processed' },
+                          { value: 'N/A', label: 'N/A' },
                         ]}
                       />
                     </div>
                   </div>
                 </>
-              )}
-
-              {/* Payroll Status — hidden when Non Payable (defaults to N/A) */}
-              {createCalcType !== 'non_payable' && (
-                <div>
-                  <label className="label">Payroll Status</label>
-                  <AdminSelect
-                    value={createPayrollStatus}
-                    onChange={(val) => setCreatePayrollStatus(val)}
-                    options={[
-                      { value: 'Pending', label: 'Pending' },
-                      { value: 'Processed', label: 'Processed' },
-                      { value: 'N/A', label: 'N/A' },
-                    ]}
-                  />
-                </div>
               )}
 
               {/* Notes */}
@@ -1372,7 +1368,7 @@ export default function AdminLeaveRequests() {
                         disabled={reviewLocked}
                         options={[
                           { value: '', label: 'Select payroll cycle' },
-                          ...payrollPeriods.map((p) => ({ value: p.cycleCode, label: `${p.cycleCode} (${p.periodFrom} - ${p.periodTo})` })),
+                          ...payrollPeriods.map((p) => ({ value: p.cycleCode, label: p.cycleCode })),
                         ]}
                       />
                     </div>

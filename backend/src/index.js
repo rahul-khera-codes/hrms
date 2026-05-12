@@ -493,6 +493,15 @@ try {
     await seedPayrollPeriods()
     await pool.query(`ALTER TABLE payroll_periods ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'upcoming'`)
     await pool.query(`UPDATE payroll_periods SET status = 'closed' WHERE pay_date < CURRENT_DATE AND status != 'closed'`)
+    // Compute BS (payment number within month) based on pay_date grouping
+    await pool.query(`
+      WITH numbered AS (
+        SELECT id, ROW_NUMBER() OVER (
+          PARTITION BY EXTRACT(YEAR FROM pay_date), EXTRACT(MONTH FROM pay_date) ORDER BY pay_date
+        ) AS pnum FROM payroll_periods
+      )
+      UPDATE payroll_periods pp SET bs = n.pnum FROM numbered n WHERE pp.id = n.id AND (pp.bs IS NULL OR pp.bs != n.pnum)
+    `)
     console.log('Payroll periods table ready')
   } catch (e) {
     console.warn('Payroll periods init skipped (table may already exist):', e.message)

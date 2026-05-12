@@ -74,6 +74,8 @@ export default function AdminEmployees() {
   const [assignmentByEmployee, setAssignmentByEmployee] = useState<Record<string, EmployeeAssignmentInfo>>({})
   const [clientFilter, setClientFilter] = useState('all')
   const [shiftFilter, setShiftFilter] = useState('all')
+  const [locationFilter, setLocationFilter] = useState('all')
+  const [reportsToFilter, setReportsToFilter] = useState('all')
   const [currentPage, setCurrentPage] = useState(1)
   const [saving, setSaving] = useState(false)
   const [viewMode, setViewMode] = useState<'card' | 'table'>('table')
@@ -293,16 +295,30 @@ export default function AdminEmployees() {
     }
   }, [])
 
+  const uniqueLocations = useMemo(() => {
+    const set = new Set<string>()
+    employees.forEach((e) => { if (e.location) set.add(e.location) })
+    return Array.from(set).sort()
+  }, [employees])
+
+  const uniqueReportsToNames = useMemo(() => {
+    const set = new Set<string>()
+    employees.forEach((e) => { if (e.reportsToName) set.add(e.reportsToName) })
+    return Array.from(set).sort()
+  }, [employees])
+
   const baseFiltered = useMemo(() => {
     const q = search.trim().toLowerCase()
     return employees.filter((emp) => {
       const assignment = assignmentByEmployee[emp.id]
       const clientMatch = clientFilter === 'all' || assignment?.clientId === clientFilter
       const shiftMatch = shiftFilter === 'all' || assignment?.shiftName === shiftFilter
+      const locMatch = locationFilter === 'all' || (emp.location ?? '') === locationFilter
+      const rtMatch = reportsToFilter === 'all' || (emp.reportsToName ?? '') === reportsToFilter
       const searchMatch = !q || emp.name.toLowerCase().includes(q) || emp.email.toLowerCase().includes(q) || (emp.cmid != null && String(emp.cmid).includes(q))
-      return clientMatch && shiftMatch && searchMatch
+      return clientMatch && shiftMatch && locMatch && rtMatch && searchMatch
     })
-  }, [employees, assignmentByEmployee, clientFilter, shiftFilter, search])
+  }, [employees, assignmentByEmployee, clientFilter, shiftFilter, locationFilter, reportsToFilter, search])
 
   const empColAccessor = useCallback((emp: EmployeeRecord, col: string): string | number => {
     switch (col) {
@@ -310,14 +326,20 @@ export default function AdminEmployees() {
       case 'Employee Name': return emp.name.toLowerCase()
       case 'Account': return (emp.primaryClientName ?? '').toLowerCase()
       case 'Email': return emp.email.toLowerCase()
+      case 'Location': return (emp.location ?? '').toLowerCase()
       case 'Salary Type': return (emp.salaryType ?? '').toLowerCase()
       case 'Salary': return emp.baseSalary ?? 0
       case 'Department': return (emp.department ?? '').toLowerCase()
       case 'Job Title': return (emp.jobTitle ?? '').toLowerCase()
+      case 'Reports To': return (emp.reportsToName ?? '').toLowerCase()
+      case 'Shift': {
+        const a = assignmentByEmployee[emp.id]
+        return a ? a.shiftName.toLowerCase() : ''
+      }
       case 'Contract Status': return (emp.contractStatus ?? '').toLowerCase()
       default: return ''
     }
-  }, [])
+  }, [assignmentByEmployee])
 
   const filteredEmployees = useMemo(() => {
     let result = [...baseFiltered]
@@ -352,16 +374,19 @@ export default function AdminEmployees() {
 
   function exportEmployeesCSV() {
     if (!filteredEmployees.length) return
-    const headers = ['CMID', 'Employee Name', 'Account', 'Email', 'Salary Type', 'Salary', 'Department', 'Job Title', 'Contract Status']
+    const headers = ['CMID', 'Employee Name', 'Account', 'Email', 'Location', 'Department', 'Job Title', 'Reports To', 'Shift', 'Salary Type', 'Salary', 'Contract Status']
     const rows = filteredEmployees.map((e) => [
       e.cmid != null ? String(e.cmid) : '',
       e.name,
       e.primaryClientName ?? '',
       e.email,
-      e.salaryType ?? '',
-      e.baseSalary != null ? String(e.baseSalary) : '',
+      e.location ?? '',
       e.department ?? '',
       e.jobTitle ?? '',
+      e.reportsToName ?? '',
+      assignmentByEmployee[e.id]?.shiftName ?? '',
+      e.salaryType ?? '',
+      e.baseSalary != null ? String(e.baseSalary) : '',
       e.contractStatus ?? '',
     ])
     const csv = [
@@ -474,7 +499,7 @@ export default function AdminEmployees() {
 
   useEffect(() => {
     setCurrentPage(1)
-  }, [clientFilter, shiftFilter])
+  }, [clientFilter, shiftFilter, locationFilter, reportsToFilter])
 
   useEffect(() => {
     if (currentPage > totalPages) {
@@ -816,6 +841,26 @@ export default function AdminEmployees() {
               ]}
             />
           </div>
+          <div className="w-full sm:w-40">
+            <AdminSelect
+              value={locationFilter}
+              onChange={(val) => setLocationFilter(val)}
+              options={[
+                { value: 'all', label: 'All locations' },
+                ...uniqueLocations.map((loc) => ({ value: loc, label: loc })),
+              ]}
+            />
+          </div>
+          <div className="w-full sm:w-40">
+            <AdminSelect
+              value={reportsToFilter}
+              onChange={(val) => setReportsToFilter(val)}
+              options={[
+                { value: 'all', label: 'All supervisors' },
+                ...uniqueReportsToNames.map((n) => ({ value: n, label: n })),
+              ]}
+            />
+          </div>
           <div className="segmented self-start sm:self-auto">
             <button
               type="button"
@@ -932,7 +977,7 @@ export default function AdminEmployees() {
                       }}
                     />
                   </th>
-                  {['CMID', 'Employee Name', 'Account', 'Email', 'Department', 'Job Title', 'Salary Type', 'Salary', 'Contract Status', 'Actions'].map((col) => (
+                  {['CMID', 'Employee Name', 'Account', 'Email', 'Location', 'Department', 'Job Title', 'Reports To', 'Shift', 'Salary Type', 'Salary', 'Contract Status', 'Actions'].map((col) => (
                     <th
                       key={col}
                       className={`px-3 py-1.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 ${col === 'Actions' ? 'text-right' : col === 'Salary' ? 'text-right' : ''}`}
@@ -987,7 +1032,7 @@ export default function AdminEmployees() {
               <tbody>
                 {paginatedEmployees.length === 0 ? (
                   <tr>
-                    <td colSpan={11} className="py-12">
+                    <td colSpan={14} className="py-12">
                       <div className="flex flex-col items-center justify-center text-center">
                         <div className="w-12 h-12 rounded-full bg-surface-100 flex items-center justify-center text-surface-400 mb-3">
                           <Search className="w-5 h-5" />
@@ -1025,8 +1070,11 @@ export default function AdminEmployees() {
                     </td>
                     <td className="px-3 py-2.5 text-xs text-surface-700 whitespace-nowrap">{emp.primaryClientName ?? '-'}</td>
                     <td className="px-3 py-2.5 text-xs text-surface-600 whitespace-nowrap max-w-[200px] truncate">{emp.email}</td>
+                    <td className="px-3 py-2.5 text-xs text-surface-600 whitespace-nowrap">{emp.location ?? '-'}</td>
                     <td className="px-3 py-2.5 text-xs text-surface-600 whitespace-nowrap">{emp.department ?? '-'}</td>
                     <td className="px-3 py-2.5 text-xs text-surface-600 whitespace-nowrap">{emp.jobTitle ?? '-'}</td>
+                    <td className="px-3 py-2.5 text-xs text-surface-600 whitespace-nowrap">{emp.reportsToName ?? '-'}</td>
+                    <td className="px-3 py-2.5 text-xs text-surface-600 whitespace-nowrap">{assignmentByEmployee[emp.id]?.shiftName ?? '-'}</td>
                     <td className="px-3 py-2.5 text-xs text-surface-700 whitespace-nowrap capitalize">{emp.salaryType ?? '-'}</td>
                     <td className="px-3 py-2.5 text-xs text-surface-700 tabular-nums whitespace-nowrap text-right font-medium">
                       {emp.salaryType === 'monthly' ? emp.baseSalary.toLocaleString() : emp.baseSalary.toFixed(2)}

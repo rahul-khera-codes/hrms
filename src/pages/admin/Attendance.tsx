@@ -400,7 +400,8 @@ export default function AdminAttendance() {
     const totalBillableReg = records.reduce((a, r) => a + (r.billableRegHours ?? 0), 0)
     const totalBillablePrm = records.reduce((a, r) => a + (r.billablePrmHours ?? 0), 0)
     const totalBillableRvw = records.reduce((a, r) => a + (r.billableRvwHours ?? 0), 0)
-    const billDnb = records.filter((r) => r.billType === 'DNB').reduce((a, r) => a + (r.actualHours ?? 0) - (r.adbtHours ?? 0), 0)
+    // DNB shows actual hours (no break deduction) — for tracking purposes
+    const billDnb = records.filter((r) => r.billType === 'DNB').reduce((a, r) => a + (r.actualHours ?? 0), 0)
     return {
       total, present, absent, late, leftEarly, timeOff, systemIssues,
       totalReg, totalN15, totalX35, totalX100, totalHdy, totalDnp, totalPayableRvw,
@@ -965,7 +966,7 @@ export default function AdminAttendance() {
                   {([
                     { label: 'B-REG', val: detailRecord.billableRegHours, color: 'brand' },
                     { label: 'B-PRM', val: detailRecord.billablePrmHours, color: 'violet' },
-                    { label: 'B-DNB', val: detailRecord.billType === 'DNB' ? (detailRecord.actualHours ?? 0) - (detailRecord.adbtHours ?? 0) : 0, color: 'surface' },
+                    { label: 'B-DNB', val: detailRecord.billType === 'DNB' ? (detailRecord.actualHours ?? 0) : 0, color: 'surface' },
                     { label: 'B-RVW', val: detailRecord.billableRvwHours, color: 'red' },
                   ] as { label: string; val: number | null | undefined; color: string }[]).map((item) => {
                     const isNonZero = (item.val ?? 0) > 0
@@ -1025,6 +1026,8 @@ export default function AdminAttendance() {
                       {TASK_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
                     </select>
                   </div>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-3 mt-3">
                   <div>
                     <label className="text-[10px] font-medium text-surface-400 uppercase block mb-1">Stage</label>
                     <select
@@ -1049,8 +1052,6 @@ export default function AdminAttendance() {
                       ]}
                     />
                   </div>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3 mt-3">
                   <div>
                     <label className="text-[10px] font-medium text-surface-400 uppercase block mb-1">Pay</label>
                     <select
@@ -1252,6 +1253,8 @@ function AddAttendanceRecordModal({
               <label className="label">Task</label>
               <AdminSelect value={task} onChange={setTask} options={[{ value: '', label: '— None —' }, ...TASK_OPTIONS.map((s) => ({ value: s, label: s }))]} />
             </div>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div>
               <label className="label">Stage</label>
               <AdminSelect value={stage} onChange={setStage} options={STAGE_OPTIONS.map((s) => ({ value: s, label: s }))} />
@@ -1260,8 +1263,6 @@ function AddAttendanceRecordModal({
               <label className="label">Reports To</label>
               <AdminSelect value={reportsToOverride} onChange={setReportsToOverride} options={[{ value: '', label: '— None —' }, ...employees.map((e) => ({ value: e.id, label: e.name }))]} />
             </div>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="label">Pay</label>
               <AdminSelect value={payType} onChange={setPayType} options={PAY_OPTIONS.map((s) => ({ value: s, label: s }))} />

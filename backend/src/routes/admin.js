@@ -1900,7 +1900,7 @@ router.put('/payroll/deductions', async (req, res) => {
 router.get('/payroll/periods', async (req, res) => {
   try {
     const year = req.query.year ? parseInt(req.query.year, 10) : new Date().getFullYear()
-    let sql = `SELECT period_from, period_to, pay_date, cycle_code, year_cycle, COALESCE(status, 'upcoming') as status
+    let sql = `SELECT period_from, period_to, pay_date, cycle_code, year_cycle, COALESCE(status, 'upcoming') as status, COALESCE(bs, 1) as bs
        FROM payroll_periods WHERE year_cycle = $1`
     if (req.query.open === 'true') {
       sql += ` AND pay_date >= CURRENT_DATE`
@@ -1914,6 +1914,7 @@ router.get('/payroll/periods', async (req, res) => {
       cycleCode: r.cycle_code,
       yearCycle: r.year_cycle,
       status: r.status,
+      bs: Number(r.bs) || 1,
     })))
   } catch (err) {
     console.error('List payroll periods error:', err)

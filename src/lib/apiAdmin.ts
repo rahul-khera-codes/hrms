@@ -278,6 +278,7 @@ export interface PayrollPeriod {
   cycleCode: string
   yearCycle: number
   status: string
+  bs?: number
 }
 
 export async function getPayrollPeriods(year?: number): Promise<PayrollPeriod[]> {
