@@ -41,13 +41,7 @@ interface SectionDef {
   columns: ColDef[]
 }
 
-/** Bank dropdown options */
-const BANK_OPTIONS = [
-  '', 'Banreservas', 'Popular', 'BHD Leon', 'Scotiabank', 'Santa Cruz',
-  'Promerica', 'Caribe', 'Lopez de Haro', 'Ademi', 'BDI', 'Vimenca',
-]
-
-/** Payment method dropdown options */
+/** Payment method dropdown options (only editable field in payroll) */
 const PAY_METHOD_OPTIONS = ['', 'Deposito', 'Cheque']
 
 const sections: SectionDef[] = [
@@ -527,45 +521,9 @@ export default function AdminPayroll() {
                       s.columns.map((col) => {
                         const val = col.accessor(r)
 
-                        /* Inline-editable: Bank (select dropdown) */
-                        if (col.key === 'bank') {
-                          return (
-                            <td key={col.key} className="py-1 px-1 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                              <select
-                                className="w-full text-xs border border-surface-200 rounded px-1.5 py-1.5 bg-white text-surface-700 focus:ring-1 focus:ring-brand-400 focus:border-brand-400 outline-none"
-                                value={String(val)}
-                                onChange={(e) => handleInlineUpdate(r, 'bank', e.target.value)}
-                              >
-                                {BANK_OPTIONS.map((b) => (
-                                  <option key={b} value={b}>{b || '--'}</option>
-                                ))}
-                              </select>
-                            </td>
-                          )
-                        }
+                        /* Bank & Bank Account: read-only (lookup from employee record) */
 
-                        /* Inline-editable: Bank Account (text input) */
-                        if (col.key === 'bankAccount') {
-                          return (
-                            <td key={col.key} className="py-1 px-1 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                              <input
-                                type="text"
-                                className="w-full text-xs border border-surface-200 rounded px-1.5 py-1.5 bg-white text-surface-700 focus:ring-1 focus:ring-brand-400 focus:border-brand-400 outline-none"
-                                defaultValue={String(val)}
-                                onBlur={(e) => {
-                                  if (e.target.value !== String(val)) {
-                                    handleInlineUpdate(r, 'bankAccount', e.target.value)
-                                  }
-                                }}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
-                                }}
-                              />
-                            </td>
-                          )
-                        }
-
-                        /* Inline-editable: Payment Method (select dropdown) */
+                        /* Inline-editable: Payment Method only (select dropdown) */
                         if (col.key === 'payMethod') {
                           return (
                             <td key={col.key} className="py-1 px-1 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
