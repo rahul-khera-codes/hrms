@@ -909,4 +909,26 @@ router.get('/my-payroll', async (req, res) => {
   }
 })
 
+// GET /api/sessions/payroll-periods?year=2026 — payroll periods accessible to logged-in employees
+router.get('/payroll-periods', async (req, res) => {
+  try {
+    const year = req.query.year ? parseInt(req.query.year, 10) : new Date().getFullYear()
+    const sql = `SELECT period_from, period_to, pay_date, cycle_code, year_cycle, COALESCE(status, 'upcoming') as status, COALESCE(bs, 1) as bs
+       FROM payroll_periods WHERE year_cycle = $1 ORDER BY period_from`
+    const result = await query(sql, [year])
+    res.json(result.rows.map((r) => ({
+      periodFrom: r.period_from ? new Date(r.period_from).toISOString().slice(0, 10) : '',
+      periodTo: r.period_to ? new Date(r.period_to).toISOString().slice(0, 10) : '',
+      payDate: r.pay_date ? new Date(r.pay_date).toISOString().slice(0, 10) : '',
+      cycleCode: r.cycle_code,
+      yearCycle: r.year_cycle,
+      status: r.status,
+      bs: Number(r.bs) || 1,
+    })))
+  } catch (err) {
+    console.error('Employee payroll periods error:', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
 export default router

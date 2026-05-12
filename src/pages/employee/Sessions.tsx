@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { format, startOfWeek, endOfWeek } from 'date-fns'
 import { Search, Clock, ArrowUp, ArrowDown, Filter } from 'lucide-react'
-import { getMyAttendance } from '@/lib/apiEmployee'
+import { getMyAttendance, getEmployeePayrollPeriods, type PayrollPeriod } from '@/lib/apiEmployee'
 import type { AttendanceRecord } from '@/types'
 import DateRangePicker from '@/components/DateRangePicker'
+import AdminSelect from '@/components/AdminSelect'
 import { PageHeader } from '@/components/PageHeader'
 
 // ---------------------------------------------------------------------------
@@ -96,6 +97,10 @@ export default function EmployeeSessions() {
   // Detail modal
   const [detailRecord, setDetailRecord] = useState<AttendanceRecord | null>(null)
 
+  // Payroll cycle filter
+  const [payrollPeriods, setPayrollPeriods] = useState<PayrollPeriod[]>([])
+  const [filterCycle, setFilterCycle] = useState('')
+
   function handleDateRangeChange(start: string, end: string) {
     setDateFrom(start)
     setDateTo(end)
@@ -104,6 +109,10 @@ export default function EmployeeSessions() {
   // -----------------------------------------------------------------------
   // Fetch
   // -----------------------------------------------------------------------
+
+  useEffect(() => {
+    getEmployeePayrollPeriods().then(setPayrollPeriods).catch(() => setPayrollPeriods([]))
+  }, [])
 
   const fetchAttendance = useCallback(async () => {
     try {
@@ -252,6 +261,28 @@ export default function EmployeeSessions() {
         </div>
         <div className="w-full sm:w-auto sm:min-w-[320px]">
           <DateRangePicker startDate={dateFrom} endDate={dateTo} onChange={handleDateRangeChange} />
+        </div>
+        <div className="w-full sm:w-auto sm:min-w-[180px]">
+          <AdminSelect
+            value={filterCycle}
+            onChange={(val) => {
+              setFilterCycle(val)
+              if (val) {
+                const period = payrollPeriods.find((p) => p.cycleCode === val)
+                if (period) {
+                  setDateFrom(period.periodFrom)
+                  setDateTo(period.periodTo)
+                }
+              } else {
+                setDateFrom(format(startOfWeek(new Date(), { weekStartsOn: 0 }), 'yyyy-MM-dd'))
+                setDateTo(format(endOfWeek(new Date(), { weekStartsOn: 0 }), 'yyyy-MM-dd'))
+              }
+            }}
+            options={[
+              { value: '', label: 'All cycles' },
+              ...payrollPeriods.map((p) => ({ value: p.cycleCode, label: p.cycleCode })),
+            ]}
+          />
         </div>
       </div>
 

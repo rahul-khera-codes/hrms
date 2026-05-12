@@ -68,6 +68,23 @@ export async function createLeaveRequest(data: {
   })
 }
 
+// ── Payroll Periods (employee-accessible) ──
+
+export interface PayrollPeriod {
+  periodFrom: string
+  periodTo: string
+  payDate: string
+  cycleCode: string
+  yearCycle: number
+  status: string
+  bs?: number
+}
+
+export async function getEmployeePayrollPeriods(year?: number): Promise<PayrollPeriod[]> {
+  const q = year != null ? `?year=${year}` : ''
+  return api<PayrollPeriod[]>(`/api/sessions/payroll-periods${q}`)
+}
+
 // ── My Payroll ──
 
 export interface MyPayrollResult {

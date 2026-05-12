@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback } from 'react'
-import { CalendarDays, Clock, Building2, ChevronLeft, ChevronRight, Search, LayoutGrid, Table2, Download } from 'lucide-react'
-import { getMySchedule, type MyScheduleEntry } from '@/lib/apiEmployee'
-import { format, addDays, startOfWeek, parseISO } from 'date-fns'
+import { useState, useEffect, useCallback, useMemo } from 'react'
+import { CalendarDays, Clock, Building2, ChevronLeft, ChevronRight, Search, LayoutGrid, Table2, Download, Calendar } from 'lucide-react'
+import { getMySchedule, getEmployeePayrollPeriods, type MyScheduleEntry, type PayrollPeriod } from '@/lib/apiEmployee'
+import { format, addDays, startOfWeek, parseISO, isSameDay } from 'date-fns'
 import AdminSelect from '@/components/AdminSelect'
 import { PageHeader } from '@/components/PageHeader'
 import { SkeletonTableRows } from '@/components/Skeleton'
@@ -18,7 +18,11 @@ export default function EmployeeMySchedule() {
   const [error, setError] = useState<string | null>(null)
   const [clientFilter, setClientFilter] = useState('all')
   const [shiftFilter, setShiftFilter] = useState('all')
-  const [viewMode, setViewMode] = useState<'card' | 'table'>('table')
+  const [viewMode, setViewMode] = useState<'card' | 'table' | 'calendar'>('table')
+
+  // Payroll cycle filter
+  const [payrollPeriods, setPayrollPeriods] = useState<PayrollPeriod[]>([])
+  const [filterCycle, setFilterCycle] = useState('')
   const [weekStart, setWeekStart] = useState(() => {
     const d = startOfWeek(new Date(), { weekStartsOn: 1 })
     return format(d, 'yyyy-MM-dd')
@@ -62,6 +66,10 @@ export default function EmployeeMySchedule() {
     }
   }, [fetchSchedule])
 
+  useEffect(() => {
+    getEmployeePayrollPeriods().then(setPayrollPeriods).catch(() => setPayrollPeriods([]))
+  }, [])
+
   function prevWeek() {
     setWeekStart(format(addDays(parseISO(weekStart), -7), 'yyyy-MM-dd'))
   }
@@ -104,6 +112,28 @@ export default function EmployeeMySchedule() {
     URL.revokeObjectURL(url)
   }
 
+  // Calendar view: build a grid of weeks covering the current weekStart...weekEnd range
+  const calendarWeeks = useMemo(() => {
+    // Build a 1-week grid (Mon-Sun matches weekStart...weekEnd)
+    const days: Date[] = weekDates
+    // Group into weeks of 7 for the grid (already 7 days)
+    const weeks: Date[][] = [days]
+    return weeks
+  }, [weekDates])
+
+  // Map entries by date string for quick lookup in calendar
+  const entriesByDate = useMemo(() => {
+    const map = new Map<string, MyScheduleEntry[]>()
+    for (const e of filteredEntries) {
+      if (!e.date) continue
+      const key = e.date.slice(0, 10)
+      const arr = map.get(key) ?? []
+      arr.push(e)
+      map.set(key, arr)
+    }
+    return map
+  }, [filteredEntries])
+
   return (
     <div className="page overflow-x-hidden">
       <PageHeader
@@ -140,6 +170,26 @@ export default function EmployeeMySchedule() {
             ]}
           />
         </div>
+        <div className="w-full sm:w-auto sm:min-w-[180px]">
+          <AdminSelect
+            value={filterCycle}
+            onChange={(val) => {
+              setFilterCycle(val)
+              if (val) {
+                const period = payrollPeriods.find((p) => p.cycleCode === val)
+                if (period) {
+                  setWeekStart(period.periodFrom)
+                }
+              } else {
+                setWeekStart(format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd'))
+              }
+            }}
+            options={[
+              { value: '', label: 'All cycles' },
+              ...payrollPeriods.map((p) => ({ value: p.cycleCode, label: p.cycleCode })),
+            ]}
+          />
+        </div>
         <div className="segmented self-start sm:self-auto">
           <button
             type="button"
@@ -156,6 +206,14 @@ export default function EmployeeMySchedule() {
           >
             <Table2 className="w-3.5 h-3.5" />
             Table
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode('calendar')}
+            className={`segmented-item ${viewMode === 'calendar' ? 'segmented-item-active' : ''}`}
+          >
+            <Calendar className="w-3.5 h-3.5" />
+            Calendar
           </button>
         </div>
         <div className="flex items-center gap-1 sm:ml-auto">
@@ -227,6 +285,61 @@ export default function EmployeeMySchedule() {
             </li>
           ))}
         </ul>
+      ) : viewMode === 'calendar' ? (
+        <div className="card overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr>
+                  {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day) => (
+                    <th key={day} className="px-2 py-2 text-[10px] font-semibold text-surface-500 uppercase tracking-wider text-center border-b border-surface-200 bg-surface-50">
+                      {day}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {calendarWeeks.map((week, wi) => (
+                  <tr key={wi}>
+                    {week.map((day, di) => {
+                      const key = format(day, 'yyyy-MM-dd')
+                      const dayEntries = entriesByDate.get(key) ?? []
+                      const isToday = isSameDay(day, new Date())
+                      return (
+                        <td
+                          key={di}
+                          className={`px-1.5 py-1.5 align-top border border-surface-100 min-w-[120px] h-[90px] ${isToday ? 'bg-brand-50/40' : 'bg-white'}`}
+                        >
+                          <div className={`text-[11px] font-semibold mb-1 ${isToday ? 'text-brand-600' : 'text-surface-500'}`}>
+                            {format(day, 'd MMM')}
+                          </div>
+                          {dayEntries.length === 0 ? (
+                            <p className="text-[10px] text-surface-300 italic">No shifts</p>
+                          ) : (
+                            <div className="space-y-1">
+                              {dayEntries.map((e) => (
+                                <div key={e.id} className="rounded-lg bg-brand-50 border border-brand-100 px-1.5 py-1 text-[10px]">
+                                  <p className="font-semibold text-surface-900 truncate">{e.shiftName}</p>
+                                  <p className="text-surface-500 truncate flex items-center gap-0.5">
+                                    <Building2 className="w-2.5 h-2.5 shrink-0" />
+                                    {e.clientName}
+                                  </p>
+                                  <p className="text-surface-600 font-mono tabular-nums">
+                                    {formatTime(e.startTime)}–{formatTime(e.endTime)}
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </td>
+                      )
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       ) : (
         <div className="card overflow-hidden">
           <div className="overflow-x-auto">

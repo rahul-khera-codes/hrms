@@ -1,18 +1,7 @@
 import { useState, useMemo, useCallback, useEffect } from 'react'
-import { format, subDays, startOfDay } from 'date-fns'
-import { Clock, Play, Square, TrendingUp, Moon, Zap, Calendar, FileDown, Eye, X, History, LayoutDashboard, LayoutGrid, Table2 } from 'lucide-react'
-import {
-  PieChart,
-  Pie,
-  Cell,
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-} from 'recharts'
-import type { ClockSession, PayrollSummary } from '@/types'
+import { format, subDays } from 'date-fns'
+import { Clock, Play, Square, Calendar, FileDown, Eye, X, History, LayoutDashboard, LayoutGrid, Table2, Briefcase, BarChart3, Timer } from 'lucide-react'
+import type { ClockSession, PayrollSummary, AttendanceRecord } from '@/types'
 import {
   getActiveSession,
   getSessions,
@@ -24,66 +13,85 @@ import {
   listMyPayrollSlips,
   downloadStoredPayslipPdf,
 } from '@/lib/apiSessions'
+import { getMyAttendance, getMySchedule } from '@/lib/apiEmployee'
+import type { MyScheduleEntry } from '@/lib/apiEmployee'
+import { getPayrollPeriods } from '@/lib/apiAdmin'
+import type { PayrollPeriod } from '@/lib/apiAdmin'
 import AdminDatePicker from '@/components/AdminDatePicker'
 import { PageHeader } from '@/components/PageHeader'
 
-const HOURS_COLORS = {
-  regular: '#14b8a6',
-  overtime: '#f59e0b',
-  night: '#6366f1',
+function fmtHours(v: number | null | undefined): string {
+  if (v == null || v === 0) return '0.00'
+  return v.toFixed(2)
 }
 
-function formatDuration(totalMinutes: number) {
-  const totalSeconds = Math.max(0, Math.round(totalMinutes * 60))
-  const hours = Math.floor(totalSeconds / 3600)
-  const minutes = Math.floor((totalSeconds % 3600) / 60)
-  const seconds = totalSeconds % 60
-  return [hours, minutes, seconds].map((value) => String(value).padStart(2, '0')).join(':')
+/* ------------------------------------------------------------------ */
+/*  Payable hours bar chart (pure CSS)                                */
+/* ------------------------------------------------------------------ */
+function HoursChart({ data }: { data: { label: string; value: number; color: string }[] }) {
+  const max = Math.max(...data.map(d => d.value), 1)
+  return (
+    <div className="space-y-2.5">
+      {data.map(d => (
+        <div key={d.label} className="flex items-center gap-2.5">
+          <span className="text-[11px] font-semibold text-surface-600 w-[4.5rem] shrink-0 text-right">{d.label}</span>
+          <div className="flex-1 bg-surface-100 rounded-full h-5 overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all duration-500 ${d.color}`}
+              style={{ width: `${(d.value / max) * 100}%`, minWidth: d.value > 0 ? '4px' : '0' }}
+            />
+          </div>
+          <span className="text-xs font-bold tabular-nums w-12 text-right text-surface-700">{d.value.toFixed(2)}</span>
+        </div>
+      ))}
+    </div>
+  )
 }
 
-function getSessionElapsedMinutes(session: ClockSession) {
-  if (!session.clockOut) return 0
-  const startMs = new Date(session.clockIn).getTime()
-  const endMs = new Date(session.clockOut).getTime()
-  if (Number.isNaN(startMs) || Number.isNaN(endMs) || endMs <= startMs) return 0
-  return (endMs - startMs) / 60000
+/* ------------------------------------------------------------------ */
+/*  Helpers                                                           */
+/* ------------------------------------------------------------------ */
+
+/** Find the current payroll period (today falls within periodFrom..periodTo). */
+function findCurrentPeriod(periods: PayrollPeriod[]): PayrollPeriod | undefined {
+  const today = format(new Date(), 'yyyy-MM-dd')
+  return periods.find(p => p.periodFrom <= today && p.periodTo >= today)
 }
 
-function formatCompactDuration(totalMinutes: number) {
-  return formatDuration(totalMinutes)
+/** Aggregate attendance records into payable-hours buckets. */
+function aggregatePayableHours(records: AttendanceRecord[]) {
+  let pReg = 0
+  let pN15 = 0
+  let pX35 = 0
+  let pX100 = 0
+  let pHdy = 0
+  let pDnp = 0
+  let pRvw = 0
+  for (const r of records) {
+    pReg += r.regHours ?? 0
+    pN15 += r.n15Hours ?? 0
+    pX35 += r.x35Hours ?? 0
+    pX100 += r.x100Hours ?? 0
+    pHdy += r.hdyHours ?? 0
+    pDnp += r.payType === 'DNP' ? Math.max(0, (r.actualHours ?? 0) - (r.adbtHours ?? 0)) : 0
+    pRvw += r.payableRvwHours ?? 0
+  }
+  return { pReg, pN15, pX35, pX100, pHdy, pDnp, pRvw }
 }
 
-function formatWeeklyAxisTick(totalMinutes: number) {
-  if (totalMinutes <= 0) return '0s'
-  if (totalMinutes < 1) return `${Math.max(1, Math.round(totalMinutes * 60))}s`
-  if (totalMinutes < 60) return `${Math.round(totalMinutes)}m`
-  return `${(totalMinutes / 60).toFixed(1)}h`
-}
-
-function buildWeeklyData(sessions: ClockSession[]) {
-  return [6, 5, 4, 3, 2, 1, 0].map((daysAgo) => {
-    const d = subDays(new Date(), daysAgo)
-    const dayStr = format(startOfDay(d), 'yyyy-MM-dd')
-    const daySessions = sessions.filter((s) => {
-      const inDate = format(startOfDay(new Date(s.clockIn)), 'yyyy-MM-dd')
-      return inDate === dayStr && s.clockOut
-    })
-    const totalMinutes = daySessions.reduce((acc, s) => acc + getSessionElapsedMinutes(s), 0)
-    return {
-      day: format(d, 'EEE'),
-      fullDate: format(d, 'MMM d'),
-      minutes: totalMinutes,
-      hours: totalMinutes / 60,
-      regular: Math.min(totalMinutes / 60, 8),
-      overtime: Math.max(0, totalMinutes / 60 - 8),
-    }
-  }).reverse()
+function fmtTime(isoStr: string | null | undefined): string {
+  if (!isoStr) return '--:--'
+  try {
+    return format(new Date(isoStr), 'HH:mm')
+  } catch {
+    return '--:--'
+  }
 }
 
 export default function EmployeeDashboard() {
   const [activeSession, setActiveSession] = useState<ClockSession | null>(null)
   const [sessions, setSessions] = useState<ClockSession[]>([])
-  const [summary, setSummary] = useState<PayrollSummary | null>(null)
+  const [_summary, setSummary] = useState<PayrollSummary | null>(null)
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(false)
   const [slipFrom, setSlipFrom] = useState(() => format(subDays(new Date(), 14), 'yyyy-MM-dd'))
@@ -97,6 +105,12 @@ export default function EmployeeDashboard() {
   >([])
   const [savedSlipsLoading, setSavedSlipsLoading] = useState(false)
   const [sessionsView, setSessionsView] = useState<'card' | 'table'>('table')
+
+  // New state for shift info, payroll period and attendance
+  const [todaySchedule, setTodaySchedule] = useState<MyScheduleEntry | null>(null)
+  const [currentPeriod, setCurrentPeriod] = useState<PayrollPeriod | null>(null)
+  const [cycleAttendance, setCycleAttendance] = useState<AttendanceRecord[]>([])
+  const [todayAttendance, setTodayAttendance] = useState<AttendanceRecord | null>(null)
 
   const fetchData = useCallback(async () => {
     try {
@@ -117,9 +131,47 @@ export default function EmployeeDashboard() {
     }
   }, [])
 
+  // Fetch today's schedule and current payroll cycle attendance
+  const fetchEnhancedData = useCallback(async () => {
+    const today = format(new Date(), 'yyyy-MM-dd')
+    try {
+      // Fetch schedule and payroll periods in parallel
+      const [scheduleEntries, periods] = await Promise.all([
+        getMySchedule({ from: today, to: today }).catch(() => [] as MyScheduleEntry[]),
+        getPayrollPeriods().catch(() => [] as PayrollPeriod[]),
+      ])
+
+      // Today's schedule
+      if (scheduleEntries.length > 0) {
+        setTodaySchedule(scheduleEntries[0])
+      }
+
+      // Current payroll period
+      const period = findCurrentPeriod(periods)
+      if (period) {
+        setCurrentPeriod(period)
+
+        // Fetch attendance for the current cycle
+        const attendance = await getMyAttendance({ from: period.periodFrom, to: period.periodTo }).catch(() => [] as AttendanceRecord[])
+        setCycleAttendance(attendance)
+
+        // Today's attendance record
+        const todayRec = attendance.find(r => r.date === today)
+        if (todayRec) setTodayAttendance(todayRec)
+      } else {
+        // Fallback: just load today's attendance
+        const attendance = await getMyAttendance({ from: today, to: today }).catch(() => [] as AttendanceRecord[])
+        if (attendance.length > 0) setTodayAttendance(attendance[0])
+      }
+    } catch {
+      // silent
+    }
+  }, [])
+
   useEffect(() => {
     fetchData()
-  }, [fetchData])
+    fetchEnhancedData()
+  }, [fetchData, fetchEnhancedData])
 
   const reloadSavedSlips = useCallback(async () => {
     setSavedSlipsLoading(true)
@@ -159,31 +211,19 @@ export default function EmployeeDashboard() {
   const currentTime = format(now, clockedIn ? 'HH:mm:ss' : 'HH:mm')
   const currentDate = format(now, 'EEEE, MMMM d')
 
-  const weeklyData = useMemo(() => buildWeeklyData(sessions), [sessions])
+  // Aggregate payable hours for the cycle
+  const payable = useMemo(() => aggregatePayableHours(cycleAttendance), [cycleAttendance])
+  const totalPayable = payable.pReg + payable.pN15 + payable.pX35 + payable.pX100 + payable.pHdy + payable.pRvw
 
-  const pieData = useMemo(() => {
-    if (!summary) return []
-    return [
-      {
-        name: 'Regular',
-        value: summary.regularMinutes ?? (summary.regularHours ?? 0) * 60,
-        color: HOURS_COLORS.regular,
-      },
-      {
-        name: 'Overtime',
-        value: summary.overtimeMinutes ?? (summary.overtimeHours ?? 0) * 60,
-        color: HOURS_COLORS.overtime,
-      },
-      ...((summary.nightMinutes ?? (summary.nightHours ?? 0) * 60) > 0
-        ? [{ name: 'Night', value: summary.nightMinutes ?? (summary.nightHours ?? 0) * 60, color: HOURS_COLORS.night }]
-        : []),
-    ].filter((d) => d.value > 0)
-  }, [summary])
-
-  const regularDuration = formatDuration(summary?.regularMinutes ?? summary?.regularHours ?? 0)
-  const overtimeDuration = formatDuration(summary?.overtimeMinutes ?? summary?.overtimeHours ?? 0)
-  const nightDuration = formatDuration(summary?.nightMinutes ?? summary?.nightHours ?? 0)
-  const totalDuration = formatDuration(summary?.totalMinutes ?? summary?.totalHours ?? 0)
+  // Chart data for the bar chart
+  const chartData = useMemo(() => [
+    { label: 'P-REG', value: payable.pReg, color: 'bg-blue-500' },
+    { label: 'P-N15%', value: payable.pN15, color: 'bg-violet-500' },
+    { label: 'P-X35%', value: payable.pX35, color: 'bg-amber-500' },
+    { label: 'P-X100%', value: payable.pX100, color: 'bg-red-500' },
+    { label: 'P-HDY', value: payable.pHdy, color: 'bg-emerald-500' },
+    { label: 'P-RVW', value: payable.pRvw, color: 'bg-rose-400' },
+  ], [payable])
 
   async function handleClockIn() {
     setActionLoading(true)
@@ -248,111 +288,227 @@ export default function EmployeeDashboard() {
         icon={<LayoutDashboard className="w-5 h-5" />}
       />
 
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-brand-500 via-brand-600 to-brand-800 p-5 sm:p-7 shadow-lg shadow-brand-500/20">
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-4 sm:gap-6">
-          <div className="min-w-0">
-            <p className="text-brand-100 text-[11px] sm:text-xs font-semibold uppercase tracking-wider">{currentDate}</p>
-            <p className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white mt-1.5 font-mono tabular-nums tracking-tight">
-              {currentTime}
-            </p>
-            <p className="mt-3 flex items-center gap-2">
-              {clockedIn ? (
-                <>
+      {/* ============================================================ */}
+      {/* TOP SECTION: Today's Shift Info + Clock In/Out (side by side) */}
+      {/* ============================================================ */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5">
+
+        {/* Today's Shift Info Card */}
+        <div className="card overflow-hidden">
+          <div className="card-header">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-lg bg-violet-50 border border-violet-100 text-violet-600 flex items-center justify-center shrink-0">
+                <Briefcase className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <h3 className="text-sm font-semibold text-surface-900">Today's Shift</h3>
+                <p className="text-[11px] text-surface-500 mt-0.5">{format(new Date(), 'EEEE, MMM d, yyyy')}</p>
+              </div>
+            </div>
+          </div>
+          <div className="p-4 sm:p-5">
+            {todaySchedule ? (
+              <div className="space-y-3">
+                {/* Shift name + Account */}
+                <div className="flex flex-col gap-1">
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex items-center rounded-lg bg-violet-50 border border-violet-200 px-2.5 py-1 text-xs font-bold text-violet-700">
+                      {todaySchedule.shiftName}
+                    </span>
+                  </div>
+                  <p className="text-sm text-surface-600 font-medium">{todaySchedule.clientName}</p>
+                </div>
+
+                {/* Time grid */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="rounded-lg bg-surface-50 border border-surface-100 py-2.5 px-3 text-center">
+                    <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider">Shift Start</p>
+                    <p className="text-lg font-bold tabular-nums text-surface-800 mt-0.5">{todaySchedule.startTime || '--:--'}</p>
+                  </div>
+                  <div className="rounded-lg bg-surface-50 border border-surface-100 py-2.5 px-3 text-center">
+                    <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider">Shift End</p>
+                    <p className="text-lg font-bold tabular-nums text-surface-800 mt-0.5">{todaySchedule.endTime || '--:--'}</p>
+                  </div>
+                  <div className="rounded-lg bg-blue-50 border border-blue-100 py-2.5 px-3 text-center">
+                    <p className="text-[10px] font-semibold text-blue-400 uppercase tracking-wider">Clock In</p>
+                    <p className="text-lg font-bold tabular-nums text-blue-700 mt-0.5">
+                      {todayAttendance ? fmtTime(todayAttendance.clockIn) : (clockedIn && activeSession ? fmtTime(activeSession.clockIn) : '--:--')}
+                    </p>
+                  </div>
+                  <div className="rounded-lg bg-blue-50 border border-blue-100 py-2.5 px-3 text-center">
+                    <p className="text-[10px] font-semibold text-blue-400 uppercase tracking-wider">Clock Out</p>
+                    <p className="text-lg font-bold tabular-nums text-blue-700 mt-0.5">
+                      {todayAttendance ? fmtTime(todayAttendance.clockOut) : '--:--'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-6">
+                <div className="w-10 h-10 rounded-full bg-surface-100 flex items-center justify-center mx-auto mb-2">
+                  <Briefcase className="w-4 h-4 text-surface-400" />
+                </div>
+                <p className="text-sm text-surface-500">No shift scheduled for today</p>
+                {(clockedIn || todayAttendance) && (
+                  <div className="grid grid-cols-2 gap-2 mt-4">
+                    <div className="rounded-lg bg-blue-50 border border-blue-100 py-2.5 px-3 text-center">
+                      <p className="text-[10px] font-semibold text-blue-400 uppercase tracking-wider">Clock In</p>
+                      <p className="text-lg font-bold tabular-nums text-blue-700 mt-0.5">
+                        {todayAttendance ? fmtTime(todayAttendance.clockIn) : (clockedIn && activeSession ? fmtTime(activeSession.clockIn) : '--:--')}
+                      </p>
+                    </div>
+                    <div className="rounded-lg bg-blue-50 border border-blue-100 py-2.5 px-3 text-center">
+                      <p className="text-[10px] font-semibold text-blue-400 uppercase tracking-wider">Clock Out</p>
+                      <p className="text-lg font-bold tabular-nums text-blue-700 mt-0.5">
+                        {todayAttendance ? fmtTime(todayAttendance.clockOut) : '--:--'}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Clock In/Out Card */}
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-brand-500 via-brand-600 to-brand-800 p-5 sm:p-7 shadow-lg shadow-brand-500/20">
+          <div className="relative z-10 flex flex-col justify-between h-full gap-4 sm:gap-6">
+            <div className="min-w-0">
+              <p className="text-brand-100 text-[11px] sm:text-xs font-semibold uppercase tracking-wider">{currentDate}</p>
+              <p className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white mt-1.5 font-mono tabular-nums tracking-tight">
+                {currentTime}
+              </p>
+              <p className="mt-3 flex items-center gap-2">
+                {clockedIn ? (
                   <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/30 ring-1 ring-emerald-300/50 backdrop-blur-sm px-2.5 py-1 text-xs font-semibold text-white">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-300 animate-pulse" />
                     Clocked in
                   </span>
-                </>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 ring-1 ring-white/20 backdrop-blur-sm px-2.5 py-1 text-xs font-medium text-white/80">
+                    Not clocked in
+                  </span>
+                )}
+              </p>
+            </div>
+            <div className="flex shrink-0">
+              {clockedIn ? (
+                <button
+                  type="button"
+                  onClick={handleClockOut}
+                  disabled={actionLoading}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-white/20 hover:bg-white/30 text-white font-semibold px-6 py-3.5 backdrop-blur-sm border border-white/20 transition-all active:scale-[0.98] w-full sm:w-auto min-h-[3rem] disabled:opacity-70 shadow-lg"
+                >
+                  {actionLoading ? (
+                    <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <Square className="w-5 h-5 shrink-0" />
+                  )}
+                  Clock out
+                </button>
               ) : (
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 ring-1 ring-white/20 backdrop-blur-sm px-2.5 py-1 text-xs font-medium text-white/80">
-                  Not clocked in
-                </span>
+                <button
+                  type="button"
+                  onClick={handleClockIn}
+                  disabled={actionLoading}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-white text-brand-700 hover:bg-brand-50 font-semibold px-6 py-3.5 shadow-lg transition-all active:scale-[0.98] w-full sm:w-auto min-h-[3rem] disabled:opacity-70"
+                >
+                  {actionLoading ? (
+                    <span className="w-5 h-5 border-2 border-brand-700 border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <Play className="w-5 h-5 shrink-0" />
+                  )}
+                  Clock in
+                </button>
               )}
-            </p>
+            </div>
           </div>
-          <div className="flex shrink-0">
-            {clockedIn ? (
-              <button
-                type="button"
-                onClick={handleClockOut}
-                disabled={actionLoading}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-white/20 hover:bg-white/30 text-white font-semibold px-6 py-3.5 backdrop-blur-sm border border-white/20 transition-all active:scale-[0.98] w-full sm:w-auto min-h-[3rem] disabled:opacity-70 shadow-lg"
-              >
-                {actionLoading ? (
-                  <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  <Square className="w-5 h-5 shrink-0" />
-                )}
-                Clock out
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={handleClockIn}
-                disabled={actionLoading}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-white text-brand-700 hover:bg-brand-50 font-semibold px-6 py-3.5 shadow-lg transition-all active:scale-[0.98] w-full sm:w-auto min-h-[3rem] disabled:opacity-70"
-              >
-                {actionLoading ? (
-                  <span className="w-5 h-5 border-2 border-brand-700 border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  <Play className="w-5 h-5 shrink-0" />
-                )}
-                Clock in
-              </button>
-            )}
-          </div>
+          <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl" />
+          <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2 blur-2xl" />
         </div>
-        <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl" />
-        <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2 blur-2xl" />
       </div>
 
-      {summary && (
-        <div>
-          <div className="flex items-center gap-2 mb-3">
-            <Calendar className="w-3.5 h-3.5 text-surface-500 shrink-0" />
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-surface-500">{summary.period}</span>
+      {/* ============================================================ */}
+      {/* MIDDLE SECTION: Payable hours stat cards for current cycle   */}
+      {/* ============================================================ */}
+      <div>
+        <div className="flex items-center gap-2 mb-3">
+          <Calendar className="w-3.5 h-3.5 text-surface-500 shrink-0" />
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-surface-500">
+            {currentPeriod
+              ? `Cycle ${currentPeriod.cycleCode}  |  ${currentPeriod.periodFrom} to ${currentPeriod.periodTo}`
+              : 'Current cycle'}
+          </span>
+        </div>
+
+        {/* Total payable hours counter */}
+        <div className="mb-4 rounded-xl border border-brand-200/70 bg-brand-50/40 p-4 flex items-center gap-4">
+          <div className="w-11 h-11 rounded-xl bg-brand-100 text-brand-700 flex items-center justify-center shrink-0">
+            <Timer className="w-5 h-5" />
           </div>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-            <div className="stat-card flex items-center gap-3 hover:shadow-card-hover transition-shadow">
-              <div className="w-10 h-10 rounded-xl bg-surface-100 border border-surface-200 text-surface-600 flex items-center justify-center shrink-0">
-                <Clock className="w-4 h-4" />
+          <div className="min-w-0 flex-1">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-brand-600">Total payable hours this cycle</p>
+            <p className="text-2xl font-bold tabular-nums text-surface-900 mt-0.5">{totalPayable.toFixed(2)}<span className="text-sm font-medium text-surface-500 ml-1">hrs</span></p>
+          </div>
+        </div>
+
+        {/* Payable hours stat cards */}
+        <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-7 gap-2 sm:gap-3">
+          {([
+            { label: 'P-REG', val: payable.pReg, bgClass: 'bg-blue-50 border-blue-200', textClass: 'text-blue-700', labelClass: 'text-blue-500' },
+            { label: 'P-N15%', val: payable.pN15, bgClass: 'bg-violet-50 border-violet-200', textClass: 'text-violet-700', labelClass: 'text-violet-500' },
+            { label: 'P-X35%', val: payable.pX35, bgClass: 'bg-amber-50 border-amber-200', textClass: 'text-amber-700', labelClass: 'text-amber-500' },
+            { label: 'P-X100%', val: payable.pX100, bgClass: 'bg-red-50 border-red-200', textClass: 'text-red-700', labelClass: 'text-red-500' },
+            { label: 'P-HDY', val: payable.pHdy, bgClass: 'bg-emerald-50 border-emerald-200', textClass: 'text-emerald-700', labelClass: 'text-emerald-500' },
+            { label: 'P-DNP', val: payable.pDnp, bgClass: 'bg-surface-50 border-surface-200', textClass: 'text-surface-700', labelClass: 'text-surface-400' },
+            { label: 'P-RVW', val: payable.pRvw, bgClass: 'bg-rose-50 border-rose-200', textClass: 'text-rose-700', labelClass: 'text-rose-500' },
+          ] as const).map((item) => {
+            const isNonZero = item.val > 0
+            return (
+              <div
+                key={item.label}
+                className={`text-center rounded-xl border py-3 px-2 transition-shadow hover:shadow-sm ${isNonZero ? item.bgClass : 'bg-white border-surface-100'}`}
+              >
+                <p className={`text-[10px] font-semibold uppercase tracking-wider ${isNonZero ? item.labelClass : 'text-surface-400'}`}>{item.label}</p>
+                <p className={`text-lg font-bold tabular-nums mt-1 ${isNonZero ? item.textClass : 'text-surface-300'}`}>{fmtHours(item.val)}</p>
               </div>
-              <div className="min-w-0 flex-1">
-                <p className="stat-label truncate">Regular</p>
-                <p className="stat-value truncate">{regularDuration}</p>
-              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* ============================================================ */}
+      {/* BOTTOM SECTION: Payable hours bar chart                      */}
+      {/* ============================================================ */}
+      <div className="card overflow-hidden">
+        <div className="card-header">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-lg bg-brand-50 border border-brand-100 text-brand-600 flex items-center justify-center shrink-0">
+              <BarChart3 className="w-4 h-4" />
             </div>
-            <div className="stat-card flex items-center gap-3 hover:shadow-card-hover transition-shadow">
-              <div className="w-10 h-10 rounded-xl bg-amber-50 border border-amber-100 text-amber-600 flex items-center justify-center shrink-0">
-                <TrendingUp className="w-4 h-4" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="stat-label truncate">Overtime</p>
-                <p className="stat-value truncate">{overtimeDuration}</p>
-              </div>
-            </div>
-            <div className="stat-card flex items-center gap-3 hover:shadow-card-hover transition-shadow">
-              <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center shrink-0">
-                <Moon className="w-4 h-4" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="stat-label truncate">Night</p>
-                <p className="stat-value truncate">{nightDuration}</p>
-              </div>
-            </div>
-            <div className="stat-card bg-brand-50/40 border-brand-200/70 flex items-center gap-3 hover:shadow-card-hover transition-shadow">
-              <div className="w-10 h-10 rounded-xl bg-brand-100 text-brand-700 flex items-center justify-center shrink-0">
-                <Zap className="w-4 h-4" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="stat-label truncate text-brand-700">Total</p>
-                <p className="stat-value truncate">{totalDuration}</p>
-              </div>
+            <div className="min-w-0">
+              <h3 className="text-sm font-semibold text-surface-900">Payable hours breakdown</h3>
+              <p className="text-[11px] text-surface-500 mt-0.5">
+                {currentPeriod ? `${currentPeriod.periodFrom} to ${currentPeriod.periodTo}` : 'Current cycle'}
+              </p>
             </div>
           </div>
         </div>
-      )}
+        <div className="p-4 sm:p-5">
+          {chartData.some(d => d.value > 0) ? (
+            <HoursChart data={chartData} />
+          ) : (
+            <div className="flex flex-col items-center justify-center py-8 text-surface-400">
+              <BarChart3 className="w-8 h-8 mb-2 opacity-40" />
+              <p className="text-sm">No payable hours recorded yet this cycle</p>
+            </div>
+          )}
+        </div>
+      </div>
 
+      {/* ============================================================ */}
+      {/* PAY SLIP SECTION                                             */}
+      {/* ============================================================ */}
       {!loading && (
         <div className="card">
           <div className="card-header">
@@ -435,10 +591,10 @@ export default function EmployeeDashboard() {
               {savedSlipsLoading ? (
                 <div className="flex items-center gap-2 text-xs text-surface-500">
                   <span className="spinner w-4 h-4" />
-                  Loading…
+                  Loading...
                 </div>
               ) : savedSlips.length === 0 ? (
-                <p className="text-xs text-surface-500">No saved payslips yet — download a PDF above to save one.</p>
+                <p className="text-xs text-surface-500">No saved payslips yet -- download a PDF above to save one.</p>
               ) : (
                 <ul className="space-y-2">
                   {savedSlips.map((s) => (
@@ -471,113 +627,9 @@ export default function EmployeeDashboard() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5">
-        <div className="card min-w-0">
-          <div className="card-header">
-            <div>
-              <h2 className="text-sm font-semibold text-surface-900">Hours breakdown</h2>
-              <p className="text-[11px] text-surface-500 mt-0.5">This period by type</p>
-            </div>
-            <div className="w-7 h-7 rounded-lg bg-brand-50 text-brand-600 flex items-center justify-center">
-              <TrendingUp className="w-3.5 h-3.5" />
-            </div>
-          </div>
-          <div className="p-4">
-          {pieData.length > 0 ? (
-            <div className="space-y-4">
-              <div className="h-52 sm:h-64 min-h-[12rem]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={pieData}
-                      cx="60%"
-                      cy="50%"
-                      innerRadius={48}
-                      outerRadius={68}
-                      paddingAngle={2}
-                      dataKey="value"
-                      nameKey="name"
-                      label={({ name, value }) => `${name} ${formatCompactDuration(Number(value) || 0)}`}
-                      labelLine={false}
-                    >
-                      {pieData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      formatter={(value: number) => [formatDuration(value), 'Duration']}
-                      contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0' }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="flex flex-wrap gap-3 pt-2">
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 rounded" style={{ backgroundColor: '#14b8a6' }} />
-                  <span className="text-xs sm:text-sm text-surface-700 font-medium">Regular</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 rounded" style={{ backgroundColor: '#f59e0b' }} />
-                  <span className="text-xs sm:text-sm text-surface-700 font-medium">Overtime</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 rounded" style={{ backgroundColor: '#6366f1' }} />
-                  <span className="text-xs sm:text-sm text-surface-700 font-medium">Night</span>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="h-52 sm:h-64 flex items-center justify-center text-surface-400 text-xs sm:text-sm">
-              No hours this period
-            </div>
-          )}
-          </div>
-        </div>
-
-        <div className="card min-w-0">
-          <div className="card-header">
-            <div>
-              <h2 className="text-sm font-semibold text-surface-900">Hours this week</h2>
-              <p className="text-[11px] text-surface-500 mt-0.5">Daily breakdown</p>
-            </div>
-            <div className="w-7 h-7 rounded-lg bg-brand-50 text-brand-600 flex items-center justify-center">
-              <Calendar className="w-3.5 h-3.5" />
-            </div>
-          </div>
-          <div className="p-4 h-52 sm:h-64 min-h-[12rem]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={weeklyData} margin={{ top: 8, right: 4, left: -12, bottom: 0 }}>
-                <XAxis
-                  dataKey="day"
-                  tick={{ fontSize: 10 }}
-                  axisLine={false}
-                  tickLine={false}
-                />
-                <YAxis
-                  tick={{ fontSize: 10 }}
-                  axisLine={false}
-                  tickLine={false}
-                  tickFormatter={(v) => formatWeeklyAxisTick(v)}
-                  width={60}
-                />
-                <Tooltip
-                  contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '12px' }}
-                  formatter={(value: number) => [formatDuration(value), 'Duration']}
-                  labelFormatter={(_, payload) => payload?.[0]?.payload?.fullDate}
-                />
-                <Bar
-                  dataKey="minutes"
-                  fill="#14b8a6"
-                  radius={[4, 4, 0, 0]}
-                  maxBarSize={40}
-                  name="Duration"
-                />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      </div>
-
+      {/* ============================================================ */}
+      {/* RECENT SESSIONS                                              */}
+      {/* ============================================================ */}
       <div className="card overflow-hidden min-w-0">
         <div className="card-header">
           <div className="flex items-center gap-2.5 min-w-0">
@@ -629,7 +681,7 @@ export default function EmployeeDashboard() {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-surface-900">{format(new Date(s.clockIn), 'MMM d, yyyy')}</p>
                   <p className="text-[11px] text-surface-500 mt-0.5 tabular-nums">
-                    {format(new Date(s.clockIn), 'HH:mm:ss')} – {s.clockOut ? format(new Date(s.clockOut), 'HH:mm:ss') : '—'}
+                    {format(new Date(s.clockIn), 'HH:mm:ss')} – {s.clockOut ? format(new Date(s.clockOut), 'HH:mm:ss') : '--'}
                   </p>
                 </div>
                 <span className={`${s.status === 'active' ? 'badge-warning' : 'badge-neutral'} capitalize shrink-0`}>
@@ -659,7 +711,7 @@ export default function EmployeeDashboard() {
                       {format(new Date(s.clockIn), 'HH:mm:ss')}
                     </td>
                     <td className="px-3 py-2.5 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">
-                      {s.clockOut ? format(new Date(s.clockOut), 'HH:mm:ss') : '—'}
+                      {s.clockOut ? format(new Date(s.clockOut), 'HH:mm:ss') : '--'}
                     </td>
                     <td className="px-3 py-2.5 whitespace-nowrap">
                       <span className={`${s.status === 'active' ? 'badge-warning' : 'badge-neutral'} capitalize`}>
