@@ -10,6 +10,8 @@ import EmployeeDashboard from './pages/employee/Dashboard'
 import EmployeeSessions from './pages/employee/Sessions'
 import EmployeeMySchedule from './pages/employee/MySchedule'
 import EmployeeLeave from './pages/employee/Leave'
+import EmployeePayrollCalendar from './pages/employee/PayrollCalendar'
+import EmployeeMyPayroll from './pages/employee/MyPayroll'
 import AdminDashboard from './pages/admin/Dashboard'
 import AdminAttendance from './pages/admin/Attendance'
 import AdminPayroll from './pages/admin/Payroll'
@@ -70,6 +72,8 @@ export default function App() {
           <Route path="sessions" element={<EmployeeSessions />} />
           <Route path="schedule" element={<EmployeeMySchedule />} />
           <Route path="leave" element={<EmployeeLeave />} />
+          <Route path="payroll-calendar" element={<EmployeePayrollCalendar />} />
+          <Route path="payroll" element={<EmployeeMyPayroll />} />
         </Route>
         <Route
           path="/admin/*"

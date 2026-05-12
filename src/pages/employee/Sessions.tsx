@@ -1,289 +1,477 @@
-import { useState, useMemo, useCallback, useEffect } from 'react'
-import { format } from 'date-fns'
-import { getSessions } from '@/lib/apiSessions'
-import type { ClockSession } from '@/types'
-import { Clock, Calendar, TrendingUp, Zap, Download, Search, LayoutGrid, Table2 } from 'lucide-react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
+import { format, startOfWeek, endOfWeek } from 'date-fns'
+import { Search, Clock, ArrowUp, ArrowDown, Filter } from 'lucide-react'
+import { getMyAttendance } from '@/lib/apiEmployee'
+import type { AttendanceRecord } from '@/types'
+import DateRangePicker from '@/components/DateRangePicker'
 import { PageHeader } from '@/components/PageHeader'
-import { SkeletonTableRows } from '@/components/Skeleton'
 
-const SESSIONS_PER_PAGE = 10
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
 
-function formatDuration(totalMinutes: number) {
-  const totalSeconds = Math.max(0, Math.round(totalMinutes * 60))
-  const hours = Math.floor(totalSeconds / 3600)
-  const minutes = Math.floor((totalSeconds % 3600) / 60)
-  const seconds = totalSeconds % 60
-  return [hours, minutes, seconds].map((v) => String(v).padStart(2, '0')).join(':')
+const statusColors: Record<string, string> = {
+  Present: 'bg-emerald-100 text-emerald-700',
+  Absent: 'bg-red-100 text-red-700',
+  Late: 'bg-amber-100 text-amber-700',
+  'Left Early': 'bg-amber-100 text-amber-700',
+  'Late & Left Early': 'bg-amber-100 text-amber-700',
+  'Time Off': 'bg-sky-100 text-sky-700',
+  'System Issues': 'bg-orange-100 text-orange-700',
+  Terminated: 'bg-rose-100 text-rose-700',
+  Prenotice: 'bg-violet-100 text-violet-700',
+  Breastfeeding: 'bg-pink-100 text-pink-700',
+  REVIEW: 'bg-indigo-100 text-indigo-700',
+  present: 'bg-emerald-100 text-emerald-700',
+  absent: 'bg-red-100 text-red-700',
+  active: 'bg-amber-100 text-amber-700',
+  leave: 'bg-sky-100 text-sky-700',
+  adjusted: 'bg-indigo-100 text-indigo-700',
+  'Late In': 'bg-amber-100 text-amber-700',
+  'Early Out': 'bg-amber-100 text-amber-700',
+  'Late In-Early Out': 'bg-amber-100 text-amber-700',
+  Review: 'bg-indigo-100 text-indigo-700',
 }
 
-function getElapsedMinutes(session: ClockSession) {
-  if (!session.clockOut) return null
-  const startMs = new Date(session.clockIn).getTime()
-  const endMs = new Date(session.clockOut).getTime()
-  if (Number.isNaN(startMs) || Number.isNaN(endMs) || endMs < startMs) return null
-  return (endMs - startMs) / 60000
+const CARD_COLORS: Record<string, { border: string; bg: string; label: string }> = {
+  brand: { border: 'border-brand-200/80', bg: 'bg-brand-50/50', label: 'text-brand-700' },
+  red: { border: 'border-red-200/80', bg: 'bg-red-50/50', label: 'text-red-700' },
+  amber: { border: 'border-amber-200/80', bg: 'bg-amber-50/50', label: 'text-amber-700' },
+  emerald: { border: 'border-emerald-200/80', bg: 'bg-emerald-50/50', label: 'text-emerald-700' },
+  sky: { border: 'border-sky-200/80', bg: 'bg-sky-50/50', label: 'text-sky-700' },
+  violet: { border: 'border-violet-200/80', bg: 'bg-violet-50/50', label: 'text-violet-700' },
+  surface: { border: 'border-surface-200/80', bg: 'bg-surface-50/50', label: 'text-surface-500' },
 }
 
-function getDisplayRegularMinutes(session: ClockSession) {
-  const elapsed = getElapsedMinutes(session)
-  return elapsed ?? 0
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function fmtTime(dateStr: string | null | undefined): string {
+  if (!dateStr) return ''
+  try { return format(new Date(dateStr), 'HH:mm') } catch { return '' }
 }
+
+function fmtDateTime(dateStr: string | null | undefined): string {
+  if (!dateStr) return ''
+  try { return format(new Date(dateStr), 'MM/dd HH:mm') } catch { return '' }
+}
+
+function fmtHours(val: number | null | undefined): string {
+  if (val == null || isNaN(val)) return '0.00'
+  return val.toFixed(2)
+}
+
+// ---------------------------------------------------------------------------
+// Sub-components
+// ---------------------------------------------------------------------------
+
+function SummaryCard({ label, value, color }: { label: string; value: string | number; color?: string }) {
+  const c = color && CARD_COLORS[color] ? CARD_COLORS[color] : null
+  return (
+    <div className={`rounded-xl border ${c?.border ?? 'border-surface-200/70'} ${c?.bg ?? 'bg-white'} p-3 sm:p-3.5 shadow-card`}>
+      <p className={`text-[10px] sm:text-[11px] font-semibold ${c?.label ?? 'text-surface-500'} uppercase tracking-wider`}>{label}</p>
+      <p className="mt-0.5 text-base sm:text-lg font-bold text-surface-900 tabular-nums tracking-tight">{value}</p>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
 
 export default function EmployeeSessions() {
-  const [sessions, setSessions] = useState<ClockSession[]>([])
+  const [records, setRecords] = useState<AttendanceRecord[]>([])
   const [loading, setLoading] = useState(true)
-  const [currentPage, setCurrentPage] = useState(1)
   const [search, setSearch] = useState('')
-  const [viewMode, setViewMode] = useState<'card' | 'table'>('table')
+  const [dateFrom, setDateFrom] = useState(() => format(startOfWeek(new Date(), { weekStartsOn: 0 }), 'yyyy-MM-dd'))
+  const [dateTo, setDateTo] = useState(() => format(endOfWeek(new Date(), { weekStartsOn: 0 }), 'yyyy-MM-dd'))
 
-  const filteredSessions = useMemo(() => {
-    const q = search.trim().toLowerCase()
-    if (!q) return sessions
-    return sessions.filter((s) => {
-      const dateStr = format(new Date(s.clockIn), 'MMM d, yyyy HH:mm').toLowerCase()
-      return dateStr.includes(q) || s.status.toLowerCase().includes(q)
-    })
-  }, [sessions, search])
+  // Sort & Filter state
+  const [sortCol, setSortCol] = useState<string | null>(null)
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+  const [columnFilters, setColumnFilters] = useState<Record<string, string>>({})
+  const [filterOpen, setFilterOpen] = useState<string | null>(null)
 
-  function exportCSV() {
-    if (!filteredSessions.length) return
-    const headers = ['Date', 'Clock In', 'Clock Out', 'Regular', 'Overtime', 'Status']
-    const rows = filteredSessions.map((s) => [
-      format(new Date(s.clockIn), 'yyyy-MM-dd'),
-      format(new Date(s.clockIn), 'HH:mm:ss'),
-      s.clockOut ? format(new Date(s.clockOut), 'HH:mm:ss') : '',
-      s.status === 'completed' ? formatDuration(getDisplayRegularMinutes(s)) : '',
-      s.overtimeMinutes != null && s.overtimeMinutes > 0 ? formatDuration(s.overtimeMinutes) : '',
-      s.status,
-    ])
-    const csv = [
-      headers.join(','),
-      ...rows.map((row) => row.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')),
-    ].join('\n')
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `my-sessions-${new Date().toISOString().slice(0, 10)}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
+  // Detail modal
+  const [detailRecord, setDetailRecord] = useState<AttendanceRecord | null>(null)
+
+  function handleDateRangeChange(start: string, end: string) {
+    setDateFrom(start)
+    setDateTo(end)
   }
 
-  const fetchSessions = useCallback(async () => {
+  // -----------------------------------------------------------------------
+  // Fetch
+  // -----------------------------------------------------------------------
+
+  const fetchAttendance = useCallback(async () => {
     try {
-      const list = await getSessions({ limit: 100 })
-      setSessions(list)
-    } catch {
-      setSessions([])
-    } finally {
+      const list = await getMyAttendance({ from: dateFrom, to: dateTo })
+      setRecords(list)
       setLoading(false)
+    } catch {
+      setRecords([])
+      setLoading(false)
+    }
+  }, [dateFrom, dateTo])
+
+  useEffect(() => {
+    fetchAttendance()
+    const intervalId = window.setInterval(() => {
+      if (!document.hidden) fetchAttendance()
+    }, 5000)
+    const handleVisibilityChange = () => {
+      if (!document.hidden) fetchAttendance()
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => {
+      window.clearInterval(intervalId)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [fetchAttendance])
+
+  // -----------------------------------------------------------------------
+  // Summary stats
+  // -----------------------------------------------------------------------
+
+  const summary = useMemo(() => {
+    const total = records.length
+    const present = records.filter((r) => r.status.toLowerCase() === 'present').length
+    const absent = records.filter((r) => r.status.toLowerCase() === 'absent').length
+    const late = records.filter((r) => r.status.toLowerCase().includes('late')).length
+    const leftEarly = records.filter((r) => r.status.toLowerCase().includes('left early')).length
+    const timeOff = records.filter((r) => r.status.toLowerCase() === 'time off').length
+    const systemIssues = records.filter((r) => r.status.toLowerCase() === 'system issues').length
+    const totalReg = records.reduce((a, r) => a + (r.regHours ?? 0), 0)
+    const totalN15 = records.reduce((a, r) => a + (r.n15Hours ?? 0), 0)
+    const totalX35 = records.reduce((a, r) => a + (r.x35Hours ?? 0), 0)
+    const totalX100 = records.reduce((a, r) => a + (r.x100Hours ?? 0), 0)
+    const totalHdy = records.reduce((a, r) => a + (r.hdyHours ?? 0), 0)
+    const totalDnp = records.filter((r) => r.payType === 'DNP').reduce((a, r) => a + (r.actualHours ?? 0) - (r.adbtHours ?? 0), 0)
+    const totalPayableRvw = records.reduce((a, r) => a + (r.payableRvwHours ?? 0), 0)
+    return {
+      total, present, absent, late, leftEarly, timeOff, systemIssues,
+      totalReg, totalN15, totalX35, totalX100, totalHdy, totalDnp, totalPayableRvw,
+    }
+  }, [records])
+
+  // -----------------------------------------------------------------------
+  // Sort & Filter
+  // -----------------------------------------------------------------------
+
+  const colAccessor = useCallback((r: AttendanceRecord, col: string): string | number => {
+    switch (col) {
+      case 'Date': return r.date ?? ''
+      case 'Shift Start': return r.shiftStart ?? ''
+      case 'Clock In': return r.clockIn ?? ''
+      case 'Shift End': return r.shiftEnd ?? ''
+      case 'Clock Out': return r.clockOut ?? ''
+      case 'Status': return r.status.toLowerCase()
+      case 'Pay': return (r.payType ?? '').toLowerCase()
+      case 'Stage': return (r.stage ?? '').toLowerCase()
+      case 'Task': return (r.task ?? '').toLowerCase()
+      case 'SCH': return r.scheduledHours ?? 0
+      case 'SDBT': return r.sdbtHours ?? 0
+      case 'ACT': return r.actualHours ?? 0
+      case 'ADBT': return r.adbtHours ?? 0
+      case 'P-REG': return r.regHours ?? 0
+      case 'P-N15%': return r.n15Hours ?? 0
+      case 'P-X35%': return r.x35Hours ?? 0
+      case 'P-X100%': return r.x100Hours ?? 0
+      case 'P-HDY': return r.hdyHours ?? 0
+      case 'P-RVW': return r.payableRvwHours ?? 0
+      default: return ''
     }
   }, [])
 
-  useEffect(() => {
-    fetchSessions()
-  }, [fetchSessions])
+  const filteredAndSorted = useMemo(() => {
+    let result = [...records]
 
-  const summary = useMemo(() => {
-    const completed = sessions.filter((s) => s.status === 'completed')
-    const regularMin = completed.reduce((acc, s) => acc + getDisplayRegularMinutes(s), 0)
-    const overtimeMin = completed.reduce((acc, s) => acc + (s.overtimeMinutes ?? 0), 0)
-    const nightMin = completed.reduce((acc, s) => acc + (s.nightMinutes ?? 0), 0)
-    return {
-      sessions: completed.length,
-      regularDuration: formatDuration(regularMin),
-      overtimeDuration: formatDuration(overtimeMin),
-      nightDuration: formatDuration(nightMin),
-      totalDuration: formatDuration(regularMin + overtimeMin),
+    // Global search
+    if (search.trim()) {
+      const q = search.trim().toLowerCase()
+      result = result.filter((r) => {
+        const dateStr = r.date ?? ''
+        return dateStr.includes(q) || r.status.toLowerCase().includes(q) || (r.payType ?? '').toLowerCase().includes(q) || (r.task ?? '').toLowerCase().includes(q)
+      })
     }
-  }, [sessions])
 
-  const totalPages = Math.max(1, Math.ceil(filteredSessions.length / SESSIONS_PER_PAGE))
-  const safeCurrentPage = Math.min(currentPage, totalPages)
-  const pageStart = (safeCurrentPage - 1) * SESSIONS_PER_PAGE
-  const paginatedSessions = filteredSessions.slice(pageStart, pageStart + SESSIONS_PER_PAGE)
-
-  useEffect(() => {
-    if (currentPage > totalPages) {
-      setCurrentPage(totalPages)
+    // Column filters
+    for (const [col, filterVal] of Object.entries(columnFilters)) {
+      if (!filterVal) continue
+      const lower = filterVal.toLowerCase()
+      result = result.filter((r) => String(colAccessor(r, col)).toLowerCase().includes(lower))
     }
-  }, [currentPage, totalPages])
 
-  if (loading) {
-    return (
-      <div className="page">
-        <PageHeader title="My Sessions" subtitle="View and manage your clock-in / clock-out history." icon={<Clock className="w-5 h-5" />} />
-        <div className="card overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <tbody>
-                <SkeletonTableRows rows={5} cols={6} />
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    )
+    // Sort
+    if (sortCol) {
+      result.sort((a, b) => {
+        const aVal = colAccessor(a, sortCol)
+        const bVal = colAccessor(b, sortCol)
+        if (typeof aVal === 'number' && typeof bVal === 'number') return sortDir === 'asc' ? aVal - bVal : bVal - aVal
+        const cmp = String(aVal).localeCompare(String(bVal))
+        return sortDir === 'asc' ? cmp : -cmp
+      })
+    }
+    return result
+  }, [records, search, columnFilters, sortCol, sortDir, colAccessor])
+
+  function handleSort(col: string) {
+    if (sortCol === col) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    else { setSortCol(col); setSortDir('asc') }
   }
+
+  function handleColumnFilter(col: string, value: string) {
+    setColumnFilters((prev) => ({ ...prev, [col]: value }))
+  }
+
+  // -----------------------------------------------------------------------
+  // Render
+  // -----------------------------------------------------------------------
 
   return (
     <div className="page overflow-x-hidden">
       <PageHeader
-        title="My Sessions"
-        subtitle="View and manage your clock-in / clock-out history."
+        title="My Attendance"
+        subtitle="View your attendance records and hours."
         icon={<Clock className="w-5 h-5" />}
-        actions={
-          <button type="button" onClick={exportCSV} disabled={filteredSessions.length === 0} className="btn-secondary">
-            <Download className="w-4 h-4 shrink-0" />
-            Export CSV
-          </button>
-        }
       />
 
-      {sessions.length > 0 && (
-        <div className="toolbar">
-          <div className="relative flex-1 min-w-0">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400 shrink-0" />
-            <input
-              type="text"
-              placeholder="Search sessions by date or status"
-              className="input pl-9"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
-          <div className="segmented self-start sm:self-auto">
-            <button
-              type="button"
-              onClick={() => setViewMode('card')}
-              className={`segmented-item ${viewMode === 'card' ? 'segmented-item-active' : ''}`}
-            >
-              <LayoutGrid className="w-3.5 h-3.5" />
-              Card
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode('table')}
-              className={`segmented-item ${viewMode === 'table' ? 'segmented-item-active' : ''}`}
-            >
-              <Table2 className="w-3.5 h-3.5" />
-              Table
-            </button>
-          </div>
+      {/* Filters */}
+      <div className="toolbar">
+        <div className="relative flex-1 min-w-0">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400 shrink-0" />
+          <input
+            type="text"
+            placeholder="Search by date, status, pay type, or task"
+            className="input pl-9"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
         </div>
-      )}
-
-      {sessions.length > 0 && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-          <div className="stat-card flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-surface-100 border border-surface-200 text-surface-600 flex items-center justify-center shrink-0">
-              <Calendar className="w-4 h-4" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="stat-label truncate">Sessions</p>
-              <p className="stat-value truncate">{summary.sessions}</p>
-            </div>
-          </div>
-          <div className="stat-card flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-brand-50 border border-brand-100 text-brand-600 flex items-center justify-center shrink-0">
-              <Clock className="w-4 h-4" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="stat-label truncate">Regular</p>
-              <p className="stat-value truncate">{summary.regularDuration}</p>
-            </div>
-          </div>
-          <div className="stat-card flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-50 border border-amber-100 text-amber-600 flex items-center justify-center shrink-0">
-              <TrendingUp className="w-4 h-4" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="stat-label truncate">Overtime</p>
-              <p className="stat-value truncate">{summary.overtimeDuration}</p>
-            </div>
-          </div>
-          <div className="stat-card bg-brand-50/40 border-brand-200/70 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-brand-100 text-brand-700 flex items-center justify-center shrink-0">
-              <Zap className="w-4 h-4" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="stat-label truncate text-brand-700">Total</p>
-              <p className="stat-value truncate">{summary.totalDuration}</p>
-            </div>
-          </div>
+        <div className="w-full sm:w-auto sm:min-w-[320px]">
+          <DateRangePicker startDate={dateFrom} endDate={dateTo} onChange={handleDateRangeChange} />
         </div>
-      )}
+      </div>
 
-      <div className="card overflow-hidden">
-        {sessions.length === 0 ? (
-          <div className="empty-state">
-            <div className="empty-state-icon"><Clock className="w-5 h-5" /></div>
-            <p className="empty-state-title">No sessions yet</p>
-            <p className="empty-state-description">Clock in from your dashboard to start tracking. Your sessions will appear here.</p>
+      {/* Summary cards - Row 1: Counts */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 sm:gap-4">
+        <SummaryCard label="Records" value={summary.total} />
+        <SummaryCard label="Present" value={summary.present} color="brand" />
+        <SummaryCard label="Absent" value={summary.absent} color="red" />
+        <SummaryCard label="Late" value={summary.late} color="amber" />
+        <SummaryCard label="Left Early" value={summary.leftEarly} color="amber" />
+        <SummaryCard label="Time Off" value={summary.timeOff} color="sky" />
+        <SummaryCard label="System Issues" value={summary.systemIssues} color="surface" />
+      </div>
+
+      {/* Summary cards - Row 2: Payable Hours */}
+      <div>
+        <p className="text-[10px] sm:text-xs font-semibold text-surface-500 uppercase tracking-wider mb-2">Payable Hours</p>
+        <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-7 gap-3 sm:gap-4">
+          <SummaryCard label="Regular" value={fmtHours(summary.totalReg)} color="brand" />
+          <SummaryCard label="Night (15%)" value={fmtHours(summary.totalN15)} color="violet" />
+          <SummaryCard label="X35%" value={fmtHours(summary.totalX35)} color="amber" />
+          <SummaryCard label="X100%" value={fmtHours(summary.totalX100)} color="red" />
+          <SummaryCard label="Holiday" value={fmtHours(summary.totalHdy)} color="emerald" />
+          <SummaryCard label="DNP" value={fmtHours(summary.totalDnp)} color="surface" />
+          <SummaryCard label="Review" value={fmtHours(summary.totalPayableRvw)} color="red" />
+        </div>
+      </div>
+
+      {/* Table */}
+      <div className="rounded-xl sm:rounded-2xl border border-surface-200/80 bg-white overflow-hidden shadow-sm min-w-0">
+        {loading ? (
+          <div className="p-12 flex items-center justify-center">
+            <div className="w-8 h-8 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
           </div>
-        ) : viewMode === 'card' ? (
-          <ul className="p-3 sm:p-4 grid grid-cols-1 md:grid-cols-2 gap-3">
-            {paginatedSessions.map((s) => {
-              const displayRegularMinutes = getDisplayRegularMinutes(s)
-              return (
-                <li key={s.id} className="flex items-center gap-3 p-3 rounded-xl border border-surface-200/70 bg-white hover:shadow-card-hover hover:border-brand-200/70 transition-all">
-                  <div className="w-10 h-10 rounded-xl bg-brand-50 border border-brand-100 flex items-center justify-center text-brand-600 shrink-0">
-                    <Clock className="w-4 h-4" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-surface-900">{format(new Date(s.clockIn), 'MMM d, yyyy')}</p>
-                    <p className="text-[11px] text-surface-500 mt-0.5 tabular-nums font-mono">
-                      {format(new Date(s.clockIn), 'HH:mm:ss')} – {s.clockOut ? format(new Date(s.clockOut), 'HH:mm:ss') : '—'}
-                    </p>
-                    <p className="text-[11px] text-surface-600 mt-0.5">
-                      Regular: <span className="font-mono font-semibold">{s.status === 'completed' ? formatDuration(displayRegularMinutes) : '—'}</span>
-                      {s.overtimeMinutes && s.overtimeMinutes > 0 ? (
-                        <> · OT: <span className="font-mono font-semibold text-amber-700">{formatDuration(s.overtimeMinutes)}</span></>
-                      ) : null}
-                    </p>
-                  </div>
-                  <span className={`${s.status === 'active' ? 'badge-warning' : 'badge-neutral'} capitalize shrink-0`}>{s.status}</span>
-                </li>
-              )
-            })}
-          </ul>
+        ) : records.length === 0 ? (
+          <div className="p-8 sm:p-16 text-center">
+            <div className="flex flex-col items-center gap-3">
+              <div className="w-12 h-12 rounded-full bg-surface-100 flex items-center justify-center text-surface-400">
+                <Clock className="w-5 h-5" />
+              </div>
+              <p className="text-sm font-medium text-surface-700">No attendance records</p>
+              <p className="text-xs text-surface-500">No records match your date range. Try adjusting the dates.</p>
+            </div>
+          </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead className="sticky top-0 bg-surface-50/95 backdrop-blur-sm shadow-[0_1px_0_0_theme(colors.surface.200)] z-10">
+            <table className="min-w-[1800px] w-full text-left border-collapse">
+              {/* Header */}
+              <thead className="sticky top-0 z-10 bg-surface-50">
+                {/* Group header row */}
                 <tr>
-                  <th className="px-3 py-2.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap">Date</th>
-                  <th className="px-3 py-2.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap">Clock In</th>
-                  <th className="px-3 py-2.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap">Clock Out</th>
-                  <th className="px-3 py-2.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap text-right">Regular</th>
-                  <th className="px-3 py-2.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap text-right">Overtime</th>
-                  <th className="px-3 py-2.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap">Status</th>
+                  <th colSpan={1} className="px-2 py-1 text-[9px] font-bold text-brand-600 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 bg-brand-50/40 text-center">Date</th>
+                  <th colSpan={4} className="px-2 py-1 text-[9px] font-bold text-violet-600 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 bg-violet-50/40 text-center">Shift</th>
+                  <th colSpan={3} className="px-2 py-1 text-[9px] font-bold text-amber-600 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 bg-amber-50/40 text-center">Classification</th>
+                  <th colSpan={4} className="px-2 py-1 text-[9px] font-bold text-surface-500 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 bg-surface-50 text-center">Time</th>
+                  <th colSpan={6} className="px-2 py-1 text-[9px] font-bold text-blue-600 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 bg-blue-50/40 text-center">Payable Hours</th>
+                </tr>
+                {/* Column header row */}
+                <tr>
+                  {[
+                    'Date',
+                    'Shift Start',
+                    'Clock In',
+                    'Shift End',
+                    'Clock Out',
+                    'Status',
+                    'Pay',
+                    'Task',
+                    'SCH',
+                    'SDBT',
+                    'ACT',
+                    'ADBT',
+                    'P-REG',
+                    'P-N15%',
+                    'P-X35%',
+                    'P-X100%',
+                    'P-HDY',
+                    'P-RVW',
+                  ].map((col) => (
+                    <th
+                      key={col}
+                      className="px-2 py-1 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap border-b border-surface-200"
+                    >
+                      <div className="flex items-center gap-0.5">
+                        <button
+                          type="button"
+                          className="flex items-center gap-0.5 hover:text-surface-700 transition-colors"
+                          onClick={() => handleSort(col)}
+                        >
+                          {col}
+                          {sortCol === col && (
+                            sortDir === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          className={`p-0.5 rounded hover:bg-surface-200/60 transition-colors ${columnFilters[col] ? 'text-brand-600' : 'text-surface-400'}`}
+                          onClick={(e) => { e.stopPropagation(); setFilterOpen(filterOpen === col ? null : col) }}
+                        >
+                          <Filter className="w-2.5 h-2.5" />
+                        </button>
+                      </div>
+                      {filterOpen === col && (
+                        <div className="mt-1" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="text"
+                            value={columnFilters[col] ?? ''}
+                            onChange={(e) => handleColumnFilter(col, e.target.value)}
+                            placeholder={`Filter ${col}...`}
+                            className="w-full text-[10px] font-normal normal-case tracking-normal border border-surface-200 rounded px-1.5 py-1 bg-white focus:ring-1 focus:ring-brand-300 outline-none"
+                            autoFocus
+                          />
+                        </div>
+                      )}
+                    </th>
+                  ))}
                 </tr>
               </thead>
+
+              {/* Body */}
               <tbody>
-                {paginatedSessions.map((s) => {
-                  const displayRegularMinutes = getDisplayRegularMinutes(s)
+                {filteredAndSorted.length === 0 ? (
+                  <tr>
+                    <td colSpan={18} className="py-12">
+                      <div className="flex flex-col items-center justify-center text-center">
+                        <div className="w-12 h-12 rounded-full bg-surface-100 flex items-center justify-center text-surface-400 mb-3">
+                          <Search className="w-5 h-5" />
+                        </div>
+                        <p className="text-sm font-medium text-surface-700">No matches</p>
+                        <p className="text-xs text-surface-500 mt-1">Try adjusting your search or column filters.</p>
+                        {Object.values(columnFilters).some(Boolean) && (
+                          <button type="button" className="btn-secondary btn-sm mt-3" onClick={() => { setColumnFilters({}); setFilterOpen(null) }}>
+                            Clear column filters
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ) : null}
+                {filteredAndSorted.map((r) => {
+                  const sid = r.sessionId ?? r.id
                   return (
-                    <tr key={s.id} className="border-b border-surface-100 hover:bg-brand-50/30 transition-colors">
-                      <td className="px-3 py-2.5 text-xs font-medium text-surface-900 whitespace-nowrap">
-                        {format(new Date(s.clockIn), 'MMM d, yyyy')}
+                    <tr
+                      key={sid}
+                      className="border-b border-surface-100 hover:bg-surface-50/60 transition-colors cursor-pointer"
+                      onClick={() => setDetailRecord(r)}
+                    >
+                      {/* Date */}
+                      <td className="px-2 py-1.5 text-xs font-medium text-surface-900 whitespace-nowrap">
+                        {r.date ?? ''}
                       </td>
-                      <td className="px-3 py-2.5 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">
-                        {format(new Date(s.clockIn), 'HH:mm:ss')}
+                      {/* Shift Start */}
+                      <td className="px-2 py-1.5 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">
+                        {fmtDateTime(r.shiftStart)}
                       </td>
-                      <td className="px-3 py-2.5 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">
-                        {s.clockOut ? format(new Date(s.clockOut), 'HH:mm:ss') : '—'}
+                      {/* Clock In */}
+                      <td className="px-2 py-1.5 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">
+                        {fmtDateTime(r.clockIn)}
                       </td>
-                      <td className="px-3 py-2.5 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap text-right">
-                        {s.status === 'completed' ? formatDuration(displayRegularMinutes) : '—'}
+                      {/* Shift End */}
+                      <td className="px-2 py-1.5 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">
+                        {fmtDateTime(r.shiftEnd)}
                       </td>
-                      <td className={`px-3 py-2.5 text-xs font-mono tabular-nums whitespace-nowrap text-right ${s.overtimeMinutes && s.overtimeMinutes > 0 ? 'text-amber-700 font-semibold' : 'text-surface-400'}`}>
-                        {s.overtimeMinutes != null && s.overtimeMinutes > 0 ? formatDuration(s.overtimeMinutes) : '—'}
+                      {/* Clock Out */}
+                      <td className="px-2 py-1.5 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">
+                        {fmtDateTime(r.clockOut)}
                       </td>
-                      <td className="px-3 py-2.5 whitespace-nowrap">
-                        <span className={`${s.status === 'active' ? 'badge-warning' : 'badge-neutral'} capitalize`}>
-                          {s.status}
+                      {/* Status */}
+                      <td className="px-2 py-1.5 whitespace-nowrap">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium capitalize ${statusColors[r.status] || 'bg-surface-100 text-surface-600'}`}>
+                          {r.status}
                         </span>
+                      </td>
+                      {/* Pay */}
+                      <td className="px-2 py-1.5 text-xs text-surface-700 whitespace-nowrap">
+                        {r.payType ?? ''}
+                      </td>
+                      {/* Task */}
+                      <td className="px-2 py-1.5 text-xs text-surface-700 whitespace-nowrap">
+                        {r.task ?? ''}
+                      </td>
+                      {/* SCH */}
+                      <td className={`px-2 py-1.5 text-xs tabular-nums whitespace-nowrap text-right ${(r.scheduledHours ?? 0) > 0 ? 'text-surface-700 font-medium' : 'text-surface-300'}`}>
+                        {fmtHours(r.scheduledHours)}
+                      </td>
+                      {/* SDBT */}
+                      <td className={`px-2 py-1.5 text-xs tabular-nums whitespace-nowrap text-right ${(r.sdbtHours ?? 0) > 0 ? 'text-surface-700 font-medium' : 'text-surface-300'}`}>
+                        {fmtHours(r.sdbtHours)}
+                      </td>
+                      {/* ACT */}
+                      <td className={`px-2 py-1.5 text-xs tabular-nums whitespace-nowrap text-right ${(r.actualHours ?? 0) > 0 ? 'text-surface-700 font-medium' : 'text-surface-300'}`}>
+                        {fmtHours(r.actualHours)}
+                      </td>
+                      {/* ADBT */}
+                      <td className={`px-2 py-1.5 text-xs tabular-nums whitespace-nowrap text-right ${(r.adbtHours ?? 0) > 0 ? 'text-surface-700 font-medium' : 'text-surface-300'}`}>
+                        {fmtHours(r.adbtHours)}
+                      </td>
+                      {/* P-REG */}
+                      <td className={`px-2 py-1.5 text-xs tabular-nums whitespace-nowrap text-right font-medium ${(r.regHours ?? 0) > 0 ? 'text-brand-600' : 'text-surface-300'}`}>
+                        {fmtHours(r.regHours)}
+                      </td>
+                      {/* P-N15% */}
+                      <td className={`px-2 py-1.5 text-xs tabular-nums whitespace-nowrap text-right font-medium ${(r.n15Hours ?? 0) > 0 ? 'text-violet-600' : 'text-surface-300'}`}>
+                        {fmtHours(r.n15Hours)}
+                      </td>
+                      {/* P-X35% */}
+                      <td className={`px-2 py-1.5 text-xs tabular-nums whitespace-nowrap text-right font-medium ${(r.x35Hours ?? 0) > 0 ? 'text-amber-600' : 'text-surface-300'}`}>
+                        {fmtHours(r.x35Hours)}
+                      </td>
+                      {/* P-X100% */}
+                      <td className={`px-2 py-1.5 text-xs tabular-nums whitespace-nowrap text-right font-medium ${(r.x100Hours ?? 0) > 0 ? 'text-red-600' : 'text-surface-300'}`}>
+                        {fmtHours(r.x100Hours)}
+                      </td>
+                      {/* P-HDY */}
+                      <td className={`px-2 py-1.5 text-xs tabular-nums whitespace-nowrap text-right font-medium ${(r.hdyHours ?? 0) > 0 ? 'text-emerald-600' : 'text-surface-300'}`}>
+                        {fmtHours(r.hdyHours)}
+                      </td>
+                      {/* P-RVW */}
+                      <td className={`px-2 py-1.5 text-xs tabular-nums whitespace-nowrap text-right font-medium ${(r.payableRvwHours ?? 0) > 0 ? 'text-red-600' : 'text-surface-300'}`}>
+                        {fmtHours(r.payableRvwHours)}
                       </td>
                     </tr>
                   )
@@ -294,31 +482,126 @@ export default function EmployeeSessions() {
         )}
       </div>
 
-      {sessions.length > 0 && totalPages > 1 && (
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <p className="text-xs text-surface-500">
-            Showing {pageStart + 1}–{Math.min(pageStart + SESSIONS_PER_PAGE, sessions.length)} of {sessions.length}
-          </p>
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <button
-              type="button"
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              disabled={safeCurrentPage === 1}
-              className="btn-secondary btn-sm flex-1 sm:flex-none"
-            >
-              Previous
-            </button>
-            <span className="text-xs font-medium text-surface-600 min-w-[80px] text-center">
-              Page {safeCurrentPage} / {totalPages}
-            </span>
-            <button
-              type="button"
-              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              disabled={safeCurrentPage === totalPages}
-              className="btn-secondary btn-sm flex-1 sm:flex-none"
-            >
-              Next
-            </button>
+      {/* Detail Modal (read-only) */}
+      {detailRecord && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center p-4">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/40"
+            onClick={() => setDetailRecord(null)}
+            aria-label="Close"
+          />
+          <div className="relative z-10 w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl border border-surface-200 bg-white shadow-xl">
+            {/* Header */}
+            <div className="sticky top-0 z-10 bg-white rounded-t-2xl border-b border-surface-100 px-6 py-4 flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-semibold text-surface-900">Attendance Detail</h2>
+                <p className="text-xs text-surface-500 mt-0.5">{detailRecord.date}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDetailRecord(null)}
+                className="p-2 rounded-lg text-surface-400 hover:bg-surface-100 hover:text-surface-700"
+              >
+                <span className="sr-only">Close</span>
+                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M18 6L6 18M6 6l12 12" /></svg>
+              </button>
+            </div>
+
+            <div className="p-6 space-y-5">
+              {/* Shift & Clock */}
+              <div className="rounded-xl border border-surface-200 bg-surface-50 p-4">
+                <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider mb-3">Shift & Clock</p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {([
+                    { label: 'Shift Start', val: fmtTime(detailRecord.shiftStart) || '--' },
+                    { label: 'Clock In', val: fmtTime(detailRecord.clockIn) || '--' },
+                    { label: 'Shift End', val: fmtTime(detailRecord.shiftEnd) || '--' },
+                    { label: 'Clock Out', val: fmtTime(detailRecord.clockOut) || '--' },
+                  ]).map((item) => (
+                    <div key={item.label} className="text-center rounded-lg bg-white border border-surface-100 py-2 px-1">
+                      <p className="text-[10px] font-medium text-surface-400 uppercase">{item.label}</p>
+                      <p className="text-sm font-semibold tabular-nums mt-0.5 text-surface-800 font-mono">{item.val}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Classification */}
+              <div className="rounded-xl border border-surface-200 bg-surface-50 p-4">
+                <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider mb-3">Classification</p>
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="text-center rounded-lg bg-white border border-surface-100 py-2 px-1">
+                    <p className="text-[10px] font-medium text-surface-400 uppercase">Status</p>
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium capitalize mt-1 ${statusColors[detailRecord.status] || 'bg-surface-100 text-surface-600'}`}>
+                      {detailRecord.status}
+                    </span>
+                  </div>
+                  <div className="text-center rounded-lg bg-white border border-surface-100 py-2 px-1">
+                    <p className="text-[10px] font-medium text-surface-400 uppercase">Pay Type</p>
+                    <p className="text-sm font-semibold text-surface-800 mt-0.5">{detailRecord.payType ?? '--'}</p>
+                  </div>
+                  <div className="text-center rounded-lg bg-white border border-surface-100 py-2 px-1">
+                    <p className="text-[10px] font-medium text-surface-400 uppercase">Task</p>
+                    <p className="text-sm font-semibold text-surface-800 mt-0.5 truncate">{detailRecord.task ?? '--'}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Hours */}
+              <div className="rounded-xl border border-surface-200 bg-surface-50 p-4">
+                <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider mb-3">Hours</p>
+                <div className="grid grid-cols-4 gap-2 mb-3">
+                  {([
+                    { label: 'SCH', val: detailRecord.scheduledHours },
+                    { label: 'SDBT', val: detailRecord.sdbtHours },
+                    { label: 'ACT', val: detailRecord.actualHours },
+                    { label: 'ADBT', val: detailRecord.adbtHours },
+                  ] as const).map((item) => (
+                    <div key={item.label} className="text-center rounded-lg bg-white border border-surface-100 py-2 px-1">
+                      <p className="text-[10px] font-medium text-surface-400 uppercase">{item.label}</p>
+                      <p className={`text-sm font-semibold tabular-nums mt-0.5 ${(item.val ?? 0) > 0 ? 'text-surface-800' : 'text-surface-300'}`}>{fmtHours(item.val)}</p>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[10px] font-semibold text-blue-500 uppercase tracking-wider mb-2">Payable</p>
+                <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
+                  {([
+                    { label: 'P-REG', val: detailRecord.regHours, color: 'brand' },
+                    { label: 'P-N15%', val: detailRecord.n15Hours, color: 'violet' },
+                    { label: 'P-X35%', val: detailRecord.x35Hours, color: 'amber' },
+                    { label: 'P-X100%', val: detailRecord.x100Hours, color: 'red' },
+                    { label: 'P-HDY', val: detailRecord.hdyHours, color: 'emerald' },
+                    { label: 'P-DNP', val: detailRecord.payType === 'DNP' ? (detailRecord.actualHours ?? 0) - (detailRecord.adbtHours ?? 0) : 0, color: 'surface' },
+                    { label: 'P-RVW', val: detailRecord.payableRvwHours, color: 'red' },
+                  ] as { label: string; val: number | null | undefined; color: string }[]).map((item) => {
+                    const isNonZero = (item.val ?? 0) > 0
+                    const badgeBg = isNonZero
+                      ? item.color === 'brand' ? 'bg-blue-50 border-blue-200 text-blue-700'
+                        : item.color === 'violet' ? 'bg-violet-50 border-violet-200 text-violet-700'
+                        : item.color === 'amber' ? 'bg-amber-50 border-amber-200 text-amber-700'
+                        : item.color === 'red' ? 'bg-red-50 border-red-200 text-red-700'
+                        : item.color === 'emerald' ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                        : 'bg-surface-50 border-surface-200 text-surface-500'
+                      : 'bg-white border-surface-100 text-surface-300'
+                    return (
+                      <div key={item.label} className={`text-center rounded-lg border py-2 px-1 ${badgeBg}`}>
+                        <p className="text-[10px] font-medium uppercase">{item.label}</p>
+                        <p className="text-sm font-semibold tabular-nums mt-0.5">{fmtHours(item.val)}</p>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Comments */}
+              {detailRecord.comments && (
+                <div className="rounded-xl border border-surface-200 bg-surface-50 p-4">
+                  <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider mb-2">Comments</p>
+                  <p className="text-sm text-surface-700">{detailRecord.comments}</p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

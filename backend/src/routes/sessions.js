@@ -67,6 +67,143 @@ function toSession(row) {
   }
 }
 
+// Mirrors admin toAttendanceRecord but lives in sessions.js for the employee my-attendance endpoint
+function toMyAttendanceRecord(row) {
+  const clockIn = row.first_clock_in || row.clock_in
+  const clockOut = row.last_clock_out || row.clock_out
+  const hasActive = row.has_active_session
+  const regularMinutes = Number(row.regular_minutes ?? 0)
+  const overtimeMinutes = Number(row.overtime_minutes ?? 0)
+  const nightMinutes = Number(row.night_minutes ?? 0)
+  const preciseTotalMinutes = Number(row.precise_total_minutes || 0)
+  let regularHours = regularMinutes / 60
+  let overtimeHours = overtimeMinutes / 60
+  const nightHours = nightMinutes / 60
+
+  if (!hasActive && overtimeMinutes === 0 && nightMinutes === 0 && Number.isFinite(preciseTotalMinutes) && preciseTotalMinutes > 0) {
+    regularHours = preciseTotalMinutes / 60
+  }
+  const allBucketsZero = regularMinutes === 0 && overtimeMinutes === 0 && nightMinutes === 0
+  if (!hasActive && allBucketsZero && clockIn && clockOut) {
+    const startMs = new Date(clockIn).getTime()
+    const endMs = new Date(clockOut).getTime()
+    if (!Number.isNaN(startMs) && !Number.isNaN(endMs) && endMs > startMs) {
+      regularHours = (endMs - startMs) / 3600000
+    }
+  }
+
+  const date = row.date ?? (clockIn ? new Date(clockIn).toISOString().slice(0, 10) : '')
+  const shiftStart = row.dynamic_shift_start || row.shift_start || null
+  const shiftEnd = row.dynamic_shift_end || row.shift_end || null
+
+  let autoStatus = hasActive ? 'active' : 'present'
+  if (!hasActive && clockIn && shiftStart) {
+    const clockInMs = new Date(clockIn).getTime()
+    const shiftStartMs = new Date(shiftStart).getTime()
+    const shiftEndMs = shiftEnd ? new Date(shiftEnd).getTime() : null
+    const clockOutMs = clockOut ? new Date(clockOut).getTime() : null
+    const lateThreshold = 5 * 60 * 1000
+    const isLate = clockInMs - shiftStartMs > lateThreshold
+    const isEarlyOut = clockOutMs && shiftEndMs && (shiftEndMs - clockOutMs > lateThreshold)
+    if (isLate && isEarlyOut) autoStatus = 'late_in_early_out'
+    else if (isLate) autoStatus = 'late_in'
+    else if (isEarlyOut) autoStatus = 'early_out'
+  }
+  if (!clockIn && !hasActive) autoStatus = 'absent'
+  const status = row.status_override || autoStatus
+
+  let scheduledHours = 0
+  if (shiftStart && shiftEnd) {
+    scheduledHours = (new Date(shiftEnd).getTime() - new Date(shiftStart).getTime()) / 3600000
+    if (scheduledHours < 0) scheduledHours += 24
+  } else if (Number(row.scheduled_minutes ?? 0) > 0) {
+    scheduledHours = Number(row.scheduled_minutes) / 60
+  }
+
+  let sdbtHours = 0
+  if (scheduledHours >= 12) sdbtHours = 1.5
+  else if (scheduledHours >= 8) sdbtHours = 1
+  else if (scheduledHours >= 4) sdbtHours = 0.5
+
+  let actualHours = 0
+  if (clockIn && clockOut) {
+    actualHours = (new Date(clockOut).getTime() - new Date(clockIn).getTime()) / 3600000
+  } else if (Number(row.actual_minutes ?? 0) > 0) {
+    actualHours = Number(row.actual_minutes) / 60
+  }
+
+  let adbtHours = 0
+  if (actualHours >= 12) adbtHours = 1.5
+  else if (actualHours >= 8) adbtHours = 1
+  else if (actualHours >= 4) adbtHours = 0.5
+
+  const payType = row.pay_type || 'Regular'
+  let regHours = 0
+  if (payType === 'Holiday') regHours = Math.max(0, scheduledHours - sdbtHours)
+  else if (payType === 'Regular') regHours = Math.max(0, actualHours - adbtHours)
+
+  let n15Hours = 0
+  if (payType !== 'DNP' && clockIn && clockOut) {
+    const ciDate = new Date(clockIn)
+    const coDate = new Date(clockOut)
+    const clockInTime = (ciDate.getUTCHours() * 3600 + ciDate.getUTCMinutes() * 60 + ciDate.getUTCSeconds()) / 86400
+    const clockOutTime = (coDate.getUTCHours() * 3600 + coDate.getUTCMinutes() * 60 + coDate.getUTCSeconds()) / 86400
+    const NINE_PM = 21 / 24
+    const SEVEN_AM = 7 / 24
+    let nightRawHours = 0
+    if (clockOutTime >= NINE_PM && clockOutTime < 1) nightRawHours = (clockOutTime - NINE_PM) * 24
+    else if (clockInTime >= NINE_PM && clockInTime < 1) nightRawHours = (coDate.getTime() - ciDate.getTime()) / 3600000
+    else if (clockOutTime >= 0 && clockOutTime <= SEVEN_AM) nightRawHours = (coDate.getTime() - ciDate.getTime()) / 3600000
+    else if (clockInTime >= 0 && clockInTime <= SEVEN_AM) nightRawHours = (SEVEN_AM - clockInTime) * 24
+    n15Hours = nightRawHours >= 3 ? Math.max(0, actualHours - adbtHours) : Math.max(0, nightRawHours)
+  }
+
+  let x35Hours = payType === 'X35%' ? Math.max(0, actualHours - adbtHours) : 0
+  let x100Hours = payType === 'X100%' ? Math.max(0, actualHours - adbtHours) : 0
+  let hdyHours = payType === 'Holiday' ? Math.max(0, actualHours - adbtHours) : 0
+  let payableRvwHours = 0
+  if (payType === 'Review') {
+    payableRvwHours = Math.max(0, actualHours - adbtHours)
+    regHours = 0; n15Hours = 0; x35Hours = 0; x100Hours = 0; hdyHours = 0
+  }
+
+  const r2 = (v) => Math.round(v * 100) / 100
+
+  return {
+    id: row.id,
+    sessionId: row.session_id || row.id,
+    employeeId: row.user_id,
+    employeeName: row.user_name ?? '',
+    date,
+    shiftStart: shiftStart || null,
+    shiftEnd: shiftEnd || null,
+    clockIn: clockIn || null,
+    clockOut: clockOut || null,
+    location: row.location || null,
+    stage: row.stage || null,
+    reportsTo: row.reports_to_name || null,
+    task: row.task || null,
+    status,
+    payType,
+    scheduledHours: r2(scheduledHours),
+    sdbtHours: r2(sdbtHours),
+    actualHours: r2(actualHours),
+    adbtHours: r2(adbtHours),
+    regHours: r2(regHours),
+    n15Hours: r2(n15Hours),
+    x35Hours: r2(x35Hours),
+    x100Hours: r2(x100Hours),
+    hdyHours: r2(hdyHours),
+    payableRvwHours: r2(payableRvwHours),
+    comments: row.comments || '',
+    accountName: row.account_name || null,
+    employeeCmid: row.employee_cmid != null ? Number(row.employee_cmid) : null,
+    regularHours,
+    overtimeHours,
+    nightHours,
+  }
+}
+
 // All session routes require auth
 router.use(authMiddleware)
 
@@ -194,6 +331,103 @@ router.get('/active', async (req, res) => {
     res.json(toSession(result.rows[0]))
   } catch (err) {
     console.error('Get active session error:', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// GET /api/sessions/my-attendance?from=YYYY-MM-DD&to=YYYY-MM-DD
+// Returns admin-style attendance records for the logged-in employee only (read-only).
+router.get('/my-attendance', async (req, res) => {
+  try {
+    const userId = req.user.id
+    const { from, to } = req.query
+    let sql = `
+      SELECT
+        u.id AS user_id,
+        u.name AS user_name,
+        (s.clock_in AT TIME ZONE 'UTC')::date AS date,
+        MIN(s.clock_in) AS first_clock_in,
+        MAX(s.clock_out) AS last_clock_out,
+        COALESCE(SUM(s.regular_minutes), 0)::int AS regular_minutes,
+        COALESCE(SUM(s.overtime_minutes), 0)::int AS overtime_minutes,
+        COALESCE(SUM(s.night_minutes), 0)::int AS night_minutes,
+        COALESCE(SUM(CASE WHEN s.clock_out IS NOT NULL THEN EXTRACT(EPOCH FROM (s.clock_out - s.clock_in)) / 60.0 ELSE 0 END), 0) AS precise_total_minutes,
+        BOOL_OR(s.clock_out IS NULL) AS has_active_session,
+        MIN(s.shift_start) AS shift_start,
+        MAX(s.shift_end) AS shift_end,
+        MAX(COALESCE(s.location, e.location)) AS location,
+        MAX(COALESCE(s.stage, 'Production')) AS stage,
+        MAX(s.task) AS task,
+        MAX(s.status_override) AS status_override,
+        MAX(s.pay_type) AS pay_type,
+        MAX(s.bill_type) AS bill_type,
+        STRING_AGG(DISTINCT s.comments, '; ') FILTER (WHERE s.comments IS NOT NULL AND s.comments != '') AS comments,
+        COALESCE(SUM(s.scheduled_minutes), 0)::int AS scheduled_minutes,
+        COALESCE(SUM(s.actual_minutes), 0)::int AS actual_minutes,
+        MAX(s.dbt_minutes) AS dbt_minutes,
+        MAX(s.holiday_name) AS holiday_name,
+        COALESCE(SUM(s.reg_hours), 0) AS reg_hours,
+        COALESCE(SUM(s.n15_hours), 0) AS n15_hours,
+        COALESCE(SUM(s.x35_hours), 0) AS x35_hours,
+        COALESCE(SUM(s.x100_hours), 0) AS x100_hours,
+        COALESCE(SUM(s.hol_hours), 0) AS hol_hours,
+        COALESCE(SUM(s.billable_reg_hours), 0) AS billable_reg_hours,
+        COALESCE(SUM(s.billable_prm_hours), 0) AS billable_prm_hours,
+        COALESCE(SUM(s.billable_rvw_hours), 0) AS billable_rvw_hours,
+        COALESCE(SUM(s.payable_rvw_hours), 0) AS payable_rvw_hours,
+        MAX(mgr.name) AS reports_to_name,
+        MAX(c.name) AS account_name,
+        MAX(e.cmid) AS employee_cmid,
+        BOOL_OR(s.is_locked) AS is_locked,
+        (ARRAY_AGG(s.id ORDER BY s.clock_in DESC))[1] AS session_id,
+        MIN(
+          (((s.clock_in AT TIME ZONE 'UTC')::date || 'T' || COALESCE(sa_shift.override_start, sh.start_time)::text)::timestamp AT TIME ZONE 'UTC')
+        ) FILTER (WHERE sh.start_time IS NOT NULL) AS dynamic_shift_start,
+        MAX(
+          (((s.clock_in AT TIME ZONE 'UTC')::date || 'T' || COALESCE(sa_shift.override_end, sh.end_time)::text)::timestamp AT TIME ZONE 'UTC')
+        ) FILTER (WHERE sh.end_time IS NOT NULL) AS dynamic_shift_end,
+        MAX(h.name) AS dynamic_holiday_name
+      FROM sessions s
+      JOIN users u ON u.id = s.user_id
+      LEFT JOIN employees e ON e.user_id = u.id
+      LEFT JOIN users mgr ON mgr.id = e.reports_to
+      LEFT JOIN clients c ON c.id = e.primary_client_id
+      LEFT JOIN LATERAL (
+        SELECT a.shift_id,
+               a.override_start_time AS override_start,
+               a.override_end_time AS override_end
+        FROM schedule_assignments a
+        WHERE a.user_id = u.id AND a.date = (s.clock_in AT TIME ZONE 'UTC')::date
+        LIMIT 1
+      ) sa_shift ON true
+      LEFT JOIN shifts sh ON sh.id = sa_shift.shift_id
+      LEFT JOIN holidays h ON h.holiday_date = (s.clock_in AT TIME ZONE 'UTC')::date AND h.is_paid = TRUE
+      WHERE s.user_id = $1
+    `
+    const params = [userId]
+    if (from) {
+      params.push(from)
+      sql += ` AND (s.clock_in AT TIME ZONE 'UTC')::date >= $${params.length}::date`
+    }
+    if (to) {
+      params.push(to)
+      sql += ` AND (s.clock_in AT TIME ZONE 'UTC')::date <= $${params.length}::date`
+    }
+    sql += `
+      GROUP BY u.id, u.name, (s.clock_in AT TIME ZONE 'UTC')::date
+      ORDER BY date DESC, u.name
+      LIMIT 5000
+    `
+    const result = await query(sql, params)
+
+    const records = result.rows.map((row) => {
+      const dateStr = row.date ? new Date(row.date).toISOString().slice(0, 10) : ''
+      return toMyAttendanceRecord({ ...row, id: row.session_id || `${row.user_id}-${dateStr}`, date: dateStr })
+    })
+
+    res.json(records)
+  } catch (err) {
+    console.error('my-attendance error:', err)
     res.status(500).json({ error: 'Internal server error' })
   }
 })
@@ -590,6 +824,87 @@ router.get('/payroll-slip.pdf', async (req, res) => {
     res.send(pdfBuffer)
   } catch (err) {
     console.error('Employee payroll slip PDF error:', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// GET /api/sessions/my-payroll?cycle=XXXX — logged-in employee's payroll calculator result
+router.get('/my-payroll', async (req, res) => {
+  try {
+    const userId = req.user.id
+    const { cycle } = req.query
+    if (!cycle) {
+      return res.status(400).json({ error: 'Bad request', message: 'cycle query param is required' })
+    }
+    const result = await query(
+      'SELECT * FROM payroll_calculator_results WHERE user_id = $1 AND payroll_cycle_code = $2',
+      [userId, cycle]
+    )
+    if (!result.rows.length) {
+      return res.json(null)
+    }
+    const r = result.rows[0]
+    res.json({
+      id: r.id,
+      payrollCycleCode: r.payroll_cycle_code,
+      periodFrom: r.period_from,
+      periodTo: r.period_to,
+      payDate: r.pay_date,
+      biWeek: r.bi_week != null ? Number(r.bi_week) : null,
+      salaryType: r.salary_type,
+      salary: Number(r.salary) || 0,
+      hourlySalary: Number(r.hourly_salary) || 0,
+      hreg1: Number(r.hreg1) || 0,
+      hreg2: Number(r.hreg2) || 0,
+      hreg: Number(r.hreg) || 0,
+      ordinarySalary: Number(r.ordinary_salary) || 0,
+      vacation: Number(r.vacation) || 0,
+      matrimony: Number(r.matrimony) || 0,
+      maternity: Number(r.maternity) || 0,
+      paternity: Number(r.paternity) || 0,
+      bereavement: Number(r.bereavement) || 0,
+      medical: Number(r.medical) || 0,
+      vpl: Number(r.vpl) || 0,
+      commissions: Number(r.commissions) || 0,
+      subsidio: Number(r.subsidio) || 0,
+      reembolso: Number(r.reembolso) || 0,
+      totalOtherIncome: Number(r.total_other_income) || 0,
+      hn15Hours: Number(r.hn15_hours) || 0,
+      hn15Amount: Number(r.hn15_amount) || 0,
+      hx35Hours: Number(r.hx35_hours) || 0,
+      hx35Amount: Number(r.hx35_amount) || 0,
+      hx100Hours: Number(r.hx100_hours) || 0,
+      hx100Amount: Number(r.hx100_amount) || 0,
+      hholHours: Number(r.hhol_hours) || 0,
+      hholAmount: Number(r.hhol_amount) || 0,
+      overtimeTotal: Number(r.overtime_total) || 0,
+      collaboration: Number(r.collaboration) || 0,
+      recruiting: Number(r.recruiting) || 0,
+      profitSharing: Number(r.profit_sharing) || 0,
+      bonusesTotal: Number(r.bonuses_total) || 0,
+      attendanceIncentive: Number(r.attendance_incentive) || 0,
+      kpiIncentive: Number(r.kpi_incentive) || 0,
+      incentivesTotal: Number(r.incentives_total) || 0,
+      grossSalary: Number(r.gross_salary) || 0,
+      tssSalary: Number(r.tss_salary) || 0,
+      isrSalary: Number(r.isr_salary) || 0,
+      afp: Number(r.afp) || 0,
+      sfs: Number(r.sfs) || 0,
+      tssDependents: Number(r.tss_dependents) || 0,
+      infotep: Number(r.infotep) || 0,
+      isrRetention: Number(r.isr_retention) || 0,
+      govDeductionsTotal: Number(r.gov_deductions_total) || 0,
+      payLater: Number(r.pay_later) || 0,
+      gym: Number(r.gym) || 0,
+      insuranceDed: Number(r.insurance_ded) || 0,
+      cafeteria: Number(r.cafeteria) || 0,
+      adminDeduction: Number(r.admin_deduction) || 0,
+      otherDeductionsTotal: Number(r.other_deductions_total) || 0,
+      totalDeductions: Number(r.total_deductions) || 0,
+      netSalary: Number(r.net_salary) || 0,
+    })
+  } catch (err) {
+    console.error('My payroll error:', err)
     res.status(500).json({ error: 'Internal server error' })
   }
 })

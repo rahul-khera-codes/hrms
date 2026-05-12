@@ -1,4 +1,13 @@
 import { api } from './api'
+import type { AttendanceRecord } from '@/types'
+
+export async function getMyAttendance(params: { from?: string; to?: string }): Promise<AttendanceRecord[]> {
+  const search = new URLSearchParams()
+  if (params.from) search.set('from', params.from)
+  if (params.to) search.set('to', params.to)
+  const q = search.toString()
+  return api<AttendanceRecord[]>(`/api/sessions/my-attendance${q ? `?${q}` : ''}`)
+}
 
 export interface MyScheduleEntry {
   id: string
@@ -57,4 +66,38 @@ export async function createLeaveRequest(data: {
     method: 'POST',
     body: JSON.stringify(data),
   })
+}
+
+// ── My Payroll ──
+
+export interface MyPayrollResult {
+  id: string
+  payrollCycleCode: string
+  periodFrom: string
+  periodTo: string
+  payDate: string | null
+  biWeek: number | null
+  salaryType: string
+  salary: number
+  hourlySalary: number
+  hreg1: number; hreg2: number; hreg: number; ordinarySalary: number
+  vacation: number; matrimony: number; maternity: number; paternity: number
+  bereavement: number; medical: number; vpl: number
+  commissions: number
+  subsidio: number; reembolso: number; totalOtherIncome: number
+  hn15Hours: number; hn15Amount: number; hx35Hours: number; hx35Amount: number
+  hx100Hours: number; hx100Amount: number; hholHours: number; hholAmount: number
+  overtimeTotal: number
+  collaboration: number; recruiting: number; profitSharing: number; bonusesTotal: number
+  attendanceIncentive: number; kpiIncentive: number; incentivesTotal: number
+  grossSalary: number; tssSalary: number; isrSalary: number
+  afp: number; sfs: number; tssDependents: number; infotep: number
+  isrRetention: number; govDeductionsTotal: number
+  payLater: number; gym: number; insuranceDed: number; cafeteria: number
+  adminDeduction: number; otherDeductionsTotal: number
+  totalDeductions: number; netSalary: number
+}
+
+export async function getMyPayroll(cycleCode: string): Promise<MyPayrollResult | null> {
+  return api<MyPayrollResult | null>(`/api/sessions/my-payroll?cycle=${encodeURIComponent(cycleCode)}`)
 }

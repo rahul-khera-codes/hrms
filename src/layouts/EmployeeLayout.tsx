@@ -1,15 +1,17 @@
 import { useState } from 'react'
 import { Outlet, NavLink } from 'react-router-dom'
-import { LayoutDashboard, Clock, CalendarDays, LogOut, PanelLeftClose, PanelLeft, CalendarCheck2 } from 'lucide-react'
+import { LayoutDashboard, Clock, CalendarDays, LogOut, PanelLeftClose, PanelLeft, CalendarCheck2, Calendar, FileText } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { Navbar } from '@/components/Navbar'
 import clsx from 'clsx'
 
 const nav = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/dashboard/sessions', label: 'My Sessions', icon: Clock },
+  { to: '/dashboard/sessions', label: 'My Attendance', icon: Clock },
   { to: '/dashboard/schedule', label: 'My Schedule', icon: CalendarDays },
-  { to: '/dashboard/leave', label: 'My Leave', icon: CalendarCheck2 },
+  { to: '/dashboard/leave', label: 'My Leaves', icon: CalendarCheck2 },
+  { to: '/dashboard/payroll-calendar', label: 'Payroll Calendar', icon: Calendar },
+  { to: '/dashboard/payroll', label: 'My Payroll', icon: FileText },
 ]
 
 export default function EmployeeLayout() {
