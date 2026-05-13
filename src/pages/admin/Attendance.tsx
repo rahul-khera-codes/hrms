@@ -1054,7 +1054,7 @@ export default function AdminAttendance() {
                     </select>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-3 mt-3">
+                <div className="grid grid-cols-2 sm:grid-cols-[1fr_1.5fr_auto_auto] gap-x-3 gap-y-3 mt-3">
                   <div>
                     <label className="text-[10px] font-medium text-surface-400 uppercase block mb-1">Stage</label>
                     <select
@@ -1067,7 +1067,7 @@ export default function AdminAttendance() {
                       {STAGE_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
                     </select>
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <label className="text-[10px] font-medium text-surface-400 uppercase block mb-1">Reports To</label>
                     <AdminSelect
                       value={detailRecord.reportsToId ?? ''}
@@ -1079,25 +1079,25 @@ export default function AdminAttendance() {
                       ]}
                     />
                   </div>
-                  <div>
+                  <div className="w-24">
                     <label className="text-[10px] font-medium text-surface-400 uppercase block mb-1">Pay</label>
                     <select
                       value={detailRecord.payType ?? ''}
                       disabled={detailRecord.isLocked ?? false}
                       onChange={(e) => handleFieldUpdate(detailRecord, 'payType', e.target.value)}
-                      className="text-sm border border-surface-200 rounded-lg px-2 py-1.5 w-full bg-white focus:ring-1 focus:ring-brand-300 outline-none disabled:opacity-60"
+                      className="text-sm border border-surface-200 rounded-lg px-1.5 py-1.5 w-full bg-white focus:ring-1 focus:ring-brand-300 outline-none disabled:opacity-60"
                     >
                       <option value="">--</option>
                       {PAY_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
                     </select>
                   </div>
-                  <div>
+                  <div className="w-24">
                     <label className="text-[10px] font-medium text-surface-400 uppercase block mb-1">Bill</label>
                     <select
                       value={detailRecord.billType ?? ''}
                       disabled={detailRecord.isLocked ?? false}
                       onChange={(e) => handleFieldUpdate(detailRecord, 'billType', e.target.value)}
-                      className="text-sm border border-surface-200 rounded-lg px-2 py-1.5 w-full bg-white focus:ring-1 focus:ring-brand-300 outline-none disabled:opacity-60"
+                      className="text-sm border border-surface-200 rounded-lg px-1.5 py-1.5 w-full bg-white focus:ring-1 focus:ring-brand-300 outline-none disabled:opacity-60"
                     >
                       <option value="">--</option>
                       {BILL_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
