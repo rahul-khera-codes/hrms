@@ -210,6 +210,7 @@ try {
   await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS home_phone VARCHAR(30)`)
   await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS mobile_phone VARCHAR(30)`)
   await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS termination_reason VARCHAR(100)`)
+  await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS is_locked BOOLEAN DEFAULT FALSE`)
   await pool.query(`
     CREATE TABLE IF NOT EXISTS shifts (
       id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),

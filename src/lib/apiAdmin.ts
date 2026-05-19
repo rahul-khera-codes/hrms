@@ -408,6 +408,7 @@ export interface EmployeeRecord {
   homePhone?: string | null
   mobilePhone?: string | null
   terminationReason?: string | null
+  isLocked?: boolean
 }
 
 export async function getEmployees(): Promise<EmployeeRecord[]> {
@@ -487,6 +488,10 @@ export async function updateEmployee(
 
 export async function deleteEmployee(id: string): Promise<void> {
   return api<void>(`/api/admin/employees/${id}`, { method: 'DELETE' })
+}
+
+export async function setEmployeeLocked(id: string, locked: boolean): Promise<void> {
+  return api(`/api/admin/employees/${id}/lock`, { method: 'PATCH', body: JSON.stringify({ locked }) })
 }
 
 export async function getClients(): Promise<Client[]> {

@@ -1973,6 +1973,11 @@ router.patch('/employees/:id', async (req, res) => {
     if (emp.rows.length === 0) {
       return res.status(404).json({ error: 'Not found', message: 'Employee not found' })
     }
+    // Block edits if employee record is locked (unless caller forces)
+    const lockRow = await query('SELECT is_locked FROM employees WHERE user_id = $1', [id])
+    if (lockRow.rows.length > 0 && lockRow.rows[0].is_locked && !req.body.force) {
+      return res.status(409).json({ error: 'Locked', message: 'Unlock the employee before editing.' })
+    }
     const updates = []
     const params = []
     let i = 1
@@ -2078,6 +2083,7 @@ router.patch('/employees/:id', async (req, res) => {
               e.bank, e.bank_account, e.pay_method,
               e.government_id, e.gender, e.date_of_birth::text AS date_of_birth,
               e.personal_email, e.company_email, e.home_phone, e.mobile_phone, e.termination_reason,
+              e.is_locked,
               c.name AS primary_client_name,
               mgr.name AS reports_to_name
        FROM users u
@@ -2118,6 +2124,7 @@ router.patch('/employees/:id', async (req, res) => {
       homePhone: row.home_phone || null,
       mobilePhone: row.mobile_phone || null,
       terminationReason: row.termination_reason || null,
+      isLocked: row.is_locked === true,
     })
   } catch (err) {
     console.error('Update employee error:', err)
@@ -2177,6 +2184,7 @@ router.get('/employees', async (req, res) => {
               e.bank, e.bank_account, e.pay_method,
               e.government_id, e.gender, e.date_of_birth::text AS date_of_birth,
               e.personal_email, e.company_email, e.home_phone, e.mobile_phone, e.termination_reason,
+              e.is_locked,
               c.name AS primary_client_name,
               mgr.name AS reports_to_name
        FROM users u
@@ -2216,6 +2224,7 @@ router.get('/employees', async (req, res) => {
       homePhone: r.home_phone || null,
       mobilePhone: r.mobile_phone || null,
       terminationReason: r.termination_reason || null,
+      isLocked: r.is_locked === true,
     })))
   } catch (err) {
     console.error('Admin list employees error:', err)
@@ -2315,6 +2324,10 @@ router.delete('/employees/:id', requireAdmin, async (req, res) => {
     if (emp.rows.length === 0) {
       return res.status(404).json({ error: 'Not found', message: 'Employee not found' })
     }
+    const lockRow = await query('SELECT is_locked FROM employees WHERE user_id = $1', [id])
+    if (lockRow.rows.length > 0 && lockRow.rows[0].is_locked) {
+      return res.status(409).json({ error: 'Locked', message: 'Unlock the employee before deleting.' })
+    }
     await query('DELETE FROM schedule_assignments WHERE user_id = $1', [id])
     await query('DELETE FROM notifications WHERE user_id = $1', [id])
     await query('DELETE FROM payroll_government_deductions WHERE user_id = $1', [id])
@@ -2329,6 +2342,27 @@ router.delete('/employees/:id', requireAdmin, async (req, res) => {
     res.json({ success: true })
   } catch (err) {
     console.error('Delete employee error:', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// PATCH /api/admin/employees/:id/lock - toggle lock state of an employee record
+router.patch('/employees/:id/lock', requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params
+    const { locked } = req.body
+    if (typeof locked !== 'boolean') {
+      return res.status(400).json({ error: 'Bad request', message: 'locked must be boolean' })
+    }
+    // Ensure an employees row exists for this user
+    await query(
+      `INSERT INTO employees (user_id, is_locked) VALUES ($1, $2)
+       ON CONFLICT (user_id) DO UPDATE SET is_locked = $2, updated_at = NOW()`,
+      [id, locked]
+    )
+    res.json({ id, isLocked: locked })
+  } catch (err) {
+    console.error('Admin lock employee error:', err)
     res.status(500).json({ error: 'Internal server error' })
   }
 })

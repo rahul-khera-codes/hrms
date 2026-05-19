@@ -64,13 +64,24 @@ function currentCycleCode(periods: PayrollPeriod[]): string | null {
   return hit ? hit.cycleCode : null
 }
 
-/** Build cycle dropdown options with current cycle marked "(current)" */
-function buildCycleOptions(periods: PayrollPeriod[]): Array<{ value: string; label: string }> {
+/** Build cycle dropdown options with current cycle visually marked */
+function buildCycleOptions(periods: PayrollPeriod[]) {
   const cur = currentCycleCode(periods)
-  return periods.map((p) => ({
-    value: p.cycleCode,
-    label: cur === p.cycleCode ? `${p.cycleCode} (current)` : p.cycleCode,
-  }))
+  return periods.map((p) => {
+    const isCurrent = cur === p.cycleCode
+    return {
+      value: p.cycleCode,
+      label: isCurrent ? (
+        <span className="inline-flex items-center gap-1.5">
+          <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500" />
+          <span>{p.cycleCode}</span>
+          <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-semibold uppercase tracking-wider bg-emerald-100 text-emerald-700">current</span>
+        </span>
+      ) : (
+        <span>{p.cycleCode}</span>
+      ),
+    }
+  })
 }
 
 export default function AdminPayrollInputs() {

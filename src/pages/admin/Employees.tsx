@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { Users, Plus, Pencil, LayoutGrid, Table2, Search, Download, ArrowUp, ArrowDown, Filter, AlertCircle, CheckCircle2, Ban, Trash2, X, Upload } from 'lucide-react'
+import { Users, Plus, Pencil, LayoutGrid, Table2, Search, Download, ArrowUp, ArrowDown, Filter, AlertCircle, CheckCircle2, Ban, Trash2, X, Upload, Lock, Unlock } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
 import DocumentUpload from '@/components/DocumentUpload'
 import { DetailModalHeader } from '@/components/DetailModalHeader'
@@ -12,6 +12,7 @@ import {
   createEmployee,
   updateEmployee,
   deleteEmployee,
+  setEmployeeLocked,
   getClients,
   getShifts,
   getSchedule,
@@ -600,11 +601,19 @@ export default function AdminEmployees() {
 
   async function bulkDeleteEmployees() {
     if (selectedEmpIds.size === 0) return
-    if (!window.confirm(`Permanently delete ${selectedEmpIds.size} employee(s)? This cannot be undone.`)) return
+    const eligible = Array.from(selectedEmpIds).filter((id) => {
+      const e = employees.find((x) => x.id === id)
+      return e && !e.isLocked
+    })
+    if (eligible.length === 0) {
+      setError('No eligible employees selected (all locked).')
+      return
+    }
+    if (!window.confirm(`Permanently delete ${eligible.length} employee(s)? This cannot be undone.`)) return
     setBulkSaving(true)
     let ok = 0
     let failed = 0
-    for (const id of Array.from(selectedEmpIds)) {
+    for (const id of eligible) {
       try {
         await deleteEmployee(id)
         ok++
@@ -619,6 +628,7 @@ export default function AdminEmployees() {
   }
 
   async function handleDeleteEmployee(emp: EmployeeRecord) {
+    if (emp.isLocked) { setError('Unlock the employee before deleting.'); return }
     if (!window.confirm(`Permanently delete ${emp.name}? This will remove all sessions, leaves, payroll inputs, and payroll results for this employee. This cannot be undone.`)) return
     try {
       await deleteEmployee(emp.id)
@@ -626,6 +636,28 @@ export default function AdminEmployees() {
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to delete employee.')
     }
+  }
+
+  async function handleToggleEmployeeLock(emp: EmployeeRecord) {
+    try {
+      await setEmployeeLocked(emp.id, !emp.isLocked)
+      await load()
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to toggle lock.')
+    }
+  }
+
+  async function bulkSetEmployeeLocked(locked: boolean) {
+    if (selectedEmpIds.size === 0) return
+    setBulkSaving(true)
+    let ok = 0, failed = 0
+    for (const id of Array.from(selectedEmpIds)) {
+      try { await setEmployeeLocked(id, locked); ok++ } catch { failed++ }
+    }
+    setBulkSaving(false)
+    setError(failed === 0 ? null : `${ok} updated, ${failed} failed.`)
+    clearEmpSelection()
+    await load()
   }
 
   async function handleSave() {
@@ -1119,10 +1151,13 @@ export default function AdminEmployees() {
                     </td>
                     <td className="px-3 py-2.5 whitespace-nowrap text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center gap-1 justify-end">
-                        <button type="button" onClick={() => openEdit(emp)} className="p-1.5 rounded-lg text-surface-500 hover:bg-surface-100" title="Edit">
+                        <button type="button" onClick={() => openEdit(emp)} disabled={emp.isLocked} className="p-1.5 rounded-lg text-surface-500 hover:bg-surface-100 disabled:opacity-40" title="Edit">
                           <Pencil className="w-3.5 h-3.5" />
                         </button>
-                        <button type="button" onClick={() => void handleDeleteEmployee(emp)} className="p-1.5 rounded-lg text-red-500 hover:bg-red-50" title="Delete">
+                        <button type="button" onClick={() => void handleToggleEmployeeLock(emp)} className="p-1.5 rounded-lg text-surface-500 hover:bg-surface-100" title={emp.isLocked ? 'Unlock' : 'Lock'}>
+                          {emp.isLocked ? <Unlock className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5" />}
+                        </button>
+                        <button type="button" onClick={() => void handleDeleteEmployee(emp)} disabled={emp.isLocked} className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 disabled:opacity-40" title="Delete">
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
@@ -1187,10 +1222,30 @@ export default function AdminEmployees() {
         </button>
         <button
           type="button"
+          onClick={() => void bulkSetEmployeeLocked(true)}
+          disabled={bulkSaving}
+          className="btn-secondary btn-sm"
+          title="Lock selected employees (prevents edit/delete)"
+        >
+          <Lock className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">Lock</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => void bulkSetEmployeeLocked(false)}
+          disabled={bulkSaving}
+          className="btn-secondary btn-sm"
+          title="Unlock selected employees"
+        >
+          <Unlock className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">Unlock</span>
+        </button>
+        <button
+          type="button"
           onClick={() => void bulkDeleteEmployees()}
           disabled={bulkSaving}
           className="btn-secondary btn-sm"
-          title="Permanently delete selected employees"
+          title="Permanently delete selected employees (skips locked)"
         >
           <Trash2 className="w-3.5 h-3.5 text-red-500" />
           <span className="hidden sm:inline">Delete</span>
