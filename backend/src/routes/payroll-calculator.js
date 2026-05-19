@@ -87,6 +87,8 @@ function mapRow(r) {
     totalDeductions: Number(r.total_deductions) || 0,
     netSalary: Number(r.net_salary) || 0,
     notes: r.notes || '',
+    governmentId: r.government_id || null,
+    ccEmail: r.cc_email || null,
     afpEmployer: Number(r.afp_employer) || 0,
     sfsEmployer: Number(r.sfs_employer) || 0,
     arl: Number(r.arl) || 0,
@@ -153,10 +155,14 @@ router.post('/calculate', async (req, res) => {
     // 3. Get all employees
     const empRes = await query(`
       SELECT u.id, u.name, e.cmid, e.salary_type, e.base_salary, e.contract_status,
-             e.bank, e.bank_account, e.pay_method, c.name AS account_name
+             e.bank, e.bank_account, e.pay_method, e.government_id,
+             e.hire_date, e.job_title, e.location, e.company_email, e.personal_email,
+             c.name AS account_name,
+             sup.name AS supervisor_name
       FROM users u
       LEFT JOIN employees e ON e.user_id = u.id
       LEFT JOIN clients c ON c.id = e.primary_client_id
+      LEFT JOIN users sup ON sup.id = e.reports_to
       WHERE u.role = 'employee'
     `)
 
@@ -456,6 +462,7 @@ router.post('/calculate', async (req, res) => {
           deduccion_x, other_deductions_spare, other_deductions_total,
           deduction_validation, total_deductions, net_salary, notes,
           afp_employer, sfs_employer, arl, infotep_employer,
+          government_id,
           updated_at
         ) VALUES (
           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,
@@ -465,7 +472,7 @@ router.post('/calculate', async (req, res) => {
           $41,$42,$43,$44,$45,$46,$47,$48,$49,$50,
           $51,$52,$53,$54,$55,$56,$57,$58,$59,$60,
           $61,$62,$63,$64,$65,$66,$67,$68,$69,$70,
-          $71,$72,$73, NOW()
+          $71,$72,$73,$74, NOW()
         )
         ON CONFLICT (payroll_cycle_code, user_id) DO UPDATE SET
           period_from=$2, period_to=$3, pay_date=$4, bi_week=$5,
@@ -484,8 +491,9 @@ router.post('/calculate', async (req, res) => {
           afp=$52, sfs=$53, tss_dependents=$54, infotep=$55, isr_retention=$56, gov_deductions_total=$57,
           pay_later=$58, gym=$59, insurance_ded=$60, cafeteria=$61, admin_deduction=$62,
           deduccion_x=$63, other_deductions_spare=$64, other_deductions_total=$65,
-          deduction_validation=$66, total_deductions=$67, net_salary=$68, notes=$69,
+          deduction_validation=$66, total_deductions=$67, net_salary=$68,
           afp_employer=$70, sfs_employer=$71, arl=$72, infotep_employer=$73,
+          government_id=$74,
           updated_at=NOW()
       `, [
         cycleCode, periodFrom, periodTo, payDate, biWeek,
@@ -506,6 +514,7 @@ router.post('/calculate', async (req, res) => {
         deduccionX, otherDeductionsSpare, otherDeductionsTotal,
         deductionValidation, totalDeductions, netSalary, null,
         afpEmployer, sfsEmployer, arl, infotepEmployer,
+        emp.government_id || null,
       ])
 
       results.push({
@@ -535,7 +544,7 @@ router.post('/calculate', async (req, res) => {
 router.patch('/:id', async (req, res) => {
   try {
     const { id } = req.params
-    const { bank, bankAccount, payMethod, notes } = req.body
+    const { bank, bankAccount, payMethod, notes, ccEmail } = req.body
 
     const updates = []
     const params = []
@@ -544,6 +553,7 @@ router.patch('/:id', async (req, res) => {
     if (bankAccount !== undefined) { updates.push(`bank_account = $${i++}`); params.push(bankAccount || null) }
     if (payMethod !== undefined) { updates.push(`pay_method = $${i++}`); params.push(payMethod || null) }
     if (notes !== undefined) { updates.push(`notes = $${i++}`); params.push(notes || null) }
+    if (ccEmail !== undefined) { updates.push(`cc_email = $${i++}`); params.push(ccEmail || null) }
 
     if (updates.length === 0) return res.status(400).json({ error: 'No fields to update' })
 
@@ -555,6 +565,425 @@ router.patch('/:id', async (req, res) => {
     res.json(mapRow(result.rows[0]))
   } catch (err) {
     console.error('Patch payroll calculator result error:', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// ---------------------------------------------------------------------------
+// Paystub HTML generation helper — Spanish template matching client DOCX
+// ---------------------------------------------------------------------------
+
+const fmtRD = (n) => {
+  const val = Number(n) || 0
+  return 'RD$ ' + val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+const fmtH = (n) => {
+  const val = Number(n) || 0
+  return val.toFixed(2) + ' H'
+}
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+const fmtDate = (d) => {
+  if (!d) return ''
+  let y, mo, day
+  if (d instanceof Date) {
+    y = d.getFullYear(); mo = d.getMonth(); day = d.getDate()
+  } else {
+    const s = String(d).slice(0, 10).split('-')
+    if (s.length < 3) return ''
+    y = parseInt(s[0], 10); mo = parseInt(s[1], 10) - 1; day = parseInt(s[2], 10)
+  }
+  if (!y || isNaN(y)) return ''
+  return `${MONTHS[mo]}-${String(day).padStart(2,'0')}-${y}`
+}
+const fmtDateTime = () => {
+  const now = new Date()
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${MONTHS[now.getMonth()]}-${pad(now.getDate())}-${now.getFullYear()} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`
+}
+const calcLengthOfService = (hireDate, termDate) => {
+  if (!hireDate) return ''
+  const start = new Date(hireDate)
+  const end = termDate ? new Date(termDate) : new Date()
+  let years = end.getFullYear() - start.getFullYear()
+  let months = end.getMonth() - start.getMonth()
+  let days = end.getDate() - start.getDate()
+  if (days < 0) { months--; days += 30 }
+  if (months < 0) { years--; months += 12 }
+  return `${years}A ${months}M ${days}D`
+}
+const escapeHtml = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+
+function buildPaystubHTML(r, employeeExtra) {
+  const cmid = r.employee_cmid != null ? Number(r.employee_cmid) : ''
+  const paystubId = `${r.payroll_cycle_code}-${cmid || r.user_id.slice(0, 8)}`
+  const generatedDate = fmtDateTime()
+  const ex = employeeExtra || {}
+  const lengthOfService = calcLengthOfService(ex.hire_date, ex.termination_date)
+
+  // Row helpers — only show if non-zero unless forceShow
+  const row3 = (label, hours, amount, forceShow) => {
+    if (!forceShow && !Number(amount) && !Number(hours)) return ''
+    return `<tr><td class="lbl">${label}</td><td class="hrs">${hours != null ? fmtH(hours) : ''}</td><td class="amt">${fmtRD(amount)}</td></tr>`
+  }
+  const row2 = (label, amount, forceShow) => {
+    if (!forceShow && !Number(amount)) return ''
+    return `<tr><td class="lbl">${label}</td><td class="amt">${fmtRD(amount)}</td></tr>`
+  }
+  // For 3-col layout: item with hours+amount on one line
+  const incLine = (label, hours, amount) => {
+    if (!Number(amount) && !Number(hours)) return ''
+    const h = hours != null ? `${fmtH(hours)}, ` : ''
+    return `<div class="il">${label}: ${h}${fmtRD(amount)}</div>`
+  }
+  const incItem = (label, amount) => {
+    if (!Number(amount)) return ''
+    return `<div class="il">${label}: ${fmtRD(amount)}</div>`
+  }
+  const dedItem = (label, amount) => {
+    if (!Number(amount)) return ''
+    return `<div class="dl">${label}: ${fmtRD(amount)}</div>`
+  }
+
+  return `<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PayStub - ${escapeHtml(r.employee_name)} - ${r.payroll_cycle_code}</title>
+<style>
+@media print { body{margin:0;background:#fff;padding:0} .no-print{display:none!important} @page{margin:0.4in;size:letter} }
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',Tahoma,Arial,sans-serif;font-size:10.5px;color:#1e293b;background:#e2e8f0;padding:16px}
+.stub{max-width:800px;margin:0 auto;background:#fff;border:1px solid #cbd5e1;box-shadow:0 2px 8px rgba(0,0,0,.08)}
+.hdr{text-align:center;padding:12px 20px 8px;border-bottom:2px solid #0d9488}
+.hdr h1{font-size:18px;letter-spacing:1.5px;font-weight:800;color:#0d9488}
+.hdr .sub{font-size:9px;color:#64748b;margin-top:2px}
+.emp-bar{background:#f0fdfa;border:2px solid #0d9488;border-radius:6px;margin:12px 20px 8px;padding:8px 14px;text-align:center}
+.emp-bar b{font-size:13px;color:#0d9488}
+.info-row{display:flex;justify-content:space-between;padding:0 20px;margin-bottom:8px;gap:12px}
+.info-left,.info-right{font-size:10px;line-height:1.7}
+.info-left b,.info-right b{font-weight:700;color:#334155}
+.info-right{text-align:right}
+.notes-line{padding:2px 20px;font-size:10px;margin-bottom:4px}
+.notes-line b{font-weight:700}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;border:1px solid #cbd5e1;margin:0 20px 10px}
+.grid3 .col{padding:8px 10px;font-size:9.5px;line-height:1.6;border-right:1px solid #e2e8f0}
+.grid3 .col:last-child{border-right:none}
+.grid3 .col-hdr{background:#0d9488;color:#fff;font-weight:700;font-size:9px;text-transform:uppercase;letter-spacing:.5px;padding:4px 10px;text-align:center}
+.grid3 .col-hdr.ded{grid-column:3;background:#991b1b}
+.grid3 .sec-lbl{font-weight:700;color:#334155;margin-top:6px;margin-bottom:2px;font-size:9.5px}
+.il{color:#334155;padding:1px 0}
+.il:before{content:'';display:inline}
+.dl{color:#334155;padding:1px 0}
+.tss-box{background:#f0fdfa;border:1px solid #99f6e4;border-radius:3px;padding:3px 8px;margin:4px 0;font-size:9px;color:#0d9488;font-weight:600}
+.rare{color:#94a3b8}
+.rare:before{content:'*'}
+.summary-bar{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;text-align:center;margin:8px 20px;padding:10px 0;border-top:2px solid #0d9488;border-bottom:2px solid #0d9488}
+.summary-bar .s-lbl{font-size:9px;font-weight:700;color:#475569;text-transform:uppercase}
+.summary-bar .s-val{font-size:14px;font-weight:800;color:#0d9488;font-family:monospace;margin-top:2px}
+.summary-bar .s-val.ded{color:#dc2626}
+.summary-bar .s-val.net{color:#166534;font-size:16px}
+.employer-sec{padding:4px 20px;margin-bottom:4px}
+.employer-sec .sec-lbl{font-size:9px;font-weight:700;color:#475569;margin-bottom:3px}
+.employer-row{display:flex;gap:16px;font-size:9.5px;color:#64748b}
+.ftr{padding:8px 20px;font-size:8px;color:#94a3b8;text-align:center;line-height:1.5;border-top:1px solid #e2e8f0}
+.ftr a{color:#0d9488}
+.print-btn{display:block;margin:16px auto;padding:10px 40px;background:#0d9488;color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer;font-weight:600}
+.print-btn:hover{background:#0f766e}
+</style>
+</head>
+<body>
+<button class="print-btn no-print" onclick="window.print()">Imprimir / Guardar como PDF</button>
+<div class="stub">
+
+  <div class="hdr">
+    <h1>CMAX SOLUTIONS</h1>
+    <div class="sub">Volante de Pago No. ${escapeHtml(paystubId)}, emitido el ${generatedDate}</div>
+  </div>
+
+  <div class="emp-bar">
+    <b>${escapeHtml(r.employee_name)} | C&eacute;dula ${escapeHtml(r.government_id)} | CMID ${cmid} | ${escapeHtml(r.contract_status)}</b>
+  </div>
+
+  <div class="info-row">
+    <div class="info-left">
+      <b>Puesto:</b> ${escapeHtml(ex.job_title)} <b>Cuenta:</b> ${escapeHtml(r.account)}<br>
+      <b>Inicio:</b> ${fmtDate(ex.hire_date)} <b>En Servicio:</b> ${lengthOfService}<br>
+      <b>Sup:</b> ${escapeHtml(ex.supervisor_name)} <b>Site:</b> ${escapeHtml(ex.location)}<br>
+      <b>Email CMAX:</b> ${escapeHtml(ex.company_email)}<br>
+      <b>Email Personal:</b> ${escapeHtml(ex.personal_email)}
+    </div>
+    <div class="info-right">
+      <b>Catorcena:</b> ${escapeHtml(r.payroll_cycle_code)}<br>
+      <b>Ciclo:</b> ${fmtDate(r.period_from)} al ${fmtDate(r.period_to)}<br>
+      <b>Fecha de Pago:</b> ${fmtDate(r.pay_date)}<br>
+      <b>Banco:</b> ${escapeHtml(r.bank)} | ${escapeHtml(r.bank_account)}<br>
+      <b>Salario:</b> ${fmtRD(r.salary)} | ${escapeHtml(r.salary_type)}
+    </div>
+  </div>
+
+  <div class="notes-line"><b>Notas:</b> ${escapeHtml(r.notes)}</div>
+
+  <div class="grid3">
+    <div class="col-hdr" style="grid-column:1/3">INGRESOS</div>
+    <div class="col-hdr ded">DEDUCCIONES</div>
+
+    <div class="col">
+      <div class="sec-lbl">Salario Ordinario</div>
+      ${incLine('Horas Regulares', r.hreg, r.ordinary_salary)}
+      <div class="il" style="padding-left:10px;font-size:9px;color:#64748b">&bull; Horas Regulares Trabajadas: ${fmtH(r.hreg1)}</div>
+      <div class="il" style="padding-left:10px;font-size:9px;color:#64748b">&bull; Horas Regulares Pendientes: ${fmtH(r.hreg2)}</div>
+
+      <div class="sec-lbl">Vacaciones y Licencias Pagadas</div>
+      ${incItem('Vacaciones', r.vacation)}
+      ${incItem('Lic. Matrimonio', r.matrimony)}
+      ${incItem('Lic. Duelo', r.bereavement)}
+      ${incItem('Lic. Paternidad', r.paternity)}
+      ${incItem('Lic. Maternidad', r.maternity)}
+      <div class="il rare">${Number(r.medical) ? `Lic. M&eacute;dica: ${fmtRD(r.medical)}` : ''}</div>
+
+      <div class="sec-lbl">Comisiones</div>
+      ${incItem('Por Ventas', r.commissions)}
+    </div>
+
+    <div class="col">
+      <div class="sec-lbl">Horas Extraordinarias</div>
+      ${incLine('Nocturnas', r.hn15_hours, r.hn15_amount)}
+      ${incLine('Al 35% Extra', r.hx35_hours, r.hx35_amount)}
+      ${incLine('Al 100% Extra', r.hx100_hours, r.hx100_amount)}
+      ${incLine('Feriadas', r.hhol_hours, r.hhol_amount)}
+
+      <div class="sec-lbl">Bonos</div>
+      ${incItem('Colaboraci&oacute;n', r.collaboration)}
+      ${incItem('Reclutamiento', r.recruiting)}
+      <div class="il rare">${Number(r.profit_sharing) ? `Repartici&oacute;n Utilidades: ${fmtRD(r.profit_sharing)}` : ''}</div>
+
+      <div class="sec-lbl">Incentivos por Cump. de Metas</div>
+      ${incItem('Asistencia Perfecta', r.attendance_incentive)}
+      ${incItem('Desempe&ntilde;o M&eacute;tricas', r.kpi_incentive)}
+
+      <div class="sec-lbl">Otros Ingresos</div>
+      ${incItem('Reimbursement', r.reembolso)}
+      ${incItem('Subsidy', r.subsidio)}
+    </div>
+
+    <div class="col">
+      <div class="sec-lbl">Deducciones de Ley</div>
+      ${dedItem('AFP', r.afp)}
+      ${dedItem('SFS', r.sfs)}
+      ${dedItem('ISR', r.isr_retention)}
+      <div class="dl rare">${Number(r.infotep) ? `INFOTEP: ${fmtRD(r.infotep)}` : ''}</div>
+
+      <div class="sec-lbl" style="margin-top:10px">Otras Deducciones</div>
+      ${dedItem('Dep. TSS', r.tss_dependents)}
+      ${dedItem('PayLater', r.pay_later)}
+      ${dedItem('Gimnasio', r.gym)}
+      ${dedItem('Seguro', r.insurance_ded)}
+      ${dedItem('Cafeter&iacute;a', r.cafeteria)}
+      <div class="dl rare">${Number(r.admin_deduction) ? `Admin: ${fmtRD(r.admin_deduction)}` : ''}</div>
+      <div class="dl rare">${Number(r.deduccion_x) ? `Deducci&oacute;nX: ${fmtRD(r.deduccion_x)}` : ''}</div>
+      <div class="dl rare">${Number(r.other_deductions_spare) ? `Deducci&oacute;nY: ${fmtRD(r.other_deductions_spare)}` : ''}</div>
+    </div>
+  </div>
+
+  <div style="padding:2px 20px 4px;text-align:right">
+    <span class="tss-box" style="display:inline-block">Salario cotizable para la TSS: ${fmtRD(r.tss_salary)}</span>
+  </div>
+
+  <div class="summary-bar">
+    <div><div class="s-lbl">Total Ingresos</div><div class="s-val">${fmtRD(r.gross_salary)}</div></div>
+    <div><div class="s-lbl">Total Deducciones</div><div class="s-val ded">${fmtRD(r.total_deductions)}</div></div>
+    <div><div class="s-lbl">Neto a Cobrar</div><div class="s-val net">${fmtRD(r.net_salary)}</div></div>
+    <div><div class="s-lbl">M&eacute;todo de Pago</div><div class="s-val" style="font-size:12px">${escapeHtml(r.pay_method)}</div></div>
+  </div>
+
+  <div class="employer-sec">
+    <div class="sec-lbl">COSTO PATRONAL (REFERENCIA)</div>
+    <div class="employer-row">
+      <span>AFP: ${fmtRD(r.afp_employer)}</span>
+      <span>SFS: ${fmtRD(r.sfs_employer)}</span>
+      <span>ARL: ${fmtRD(r.arl)}</span>
+      <span>INFOTEP: ${fmtRD(r.infotep_employer)}</span>
+    </div>
+  </div>
+
+  <div class="ftr">
+    <p>&copy; 2026 OPES SRL, RNC 1-31-96035-9 | TODOS LOS DERECHOS RESERVADOS</p>
+    <p>Este documento es confidencial. Su contenido est&aacute; reservado exclusivamente para OPES SRL, sus socios autorizados y el destinatario indicado. Cualquier uso no autorizado est&aacute; prohibido sin el consentimiento previo de OPES SRL. Enviado el ${generatedDate} a: <a href="mailto:${escapeHtml(ex.company_email || '')}">${escapeHtml(ex.company_email || '')}</a>${ex.personal_email ? ` y <a href="mailto:${escapeHtml(ex.personal_email)}">${escapeHtml(ex.personal_email)}</a>` : ''}${r.cc_email ? ` y Cc: ${escapeHtml(r.cc_email)}` : ''}</p>
+  </div>
+
+</div>
+</body>
+</html>`
+}
+
+// ---------------------------------------------------------------------------
+// GET /paystub/:id — Render HTML pay stub (printable to PDF)
+// ---------------------------------------------------------------------------
+router.get('/paystub/:id', async (req, res) => {
+  try {
+    const { id } = req.params
+    const result = await query('SELECT * FROM payroll_calculator_results WHERE id = $1', [id])
+    if (!result.rows.length) return res.status(404).json({ error: 'Not found' })
+    const r = result.rows[0]
+
+    // Fetch extra employee info for the stub
+    const empRes = await query(`
+      SELECT e.hire_date, e.job_title, e.location, e.company_email, e.personal_email,
+             e.termination_date, sup.name AS supervisor_name
+      FROM employees e
+      LEFT JOIN users sup ON sup.id = e.reports_to
+      WHERE e.user_id = $1
+    `, [r.user_id])
+    const employeeExtra = empRes.rows[0] || {}
+
+    const html = buildPaystubHTML(r, employeeExtra)
+    res.setHeader('Content-Type', 'text/html; charset=utf-8')
+    res.send(html)
+  } catch (err) {
+    console.error('Paystub render error:', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// ---------------------------------------------------------------------------
+// POST /generate-paystub/:id — Generate PDF pay stub using pdfkit
+// Returns the PDF as a downloadable file
+// ---------------------------------------------------------------------------
+router.post('/generate-paystub/:id', async (req, res) => {
+  try {
+    const { id } = req.params
+    const result = await query('SELECT * FROM payroll_calculator_results WHERE id = $1', [id])
+    if (!result.rows.length) return res.status(404).json({ error: 'Not found' })
+    const r = result.rows[0]
+
+    // For now, redirect to the HTML paystub viewer
+    // Full PDF generation can be done by the client printing the HTML to PDF
+    // or by adding puppeteer/headless-chrome later
+    const empRes = await query(`
+      SELECT e.hire_date, e.job_title, e.location, e.company_email, e.personal_email,
+             e.termination_date, sup.name AS supervisor_name
+      FROM employees e
+      LEFT JOIN users sup ON sup.id = e.reports_to
+      WHERE e.user_id = $1
+    `, [r.user_id])
+    const employeeExtra = empRes.rows[0] || {}
+
+    const html = buildPaystubHTML(r, employeeExtra)
+    const cmid = r.employee_cmid != null ? Number(r.employee_cmid) : r.user_id.slice(0, 8)
+    const now = new Date()
+    const ts = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}`
+    const fileName = `VDP-${(r.employee_name||'').replace(/\s+/g,'_')}-${r.payroll_cycle_code}-${cmid}-${ts}.html`
+
+    res.setHeader('Content-Type', 'text/html; charset=utf-8')
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`)
+    res.send(html)
+  } catch (err) {
+    console.error('Generate paystub error:', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// ---------------------------------------------------------------------------
+// POST /generate-paystubs — Bulk paystub generation for a cycle
+// Body: { cycleCode: string, ids?: string[] }
+// Returns: array of { id, fileName, url }
+// ---------------------------------------------------------------------------
+router.post('/generate-paystubs', async (req, res) => {
+  try {
+    const { cycleCode, ids } = req.body
+    if (!cycleCode) {
+      return res.status(400).json({ error: 'Bad request', message: 'cycleCode is required' })
+    }
+
+    let rows
+    if (ids && ids.length > 0) {
+      const placeholders = ids.map((_, i) => `$${i + 2}`).join(',')
+      const result = await query(
+        `SELECT id, employee_cmid, employee_name, user_id, net_salary, payroll_cycle_code
+         FROM payroll_calculator_results
+         WHERE payroll_cycle_code = $1 AND id IN (${placeholders})
+         ORDER BY employee_name`,
+        [cycleCode, ...ids]
+      )
+      rows = result.rows
+    } else {
+      const result = await query(
+        `SELECT id, employee_cmid, employee_name, user_id, net_salary, payroll_cycle_code
+         FROM payroll_calculator_results
+         WHERE payroll_cycle_code = $1 AND net_salary > 0
+         ORDER BY employee_name`,
+        [cycleCode]
+      )
+      rows = result.rows
+    }
+
+    const stubs = rows.map(r => {
+      const cmid = r.employee_cmid != null ? Number(r.employee_cmid) : r.user_id.slice(0, 8)
+      const fileName = `paystub-${r.payroll_cycle_code}-${cmid}.html`
+      return {
+        id: r.id,
+        employeeName: r.employee_name,
+        fileName,
+        url: `/api/admin/payroll-calculator/paystub/${r.id}`,
+      }
+    })
+
+    res.json({ count: stubs.length, stubs })
+  } catch (err) {
+    console.error('Bulk generate paystubs error:', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// ---------------------------------------------------------------------------
+// POST /send-paystub — Send paystub via email (placeholder)
+// Body: { ids: string[], ccEmail?: string }
+// TODO: Requires SMTP configuration (nodemailer) — placeholder for now
+// ---------------------------------------------------------------------------
+router.post('/send-paystub', async (req, res) => {
+  try {
+    const { ids, ccEmail } = req.body
+    if (!ids || !ids.length) {
+      return res.status(400).json({ error: 'Bad request', message: 'ids array is required' })
+    }
+
+    // Save CC email to each record if provided
+    if (ccEmail) {
+      const placeholders = ids.map((_, i) => `$${i + 2}`).join(',')
+      await query(
+        `UPDATE payroll_calculator_results SET cc_email = $1 WHERE id IN (${placeholders})`,
+        [ccEmail, ...ids]
+      )
+    }
+
+    // Fetch records
+    const placeholders = ids.map((_, i) => `$${i + 1}`).join(',')
+    const result = await query(
+      `SELECT pcr.id, pcr.employee_name, pcr.employee_cmid, pcr.user_id, pcr.payroll_cycle_code,
+              e.company_email, e.personal_email
+       FROM payroll_calculator_results pcr
+       LEFT JOIN employees e ON e.user_id = pcr.user_id
+       WHERE pcr.id IN (${placeholders})`,
+      [...ids]
+    )
+
+    const emailResults = result.rows.map(r => ({
+      id: r.id,
+      employeeName: r.employee_name,
+      companyEmail: r.company_email || null,
+      personalEmail: r.personal_email || null,
+      ccEmail: ccEmail || null,
+      status: 'pending',
+      message: 'Email sending requires SMTP configuration. Paystub HTML is available via GET /paystub/:id',
+    }))
+
+    res.json({
+      message: 'Email sending is not yet configured. SMTP settings are required. Paystubs are available for download.',
+      results: emailResults,
+    })
+  } catch (err) {
+    console.error('Send paystub error:', err)
     res.status(500).json({ error: 'Internal server error' })
   }
 })

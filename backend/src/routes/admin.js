@@ -331,6 +331,29 @@ async function persistComputedHours(sessionId) {
 router.use(authMiddleware)
 router.use(requireAdmin)
 
+// Timezone-safe DATE string: handles both pg string 'YYYY-MM-DD' and Date objects
+function pgDate(d) {
+  if (!d) return ''
+  if (d instanceof Date) {
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    return `${y}-${m}-${day}`
+  }
+  return String(d).slice(0, 10)
+}
+
+// GET /api/admin/users - list all users (for approver dropdowns, etc.)
+router.get('/users', async (req, res) => {
+  try {
+    const result = await query(`SELECT id, name, email, role FROM users ORDER BY name`)
+    res.json(result.rows.map((r) => ({ id: r.id, name: r.name, email: r.email || '', role: r.role })))
+  } catch (err) {
+    console.error('List users error:', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
 // GET /api/admin/dashboard - stats and recent attendance for admin dashboard
 router.get('/dashboard', async (req, res) => {
   try {
@@ -1801,8 +1824,8 @@ router.get('/payroll/line-items', async (req, res) => {
       id: r.id,
       userId: r.user_id,
       userName: r.user_name,
-      periodFrom: r.period_from ? new Date(r.period_from).toISOString().slice(0, 10) : '',
-      periodTo: r.period_to ? new Date(r.period_to).toISOString().slice(0, 10) : '',
+      periodFrom: pgDate(r.period_from),
+      periodTo: pgDate(r.period_to),
       type: r.type,
       label: r.label || '',
       amount: Number(r.amount),
@@ -1838,8 +1861,8 @@ router.post('/payroll/line-items', async (req, res) => {
     res.status(201).json({
       id: r.id,
       userId: r.user_id,
-      periodFrom: r.period_from ? new Date(r.period_from).toISOString().slice(0, 10) : '',
-      periodTo: r.period_to ? new Date(r.period_to).toISOString().slice(0, 10) : '',
+      periodFrom: pgDate(r.period_from),
+      periodTo: pgDate(r.period_to),
       type: r.type,
       label: r.label || '',
       amount: Number(r.amount),
@@ -1900,7 +1923,7 @@ router.put('/payroll/deductions', async (req, res) => {
 router.get('/payroll/periods', async (req, res) => {
   try {
     const year = req.query.year ? parseInt(req.query.year, 10) : new Date().getFullYear()
-    let sql = `SELECT period_from, period_to, pay_date, cycle_code, year_cycle, COALESCE(status, 'upcoming') as status, COALESCE(bs, 1) as bs
+    let sql = `SELECT period_from, period_to, pay_date, cycle_code, year_cycle, COALESCE(status, 'upcoming') as status, COALESCE(bs, 1) as bs, COALESCE(is_special, false) as is_special
        FROM payroll_periods WHERE year_cycle = $1`
     if (req.query.open === 'true') {
       sql += ` AND pay_date >= CURRENT_DATE`
@@ -1908,13 +1931,14 @@ router.get('/payroll/periods', async (req, res) => {
     sql += ` ORDER BY period_from`
     const result = await query(sql, [year])
     res.json(result.rows.map((r) => ({
-      periodFrom: r.period_from ? new Date(r.period_from).toISOString().slice(0, 10) : '',
-      periodTo: r.period_to ? new Date(r.period_to).toISOString().slice(0, 10) : '',
-      payDate: r.pay_date ? new Date(r.pay_date).toISOString().slice(0, 10) : '',
+      periodFrom: pgDate(r.period_from),
+      periodTo: pgDate(r.period_to),
+      payDate: pgDate(r.pay_date),
       cycleCode: r.cycle_code,
       yearCycle: r.year_cycle,
       status: r.status,
       bs: Number(r.bs) || 1,
+      isSpecial: Boolean(r.is_special),
     })))
   } catch (err) {
     console.error('List payroll periods error:', err)
@@ -2268,6 +2292,32 @@ router.post('/employees', requireAdmin, async (req, res) => {
     })
   } catch (err) {
     console.error('Admin create employee error:', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// DELETE /api/admin/employees/:id - hard delete employee and all related data
+router.delete('/employees/:id', requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params
+    const emp = await query("SELECT id FROM users WHERE id = $1 AND role = 'employee'", [id])
+    if (emp.rows.length === 0) {
+      return res.status(404).json({ error: 'Not found', message: 'Employee not found' })
+    }
+    await query('DELETE FROM schedule_assignments WHERE user_id = $1', [id])
+    await query('DELETE FROM notifications WHERE user_id = $1', [id])
+    await query('DELETE FROM payroll_government_deductions WHERE user_id = $1', [id])
+    await query('DELETE FROM payroll_calculator_results WHERE user_id = $1', [id])
+    await query('DELETE FROM employee_payslip_snapshots WHERE user_id = $1', [id])
+    await query('DELETE FROM payroll_inputs WHERE user_id = $1', [id])
+    await query('DELETE FROM leave_requests WHERE user_id = $1', [id])
+    await query('DELETE FROM sessions WHERE user_id = $1', [id])
+    await query("DELETE FROM documents WHERE entity_type = 'employee' AND entity_id = $1", [id])
+    await query('DELETE FROM employees WHERE user_id = $1', [id])
+    await query('DELETE FROM users WHERE id = $1', [id])
+    res.json({ success: true })
+  } catch (err) {
+    console.error('Delete employee error:', err)
     res.status(500).json({ error: 'Internal server error' })
   }
 })

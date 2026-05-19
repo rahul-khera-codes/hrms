@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { Calculator, Download, Search, AlertTriangle, Users, DollarSign, TrendingDown, Building2, Loader2, X } from 'lucide-react'
+import { Calculator, Download, Search, AlertTriangle, Users, DollarSign, Building2, Loader2, X, FileText, CheckSquare, Square, Eye, EyeOff } from 'lucide-react'
 import AdminSelect from '@/components/AdminSelect'
 import { PageHeader } from '@/components/PageHeader'
 import { SkeletonTableRows } from '@/components/Skeleton'
@@ -9,6 +9,8 @@ import {
   getPayrollCalcResults,
   calculatePayroll,
   updatePayrollResultField,
+  getPaystubUrl,
+  getEmployees,
   type PayrollPeriod,
   type PayrollCalcResult,
 } from '@/lib/apiAdmin'
@@ -18,9 +20,9 @@ import {
 /* ------------------------------------------------------------------ */
 
 const money = (v: number): string =>
-  `$${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  `RD$ ${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
-const hrs = (v: number): string => v.toFixed(2)
+const hrs = (v: number): string => `${v.toFixed(2)} H`
 
 /* ------------------------------------------------------------------ */
 /*  Column definitions for the wide table                              */
@@ -29,19 +31,17 @@ const hrs = (v: number): string => v.toFixed(2)
 interface ColDef {
   key: string
   label: string
-  /** 'money' | 'hours' | 'text' | 'bool' */
   type: 'money' | 'hours' | 'text' | 'bool'
   accessor: (r: PayrollCalcResult) => string | number | boolean
 }
 
 interface SectionDef {
   name: string
-  bg: string          // tailwind bg class for header
-  headerText: string  // tailwind text class for header
+  bg: string
+  headerText: string
   columns: ColDef[]
 }
 
-/** Payment method dropdown options (only editable field in payroll) */
 const PAY_METHOD_OPTIONS = ['', 'Deposito', 'Cheque']
 
 const sections: SectionDef[] = [
@@ -52,6 +52,7 @@ const sections: SectionDef[] = [
     columns: [
       { key: 'cmid', label: 'CMID', type: 'text', accessor: (r) => r.employeeCmid ?? '-' },
       { key: 'employeeName', label: 'Name', type: 'text', accessor: (r) => r.employeeName },
+      { key: 'governmentId', label: 'Gov. ID', type: 'text', accessor: (r) => r.governmentId ?? '' },
       { key: 'account', label: 'Account', type: 'text', accessor: (r) => r.account ?? '' },
       { key: 'salaryType', label: 'Salary Type', type: 'text', accessor: (r) => r.salaryType },
       { key: 'salary', label: 'Salary', type: 'money', accessor: (r) => r.salary },
@@ -59,7 +60,7 @@ const sections: SectionDef[] = [
       { key: 'contractStatus', label: 'Status', type: 'text', accessor: (r) => r.contractStatus ?? '' },
       { key: 'bank', label: 'Bank', type: 'text', accessor: (r) => r.bank ?? '' },
       { key: 'bankAccount', label: 'Bank Account', type: 'text', accessor: (r) => r.bankAccount ?? '' },
-      { key: 'payMethod', label: 'Payment Method', type: 'text', accessor: (r) => r.payMethod ?? '' },
+      { key: 'payMethod', label: 'Pay Method', type: 'text', accessor: (r) => r.payMethod ?? '' },
     ],
   },
   {
@@ -75,7 +76,7 @@ const sections: SectionDef[] = [
   },
   {
     name: 'Leaves (VPL)',
-    bg: 'bg-white',
+    bg: 'bg-surface-50',
     headerText: 'text-surface-700',
     columns: [
       { key: 'vacation', label: 'Vacation', type: 'money', accessor: (r) => r.vacation },
@@ -97,7 +98,7 @@ const sections: SectionDef[] = [
   },
   {
     name: 'Overtime',
-    bg: 'bg-white',
+    bg: 'bg-surface-50',
     headerText: 'text-surface-700',
     columns: [
       { key: 'hn15Hours', label: 'N15% Hrs', type: 'hours', accessor: (r) => r.hn15Hours },
@@ -108,7 +109,7 @@ const sections: SectionDef[] = [
       { key: 'hx100Amount', label: 'X100% $', type: 'money', accessor: (r) => r.hx100Amount },
       { key: 'hholHours', label: 'Holiday Hrs', type: 'hours', accessor: (r) => r.hholHours },
       { key: 'hholAmount', label: 'Holiday $', type: 'money', accessor: (r) => r.hholAmount },
-      { key: 'overtimeTotal', label: 'Total Overtime', type: 'money', accessor: (r) => r.overtimeTotal },
+      { key: 'overtimeTotal', label: 'Total OT', type: 'money', accessor: (r) => r.overtimeTotal },
     ],
   },
   {
@@ -124,12 +125,12 @@ const sections: SectionDef[] = [
   },
   {
     name: 'Incentives',
-    bg: 'bg-white',
+    bg: 'bg-surface-50',
     headerText: 'text-surface-700',
     columns: [
       { key: 'attendanceIncentive', label: 'Attendance', type: 'money', accessor: (r) => r.attendanceIncentive },
       { key: 'kpiIncentive', label: 'KPI', type: 'money', accessor: (r) => r.kpiIncentive },
-      { key: 'incentivesTotal', label: 'Total Incentives', type: 'money', accessor: (r) => r.incentivesTotal },
+      { key: 'incentivesTotal', label: 'Total Incent.', type: 'money', accessor: (r) => r.incentivesTotal },
     ],
   },
   {
@@ -137,13 +138,13 @@ const sections: SectionDef[] = [
     bg: 'bg-emerald-50',
     headerText: 'text-emerald-800',
     columns: [
-      { key: 'subsidio', label: 'Subsidio', type: 'money', accessor: (r) => r.subsidio ?? 0 },
-      { key: 'reembolso', label: 'Reembolso', type: 'money', accessor: (r) => r.reembolso ?? 0 },
-      { key: 'totalOtherIncome', label: 'Total Other Income', type: 'money', accessor: (r) => r.totalOtherIncome ?? 0 },
+      { key: 'subsidio', label: 'Subsidy', type: 'money', accessor: (r) => r.subsidio ?? 0 },
+      { key: 'reembolso', label: 'Reimbursement', type: 'money', accessor: (r) => r.reembolso ?? 0 },
+      { key: 'totalOtherIncome', label: 'Total Other', type: 'money', accessor: (r) => r.totalOtherIncome ?? 0 },
     ],
   },
   {
-    name: 'Classification',
+    name: 'Salary Classification',
     bg: 'bg-sky-50',
     headerText: 'text-sky-800',
     columns: [
@@ -162,13 +163,13 @@ const sections: SectionDef[] = [
       { key: 'afp', label: 'AFP', type: 'money', accessor: (r) => r.afp },
       { key: 'sfs', label: 'SFS', type: 'money', accessor: (r) => r.sfs },
       { key: 'infotep', label: 'INFOTEP', type: 'money', accessor: (r) => r.infotep },
-      { key: 'govDeductionsTotal', label: 'Total Gov. Ded.', type: 'money', accessor: (r) => r.govDeductionsTotal },
+      { key: 'govDeductionsTotal', label: 'Total Gov.', type: 'money', accessor: (r) => r.govDeductionsTotal },
     ],
   },
   {
     name: 'Other Deductions',
-    bg: 'bg-white',
-    headerText: 'text-surface-700',
+    bg: 'bg-red-50',
+    headerText: 'text-red-800',
     columns: [
       { key: 'tssDependents', label: 'TSS Dep.', type: 'money', accessor: (r) => r.tssDependents },
       { key: 'payLater', label: 'PayLater', type: 'money', accessor: (r) => r.payLater },
@@ -176,24 +177,24 @@ const sections: SectionDef[] = [
       { key: 'insuranceDed', label: 'Insurance', type: 'money', accessor: (r) => r.insuranceDed },
       { key: 'cafeteria', label: 'Cafeteria', type: 'money', accessor: (r) => r.cafeteria },
       { key: 'adminDeduction', label: 'Admin', type: 'money', accessor: (r) => r.adminDeduction },
-      { key: 'deduccionX', label: 'Deduction X', type: 'money', accessor: (r) => r.deduccionX },
-      { key: 'otherDeductionsSpare', label: 'Deduction Y', type: 'money', accessor: (r) => r.otherDeductionsSpare },
-      { key: 'otherDeductionsTotal', label: 'Total Other Ded.', type: 'money', accessor: (r) => r.otherDeductionsTotal },
+      { key: 'deduccionX', label: 'Ded. X', type: 'money', accessor: (r) => r.deduccionX },
+      { key: 'otherDeductionsSpare', label: 'Ded. Y', type: 'money', accessor: (r) => r.otherDeductionsSpare },
+      { key: 'otherDeductionsTotal', label: 'Total Other', type: 'money', accessor: (r) => r.otherDeductionsTotal },
     ],
   },
   {
-    name: 'Totals',
-    bg: 'bg-violet-50',
-    headerText: 'text-violet-800',
+    name: 'Payroll Summary',
+    bg: 'bg-emerald-50',
+    headerText: 'text-emerald-800',
     columns: [
       { key: 'deductionValidation', label: 'Validation', type: 'bool', accessor: (r) => r.deductionValidation },
-      { key: 'totalDeductions', label: 'Total Deductions', type: 'money', accessor: (r) => r.totalDeductions },
+      { key: 'totalDeductions', label: 'Total Ded.', type: 'money', accessor: (r) => r.totalDeductions },
       { key: 'netSalary', label: 'Net Salary', type: 'money', accessor: (r) => r.netSalary },
     ],
   },
   {
     name: 'Employer Cost',
-    bg: 'bg-surface-100',
+    bg: 'bg-surface-50',
     headerText: 'text-surface-700',
     columns: [
       { key: 'afpEmployer', label: 'AFP', type: 'money', accessor: (r) => r.afpEmployer },
@@ -202,9 +203,53 @@ const sections: SectionDef[] = [
       { key: 'infotepEmployer', label: 'INFOTEP', type: 'money', accessor: (r) => r.infotepEmployer },
     ],
   },
+  {
+    name: 'Notes & CC',
+    bg: 'bg-amber-50',
+    headerText: 'text-amber-800',
+    columns: [
+      { key: 'notes', label: 'Notes', type: 'text', accessor: (r) => r.notes ?? '' },
+      { key: 'ccEmail', label: 'CC Email', type: 'text', accessor: (r) => r.ccEmail ?? '' },
+    ],
+  },
 ]
 
 const allColumns = sections.flatMap((s) => s.columns)
+
+/* ------------------------------------------------------------------ */
+/*  Detail modal section color mapping (matches table headers)         */
+/* ------------------------------------------------------------------ */
+
+const sectionColorMap: Record<string, { bg: string; text: string; totalText: string }> = {
+  'Employee': { bg: 'bg-surface-50', text: 'text-surface-700', totalText: 'text-surface-700' },
+  'Ordinary Salary': { bg: 'bg-emerald-50/40', text: 'text-emerald-800', totalText: 'text-emerald-700' },
+  'Leaves (VPL)': { bg: 'bg-surface-50', text: 'text-surface-700', totalText: 'text-surface-700' },
+  'Commissions': { bg: 'bg-emerald-50/40', text: 'text-emerald-800', totalText: 'text-emerald-700' },
+  'Overtime': { bg: 'bg-surface-50', text: 'text-surface-700', totalText: 'text-surface-700' },
+  'Bonuses': { bg: 'bg-emerald-50/40', text: 'text-emerald-800', totalText: 'text-emerald-700' },
+  'Incentives': { bg: 'bg-surface-50', text: 'text-surface-700', totalText: 'text-surface-700' },
+  'Other Income': { bg: 'bg-emerald-50/40', text: 'text-emerald-800', totalText: 'text-emerald-700' },
+  'Salary Classification': { bg: 'bg-sky-50/40', text: 'text-sky-800', totalText: 'text-sky-700' },
+  'Gov. Deductions': { bg: 'bg-red-50/40', text: 'text-red-800', totalText: 'text-red-700' },
+  'Other Deductions': { bg: 'bg-red-50/40', text: 'text-red-800', totalText: 'text-red-700' },
+  'Payroll Summary': { bg: 'bg-emerald-50/40', text: 'text-emerald-800', totalText: 'text-emerald-700' },
+  'Employer Cost': { bg: 'bg-surface-50', text: 'text-surface-700', totalText: 'text-surface-700' },
+  'Notes & CC': { bg: 'bg-amber-50/40', text: 'text-amber-800', totalText: 'text-amber-700' },
+}
+
+/* Section total key: maps to last "total" money column in each section */
+const sectionTotalKey: Record<string, string> = {
+  'Ordinary Salary': 'ordinarySalary',
+  'Leaves (VPL)': 'vpl',
+  'Commissions': 'commissions',
+  'Overtime': 'overtimeTotal',
+  'Bonuses': 'bonusesTotal',
+  'Incentives': 'incentivesTotal',
+  'Other Income': 'totalOtherIncome',
+  'Gov. Deductions': 'govDeductionsTotal',
+  'Other Deductions': 'otherDeductionsTotal',
+  'Employer Cost': '_employerTotal',
+}
 
 /* ------------------------------------------------------------------ */
 /*  Component                                                          */
@@ -220,16 +265,30 @@ export default function AdminPayroll() {
   const [calculating, setCalculating] = useState(false)
   const [search, setSearch] = useState('')
   const [detailRow, setDetailRow] = useState<PayrollCalcResult | null>(null)
+  const [incomeFilter, setIncomeFilter] = useState<'all' | 'positive' | 'zero' | 'negative'>('positive')
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
-  /* ---------- Load payroll periods on mount ---------- */
+  /* Filters */
+  const [accountFilter, setAccountFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [locationFilter, setLocationFilter] = useState('all')
+  const [supervisorFilter, setSupervisorFilter] = useState('all')
+
+  /* Employee lookup for location/supervisor enrichment */
+  const [empLookup, setEmpLookup] = useState<Record<string, { location?: string | null; reportsToName?: string | null }>>({})
+
+  /* ---------- Load payroll periods + employees on mount ---------- */
   useEffect(() => {
     let cancelled = false
     async function init() {
       setLoading(true)
       try {
-        const periods = await getPayrollPeriods()
+        const [periods, emps] = await Promise.all([getPayrollPeriods(), getEmployees()])
         if (cancelled) return
         setPayrollPeriods(periods)
+        const lookup: Record<string, { location?: string | null; reportsToName?: string | null }> = {}
+        for (const e of emps) lookup[e.id] = { location: e.location, reportsToName: e.reportsToName }
+        setEmpLookup(lookup)
         if (periods.length > 0) {
           const today = new Date().toISOString().slice(0, 10)
           const openPeriods = periods.filter((p) => p.payDate >= today)
@@ -258,7 +317,10 @@ export default function AdminPayroll() {
       setLoading(true)
       try {
         const data = await getPayrollCalcResults(selectedCycle)
-        if (!cancelled) setResults(data)
+        if (!cancelled) {
+          setResults(data)
+          setSelectedIds(new Set())
+        }
       } catch {
         if (!cancelled) setResults([])
       } finally {
@@ -276,6 +338,7 @@ export default function AdminPayroll() {
     try {
       const data = await calculatePayroll(selectedCycle)
       setResults(data)
+      setSelectedIds(new Set())
       toast.success(`Payroll calculated for ${selectedCycle} — ${data.length} employees`)
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Calculation failed')
@@ -285,44 +348,101 @@ export default function AdminPayroll() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCycle])
 
-  /* ---------- Inline edit handler for bank / bankAccount / payMethod ---------- */
+  /* ---------- Inline edit handler ---------- */
   const handleInlineUpdate = useCallback(
-    async (row: PayrollCalcResult, field: 'bank' | 'bankAccount' | 'payMethod', value: string) => {
+    async (row: PayrollCalcResult, field: 'payMethod' | 'notes' | 'ccEmail', value: string) => {
       try {
         const updated = await updatePayrollResultField(row.id, { [field]: value })
         setResults((prev) => prev.map((r) => (r.id === row.id ? updated : r)))
+        if (detailRow?.id === row.id) setDetailRow(updated)
       } catch {
         toast.error('Failed to update field')
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
+    [detailRow],
   )
+
+  /* ---------- Unique filter values ---------- */
+  const uniqueAccounts = useMemo(() => {
+    const s = new Set(results.map(r => r.account).filter(Boolean) as string[])
+    return Array.from(s).sort()
+  }, [results])
+
+  const uniqueStatuses = useMemo(() => {
+    const s = new Set(results.map(r => r.contractStatus).filter(Boolean) as string[])
+    return Array.from(s).sort()
+  }, [results])
+
+  const uniqueLocations = useMemo(() => {
+    const s = new Set(results.map(r => empLookup[r.userId]?.location).filter(Boolean) as string[])
+    return Array.from(s).sort()
+  }, [results, empLookup])
+
+  const uniqueSupervisors = useMemo(() => {
+    const s = new Set(results.map(r => empLookup[r.userId]?.reportsToName).filter(Boolean) as string[])
+    return Array.from(s).sort()
+  }, [results, empLookup])
 
   /* ---------- Filtered rows ---------- */
   const displayedRows = useMemo(() => {
+    let rows = results
+    if (incomeFilter === 'positive') rows = rows.filter(r => r.netSalary > 0 || r.grossSalary > 0)
+    if (incomeFilter === 'zero') rows = rows.filter(r => r.netSalary === 0 && r.grossSalary === 0)
+    if (incomeFilter === 'negative') rows = rows.filter(r => r.netSalary < 0)
+    if (accountFilter !== 'all') rows = rows.filter(r => r.account === accountFilter)
+    if (statusFilter !== 'all') rows = rows.filter(r => r.contractStatus === statusFilter)
+    if (locationFilter !== 'all') rows = rows.filter(r => empLookup[r.userId]?.location === locationFilter)
+    if (supervisorFilter !== 'all') rows = rows.filter(r => empLookup[r.userId]?.reportsToName === supervisorFilter)
     const q = search.trim().toLowerCase()
-    if (!q) return results
-    return results.filter((r) =>
-      r.employeeName.toLowerCase().includes(q) ||
-      (r.account ?? '').toLowerCase().includes(q) ||
-      (r.contractStatus ?? '').toLowerCase().includes(q) ||
-      r.salaryType.toLowerCase().includes(q),
-    )
-  }, [results, search])
+    if (q) {
+      rows = rows.filter((r) =>
+        r.employeeName.toLowerCase().includes(q) ||
+        (r.account ?? '').toLowerCase().includes(q) ||
+        (r.contractStatus ?? '').toLowerCase().includes(q) ||
+        (r.governmentId ?? '').toLowerCase().includes(q) ||
+        String(r.employeeCmid ?? '').includes(q),
+      )
+    }
+    return rows
+  }, [results, search, incomeFilter, accountFilter, statusFilter, locationFilter, supervisorFilter, empLookup])
+
+  /* ---------- Selection ---------- */
+  const allSelected = displayedRows.length > 0 && displayedRows.every(r => selectedIds.has(r.id))
+  const toggleAll = () => {
+    if (allSelected) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(displayedRows.map(r => r.id)))
+    }
+  }
+  const toggleOne = (id: string) => {
+    setSelectedIds(prev => {
+      const n = new Set(prev)
+      if (n.has(id)) n.delete(id); else n.add(id)
+      return n
+    })
+  }
 
   /* ---------- Summary stats ---------- */
   const summary = useMemo(() => {
     const rows = displayedRows
+    const sum = (fn: (r: PayrollCalcResult) => number) => rows.reduce((a, r) => a + fn(r), 0)
     return {
       employees: rows.length,
-      totalGross: rows.reduce((a, r) => a + r.grossSalary, 0),
-      totalNet: rows.reduce((a, r) => a + r.netSalary, 0),
-      totalDeductions: rows.reduce((a, r) => a + r.totalDeductions, 0),
-      totalEmployerCost: rows.reduce(
-        (a, r) => a + r.afpEmployer + r.sfsEmployer + r.arl + r.infotepEmployer,
-        0,
-      ),
+      salary: sum(r => r.ordinarySalary),
+      vpl: sum(r => r.vpl),
+      commissions: sum(r => r.commissions),
+      overtime: sum(r => r.overtimeTotal),
+      bonuses: sum(r => r.bonusesTotal),
+      incentives: sum(r => r.incentivesTotal),
+      otherIncome: sum(r => r.totalOtherIncome ?? 0),
+      grossIncome: sum(r => r.grossSalary),
+      tssSalary: sum(r => r.tssSalary),
+      govDeductions: sum(r => r.govDeductionsTotal),
+      otherDeductions: sum(r => r.otherDeductionsTotal),
+      netSalary: sum(r => r.netSalary),
+      employerCost: sum(r => r.afpEmployer + r.sfsEmployer + r.arl + r.infotepEmployer),
     }
   }, [displayedRows])
 
@@ -351,13 +471,38 @@ export default function AdminPayroll() {
     URL.revokeObjectURL(url)
   }
 
-  /* ---------- Cycle selector options (only open cycles where payDate >= today) ---------- */
+  /* ---------- Paystub actions ---------- */
+  const openPaystub = (id: string) => {
+    window.open(getPaystubUrl(id), '_blank')
+  }
+  const openSelectedPaystubs = () => {
+    Array.from(selectedIds).forEach(id => {
+      const a = document.createElement('a')
+      a.href = getPaystubUrl(id)
+      a.target = '_blank'
+      a.rel = 'noopener noreferrer'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+    })
+  }
+
+  /* ---------- Cycle selector options ---------- */
   const cycleOptions = useMemo(() => {
     const today = new Date().toISOString().slice(0, 10)
     return payrollPeriods
       .filter((p) => p.payDate >= today)
       .map((p) => ({ value: p.cycleCode, label: p.cycleCode }))
   }, [payrollPeriods])
+
+  /* ---------- Detail modal: get section total value ---------- */
+  const getSectionTotal = (s: SectionDef, row: PayrollCalcResult): number | null => {
+    const key = sectionTotalKey[s.name]
+    if (!key) return null
+    if (key === '_employerTotal') return row.afpEmployer + row.sfsEmployer + row.arl + row.infotepEmployer
+    const val = (row as unknown as Record<string, unknown>)[key]
+    return typeof val === 'number' ? val : null
+  }
 
   /* ================================================================ */
   /*  Render                                                           */
@@ -370,6 +515,16 @@ export default function AdminPayroll() {
         icon={<Calculator className="w-5 h-5" />}
         actions={
           <>
+            {selectedIds.size > 0 && (
+              <button
+                type="button"
+                onClick={openSelectedPaystubs}
+                className="btn-secondary"
+              >
+                <FileText className="w-4 h-4 shrink-0" />
+                PayStubs ({selectedIds.size})
+              </button>
+            )}
             <button
               type="button"
               onClick={exportCSV}
@@ -397,47 +552,81 @@ export default function AdminPayroll() {
       />
 
       {/* -- Stat cards -- */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 sm:gap-3">
         <div className="stat-card">
-          <div className="flex items-center gap-2 mb-1">
-            <Users className="w-4 h-4 text-surface-400" />
-            <p className="stat-label">Employees</p>
+          <div className="flex items-center gap-1.5 mb-1">
+            <Users className="w-3.5 h-3.5 text-surface-400" />
+            <p className="stat-label text-[10px]">Employees</p>
           </div>
-          <p className="stat-value">{summary.employees}</p>
+          <p className="stat-value text-base">{summary.employees}</p>
+        </div>
+        <div className="stat-card border-emerald-200/70 bg-emerald-50/30">
+          <p className="stat-label text-[10px] text-emerald-700 mb-1">Salary</p>
+          <p className="stat-value text-sm">{money(summary.salary)}</p>
+        </div>
+        <div className="stat-card border-emerald-200/70 bg-emerald-50/30">
+          <p className="stat-label text-[10px] text-emerald-700 mb-1">VPL</p>
+          <p className="stat-value text-sm">{money(summary.vpl)}</p>
+        </div>
+        <div className="stat-card border-emerald-200/70 bg-emerald-50/30">
+          <p className="stat-label text-[10px] text-emerald-700 mb-1">Commissions</p>
+          <p className="stat-value text-sm">{money(summary.commissions)}</p>
+        </div>
+        <div className="stat-card border-emerald-200/70 bg-emerald-50/30">
+          <p className="stat-label text-[10px] text-emerald-700 mb-1">Overtime</p>
+          <p className="stat-value text-sm">{money(summary.overtime)}</p>
+        </div>
+        <div className="stat-card border-emerald-200/70 bg-emerald-50/30">
+          <p className="stat-label text-[10px] text-emerald-700 mb-1">Bonuses</p>
+          <p className="stat-value text-sm">{money(summary.bonuses)}</p>
+        </div>
+        <div className="stat-card border-emerald-200/70 bg-emerald-50/30">
+          <p className="stat-label text-[10px] text-emerald-700 mb-1">Incentives</p>
+          <p className="stat-value text-sm">{money(summary.incentives)}</p>
+        </div>
+        <div className="stat-card border-emerald-200/70 bg-emerald-50/30">
+          <p className="stat-label text-[10px] text-emerald-700 mb-1">Other Income</p>
+          <p className="stat-value text-sm">{money(summary.otherIncome)}</p>
         </div>
         <div className="stat-card border-brand-200/70 bg-brand-50/40">
-          <div className="flex items-center gap-2 mb-1">
-            <DollarSign className="w-4 h-4 text-brand-500" />
-            <p className="stat-label text-brand-700">Total Gross</p>
+          <div className="flex items-center gap-1.5 mb-1">
+            <DollarSign className="w-3.5 h-3.5 text-brand-500" />
+            <p className="stat-label text-[10px] text-brand-700">Gross Income</p>
           </div>
-          <p className="stat-value">{money(summary.totalGross)}</p>
+          <p className="stat-value text-sm">{money(summary.grossIncome)}</p>
         </div>
-        <div className="stat-card border-emerald-200/70 bg-emerald-50/40">
-          <div className="flex items-center gap-2 mb-1">
-            <DollarSign className="w-4 h-4 text-emerald-500" />
-            <p className="stat-label text-emerald-700">Total Net</p>
-          </div>
-          <p className="stat-value">{money(summary.totalNet)}</p>
+        <div className="stat-card border-sky-200/70 bg-sky-50/30">
+          <p className="stat-label text-[10px] text-sky-700 mb-1">TSS Salary</p>
+          <p className="stat-value text-sm">{money(summary.tssSalary)}</p>
         </div>
-        <div className="stat-card border-red-200/70 bg-red-50/40">
-          <div className="flex items-center gap-2 mb-1">
-            <TrendingDown className="w-4 h-4 text-red-500" />
-            <p className="stat-label text-red-700">Total Deductions</p>
+        <div className="stat-card border-red-200/70 bg-red-50/30">
+          <p className="stat-label text-[10px] text-red-700 mb-1">Gov Deductions</p>
+          <p className="stat-value text-sm">{money(summary.govDeductions)}</p>
+        </div>
+        <div className="stat-card border-red-200/70 bg-red-50/30">
+          <p className="stat-label text-[10px] text-red-700 mb-1">Other Deductions</p>
+          <p className="stat-value text-sm">{money(summary.otherDeductions)}</p>
+        </div>
+        <div className="stat-card border-emerald-300/70 bg-emerald-50/60">
+          <div className="flex items-center gap-1.5 mb-1">
+            <DollarSign className="w-3.5 h-3.5 text-emerald-600" />
+            <p className="stat-label text-[10px] text-emerald-800">Net Salary</p>
           </div>
-          <p className="stat-value">{money(summary.totalDeductions)}</p>
+          <p className="stat-value text-sm font-bold text-emerald-700">{money(summary.netSalary)}</p>
         </div>
         <div className="stat-card border-surface-200/70 bg-surface-50/40">
-          <div className="flex items-center gap-2 mb-1">
-            <Building2 className="w-4 h-4 text-surface-500" />
-            <p className="stat-label text-surface-600">Employer Cost</p>
+          <div className="flex items-center gap-1.5 mb-1">
+            <Building2 className="w-3.5 h-3.5 text-surface-500" />
+            <p className="stat-label text-[10px] text-surface-600">Employer Cost</p>
           </div>
-          <p className="stat-value">{money(summary.totalEmployerCost)}</p>
+          <p className="stat-value text-sm">{money(summary.employerCost)}</p>
         </div>
       </div>
 
       {/* -- Toolbar -- */}
-      <div className="toolbar">
-        <div className="w-full sm:w-56">
+      <div className="toolbar flex-wrap">
+        {/* Row 1: cycle + search + income toggle */}
+        <div className="w-full sm:w-48 shrink-0">
           <AdminSelect
             value={selectedCycle}
             onChange={(val) => setSelectedCycle(val)}
@@ -446,14 +635,63 @@ export default function AdminPayroll() {
             disabled={loading && payrollPeriods.length === 0}
           />
         </div>
-        <div className="relative flex-1 min-w-0">
+        <div className="relative flex-1 min-w-[160px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400 shrink-0" />
           <input
             type="text"
-            placeholder="Search by name, account, status..."
+            placeholder="Search name, CMID, Gov ID, account..."
             className="input pl-9"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        <button
+          type="button"
+          onClick={() => setIncomeFilter(f => f === 'all' ? 'positive' : f === 'positive' ? 'zero' : f === 'zero' ? 'negative' : 'all')}
+          className={`btn-secondary text-xs whitespace-nowrap shrink-0 ${
+            incomeFilter === 'positive' ? 'bg-amber-50 border-amber-300 text-amber-700' :
+            incomeFilter === 'zero' ? 'bg-blue-50 border-blue-300 text-blue-700' :
+            incomeFilter === 'negative' ? 'bg-red-50 border-red-300 text-red-700' : ''
+          }`}
+          title={
+            incomeFilter === 'all' ? 'Showing all employees' :
+            incomeFilter === 'positive' ? 'Showing only employees with income' :
+            incomeFilter === 'zero' ? 'Showing only zero-income employees' :
+            'Showing only negative-income employees'
+          }
+        >
+          {incomeFilter === 'positive' ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+          {incomeFilter === 'all' ? 'Show all' : incomeFilter === 'positive' ? 'Income > 0' : incomeFilter === 'zero' ? 'Income = 0' : 'Income < 0'}
+        </button>
+        {/* Force break between rows */}
+        <div className="w-full h-0" />
+        {/* Row 2: secondary filters */}
+        <div className="w-full sm:w-36 shrink-0">
+          <AdminSelect
+            value={accountFilter}
+            onChange={setAccountFilter}
+            options={[{ value: 'all', label: 'All accounts' }, ...uniqueAccounts.map(a => ({ value: a, label: a }))]}
+          />
+        </div>
+        <div className="w-full sm:w-36 shrink-0">
+          <AdminSelect
+            value={statusFilter}
+            onChange={setStatusFilter}
+            options={[{ value: 'all', label: 'All statuses' }, ...uniqueStatuses.map(s => ({ value: s, label: s }))]}
+          />
+        </div>
+        <div className="w-full sm:w-36 shrink-0">
+          <AdminSelect
+            value={locationFilter}
+            onChange={setLocationFilter}
+            options={[{ value: 'all', label: 'All locations' }, ...uniqueLocations.map(l => ({ value: l, label: l }))]}
+          />
+        </div>
+        <div className="w-full sm:w-36 shrink-0">
+          <AdminSelect
+            value={supervisorFilter}
+            onChange={setSupervisorFilter}
+            options={[{ value: 'all', label: 'All supervisors' }, ...uniqueSupervisors.map(s => ({ value: s, label: s }))]}
           />
         </div>
       </div>
@@ -461,11 +699,11 @@ export default function AdminPayroll() {
       {/* -- Table -- */}
       <div className="card overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm" style={{ minWidth: '5000px' }}>
-            {/* -- Two-row header -- */}
+          <table className="w-full text-sm" style={{ minWidth: '5400px' }}>
             <thead>
               {/* Row 1: section group headers */}
               <tr>
+                <th className="px-2 py-2 text-xs bg-surface-50 border-b border-surface-200 w-10">&nbsp;</th>
                 {sections.map((s) => (
                   <th
                     key={s.name}
@@ -475,9 +713,15 @@ export default function AdminPayroll() {
                     {s.name}
                   </th>
                 ))}
+                <th className="px-2 py-2 text-xs bg-surface-50 border-b border-surface-200 w-16 text-center">Actions</th>
               </tr>
               {/* Row 2: individual column headers */}
               <tr>
+                <th className="px-2 py-2.5 border-b border-surface-200 bg-surface-50">
+                  <button type="button" onClick={toggleAll} className="text-surface-500 hover:text-brand-600">
+                    {allSelected ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
+                  </button>
+                </th>
                 {sections.map((s) =>
                   s.columns.map((col) => (
                     <th
@@ -492,15 +736,16 @@ export default function AdminPayroll() {
                     </th>
                   )),
                 )}
+                <th className="px-2 py-2.5 text-xs border-b border-surface-200 bg-surface-50 text-center">PayStub</th>
               </tr>
             </thead>
 
             <tbody>
               {loading ? (
-                <SkeletonTableRows rows={8} cols={allColumns.length} />
+                <SkeletonTableRows rows={8} cols={allColumns.length + 2} />
               ) : displayedRows.length === 0 ? (
                 <tr>
-                  <td colSpan={allColumns.length} className="py-16 text-center text-surface-400">
+                  <td colSpan={allColumns.length + 2} className="py-16 text-center text-surface-400">
                     <div className="flex flex-col items-center gap-3">
                       <Calculator className="w-10 h-10 text-surface-300" />
                       <p className="text-base font-medium text-surface-500">No payroll data</p>
@@ -514,16 +759,20 @@ export default function AdminPayroll() {
                 displayedRows.map((r) => (
                   <tr
                     key={r.id}
-                    className="bg-white border-b border-surface-100 hover:bg-surface-50/70 transition-colors cursor-pointer"
+                    className={`border-b border-surface-100 hover:bg-surface-50/70 transition-colors cursor-pointer ${selectedIds.has(r.id) ? 'bg-brand-50/30' : 'bg-white'}`}
                     onClick={() => setDetailRow(r)}
                   >
+                    {/* Checkbox */}
+                    <td className="px-2 py-1 text-center" onClick={(e) => e.stopPropagation()}>
+                      <button type="button" onClick={() => toggleOne(r.id)} className="text-surface-400 hover:text-brand-600">
+                        {selectedIds.has(r.id) ? <CheckSquare className="w-4 h-4 text-brand-600" /> : <Square className="w-4 h-4" />}
+                      </button>
+                    </td>
                     {sections.map((s) =>
                       s.columns.map((col) => {
                         const val = col.accessor(r)
 
-                        /* Bank & Bank Account: read-only (lookup from employee record) */
-
-                        /* Inline-editable: Payment Method only (select dropdown) */
+                        /* Inline-editable: Payment Method (select dropdown) */
                         if (col.key === 'payMethod') {
                           return (
                             <td key={col.key} className="py-1 px-1 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
@@ -540,7 +789,39 @@ export default function AdminPayroll() {
                           )
                         }
 
-                        /* Employee name -- sticky left */
+                        /* Inline-editable: Notes */
+                        if (col.key === 'notes') {
+                          return (
+                            <td key={col.key} className="py-1 px-1 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                              <input
+                                type="text"
+                                className="w-full text-xs border border-surface-200 rounded px-1.5 py-1.5 bg-white text-surface-700 focus:ring-1 focus:ring-brand-400 outline-none min-w-[100px]"
+                                defaultValue={String(val)}
+                                placeholder="Note..."
+                                onBlur={(e) => { if (e.target.value !== String(val)) handleInlineUpdate(r, 'notes', e.target.value) }}
+                                onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+                              />
+                            </td>
+                          )
+                        }
+
+                        /* Inline-editable: CC Email */
+                        if (col.key === 'ccEmail') {
+                          return (
+                            <td key={col.key} className="py-1 px-1 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                              <input
+                                type="email"
+                                className="w-full text-xs border border-surface-200 rounded px-1.5 py-1.5 bg-white text-surface-700 focus:ring-1 focus:ring-brand-400 outline-none min-w-[120px]"
+                                defaultValue={String(val)}
+                                placeholder="cc@email.com"
+                                onBlur={(e) => { if (e.target.value !== String(val)) handleInlineUpdate(r, 'ccEmail', e.target.value) }}
+                                onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+                              />
+                            </td>
+                          )
+                        }
+
+                        /* Employee name — sticky left */
                         if (col.key === 'employeeName') {
                           return (
                             <td
@@ -552,17 +833,20 @@ export default function AdminPayroll() {
                           )
                         }
 
-                        /* Boolean: deductionValidation */
+                        /* Boolean: deductionValidation — show Valid/Invalid */
                         if (col.type === 'bool') {
+                          const isInvalid = val === true
                           return (
                             <td key={col.key} className="py-3 px-3 text-right whitespace-nowrap">
-                              {val ? (
+                              {isInvalid ? (
                                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">
                                   <AlertTriangle className="w-3 h-3" />
-                                  Warning
+                                  Invalid
                                 </span>
                               ) : (
-                                <span className="text-surface-300">--</span>
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">
+                                  Valid
+                                </span>
                               )}
                             </td>
                           )
@@ -571,10 +855,7 @@ export default function AdminPayroll() {
                         /* Money */
                         if (col.type === 'money') {
                           return (
-                            <td
-                              key={col.key}
-                              className="py-3 px-3 text-right tabular-nums whitespace-nowrap text-surface-700"
-                            >
+                            <td key={col.key} className="py-3 px-3 text-right tabular-nums whitespace-nowrap text-surface-700">
                               {money(val as number)}
                             </td>
                           )
@@ -583,10 +864,7 @@ export default function AdminPayroll() {
                         /* Hours */
                         if (col.type === 'hours') {
                           return (
-                            <td
-                              key={col.key}
-                              className="py-3 px-3 text-right tabular-nums whitespace-nowrap text-surface-700"
-                            >
+                            <td key={col.key} className="py-3 px-3 text-right tabular-nums whitespace-nowrap text-surface-700">
                               {hrs(val as number)}
                             </td>
                           )
@@ -594,15 +872,23 @@ export default function AdminPayroll() {
 
                         /* Text (default) */
                         return (
-                          <td
-                            key={col.key}
-                            className="py-3 px-3 text-surface-700 whitespace-nowrap"
-                          >
+                          <td key={col.key} className="py-3 px-3 text-surface-700 whitespace-nowrap">
                             {String(val) || <span className="text-surface-300">--</span>}
                           </td>
                         )
                       }),
                     )}
+                    {/* PayStub action */}
+                    <td className="px-2 py-1 text-center" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        onClick={() => openPaystub(r.id)}
+                        className="p-1 rounded hover:bg-brand-50 text-brand-600 hover:text-brand-700"
+                        title="View PayStub"
+                      >
+                        <FileText className="w-4 h-4" />
+                      </button>
+                    </td>
                   </tr>
                 ))
               )}
@@ -618,53 +904,73 @@ export default function AdminPayroll() {
             className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[85vh] overflow-y-auto mx-4"
             onClick={(e) => e.stopPropagation()}
           >
+            {/* Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-surface-200">
               <div>
                 <h2 className="text-lg font-semibold text-surface-900">{detailRow.employeeName}</h2>
                 <p className="text-sm text-surface-500">
-                  {detailRow.payrollCycleCode} &middot; {detailRow.salaryType} &middot; {detailRow.contractStatus ?? ''}
+                  {[
+                    detailRow.governmentId ? `Cédula ${detailRow.governmentId}` : null,
+                    detailRow.employeeCmid != null ? `CMID ${detailRow.employeeCmid}` : null,
+                    detailRow.contractStatus || null,
+                    detailRow.payrollCycleCode || null,
+                  ].filter(Boolean).join(' | ')}
                 </p>
               </div>
-              <button type="button" onClick={() => setDetailRow(null)} className="p-1 rounded hover:bg-surface-100">
-                <X className="w-5 h-5 text-surface-500" />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => openPaystub(detailRow.id)}
+                  className="btn-secondary text-xs py-1.5 px-3"
+                  title="View PayStub"
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  PayStub
+                </button>
+                <button type="button" onClick={() => setDetailRow(null)} className="p-1 rounded hover:bg-surface-100">
+                  <X className="w-5 h-5 text-surface-500" />
+                </button>
+              </div>
             </div>
-            <div className="px-6 py-4 space-y-4">
-              {sections.map((s) => {
-                // Compute section total for money columns
-                const moneyColumns = s.columns.filter((c) => c.type === 'money')
-                const lastMoneyCol = moneyColumns.length > 0 ? moneyColumns[moneyColumns.length - 1] : null
-                const sectionTotal = lastMoneyCol ? (lastMoneyCol.accessor(detailRow) as number) : null
 
-                // Determine section background tint
-                const isIncome = ['Ordinary Salary', 'Commissions', 'Bonuses', 'Incentives', 'Other Income'].includes(s.name)
-                const isDeduction = ['Gov. Deductions', 'Other Deductions'].includes(s.name)
-                const sectionBg = isIncome ? 'bg-emerald-50/30' : isDeduction ? 'bg-red-50/30' : 'bg-surface-50'
+            {/* Body */}
+            <div className="px-6 py-4 space-y-3">
+              {sections.map((s) => {
+                const colors = sectionColorMap[s.name] || { bg: 'bg-surface-50', text: 'text-surface-700', totalText: 'text-surface-700' }
+                const totalVal = getSectionTotal(s, detailRow)
+
+                // For "Salary Classification" and "Payroll Summary" — no total in header
+                const showHeaderTotal = totalVal != null && s.name !== 'Salary Classification' && s.name !== 'Payroll Summary' && s.name !== 'Employee' && s.name !== 'Notes & CC'
+
+                // Columns to render inside the section (skip the "total" column since shown in header)
+                const totalKey = sectionTotalKey[s.name]
+                const displayCols = totalKey && totalKey !== '_employerTotal'
+                  ? s.columns.filter(c => c.key !== totalKey)
+                  : s.columns
 
                 return (
-                  <div key={s.name} className={`rounded-xl border border-surface-200 p-3 space-y-2 ${sectionBg}`}>
-                    <div className="flex items-center justify-between">
-                      <h3 className={`text-xs font-semibold uppercase tracking-wider ${s.headerText}`}>{s.name}</h3>
-                      {sectionTotal != null && sectionTotal !== 0 && (
-                        <span className={`text-xs font-semibold tabular-nums ${isDeduction ? 'text-red-700' : isIncome ? 'text-emerald-700' : 'text-surface-700'}`}>
-                          {money(sectionTotal)}
+                  <div key={s.name} className={`rounded-xl border border-surface-200 p-3 ${colors.bg}`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className={`text-xs font-semibold uppercase tracking-wider ${colors.text}`}>{s.name}</h3>
+                      {showHeaderTotal && (
+                        <span className={`text-xs font-bold tabular-nums ${colors.totalText}`}>
+                          {money(totalVal!)}
                         </span>
                       )}
                     </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-1.5">
-                      {s.columns.map((col) => {
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-1">
+                      {displayCols.map((col) => {
                         const val = col.accessor(detailRow)
                         let display: React.ReactNode
 
-                        /* Payment Method — editable inline */
+                        /* Payment Method — editable */
                         if (col.key === 'payMethod') {
                           display = (
                             <select
-                              className="text-sm font-medium border border-surface-200 rounded px-1.5 py-0.5 bg-white text-surface-800 focus:ring-1 focus:ring-brand-400 focus:border-brand-400 outline-none"
+                              className="text-sm font-medium border border-surface-200 rounded px-1.5 py-0.5 bg-white text-surface-800 focus:ring-1 focus:ring-brand-400 outline-none"
                               value={String(val)}
                               onChange={(e) => {
                                 handleInlineUpdate(detailRow, 'payMethod', e.target.value)
-                                setDetailRow((prev) => prev ? { ...prev, payMethod: e.target.value } : prev)
                               }}
                             >
                               {PAY_METHOD_OPTIONS.map((m) => (
@@ -672,14 +978,48 @@ export default function AdminPayroll() {
                               ))}
                             </select>
                           )
+                        } else if (col.key === 'notes') {
+                          return (
+                            <div key={col.key} className="col-span-3 flex flex-col gap-1 py-0.5">
+                              <span className="text-xs text-surface-500">{col.label}</span>
+                              <textarea
+                                className="text-sm border border-surface-200 rounded px-2 py-1.5 bg-white text-surface-800 focus:ring-1 focus:ring-brand-400 outline-none w-full resize-none"
+                                rows={2}
+                                defaultValue={String(val)}
+                                placeholder="Optional note..."
+                                onBlur={(e) => { if (e.target.value !== String(val)) handleInlineUpdate(detailRow, 'notes', e.target.value) }}
+                              />
+                            </div>
+                          )
+                        } else if (col.key === 'ccEmail') {
+                          return (
+                            <div key={col.key} className="col-span-3 flex flex-col gap-1 py-0.5">
+                              <span className="text-xs text-surface-500">{col.label}</span>
+                              <input
+                                type="email"
+                                className="text-sm border border-surface-200 rounded px-2 py-1.5 bg-white text-surface-800 focus:ring-1 focus:ring-brand-400 outline-none w-full"
+                                defaultValue={String(val)}
+                                placeholder="cc@email.com"
+                                onBlur={(e) => { if (e.target.value !== String(val)) handleInlineUpdate(detailRow, 'ccEmail', e.target.value) }}
+                                onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+                              />
+                            </div>
+                          )
                         } else if (col.type === 'money') {
                           display = <span className="text-surface-800 font-medium tabular-nums">{money(val as number)}</span>
                         } else if (col.type === 'hours') {
                           display = <span className="text-surface-800 font-medium tabular-nums">{hrs(val as number)}</span>
                         } else if (col.type === 'bool') {
-                          display = <span className="text-surface-800 font-medium tabular-nums">{val ? 'Warning' : '--'}</span>
+                          const isInvalid = val === true
+                          display = isInvalid ? (
+                            <span className="inline-flex items-center gap-1 text-red-700 font-semibold text-sm">
+                              <AlertTriangle className="w-3.5 h-3.5" /> Invalid
+                            </span>
+                          ) : (
+                            <span className="text-emerald-700 font-semibold text-sm">Valid</span>
+                          )
                         } else {
-                          display = <span className="text-surface-800 font-medium tabular-nums">{String(val) || '--'}</span>
+                          display = <span className="text-surface-800 font-medium">{String(val) || '--'}</span>
                         }
 
                         return (

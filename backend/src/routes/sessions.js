@@ -913,7 +913,7 @@ router.get('/my-payroll', async (req, res) => {
 router.get('/payroll-periods', async (req, res) => {
   try {
     const year = req.query.year ? parseInt(req.query.year, 10) : new Date().getFullYear()
-    const sql = `SELECT period_from, period_to, pay_date, cycle_code, year_cycle, COALESCE(status, 'upcoming') as status, COALESCE(bs, 1) as bs
+    const sql = `SELECT period_from, period_to, pay_date, cycle_code, year_cycle, COALESCE(status, 'upcoming') as status, COALESCE(bs, 1) as bs, COALESCE(is_special, false) as is_special
        FROM payroll_periods WHERE year_cycle = $1 ORDER BY period_from`
     const result = await query(sql, [year])
     res.json(result.rows.map((r) => ({
@@ -924,6 +924,7 @@ router.get('/payroll-periods', async (req, res) => {
       yearCycle: r.year_cycle,
       status: r.status,
       bs: Number(r.bs) || 1,
+      isSpecial: Boolean(r.is_special),
     })))
   } catch (err) {
     console.error('Employee payroll periods error:', err)

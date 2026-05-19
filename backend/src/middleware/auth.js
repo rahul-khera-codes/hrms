@@ -9,7 +9,7 @@ if (!JWT_SECRET) throw new Error('JWT_SECRET is required')
  */
 export async function authMiddleware(req, res, next) {
   const authHeader = req.headers.authorization
-  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null
+  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : (req.query.token || null)
 
   if (!token) {
     return res.status(401).json({ error: 'Unauthorized', message: 'Token required' })

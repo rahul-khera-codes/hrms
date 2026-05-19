@@ -4,6 +4,13 @@ import { getPayrollPeriods, type PayrollPeriod } from '@/lib/apiAdmin'
 import AdminSelect from '@/components/AdminSelect'
 import { PageHeader } from '@/components/PageHeader'
 
+const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+function fmtPeriodDate(d: string): string {
+  if (!d || d.length < 10) return d
+  const [y, m, day] = d.split('-')
+  return `${MONTHS_SHORT[parseInt(m, 10) - 1]}-${day}-${y}`
+}
+
 export default function EmployeePayrollCalendar() {
   const currentYear = new Date().getFullYear()
   const [periodsYear, setPeriodsYear] = useState(currentYear)
@@ -38,7 +45,7 @@ export default function EmployeePayrollCalendar() {
             <AdminSelect
               value={String(periodsYear)}
               onChange={(val) => setPeriodsYear(parseInt(val, 10))}
-              options={[currentYear - 1, currentYear, currentYear + 1].map((y) => ({ value: String(y), label: y }))}
+              options={[2025, 2026, 2027, 2028, 2029, 2030].map((y) => ({ value: String(y), label: y }))}
             />
           </div>
         </div>
@@ -66,18 +73,19 @@ export default function EmployeePayrollCalendar() {
                     const toD = new Date(p.periodTo)
                     const isCurrent = today >= fromD && today <= toD
                     return (
-                      <tr key={p.cycleCode} className="border-t border-surface-100 hover:bg-brand-50/30 transition-colors">
+                      <tr key={p.cycleCode} className={`border-t border-surface-100 transition-colors ${p.isSpecial ? 'bg-red-50/60 hover:bg-red-50' : 'hover:bg-brand-50/30'}`}>
                         <td className="px-4 py-3 whitespace-nowrap">
                           <div className="flex items-center gap-2">
-                            <span className="text-xs font-mono font-semibold text-surface-900">{p.cycleCode}</span>
+                            <span className={`text-xs font-mono font-semibold ${p.isSpecial ? 'text-red-700' : 'text-surface-900'}`}>{p.cycleCode}</span>
                             {isCurrent && <span className="badge-brand">Current</span>}
+                            {p.isSpecial && <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-100 text-red-700 border border-red-200">27th cycle</span>}
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-xs text-surface-700 whitespace-nowrap tabular-nums">{p.periodFrom} – {p.periodTo}</td>
+                        <td className="px-4 py-3 text-xs text-surface-700 whitespace-nowrap tabular-nums">{fmtPeriodDate(p.periodFrom)} – {fmtPeriodDate(p.periodTo)}</td>
                         <td className="px-4 py-3 text-xs text-surface-700 whitespace-nowrap tabular-nums">
                           <span className="inline-flex items-center gap-1.5">
                             <DollarSign className="w-3 h-3 text-emerald-500" />
-                            {p.payDate}
+                            {fmtPeriodDate(p.payDate)}
                           </span>
                         </td>
                         <td className="px-4 py-3 text-xs text-surface-700 whitespace-nowrap tabular-nums text-center">

@@ -20,6 +20,7 @@ import {
   isDeductionInputType,
   getEmployees,
   getPayrollPeriods,
+  getAdminUsers,
   bulkUploadPayrollInputs,
   PAYROLL_INPUT_TYPES,
   PAYROLL_CURRENCIES,
@@ -30,6 +31,7 @@ import {
   type EmployeeRecord,
   type PayrollPeriod,
   type BulkUploadResult,
+  type AdminUser,
 } from '@/lib/apiAdmin'
 
 type StatusFilter = 'all' | 'pending' | 'processed'
@@ -76,7 +78,7 @@ export default function AdminPayrollInputs() {
   // Lookup data
   const [employees, setEmployees] = useState<EmployeeRecord[]>([])
   const [payrollPeriods, setPayrollPeriods] = useState<PayrollPeriod[]>([])
-  const [admins, setAdmins] = useState<EmployeeRecord[]>([])
+  const [adminUsers, setAdminUsers] = useState<AdminUser[]>([])
 
   async function load(showLoader = true) {
     if (showLoader) setLoading(true)
@@ -93,13 +95,9 @@ export default function AdminPayrollInputs() {
 
   useEffect(() => {
     load(true)
-    getEmployees().then((all) => {
-      setEmployees(all)
-      // admins are employees whose role is admin — but getEmployees only returns role=employee
-      // For approver, use all employees for now (client said this is flexible)
-      setAdmins(all)
-    }).catch(() => {})
+    getEmployees().then(setEmployees).catch(() => {})
     getPayrollPeriods().then(setPayrollPeriods).catch(() => {})
+    getAdminUsers().then(setAdminUsers).catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -463,7 +461,7 @@ export default function AdminPayrollInputs() {
         <PayrollInputModal
           existing={editingRow}
           employees={employees}
-          admins={admins}
+          admins={adminUsers}
           payrollPeriods={payrollPeriods}
           onClose={closeModal}
           onSaved={async () => {
@@ -503,7 +501,7 @@ function PayrollInputModal({
 }: {
   existing?: PayrollInput
   employees: EmployeeRecord[]
-  admins: EmployeeRecord[]
+  admins: AdminUser[]
   payrollPeriods: PayrollPeriod[]
   onClose: () => void
   onSaved: () => Promise<void>
@@ -750,11 +748,7 @@ function PayrollInputModal({
                 disabled={locked}
                 options={[
                   { value: '', label: 'Select approver' },
-                  ...['Orlando Santana', 'Jamel Rodriguez', 'Luis Peña', 'Carlos Mancebo', 'Cristopher Mojica', 'Other']
-                    .map((name) => {
-                      const match = admins.find((a) => a.name.toLowerCase() === name.toLowerCase())
-                      return match ? { value: match.id, label: name } : { value: name, label: name }
-                    }),
+                  ...admins.map((u) => ({ value: u.id, label: u.name })),
                 ]}
               />
             </div>

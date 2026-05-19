@@ -279,11 +279,23 @@ export interface PayrollPeriod {
   yearCycle: number
   status: string
   bs?: number
+  isSpecial?: boolean
 }
 
 export async function getPayrollPeriods(year?: number): Promise<PayrollPeriod[]> {
   const q = year != null ? `?year=${year}` : ''
   return api<PayrollPeriod[]>(`/api/admin/payroll/periods${q}`)
+}
+
+export interface AdminUser {
+  id: string
+  name: string
+  email: string
+  role: string
+}
+
+export async function getAdminUsers(): Promise<AdminUser[]> {
+  return api<AdminUser[]>('/api/admin/users')
 }
 
 export interface SettingsResponse {
@@ -470,6 +482,10 @@ export async function updateEmployee(
     method: 'PATCH',
     body: JSON.stringify(data),
   })
+}
+
+export async function deleteEmployee(id: string): Promise<void> {
+  return api<void>(`/api/admin/employees/${id}`, { method: 'DELETE' })
 }
 
 export async function getClients(): Promise<Client[]> {
@@ -903,6 +919,7 @@ export interface PayrollCalcResult {
   adminDeduction: number; deduccionX: number; otherDeductionsSpare: number
   otherDeductionsTotal: number
   deductionValidation: boolean; totalDeductions: number; netSalary: number; notes: string | null
+  governmentId: string | null; ccEmail: string | null
   afpEmployer: number; sfsEmployer: number; arl: number; infotepEmployer: number
 }
 
@@ -919,7 +936,7 @@ export async function calculatePayroll(cycleCode: string): Promise<PayrollCalcRe
 
 export async function updatePayrollResultField(
   id: string,
-  fields: { bank?: string; bankAccount?: string; payMethod?: string },
+  fields: { bank?: string; bankAccount?: string; payMethod?: string; notes?: string; ccEmail?: string },
 ): Promise<PayrollCalcResult> {
   return api<PayrollCalcResult>(`/api/admin/payroll-calculator/${encodeURIComponent(id)}`, {
     method: 'PATCH',
@@ -927,8 +944,10 @@ export async function updatePayrollResultField(
   })
 }
 
-export async function updatePayrollResult(id: string, data: { bank?: string; bankAccount?: string; payMethod?: string; notes?: string }): Promise<PayrollCalcResult> {
-  return api<PayrollCalcResult>(`/api/admin/payroll-calculator/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
+export function getPaystubUrl(id: string): string {
+  const base = import.meta.env.VITE_API_URL || 'http://localhost:4000'
+  const token = getToken()
+  return `${base}/api/admin/payroll-calculator/paystub/${encodeURIComponent(id)}${token ? `?token=${encodeURIComponent(token)}` : ''}`
 }
 
 // ── Documents ──

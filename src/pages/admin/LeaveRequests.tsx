@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { CalendarCheck2, Lock, Unlock, Plus, Calendar, Clock3, Download, LayoutGrid, Table2, Search, ArrowUp, ArrowDown, Filter, Pencil, XCircle, Upload } from 'lucide-react'
+import { CalendarCheck2, Lock, Unlock, Plus, Calendar, Clock3, Download, LayoutGrid, Table2, Search, ArrowUp, ArrowDown, Filter, Pencil, XCircle, Upload, CheckCircle2 } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
 import {
   getAdminLeaveRequests,
@@ -502,6 +502,35 @@ export default function AdminLeaveRequests() {
     setNotice(failed === 0
       ? `${ok} request${ok === 1 ? '' : 's'} ${locked ? 'locked' : 'unlocked'}.`
       : `${ok} updated, ${failed} failed.`)
+    clearSelection()
+    await load(false)
+  }
+
+  async function bulkApprove() {
+    if (selectedIds.size === 0) return
+    const eligibleIds = Array.from(selectedIds).filter((id) => {
+      const row = rows.find((r) => r.id === id)
+      return row && !row.isLocked && row.status !== 'approved'
+    })
+    if (eligibleIds.length === 0) {
+      setNotice('No eligible requests selected (locked or already approved).')
+      return
+    }
+    setBulkSaving(true)
+    let ok = 0
+    let failed = 0
+    for (const id of eligibleIds) {
+      try {
+        await reviewAdminLeaveRequest(id, { status: 'approved', reviewedNote: 'Bulk approved' })
+        ok++
+      } catch {
+        failed++
+      }
+    }
+    setBulkSaving(false)
+    setNotice(failed === 0
+      ? `${ok} request${ok === 1 ? '' : 's'} approved.`
+      : `${ok} approved, ${failed} failed.`)
     clearSelection()
     await load(false)
   }
@@ -1336,7 +1365,7 @@ export default function AdminLeaveRequests() {
                   <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider mb-3">Leave Info</p>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-3">
                     <div>
-                      <label className="text-[10px] font-medium text-surface-400 uppercase">Leave Type</label>
+                      <label className="label">Leave Type</label>
                       <AdminSelect
                         value={reviewLeaveCategory}
                         onChange={(val) => setReviewLeaveCategory(val)}
@@ -1345,12 +1374,12 @@ export default function AdminLeaveRequests() {
                       />
                     </div>
                     <div>
-                      <p className="text-[10px] font-medium text-surface-400 uppercase">Type</p>
+                      <p className="label">Type</p>
                       <p className="font-medium text-surface-900 mt-0.5">{reviewContext.leave.leaveType === 'paid' ? 'Paid' : 'Unpaid'}</p>
                     </div>
                     {reviewContext.leave.calculationType ? (
                       <div>
-                        <p className="text-[10px] font-medium text-surface-400 uppercase">Calculation</p>
+                        <p className="label">Calculation</p>
                         <p className="font-medium text-surface-900 mt-0.5">
                           {reviewContext.leave.calculationType === 'non_payable' ? 'Non Payable' : reviewContext.leave.calculationType === 'hourly_salary' ? 'Hourly Salary' : 'Monthly Salary'}
                         </p>
@@ -1358,16 +1387,16 @@ export default function AdminLeaveRequests() {
                     ) : null}
                     {reviewContext.leave.associateDaysOff ? (
                       <div>
-                        <p className="text-[10px] font-medium text-surface-400 uppercase">Days Off</p>
+                        <p className="label">Days Off</p>
                         <p className="font-medium text-surface-900 mt-0.5">{reviewContext.leave.associateDaysOff}</p>
                       </div>
                     ) : null}
                     <div>
-                      <p className="text-[10px] font-medium text-surface-400 uppercase">Salary</p>
+                      <p className="label">Salary</p>
                       <p className="font-medium text-surface-900 mt-0.5">{reviewContext.employee.salaryType} · base ${reviewContext.employee.baseSalary.toFixed(2)}</p>
                     </div>
                     <div className="col-span-2 sm:col-span-3">
-                      <label className="text-[10px] font-medium text-surface-400 uppercase">Start Date & Time</label>
+                      <label className="label">Start Date & Time</label>
                       <div className="grid grid-cols-2 gap-2 mt-0.5">
                         <div className="relative">
                           <Calendar className="w-4 h-4 text-surface-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -1380,7 +1409,7 @@ export default function AdminLeaveRequests() {
                       </div>
                     </div>
                     <div className="col-span-2 sm:col-span-3">
-                      <label className="text-[10px] font-medium text-surface-400 uppercase">End Date & Time</label>
+                      <label className="label">End Date & Time</label>
                       <div className="grid grid-cols-2 gap-2 mt-0.5">
                         <div className="relative">
                           <Calendar className="w-4 h-4 text-surface-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -1393,7 +1422,7 @@ export default function AdminLeaveRequests() {
                       </div>
                     </div>
                     <div className="col-span-2 sm:col-span-3">
-                      <label className="text-[10px] font-medium text-surface-400 uppercase">Return Date & Time</label>
+                      <label className="label">Return Date & Time</label>
                       <div className="grid grid-cols-2 gap-2 mt-0.5">
                         <div className="relative">
                           <Calendar className="w-4 h-4 text-surface-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -1406,7 +1435,7 @@ export default function AdminLeaveRequests() {
                       </div>
                     </div>
                     <div className="col-span-2 sm:col-span-3">
-                      <label className="text-[10px] font-medium text-surface-400 uppercase">Payroll Cycle</label>
+                      <label className="label">Payroll Cycle</label>
                       <AdminSelect
                         value={reviewPayrollCycle}
                         onChange={(val) => setReviewPayrollCycle(val)}
@@ -1424,15 +1453,18 @@ export default function AdminLeaveRequests() {
                 </div>
 
                 <div className={`mx-5 mt-4 space-y-3 ${reviewLocked ? 'opacity-50 pointer-events-none' : ''}`}>
-                  <AdminSelect
-                    value={reviewStatus}
-                    onChange={(val) => setReviewStatus(val as 'approved' | 'rejected')}
-                    disabled={reviewLocked}
-                    options={[
-                      { value: 'approved', label: 'Approve' },
-                      { value: 'rejected', label: 'Reject' },
-                    ]}
-                  />
+                  <div>
+                    <label className="label">Decision</label>
+                    <AdminSelect
+                      value={reviewStatus}
+                      onChange={(val) => setReviewStatus(val as 'approved' | 'rejected')}
+                      disabled={reviewLocked}
+                      options={[
+                        { value: 'approved', label: 'Approve' },
+                        { value: 'rejected', label: 'Reject' },
+                      ]}
+                    />
+                  </div>
 
                   {reviewStatus === 'approved' && (
                     <>
@@ -1524,14 +1556,17 @@ export default function AdminLeaveRequests() {
                     </>
                   )}
 
-                  <textarea
-                    value={reviewNote}
-                    onChange={(e) => setReviewNote(e.target.value)}
-                    rows={3}
-                    disabled={reviewLocked}
-                    className="input w-full rounded-xl"
-                    placeholder="Optional note"
-                  />
+                  <div>
+                    <label className="label">Notes</label>
+                    <textarea
+                      value={reviewNote}
+                      onChange={(e) => setReviewNote(e.target.value)}
+                      rows={3}
+                      disabled={reviewLocked}
+                      className="input w-full rounded-xl"
+                      placeholder="Optional note"
+                    />
+                  </div>
                 </div>
               </>
             )}
@@ -1773,6 +1808,16 @@ export default function AdminLeaveRequests() {
         >
           <Unlock className="w-3.5 h-3.5" />
           <span className="hidden sm:inline">Unlock</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => void bulkApprove()}
+          disabled={bulkSaving}
+          className="btn-secondary btn-sm"
+          title="Approve selected (skips locked / already-approved)"
+        >
+          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+          <span className="hidden sm:inline">Approve</span>
         </button>
         <button
           type="button"

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { Users, Plus, Pencil, LayoutGrid, Table2, Search, Download, ArrowUp, ArrowDown, Filter, AlertCircle, CheckCircle2, Ban, X, Upload } from 'lucide-react'
+import { Users, Plus, Pencil, LayoutGrid, Table2, Search, Download, ArrowUp, ArrowDown, Filter, AlertCircle, CheckCircle2, Ban, Trash2, X, Upload } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
 import DocumentUpload from '@/components/DocumentUpload'
 import { DetailModalHeader } from '@/components/DetailModalHeader'
@@ -11,6 +11,7 @@ import {
   getEmployees,
   createEmployee,
   updateEmployee,
+  deleteEmployee,
   getClients,
   getShifts,
   getSchedule,
@@ -597,6 +598,26 @@ export default function AdminEmployees() {
     await load()
   }
 
+  async function bulkDeleteEmployees() {
+    if (selectedEmpIds.size === 0) return
+    if (!window.confirm(`Permanently delete ${selectedEmpIds.size} employee(s)? This cannot be undone.`)) return
+    setBulkSaving(true)
+    let ok = 0
+    let failed = 0
+    for (const id of Array.from(selectedEmpIds)) {
+      try {
+        await deleteEmployee(id)
+        ok++
+      } catch {
+        failed++
+      }
+    }
+    setBulkSaving(false)
+    setError(failed === 0 ? null : `${ok} deleted, ${failed} failed.`)
+    clearEmpSelection()
+    await load()
+  }
+
   async function handleSave() {
     const trimmedName = name.trim()
     // Company email is the login email
@@ -1148,6 +1169,16 @@ export default function AdminEmployees() {
         >
           <Ban className="w-3.5 h-3.5 text-amber-600" />
           <span className="hidden sm:inline">Deactivate</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => void bulkDeleteEmployees()}
+          disabled={bulkSaving}
+          className="btn-secondary btn-sm"
+          title="Permanently delete selected employees"
+        >
+          <Trash2 className="w-3.5 h-3.5 text-red-500" />
+          <span className="hidden sm:inline">Delete</span>
         </button>
       </BulkActionBar>
 

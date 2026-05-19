@@ -638,7 +638,7 @@ export default function AdminAttendance() {
                 <tr>
                   <th colSpan={3} className="px-2 py-1 text-[9px] font-bold text-brand-600 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 bg-brand-50/40 text-center">Employee</th>
                   <th colSpan={4} className="px-2 py-1 text-[9px] font-bold text-violet-600 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 bg-violet-50/40 text-center">Shift</th>
-                  <th colSpan={5} className="px-2 py-1 text-[9px] font-bold text-amber-600 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 bg-amber-50/40 text-center">Classification</th>
+                  <th colSpan={5} className="px-2 py-1 text-[9px] font-bold text-amber-600 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 bg-amber-50/40 text-center">Shift Classification</th>
                   <th colSpan={4} className="px-2 py-1 text-[9px] font-bold text-surface-500 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 bg-surface-50 text-center">Time</th>
                   <th colSpan={6} className="px-2 py-1 text-[9px] font-bold text-blue-600 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 bg-blue-50/40 text-center">Payable Hours</th>
                   <th colSpan={3} className="px-2 py-1 text-[9px] font-bold text-emerald-600 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 bg-emerald-50/40 text-center">Billable Hours</th>
@@ -1013,9 +1013,9 @@ export default function AdminAttendance() {
                 </div>
               </div>
 
-              {/* Editable Classification */}
+              {/* Editable Shift Classification */}
               <div className="rounded-xl border border-surface-200 bg-surface-50 p-4">
-                <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider mb-3">Classification (Editable)</p>
+                <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider mb-3">Shift Classification (Editable)</p>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-3">
                   <div>
                     <label className="text-[10px] font-medium text-surface-400 uppercase block mb-1">Status</label>
@@ -1266,7 +1266,7 @@ function AddAttendanceRecordModal({
             </div>
           </div>
 
-          <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider">Classification</p>
+          <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider">Shift Classification</p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label className="label">Status</label>

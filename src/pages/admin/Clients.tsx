@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { Building2, Plus, Pencil, Trash2, LayoutGrid, Table2, Search, ArrowUp, ArrowDown, Filter, Download, X } from 'lucide-react'
+import { Building2, Plus, Pencil, Trash2, LayoutGrid, Table2, Search, ArrowUp, ArrowDown, Filter, Download, Upload, X } from 'lucide-react'
 import { getClients, createClient, updateClient, deleteClient, getEmployees, type Client, type EmployeeRecord } from '@/lib/apiAdmin'
 import { PageHeader } from '@/components/PageHeader'
 import { SkeletonTableRows } from '@/components/Skeleton'
@@ -754,12 +754,18 @@ export default function AdminClients() {
               )}
 
               {/* ── DOCUMENTS ── */}
-              {editing && (
-                <>
-                  <p className="text-xs font-semibold text-surface-500 uppercase tracking-wider mt-4 mb-2 pt-3 border-t border-surface-100">Documents</p>
+              <>
+                <p className="text-xs font-semibold text-surface-500 uppercase tracking-wider mt-4 mb-2 pt-3 border-t border-surface-100">Documents</p>
+                {editing ? (
                   <DocumentUpload entityType="account" entityId={editing.id} />
-                </>
-              )}
+                ) : (
+                  <div className="rounded-xl border border-dashed border-surface-300 bg-surface-50/60 p-4 text-center">
+                    <Upload className="w-5 h-5 text-surface-400 mx-auto mb-1.5" />
+                    <p className="text-xs font-medium text-surface-500">Documents</p>
+                    <p className="text-[11px] text-surface-400 mt-0.5">Save the record first, then you can upload documents.</p>
+                  </div>
+                )}
+              </>
             </div>
 
             <div className="modal-footer">
