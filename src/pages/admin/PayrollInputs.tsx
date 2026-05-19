@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Receipt, Plus, Download, Upload, LayoutGrid, Table2, Search, ArrowUp, ArrowDown, Filter,
-  Lock, Unlock, X, Trash2, Pencil, FileSpreadsheet, CheckCircle2, AlertCircle,
+  Lock, Unlock, X, Trash2, Pencil, FileSpreadsheet, CheckCircle2, AlertCircle, XCircle,
 } from 'lucide-react'
+import { BulkActionBar } from '@/components/BulkActionBar'
 import * as XLSX from 'xlsx'
 import AdminSelect from '@/components/AdminSelect'
 import DocumentUpload from '@/components/DocumentUpload'
@@ -34,16 +35,42 @@ import {
   type AdminUser,
 } from '@/lib/apiAdmin'
 
-type StatusFilter = 'all' | 'pending' | 'processed'
+type ApproverStatus = 'pending' | 'approved' | 'rejected'
+type StatusFilter = 'all' | ApproverStatus
 
-/** Map display payroll status to backend status value */
-function payrollStatusToBackend(ps: 'pending' | 'processed'): string {
-  return ps === 'processed' ? 'approved' : 'pending'
+/** Map display approver status to backend status value (identity — same enum) */
+function payrollStatusToBackend(ps: ApproverStatus): ApproverStatus {
+  return ps
 }
 
-/** Map backend status to display payroll status */
-function backendToPayrollStatus(bs: string): 'Pending' | 'Processed' {
-  return bs === 'approved' ? 'Processed' : 'Pending'
+/** Map backend status to display label (title case) */
+function backendToPayrollStatus(bs: string): 'Pending' | 'Approved' | 'Rejected' {
+  if (bs === 'approved') return 'Approved'
+  if (bs === 'rejected') return 'Rejected'
+  return 'Pending'
+}
+
+/** Tailwind badge class for a given status */
+function statusBadgeClass(bs: string): string {
+  if (bs === 'approved') return 'badge-success'
+  if (bs === 'rejected') return 'badge-danger'
+  return 'badge-warning'
+}
+
+/** Return today's payroll cycle code, if any */
+function currentCycleCode(periods: PayrollPeriod[]): string | null {
+  const today = new Date().toISOString().slice(0, 10)
+  const hit = periods.find((p) => p.periodFrom <= today && today <= p.periodTo)
+  return hit ? hit.cycleCode : null
+}
+
+/** Build cycle dropdown options with current cycle marked "(current)" */
+function buildCycleOptions(periods: PayrollPeriod[]): Array<{ value: string; label: string }> {
+  const cur = currentCycleCode(periods)
+  return periods.map((p) => ({
+    value: p.cycleCode,
+    label: cur === p.cycleCode ? `${p.cycleCode} (current)` : p.cycleCode,
+  }))
 }
 
 export default function AdminPayrollInputs() {
@@ -75,6 +102,21 @@ export default function AdminPayrollInputs() {
   // Bulk import modal
   const [bulkImportOpen, setBulkImportOpen] = useState(false)
 
+  // Multi-select for bulk operations
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkSaving, setBulkSaving] = useState(false)
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+  function clearSelection() {
+    setSelectedIds(new Set())
+  }
+
   // Lookup data
   const [employees, setEmployees] = useState<EmployeeRecord[]>([])
   const [payrollPeriods, setPayrollPeriods] = useState<PayrollPeriod[]>([])
@@ -83,8 +125,7 @@ export default function AdminPayrollInputs() {
   async function load(showLoader = true) {
     if (showLoader) setLoading(true)
     try {
-      const backendStatus = filterStatus === 'all' ? 'all' : (filterStatus === 'processed' ? 'approved' : 'pending')
-      const data = await getPayrollInputs({ status: backendStatus as 'all' | 'pending' | 'approved' | 'rejected', type: filterType === 'all' ? undefined : filterType })
+      const data = await getPayrollInputs({ status: filterStatus, type: filterType === 'all' ? undefined : filterType })
       setRows(data)
     } catch {
       setRows([])
@@ -161,10 +202,11 @@ export default function AdminPayrollInputs() {
   const summary = useMemo(() => {
     const total = displayedRows.length
     const pending = displayedRows.filter((r) => r.status === 'pending').length
-    const processed = displayedRows.filter((r) => r.status === 'approved').length
+    const approved = displayedRows.filter((r) => r.status === 'approved').length
+    const rejected = displayedRows.filter((r) => r.status === 'rejected').length
     const income = displayedRows.filter((r) => !isDeductionInputType(r.inputType) && r.status === 'approved').reduce((a, r) => a + r.inputAmount, 0)
     const deductions = displayedRows.filter((r) => isDeductionInputType(r.inputType) && r.status === 'approved').reduce((a, r) => a + r.inputAmount, 0)
-    return { total, pending, processed, income, deductions }
+    return { total, pending, approved, rejected, income, deductions }
   }, [displayedRows])
 
   function exportCSV() {
@@ -234,6 +276,88 @@ export default function AdminPayrollInputs() {
     }
   }
 
+  async function bulkSetLocked(locked: boolean) {
+    if (selectedIds.size === 0) return
+    setBulkSaving(true)
+    let ok = 0, failed = 0
+    for (const id of Array.from(selectedIds)) {
+      try { await setPayrollInputLocked(id, locked); ok++ } catch { failed++ }
+    }
+    setBulkSaving(false)
+    setNotice(failed === 0
+      ? `${ok} input${ok === 1 ? '' : 's'} ${locked ? 'locked' : 'unlocked'}.`
+      : `${ok} updated, ${failed} failed.`)
+    clearSelection()
+    await load(false)
+  }
+
+  async function bulkSetStatus(target: 'approved' | 'rejected') {
+    if (selectedIds.size === 0) return
+    const eligible = Array.from(selectedIds).filter((id) => {
+      const row = rows.find((r) => r.id === id)
+      return row && !row.isLocked && row.status !== target
+    })
+    if (eligible.length === 0) {
+      setNotice(`No eligible inputs selected (locked or already ${target}).`)
+      return
+    }
+    setBulkSaving(true)
+    let ok = 0, failed = 0
+    for (const id of eligible) {
+      const row = rows.find((r) => r.id === id)
+      if (!row) { failed++; continue }
+      try {
+        await updatePayrollInput(id, {
+          userId: row.userId,
+          inputType: row.inputType,
+          calculationType: row.calculationType,
+          payableHours: row.payableHours ?? null,
+          hourlyRate: row.hourlyRate ?? null,
+          hourlyMultiplier: row.hourlyMultiplier ?? null,
+          currency: row.currency ?? null,
+          baseAmount: row.baseAmount ?? null,
+          exchangeRate: row.exchangeRate ?? null,
+          payrollCycleCode: row.payrollCycleCode ?? null,
+          approverId: row.approverId ?? null,
+          status: target,
+          notes: row.notes ?? null,
+          reviewedNote: `Bulk ${target}`,
+        })
+        ok++
+      } catch { failed++ }
+    }
+    setBulkSaving(false)
+    setNotice(failed === 0
+      ? `${ok} input${ok === 1 ? '' : 's'} ${target}.`
+      : `${ok} ${target}, ${failed} failed.`)
+    clearSelection()
+    await load(false)
+  }
+
+  async function bulkDelete() {
+    if (selectedIds.size === 0) return
+    if (!window.confirm(`Delete ${selectedIds.size} payroll input(s)? This cannot be undone.`)) return
+    const eligible = Array.from(selectedIds).filter((id) => {
+      const row = rows.find((r) => r.id === id)
+      return row && !row.isLocked
+    })
+    if (eligible.length === 0) {
+      setNotice('No eligible inputs selected (all locked).')
+      return
+    }
+    setBulkSaving(true)
+    let ok = 0, failed = 0
+    for (const id of eligible) {
+      try { await deletePayrollInput(id); ok++ } catch { failed++ }
+    }
+    setBulkSaving(false)
+    setNotice(failed === 0
+      ? `${ok} input${ok === 1 ? '' : 's'} deleted.`
+      : `${ok} deleted, ${failed} failed.`)
+    clearSelection()
+    await load(false)
+  }
+
   const editingRow = editingId ? rows.find((r) => r.id === editingId) : undefined
 
   return (
@@ -271,15 +395,19 @@ export default function AdminPayrollInputs() {
           <p className="stat-value">{summary.pending}</p>
         </div>
         <div className="stat-card border-emerald-200/70 bg-emerald-50/40">
-          <p className="stat-label text-emerald-700">Processed</p>
-          <p className="stat-value">{summary.processed}</p>
+          <p className="stat-label text-emerald-700">Approved</p>
+          <p className="stat-value">{summary.approved}</p>
+        </div>
+        <div className="stat-card border-rose-200/70 bg-rose-50/40">
+          <p className="stat-label text-rose-700">Rejected</p>
+          <p className="stat-value">{summary.rejected}</p>
         </div>
         <div className="stat-card border-brand-200/70 bg-brand-50/40">
-          <p className="stat-label text-brand-700">Income (processed)</p>
+          <p className="stat-label text-brand-700">Income (approved)</p>
           <p className="stat-value">${summary.income.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
         </div>
         <div className="stat-card border-red-200/70 bg-red-50/40">
-          <p className="stat-label text-red-700">Deductions (processed)</p>
+          <p className="stat-label text-red-700">Deductions (approved)</p>
           <p className="stat-value">${summary.deductions.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
         </div>
       </div>
@@ -312,7 +440,7 @@ export default function AdminPayrollInputs() {
             onChange={(val) => setFilterCycle(val)}
             options={[
               { value: 'all', label: 'All cycles' },
-              ...payrollPeriods.map((p) => ({ value: p.cycleCode, label: p.cycleCode })),
+              ...buildCycleOptions(payrollPeriods),
             ]}
           />
         </div>
@@ -323,7 +451,8 @@ export default function AdminPayrollInputs() {
             options={[
               { value: 'all', label: 'All status' },
               { value: 'pending', label: 'Pending' },
-              { value: 'processed', label: 'Processed' },
+              { value: 'approved', label: 'Approved' },
+              { value: 'rejected', label: 'Rejected' },
             ]}
           />
         </div>
@@ -343,7 +472,7 @@ export default function AdminPayrollInputs() {
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <tbody>
-                <SkeletonTableRows rows={5} cols={6} />
+                <SkeletonTableRows rows={5} cols={11} />
               </tbody>
             </table>
           </div>
@@ -387,7 +516,22 @@ export default function AdminPayrollInputs() {
             <table className="min-w-[1400px] w-full text-left border-collapse">
               <thead className="sticky top-0 z-10 bg-surface-50 shadow-[0_1px_0_0_theme(colors.surface.200)]">
                 <tr>
-                  {['CMID', 'Employee Name', 'Account', 'Input Type', 'Calculation', 'Input Amount', 'Payroll Cycle', 'Approver', 'Payroll Status', 'Actions'].map((col) => (
+                  <th className="px-3 py-1.5 w-8 border-b border-surface-200">
+                    <input
+                      type="checkbox"
+                      className="cursor-pointer"
+                      aria-label="Select all rows on this page"
+                      checked={displayedRows.length > 0 && displayedRows.every((r) => selectedIds.has(r.id))}
+                      ref={(el) => {
+                        if (el) el.indeterminate = displayedRows.some((r) => selectedIds.has(r.id)) && !displayedRows.every((r) => selectedIds.has(r.id))
+                      }}
+                      onChange={(e) => {
+                        if (e.target.checked) setSelectedIds(new Set(displayedRows.map((r) => r.id)))
+                        else clearSelection()
+                      }}
+                    />
+                  </th>
+                  {['CMID', 'Employee Name', 'Account', 'Input Type', 'Calculation', 'Input Amount', 'Payroll Cycle', 'Approver', 'Approver Status', 'Actions'].map((col) => (
                     <th key={col} className={`px-3 py-1.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 ${col === 'Actions' ? 'text-right' : col === 'Input Amount' ? 'text-right' : ''}`}>
                       {col === 'Actions' ? col : (
                         <>
@@ -416,6 +560,15 @@ export default function AdminPayrollInputs() {
                   const isDed = isDeductionInputType(r.inputType)
                   return (
                     <tr key={r.id} className="border-b border-surface-100 hover:bg-brand-50/30 transition-colors cursor-pointer" onClick={() => (r.isLocked ? null : openEdit(r))}>
+                      <td className="px-3 py-2.5 w-8" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          className="cursor-pointer"
+                          aria-label={`Select row ${r.employeeName ?? ''}`}
+                          checked={selectedIds.has(r.id)}
+                          onChange={() => toggleSelect(r.id)}
+                        />
+                      </td>
                       <td className="px-3 py-2.5 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">{r.employeeCmid ?? '-'}</td>
                       <td className="px-3 py-2.5 text-xs font-medium text-surface-900 whitespace-nowrap">{r.employeeName ?? '-'}</td>
                       <td className="px-3 py-2.5 text-xs text-surface-700 whitespace-nowrap">{r.accountName ?? '-'}</td>
@@ -430,7 +583,7 @@ export default function AdminPayrollInputs() {
                       <td className="px-3 py-2.5 text-xs text-surface-700 whitespace-nowrap">{r.approverName ?? '-'}</td>
                       <td className="px-3 py-2.5 whitespace-nowrap">
                         <div className="flex items-center gap-1">
-                          <span className={`${r.status === 'approved' ? 'badge-success' : 'badge-warning'}`}>{backendToPayrollStatus(r.status)}</span>
+                          <span className={statusBadgeClass(r.status)}>{backendToPayrollStatus(r.status)}</span>
                           {r.isLocked && <span className="badge-neutral" title="Locked"><Lock className="w-3 h-3" /></span>}
                         </div>
                       </td>
@@ -486,6 +639,59 @@ export default function AdminPayrollInputs() {
           }}
         />
       )}
+
+      <BulkActionBar count={selectedIds.size} onClear={clearSelection}>
+        <button
+          type="button"
+          onClick={() => void bulkSetLocked(true)}
+          disabled={bulkSaving}
+          className="btn-secondary btn-sm"
+          title="Lock selected"
+        >
+          <Lock className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">Lock</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => void bulkSetLocked(false)}
+          disabled={bulkSaving}
+          className="btn-secondary btn-sm"
+          title="Unlock selected"
+        >
+          <Unlock className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">Unlock</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => void bulkSetStatus('approved')}
+          disabled={bulkSaving}
+          className="btn-secondary btn-sm"
+          title="Approve selected (skips locked / already-approved)"
+        >
+          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+          <span className="hidden sm:inline">Approve</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => void bulkSetStatus('rejected')}
+          disabled={bulkSaving}
+          className="btn-secondary btn-sm"
+          title="Reject selected (skips locked / already-rejected)"
+        >
+          <XCircle className="w-3.5 h-3.5 text-rose-600" />
+          <span className="hidden sm:inline">Reject</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => void bulkDelete()}
+          disabled={bulkSaving}
+          className="btn-danger btn-sm"
+          title="Delete selected (skips locked)"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">Delete</span>
+        </button>
+      </BulkActionBar>
     </div>
   )
 }
@@ -527,8 +733,8 @@ function PayrollInputModal({
   const [exchangeRate, setExchangeRate] = useState(existing?.exchangeRate != null ? String(existing.exchangeRate) : '1')
   const [payrollCycleCode, setPayrollCycleCode] = useState(existing?.payrollCycleCode ?? '')
   const [approverId, setApproverId] = useState(existing?.approverId ?? '')
-  const [payrollStatus, setPayrollStatus] = useState<'pending' | 'processed'>(
-    existing?.status === 'approved' ? 'processed' : 'pending'
+  const [payrollStatus, setPayrollStatus] = useState<ApproverStatus>(
+    (existing?.status === 'approved' || existing?.status === 'rejected') ? existing.status : 'pending'
   )
   const [notes, setNotes] = useState(existing?.notes ?? '')
   const [reviewedNote, setReviewedNote] = useState(existing?.reviewedNote ?? '')
@@ -568,7 +774,7 @@ function PayrollInputModal({
         exchangeRate: showBaseFields && exchangeRate ? Number(exchangeRate) : null,
         payrollCycleCode: payrollCycleCode || null,
         approverId: approverId || null,
-        status: payrollStatusToBackend(payrollStatus) as 'pending' | 'approved' | 'rejected',
+        status: payrollStatusToBackend(payrollStatus),
         notes: notes || null,
       }
       if (isEdit && existing) {
@@ -600,8 +806,8 @@ function PayrollInputModal({
             extra={
               <>
                 <span className="badge-neutral">{inputType}</span>
-                <span className={payrollStatus === 'processed' ? 'badge-success' : 'badge-warning'}>
-                  {payrollStatus === 'processed' ? 'Processed' : 'Pending'}
+                <span className={statusBadgeClass(payrollStatus)}>
+                  {backendToPayrollStatus(payrollStatus)}
                 </span>
               </>
             }
@@ -736,7 +942,7 @@ function PayrollInputModal({
                 disabled={locked}
                 options={[
                   { value: '', label: 'Select payroll cycle' },
-                  ...payrollPeriods.map((p) => ({ value: p.cycleCode, label: p.cycleCode })),
+                  ...buildCycleOptions(payrollPeriods),
                 ]}
               />
             </div>
@@ -755,11 +961,12 @@ function PayrollInputModal({
           </div>
 
           <div>
-            <label className="label">Payroll Status</label>
+            <label className="label">Approver Status</label>
             <div className="flex gap-0 rounded-xl overflow-hidden border border-surface-200">
               {([
                 { value: 'pending' as const, label: 'Pending' },
-                { value: 'processed' as const, label: 'Processed' },
+                { value: 'approved' as const, label: 'Approved' },
+                { value: 'rejected' as const, label: 'Rejected' },
               ]).map((opt) => (
                 <button
                   key={opt.value}
@@ -788,7 +995,7 @@ function PayrollInputModal({
             />
           </div>
 
-          {isEdit && payrollStatus === 'processed' && (
+          {isEdit && (payrollStatus === 'approved' || payrollStatus === 'rejected') && (
             <div>
               <label className="label">Review note</label>
               <textarea
@@ -797,7 +1004,7 @@ function PayrollInputModal({
                 disabled={locked}
                 rows={2}
                 className="input"
-                placeholder="Optional note when marking as processed"
+                placeholder="Optional note when approving or rejecting"
               />
             </div>
           )}

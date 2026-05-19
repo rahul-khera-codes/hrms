@@ -54,6 +54,22 @@ const leaveCategoryOptions = [
 const assetOptions = ['Access Card', 'Uber', 'O-365', 'G-Suite', 'HHAX', 'Phone Ext.', 'Cafeteria']
 const DAYS_OF_WEEK = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
+/** Return today's payroll cycle code, if any */
+function currentCycleCode(periods: PayrollPeriod[]): string | null {
+  const today = new Date().toISOString().slice(0, 10)
+  const hit = periods.find((p) => p.periodFrom <= today && today <= p.periodTo)
+  return hit ? hit.cycleCode : null
+}
+
+/** Build cycle dropdown options with current cycle marked "(current)" */
+function buildCycleOptions(periods: PayrollPeriod[]): Array<{ value: string; label: string }> {
+  const cur = currentCycleCode(periods)
+  return periods.map((p) => ({
+    value: p.cycleCode,
+    label: cur === p.cycleCode ? `${p.cycleCode} (current)` : p.cycleCode,
+  }))
+}
+
 function hourlyRateFromEmployee(
   salaryType: 'hourly' | 'monthly',
   baseSalary: number,
@@ -178,6 +194,11 @@ export default function AdminLeaveRequests() {
   const [reviewPayrollCycle, setReviewPayrollCycle] = useState('')
   const [reviewDailyHours, setReviewDailyHours] = useState('')
   const [reviewHourlyRate, setReviewHourlyRate] = useState('')
+  // Parity-with-new-leave fields (added per 18MAY2026 client video)
+  const [reviewDaysOff, setReviewDaysOff] = useState<string[]>([])
+  const [reviewAssetDeactivation, setReviewAssetDeactivation] = useState<string[]>([])
+  const [reviewApproverName, setReviewApproverName] = useState('')
+  const [reviewPayrollStatus, setReviewPayrollStatus] = useState('Pending')
 
   // View mode and detail modal
   const [viewMode, setViewMode] = useState<'card' | 'table'>('table')
@@ -435,6 +456,11 @@ export default function AdminLeaveRequests() {
     setReviewPayrollCycle(row.payrollCycleCode ?? '')
     setReviewDailyHours('')
     setReviewHourlyRate('')
+    // Parity-with-new-leave fields: parse comma-separated strings into arrays
+    setReviewDaysOff(row.leaveAssociateDaysOff ? row.leaveAssociateDaysOff.split(',').map((s) => s.trim()).filter(Boolean) : ['Sun', 'Sat'])
+    setReviewAssetDeactivation(row.assetDeactivation ? row.assetDeactivation.split(',').map((s) => s.trim()).filter(Boolean) : [])
+    setReviewApproverName(row.approverName ?? '')
+    setReviewPayrollStatus(row.payrollStatus ?? 'Pending')
     setReviewContext(null)
     setContextLoading(true)
     void getLeaveReviewContext(row.id)
@@ -599,6 +625,11 @@ export default function AdminLeaveRequests() {
       payrollCycleCode: reviewPayrollCycle || undefined,
       dailyHoursInput: Number.isFinite(parsedDailyHours) ? parsedDailyHours : undefined,
       hourlyRateInput: Number.isFinite(parsedHourlyRate) ? parsedHourlyRate : undefined,
+      // Parity-with-new-leave additions (18MAY2026 client feedback)
+      associateDaysOff: reviewDaysOff.length > 0 ? reviewDaysOff : undefined,
+      assetDeactivation: reviewAssetDeactivation.length > 0 ? reviewAssetDeactivation : undefined,
+      approverName: reviewApproverName || undefined,
+      payrollStatus: reviewPayrollStatus || undefined,
     }
     try {
       if (reviewStatus === 'rejected') {
@@ -787,7 +818,7 @@ export default function AdminLeaveRequests() {
             onChange={(val) => setFilterCycle(val)}
             options={[
               { value: 'all', label: 'All cycles' },
-              ...payrollPeriods.map((p) => ({ value: p.cycleCode, label: p.cycleCode })),
+              ...buildCycleOptions(payrollPeriods),
             ]}
           />
         </div>
@@ -1243,7 +1274,7 @@ export default function AdminLeaveRequests() {
                         onChange={(val) => setCreatePayrollCycleCode(val)}
                         options={[
                           { value: '', label: 'Select payroll cycle' },
-                          ...payrollPeriods.map((p) => ({ value: p.cycleCode, label: p.cycleCode })),
+                          ...buildCycleOptions(payrollPeriods),
                         ]}
                       />
                     </div>
@@ -1265,7 +1296,8 @@ export default function AdminLeaveRequests() {
                         onChange={(val) => setCreatePayrollStatus(val)}
                         options={[
                           { value: 'Pending', label: 'Pending' },
-                          { value: 'Processed', label: 'Processed' },
+                          { value: 'Approved', label: 'Approved' },
+                          { value: 'Rejected', label: 'Rejected' },
                           { value: 'N/A', label: 'N/A' },
                         ]}
                       />
@@ -1442,7 +1474,71 @@ export default function AdminLeaveRequests() {
                         disabled={reviewLocked}
                         options={[
                           { value: '', label: 'Select payroll cycle' },
-                          ...payrollPeriods.map((p) => ({ value: p.cycleCode, label: p.cycleCode })),
+                          ...buildCycleOptions(payrollPeriods),
+                        ]}
+                      />
+                    </div>
+                    {/* Days Off (parity with new-leave form) */}
+                    <div className="col-span-2 sm:col-span-3">
+                      <label className="label">Days Off</label>
+                      <div className="flex flex-wrap gap-2">
+                        {DAYS_OF_WEEK.map((day) => (
+                          <button
+                            key={day} type="button"
+                            disabled={reviewLocked}
+                            onClick={() => setReviewDaysOff((prev) => prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day])}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors disabled:opacity-60 ${
+                              reviewDaysOff.includes(day) ? 'bg-brand-600 text-white border-brand-600' : 'bg-white text-surface-600 border-surface-200 hover:bg-surface-50'
+                            }`}
+                          >
+                            {day}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    {/* Asset Deactivation (parity with new-leave form) */}
+                    <div className="col-span-2 sm:col-span-3">
+                      <label className="label">Asset Deactivation</label>
+                      <div className="flex flex-wrap gap-2">
+                        {assetOptions.map((asset) => (
+                          <button
+                            key={asset} type="button"
+                            disabled={reviewLocked}
+                            onClick={() => setReviewAssetDeactivation((prev) => prev.includes(asset) ? prev.filter((a) => a !== asset) : [...prev, asset])}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors disabled:opacity-60 ${
+                              reviewAssetDeactivation.includes(asset) ? 'bg-brand-600 text-white border-brand-600' : 'bg-white text-surface-600 border-surface-200 hover:bg-surface-50'
+                            }`}
+                          >
+                            {asset}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    {/* Approver (parity with new-leave form) */}
+                    <div>
+                      <label className="label">Approver</label>
+                      <AdminSelect
+                        value={reviewApproverName}
+                        onChange={(val) => setReviewApproverName(val)}
+                        disabled={reviewLocked}
+                        options={[
+                          { value: '', label: 'Select approver' },
+                          ...['Orlando Santana', 'Jamel Rodriguez', 'Luis Peña', 'Other'].map((name) => ({ value: name, label: name })),
+                        ]}
+                      />
+                    </div>
+                    {/* Payroll Status (parity with new-leave form) */}
+                    <div>
+                      <label className="label">Payroll Status</label>
+                      <AdminSelect
+                        value={reviewPayrollStatus}
+                        onChange={(val) => setReviewPayrollStatus(val)}
+                        disabled={reviewLocked}
+                        options={[
+                          { value: 'Pending', label: 'Pending' },
+                          { value: 'Approved', label: 'Approved' },
+                          { value: 'Rejected', label: 'Rejected' },
+                          { value: 'N/A', label: 'N/A' },
                         ]}
                       />
                     </div>
@@ -1663,21 +1759,21 @@ export default function AdminLeaveRequests() {
                 <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider mb-3">Leave Info</p>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-3 text-sm">
                   <div>
-                    <p className="text-[10px] font-medium text-surface-400 uppercase">Leave Type</p>
+                    <p className="label">Leave Type</p>
                     <p className="font-medium text-surface-900 mt-0.5">{CATEGORY_LABELS[detailRow.leaveCategory ?? ''] || detailRow.leaveCategory || '-'}</p>
                   </div>
                   <div>
-                    <p className="text-[10px] font-medium text-surface-400 uppercase">Calculation</p>
+                    <p className="label">Calculation</p>
                     <p className="font-medium text-surface-900 mt-0.5">
                       {detailRow.leaveCalculationType === 'non_payable' ? 'Non Payable' : detailRow.leaveCalculationType === 'hourly_salary' ? 'Hourly Salary' : detailRow.leaveCalculationType === 'monthly_salary' ? 'Monthly Salary' : '-'}
                     </p>
                   </div>
                   <div>
-                    <p className="text-[10px] font-medium text-surface-400 uppercase">Days Off</p>
+                    <p className="label">Days Off</p>
                     <p className="font-medium text-surface-900 mt-0.5">{detailRow.leaveAssociateDaysOff ?? '-'}</p>
                   </div>
                   <div className="col-span-2 sm:col-span-3">
-                    <p className="text-[10px] font-medium text-surface-400 uppercase">Period</p>
+                    <p className="label">Period</p>
                     <p className="font-medium text-surface-900 tabular-nums mt-0.5">
                       {detailRow.startDate ?? '-'}{detailRow.startTime ? ` ${detailRow.startTime}` : ''}
                       <span className="text-surface-400 mx-1.5">&rarr;</span>
@@ -1686,7 +1782,7 @@ export default function AdminLeaveRequests() {
                   </div>
                   {detailRow.returnDate && (
                     <div>
-                      <p className="text-[10px] font-medium text-surface-400 uppercase">Return Date</p>
+                      <p className="label">Return Date</p>
                       <p className="font-medium text-surface-900 tabular-nums mt-0.5">{detailRow.returnDate}{detailRow.returnTime ? ` ${detailRow.returnTime}` : ''}</p>
                     </div>
                   )}
@@ -1699,21 +1795,21 @@ export default function AdminLeaveRequests() {
                   <p className="text-[10px] font-semibold text-brand-500 uppercase tracking-wider mb-3">Pay Details</p>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     <div className="rounded-lg bg-white/80 border border-brand-100 p-2.5 text-center">
-                      <p className="text-[10px] font-medium text-surface-400 uppercase">Calculation</p>
+                      <p className="label">Calculation</p>
                       <p className="text-xs font-semibold text-surface-900 mt-1">
                         {detailRow.leaveCalculationType === 'hourly_salary' ? 'Hourly' : detailRow.leaveCalculationType === 'monthly_salary' ? 'Monthly' : '-'}
                       </p>
                     </div>
                     <div className="rounded-lg bg-white/80 border border-brand-100 p-2.5 text-center">
-                      <p className="text-[10px] font-medium text-surface-400 uppercase">Payable Days</p>
+                      <p className="label">Payable Days</p>
                       <p className="text-xs font-semibold text-surface-900 tabular-nums mt-1">{detailRow.leavePayableDays ?? '-'}</p>
                     </div>
                     <div className="rounded-lg bg-white/80 border border-brand-100 p-2.5 text-center">
-                      <p className="text-[10px] font-medium text-surface-400 uppercase">Daily Salary</p>
+                      <p className="label">Daily Salary</p>
                       <p className="text-xs font-semibold text-surface-900 tabular-nums mt-1">{detailRow.dailySalary != null ? `$${detailRow.dailySalary.toFixed(2)}` : '-'}</p>
                     </div>
                     <div className="rounded-lg bg-white/80 border border-brand-100 p-2.5 text-center">
-                      <p className="text-[10px] font-medium text-surface-400 uppercase">Payable Amount</p>
+                      <p className="label">Payable Amount</p>
                       <p className="text-sm font-bold text-brand-700 tabular-nums mt-1">{detailRow.leavePayableAmount != null ? `$${detailRow.leavePayableAmount.toFixed(2)}` : '-'}</p>
                     </div>
                   </div>
@@ -1732,16 +1828,16 @@ export default function AdminLeaveRequests() {
                 <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider mb-3">Additional</p>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-2.5 text-sm">
                   <div>
-                    <p className="text-[10px] font-medium text-surface-400 uppercase">Asset Deactivation</p>
+                    <p className="label">Asset Deactivation</p>
                     <p className="font-medium text-surface-900 mt-0.5">{detailRow.assetDeactivation ?? '-'}</p>
                   </div>
                   <div>
-                    <p className="text-[10px] font-medium text-surface-400 uppercase">Payroll Cycle</p>
+                    <p className="label">Payroll Cycle</p>
                     <p className="font-medium text-surface-900 mt-0.5">{detailRow.payrollCycleCode ?? '-'}</p>
                   </div>
                   {detailRow.reason && (
                     <div className="col-span-2 sm:col-span-3">
-                      <p className="text-[10px] font-medium text-surface-400 uppercase">Reason</p>
+                      <p className="label">Reason</p>
                       <p className="text-surface-700 mt-0.5 leading-relaxed">{detailRow.reason}</p>
                     </div>
                   )}
@@ -1753,11 +1849,11 @@ export default function AdminLeaveRequests() {
                 <p className={`text-[10px] font-semibold uppercase tracking-wider mb-3 ${detailRow.status === 'approved' ? 'text-emerald-500' : detailRow.status === 'rejected' ? 'text-red-500' : 'text-surface-400'}`}>Review</p>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-2.5 text-sm">
                   <div>
-                    <p className="text-[10px] font-medium text-surface-400 uppercase">Reviewed By</p>
+                    <p className="label">Reviewed By</p>
                     <p className="font-medium text-surface-900 mt-0.5">{detailRow.reviewedByName ?? '-'}</p>
                   </div>
                   <div>
-                    <p className="text-[10px] font-medium text-surface-400 uppercase">Review Note</p>
+                    <p className="label">Review Note</p>
                     <p className="text-surface-700 mt-0.5">{detailRow.reviewedNote ?? '-'}</p>
                   </div>
                 </div>

@@ -618,6 +618,16 @@ export default function AdminEmployees() {
     await load()
   }
 
+  async function handleDeleteEmployee(emp: EmployeeRecord) {
+    if (!window.confirm(`Permanently delete ${emp.name}? This will remove all sessions, leaves, payroll inputs, and payroll results for this employee. This cannot be undone.`)) return
+    try {
+      await deleteEmployee(emp.id)
+      await load()
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to delete employee.')
+    }
+  }
+
   async function handleSave() {
     const trimmedName = name.trim()
     // Company email is the login email
@@ -1108,9 +1118,14 @@ export default function AdminEmployees() {
                       ) : '-'}
                     </td>
                     <td className="px-3 py-2.5 whitespace-nowrap text-right" onClick={(e) => e.stopPropagation()}>
-                      <button type="button" onClick={() => openEdit(emp)} className="p-1.5 rounded-lg text-surface-500 hover:bg-surface-100" title="Edit">
-                        <Pencil className="w-3.5 h-3.5" />
-                      </button>
+                      <div className="flex items-center gap-1 justify-end">
+                        <button type="button" onClick={() => openEdit(emp)} className="p-1.5 rounded-lg text-surface-500 hover:bg-surface-100" title="Edit">
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button type="button" onClick={() => void handleDeleteEmployee(emp)} className="p-1.5 rounded-lg text-red-500 hover:bg-red-50" title="Delete">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

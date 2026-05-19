@@ -1214,7 +1214,18 @@ router.patch('/leave-requests/:id', async (req, res) => {
       if (hourlyRateInput !== undefined) add('hourly_rate_input', hourlyRateInput != null ? Number(hourlyRateInput) : null)
       if (dailyHoursInput !== undefined) add('daily_hours_input', dailyHoursInput != null ? Number(dailyHoursInput) : null)
       if (monthlyRateInput !== undefined) add('monthly_rate_input', monthlyRateInput != null ? Number(monthlyRateInput) : null)
-      if (assetDeactivation !== undefined) add('asset_deactivation', assetDeactivation || null)
+      if (assetDeactivation !== undefined) {
+        const v = Array.isArray(assetDeactivation)
+          ? assetDeactivation.filter(Boolean).join(', ') || null
+          : (assetDeactivation || null)
+        add('asset_deactivation', v)
+      }
+      if (associateDaysOff !== undefined) {
+        const v = Array.isArray(associateDaysOff)
+          ? associateDaysOff.map((d) => String(d).trim()).filter(Boolean).join(', ') || null
+          : (associateDaysOff || null)
+        add('leave_associate_days_off', v)
+      }
       if (reason !== undefined) add('reason', reason || null)
       if (editSets.length === 0) return null
       pi++; editVals.push(recordId)
@@ -2349,6 +2360,7 @@ function mapClientRow(r) {
     contractStatus: r.contract_status || 'active',
     terminationDate: r.termination_date || null,
     terminationReason: r.termination_reason || null,
+    isLocked: r.is_locked === true,
   }
 }
 
@@ -2441,6 +2453,12 @@ router.post('/clients', async (req, res) => {
 router.patch('/clients/:id', async (req, res) => {
   try {
     const { id } = req.params
+    // Block edits if locked (unless `force: true`)
+    const cur = await query('SELECT is_locked FROM clients WHERE id = $1', [id])
+    if (cur.rows.length === 0) return res.status(404).json({ error: 'Not found' })
+    if (cur.rows[0].is_locked && !req.body.force) {
+      return res.status(409).json({ error: 'Locked', message: 'Unlock the account before editing.' })
+    }
     const {
       name, code, vertical, salesOwnerId, opsOwnerId,
       registeredAddress, website, mainPhone,
@@ -2507,11 +2525,35 @@ router.patch('/clients/:id', async (req, res) => {
 router.delete('/clients/:id', async (req, res) => {
   try {
     const { id } = req.params
+    // Block delete if locked
+    const row = await query('SELECT is_locked FROM clients WHERE id = $1', [id])
+    if (row.rows.length === 0) return res.status(404).json({ error: 'Not found' })
+    if (row.rows[0].is_locked) return res.status(409).json({ error: 'Locked', message: 'Unlock the account before deleting.' })
     const result = await query('DELETE FROM clients WHERE id = $1 RETURNING id', [id])
     if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' })
     res.status(204).send()
   } catch (err) {
     console.error('Admin delete client error:', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// PATCH /api/admin/clients/:id/lock - toggle lock state of a client account
+router.patch('/clients/:id/lock', async (req, res) => {
+  try {
+    const { id } = req.params
+    const { locked } = req.body
+    if (typeof locked !== 'boolean') {
+      return res.status(400).json({ error: 'Bad request', message: 'locked must be boolean' })
+    }
+    const result = await query(
+      'UPDATE clients SET is_locked = $1, updated_at = NOW() WHERE id = $2 RETURNING id',
+      [locked, id]
+    )
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' })
+    res.json({ id, isLocked: locked })
+  } catch (err) {
+    console.error('Admin lock client error:', err)
     res.status(500).json({ error: 'Internal server error' })
   }
 })

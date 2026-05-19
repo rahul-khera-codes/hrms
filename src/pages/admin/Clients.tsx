@@ -1,9 +1,11 @@
 import { useState, useEffect, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { Building2, Plus, Pencil, Trash2, LayoutGrid, Table2, Search, ArrowUp, ArrowDown, Filter, Download, Upload, X } from 'lucide-react'
-import { getClients, createClient, updateClient, deleteClient, getEmployees, type Client, type EmployeeRecord } from '@/lib/apiAdmin'
+import { Building2, Plus, Pencil, Trash2, LayoutGrid, Table2, Search, ArrowUp, ArrowDown, Filter, Download, Upload, X, Lock, Unlock } from 'lucide-react'
+import { getClients, createClient, updateClient, deleteClient, setClientLocked, getEmployees, type Client, type EmployeeRecord } from '@/lib/apiAdmin'
 import { PageHeader } from '@/components/PageHeader'
 import { SkeletonTableRows } from '@/components/Skeleton'
+import { BulkActionBar } from '@/components/BulkActionBar'
+import { useToast } from '@/components/Toast'
 import AdminSelect from '@/components/AdminSelect'
 import AdminDatePicker from '@/components/AdminDatePicker'
 import DocumentUpload from '@/components/DocumentUpload'
@@ -92,6 +94,20 @@ export default function AdminClients() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const [columnFilters, setColumnFilters] = useState<Record<string, string>>({})
   const [filterOpen, setFilterOpen] = useState<string | null>(null)
+
+  // Multi-select for bulk operations
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkSaving, setBulkSaving] = useState(false)
+  const toast = useToast()
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+  function clearSelection() { setSelectedIds(new Set()) }
 
   // Form state
   const [name, setName] = useState('')
@@ -295,13 +311,73 @@ export default function AdminClients() {
   }
 
   async function handleDelete(c: Client) {
+    if (c.isLocked) { toast.error('Unlock the account before deleting.'); return }
     if (!window.confirm(`Delete account "${c.name}"? This will remove all schedule assignments for this account.`)) return
     setError(null)
     try {
       await deleteClient(c.id)
       setClients((prev) => prev.filter((x) => x.id !== c.id))
+      toast.success('Account deleted.')
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to delete')
+      const msg = e instanceof Error ? e.message : 'Failed to delete'
+      setError(msg)
+      toast.error(msg)
+    }
+  }
+
+  async function handleToggleLock(c: Client) {
+    try {
+      await setClientLocked(c.id, !c.isLocked)
+      setClients((prev) => prev.map((x) => (x.id === c.id ? { ...x, isLocked: !c.isLocked } : x)))
+      toast.success(c.isLocked ? 'Account unlocked.' : 'Account locked.')
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Failed to toggle lock.')
+    }
+  }
+
+  async function bulkSetLocked(locked: boolean) {
+    if (selectedIds.size === 0) return
+    setBulkSaving(true)
+    let ok = 0, failed = 0
+    for (const id of Array.from(selectedIds)) {
+      try { await setClientLocked(id, locked); ok++ } catch { failed++ }
+    }
+    setBulkSaving(false)
+    if (failed === 0) toast.success(`${ok} account${ok === 1 ? '' : 's'} ${locked ? 'locked' : 'unlocked'}.`)
+    else toast.error(`${ok} updated, ${failed} failed.`)
+    clearSelection()
+    await load()
+  }
+
+  async function bulkDelete() {
+    if (selectedIds.size === 0) return
+    const eligible = Array.from(selectedIds).filter((id) => {
+      const c = clients.find((x) => x.id === id)
+      return c && !c.isLocked
+    })
+    if (eligible.length === 0) { toast.error('No eligible accounts selected (all locked).'); return }
+    if (!window.confirm(`Delete ${eligible.length} account(s)? This cannot be undone.`)) return
+    setBulkSaving(true)
+    let ok = 0, failed = 0
+    for (const id of eligible) {
+      try { await deleteClient(id); ok++ } catch { failed++ }
+    }
+    setBulkSaving(false)
+    if (failed === 0) toast.success(`${ok} account${ok === 1 ? '' : 's'} deleted.`)
+    else toast.error(`${ok} deleted, ${failed} failed.`)
+    clearSelection()
+    await load()
+  }
+
+  async function load() {
+    setLoading(true)
+    try {
+      const list = await getClients()
+      setClients(list)
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to reload')
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -374,7 +450,7 @@ export default function AdminClients() {
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <tbody>
-                <SkeletonTableRows rows={5} cols={6} />
+                <SkeletonTableRows rows={5} cols={7} />
               </tbody>
             </table>
           </div>
@@ -477,10 +553,13 @@ export default function AdminClients() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2 self-end sm:self-auto">
-                  <button type="button" onClick={(e) => { e.stopPropagation(); openEdit(c) }} className="p-2 rounded-lg text-surface-500 hover:bg-surface-100" title="Edit">
+                  <button type="button" onClick={(e) => { e.stopPropagation(); openEdit(c) }} disabled={c.isLocked} className="p-2 rounded-lg text-surface-500 hover:bg-surface-100 disabled:opacity-40" title="Edit">
                     <Pencil className="w-4 h-4" />
                   </button>
-                  <button type="button" onClick={(e) => { e.stopPropagation(); handleDelete(c) }} className="p-2 rounded-lg text-red-500 hover:bg-red-50" title="Delete">
+                  <button type="button" onClick={(e) => { e.stopPropagation(); handleToggleLock(c) }} className="p-2 rounded-lg text-surface-500 hover:bg-surface-100" title={c.isLocked ? 'Unlock' : 'Lock'}>
+                    {c.isLocked ? <Unlock className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+                  </button>
+                  <button type="button" onClick={(e) => { e.stopPropagation(); handleDelete(c) }} disabled={c.isLocked} className="p-2 rounded-lg text-red-500 hover:bg-red-50 disabled:opacity-40" title="Delete">
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
@@ -492,6 +571,21 @@ export default function AdminClients() {
             <table className="min-w-full w-full text-left border-collapse">
               <thead className="sticky top-0 z-10 bg-surface-50 shadow-[0_1px_0_0_theme(colors.surface.200)]">
                 <tr>
+                  <th className="px-3 py-1.5 w-8 border-b border-surface-200">
+                    <input
+                      type="checkbox"
+                      className="cursor-pointer"
+                      aria-label="Select all"
+                      checked={filteredClients.length > 0 && filteredClients.every((c) => selectedIds.has(c.id))}
+                      ref={(el) => {
+                        if (el) el.indeterminate = filteredClients.some((c) => selectedIds.has(c.id)) && !filteredClients.every((c) => selectedIds.has(c.id))
+                      }}
+                      onChange={(e) => {
+                        if (e.target.checked) setSelectedIds(new Set(filteredClients.map((c) => c.id)))
+                        else clearSelection()
+                      }}
+                    />
+                  </th>
                   {TABLE_COLUMNS.map((col) => (
                     <th
                       key={col}
@@ -539,7 +633,21 @@ export default function AdminClients() {
                     className="border-b border-surface-100 hover:bg-brand-50/40 transition-colors cursor-pointer"
                     onClick={() => openEdit(c)}
                   >
-                    <td className="px-3 py-2.5 text-xs font-medium text-surface-900 whitespace-nowrap">{c.name}</td>
+                    <td className="px-3 py-2.5 w-8" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        className="cursor-pointer"
+                        aria-label={`Select ${c.name}`}
+                        checked={selectedIds.has(c.id)}
+                        onChange={() => toggleSelect(c.id)}
+                      />
+                    </td>
+                    <td className="px-3 py-2.5 text-xs font-medium text-surface-900 whitespace-nowrap">
+                      <span className="flex items-center gap-1.5">
+                        {c.name}
+                        {c.isLocked && <Lock className="w-3 h-3 text-surface-400" />}
+                      </span>
+                    </td>
                     <td className="px-3 py-2.5 text-xs text-surface-600 whitespace-nowrap">{c.vertical || '-'}</td>
                     <td className="px-3 py-2.5 text-xs text-surface-600 whitespace-nowrap">{c.salesOwnerName || '-'}</td>
                     <td className="px-3 py-2.5 text-xs text-surface-600 whitespace-nowrap">{c.opsOwnerName || '-'}</td>
@@ -549,15 +657,25 @@ export default function AdminClients() {
                         <button
                           type="button"
                           onClick={(e) => { e.stopPropagation(); openEdit(c) }}
-                          className="p-1.5 rounded-lg text-surface-500 hover:bg-surface-100"
+                          disabled={c.isLocked}
+                          className="p-1.5 rounded-lg text-surface-500 hover:bg-surface-100 disabled:opacity-40"
                           title="Edit"
                         >
                           <Pencil className="w-3.5 h-3.5" />
                         </button>
                         <button
                           type="button"
+                          onClick={(e) => { e.stopPropagation(); handleToggleLock(c) }}
+                          className="p-1.5 rounded-lg text-surface-500 hover:bg-surface-100"
+                          title={c.isLocked ? 'Unlock' : 'Lock'}
+                        >
+                          {c.isLocked ? <Unlock className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5" />}
+                        </button>
+                        <button
+                          type="button"
                           onClick={(e) => { e.stopPropagation(); handleDelete(c) }}
-                          className="p-1.5 rounded-lg text-red-500 hover:bg-red-50"
+                          disabled={c.isLocked}
+                          className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 disabled:opacity-40"
                           title="Delete"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -778,6 +896,39 @@ export default function AdminClients() {
         </div>,
         document.body,
       )}
+
+      <BulkActionBar count={selectedIds.size} onClear={clearSelection}>
+        <button
+          type="button"
+          onClick={() => void bulkSetLocked(true)}
+          disabled={bulkSaving}
+          className="btn-secondary btn-sm"
+          title="Lock selected"
+        >
+          <Lock className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">Lock</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => void bulkSetLocked(false)}
+          disabled={bulkSaving}
+          className="btn-secondary btn-sm"
+          title="Unlock selected"
+        >
+          <Unlock className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">Unlock</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => void bulkDelete()}
+          disabled={bulkSaving}
+          className="btn-danger btn-sm"
+          title="Delete selected (skips locked)"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">Delete</span>
+        </button>
+      </BulkActionBar>
     </div>
   )
 }

@@ -12,7 +12,6 @@ import EmployeeMySchedule from './pages/employee/MySchedule'
 import EmployeeLeave from './pages/employee/Leave'
 import EmployeePayrollCalendar from './pages/employee/PayrollCalendar'
 import EmployeeMyPayroll from './pages/employee/MyPayroll'
-import AdminDashboard from './pages/admin/Dashboard'
 import AdminAttendance from './pages/admin/Attendance'
 import AdminPayroll from './pages/admin/Payroll'
 import AdminReports from './pages/admin/Reports'
@@ -83,8 +82,8 @@ export default function App() {
             </ProtectedAdmin>
           }
         >
-          <Route index element={<Navigate to="dashboard" replace />} />
-          <Route path="dashboard" element={<AdminDashboard />} />
+          <Route index element={<Navigate to="employees" replace />} />
+          <Route path="dashboard" element={<Navigate to="/admin/employees" replace />} />
           <Route path="employees" element={<AdminEmployees />} />
           <Route path="attendance" element={<AdminAttendance />} />
           <Route path="payroll-calendar" element={<AdminPayrollCalendar />} />

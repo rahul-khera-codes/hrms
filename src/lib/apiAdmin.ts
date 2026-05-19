@@ -347,6 +347,7 @@ export interface Client {
   contractStatus: string | null
   terminationDate: string | null
   terminationReason: string | null
+  isLocked: boolean
 }
 
 export interface Shift {
@@ -548,6 +549,10 @@ export async function deleteClient(id: string): Promise<void> {
   return api(`/api/admin/clients/${id}`, { method: 'DELETE' })
 }
 
+export async function setClientLocked(id: string, locked: boolean): Promise<void> {
+  return api(`/api/admin/clients/${id}/lock`, { method: 'PATCH', body: JSON.stringify({ locked }) })
+}
+
 export async function getShifts(clientId?: string): Promise<Shift[]> {
   const q = clientId ? `?client_id=${encodeURIComponent(clientId)}` : ''
   return api<Shift[]>(`/api/admin/shifts${q}`)
@@ -679,8 +684,10 @@ export async function reviewAdminLeaveRequest(
     hourlyRateInput?: number
     dailyHoursInput?: number
     monthlyRateInput?: number
-    assetDeactivation?: string
+    assetDeactivation?: string[] | string
     reason?: string
+    approverName?: string
+    payrollStatus?: string
   }
 ): Promise<AdminLeaveRequest> {
   return api<AdminLeaveRequest>(`/api/admin/leave-requests/${id}`, {

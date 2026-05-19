@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { format, startOfWeek, endOfWeek } from 'date-fns'
 import { Search, Download, X, ArrowUp, ArrowDown, Filter, Clock, Plus, Lock, Unlock, Pencil } from 'lucide-react'
 import { getAdminAttendance, updateAttendanceRecord, createAttendanceRecord, getEmployees, getClients, getPayrollPeriods, type EmployeeRecord, type Client, type PayrollPeriod } from '@/lib/apiAdmin'
@@ -955,7 +955,7 @@ export default function AdminAttendance() {
                     { label: 'ADBT', val: detailRecord.adbtHours },
                   ] as const).map((item) => (
                     <div key={item.label} className="text-center rounded-lg bg-white border border-surface-100 py-2 px-1">
-                      <p className="text-[10px] font-medium text-surface-400 uppercase">{item.label}</p>
+                      <p className="label">{item.label}</p>
                       <p className={`text-sm font-semibold tabular-nums mt-0.5 ${(item.val ?? 0) > 0 ? 'text-surface-800' : 'text-surface-300'}`}>{fmtHours(item.val)}</p>
                     </div>
                   ))}
@@ -1018,7 +1018,7 @@ export default function AdminAttendance() {
                 <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider mb-3">Shift Classification (Editable)</p>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-3">
                   <div>
-                    <label className="text-[10px] font-medium text-surface-400 uppercase block mb-1">Status</label>
+                    <label className="label">Status</label>
                     <select
                       value={detailRecord.status}
                       disabled={detailRecord.isLocked ?? false}
@@ -1030,7 +1030,7 @@ export default function AdminAttendance() {
                     </select>
                   </div>
                   <div>
-                    <label className="text-[10px] font-medium text-surface-400 uppercase block mb-1">Account</label>
+                    <label className="label">Account</label>
                     <AdminSelect
                       value={detailRecord.accountId ?? ''}
                       disabled={detailRecord.isLocked ?? false}
@@ -1042,7 +1042,7 @@ export default function AdminAttendance() {
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] font-medium text-surface-400 uppercase block mb-1">Task</label>
+                    <label className="label">Task</label>
                     <select
                       value={detailRecord.task ?? ''}
                       disabled={detailRecord.isLocked ?? false}
@@ -1056,7 +1056,7 @@ export default function AdminAttendance() {
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-[1fr_1.5fr_auto_auto] gap-x-3 gap-y-3 mt-3">
                   <div>
-                    <label className="text-[10px] font-medium text-surface-400 uppercase block mb-1">Stage</label>
+                    <label className="label">Stage</label>
                     <select
                       value={detailRecord.stage ?? ''}
                       disabled={detailRecord.isLocked ?? false}
@@ -1068,7 +1068,7 @@ export default function AdminAttendance() {
                     </select>
                   </div>
                   <div className="min-w-0">
-                    <label className="text-[10px] font-medium text-surface-400 uppercase block mb-1">Reports To</label>
+                    <label className="label">Reports To</label>
                     <AdminSelect
                       value={detailRecord.reportsToId ?? ''}
                       disabled={detailRecord.isLocked ?? false}
@@ -1080,7 +1080,7 @@ export default function AdminAttendance() {
                     />
                   </div>
                   <div className="w-24">
-                    <label className="text-[10px] font-medium text-surface-400 uppercase block mb-1">Pay</label>
+                    <label className="label">Pay</label>
                     <select
                       value={detailRecord.payType ?? ''}
                       disabled={detailRecord.isLocked ?? false}
@@ -1092,7 +1092,7 @@ export default function AdminAttendance() {
                     </select>
                   </div>
                   <div className="w-24">
-                    <label className="text-[10px] font-medium text-surface-400 uppercase block mb-1">Bill</label>
+                    <label className="label">Bill</label>
                     <select
                       value={detailRecord.billType ?? ''}
                       disabled={detailRecord.isLocked ?? false}
@@ -1394,14 +1394,19 @@ function InlineInput({
   onSave: (val: string) => void
 }) {
   const [local, setLocal] = useState(value)
+  const inputRef = useRef<HTMLInputElement>(null)
 
-  // Sync if parent value changes (e.g. from poll refresh)
+  // Sync if parent value changes — but only when this input is NOT focused,
+  // so an in-flight edit isn't clobbered by a polling refresh.
   useEffect(() => {
-    setLocal(value)
+    if (document.activeElement !== inputRef.current) {
+      setLocal(value)
+    }
   }, [value])
 
   return (
     <input
+      ref={inputRef}
       type="text"
       value={local}
       onChange={(e) => setLocal(e.target.value)}
@@ -1429,13 +1434,15 @@ function ModalCommentInput({
   disabled?: boolean
 }) {
   const [local, setLocal] = useState(value)
+  const textRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
-    setLocal(value)
+    if (document.activeElement !== textRef.current) setLocal(value)
   }, [value])
 
   return (
     <textarea
+      ref={textRef}
       value={local}
       onChange={(e) => setLocal(e.target.value)}
       onBlur={() => {
@@ -1461,15 +1468,17 @@ function ShiftTimeInput({
   disabled?: boolean
 }) {
   const [local, setLocal] = useState(value)
+  const timeRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    setLocal(value)
+    if (document.activeElement !== timeRef.current) setLocal(value)
   }, [value])
 
   return (
     <div className="rounded-lg bg-white border border-surface-100 p-2.5">
-      <p className="text-[10px] font-medium text-surface-400 uppercase tracking-wider">{label}</p>
+      <p className="label">{label}</p>
       <input
+        ref={timeRef}
         type="datetime-local"
         value={local}
         onChange={(e) => setLocal(e.target.value)}

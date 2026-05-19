@@ -23,11 +23,6 @@ import clsx from 'clsx'
 
 const navSections: { title?: string; items: { to: string; label: string; icon: typeof LayoutDashboard }[] }[] = [
   {
-    items: [
-      { to: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    ],
-  },
-  {
     title: 'Workforce',
     items: [
       { to: '/admin/employees', label: 'Employees', icon: Users },

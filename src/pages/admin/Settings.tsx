@@ -1,8 +1,29 @@
 import { useState, useEffect } from 'react'
-import { Clock, Moon, TrendingUp, Save, Plug, Calendar, Banknote, Settings as SettingsIcon } from 'lucide-react'
+import { Clock, Moon, TrendingUp, Save, Plug, Calendar, Banknote, Settings as SettingsIcon, Percent, Info } from 'lucide-react'
 import { createHoliday, deleteHoliday, getHolidays, getSettings, updateSettings, type HolidayItem } from '@/lib/apiAdmin'
 import AdminSelect from '@/components/AdminSelect'
 import { PageHeader } from '@/components/PageHeader'
+
+// Read-only reference values — mirror constants in backend/src/lib/drPayrollRules.js
+// Updated whenever DR labor-law rates change. Surface these here so payroll admins
+// can verify what the engine uses without diving into code.
+const TAX_REFERENCE = {
+  afpEmployeePct: 2.87,
+  sfsEmployeePct: 3.04,
+  infotepEmployeePct: 0.5,
+  afpEmployerPct: 7.10,
+  sfsEmployerPct: 7.09,
+  infotepEmployerPct: 1.00,
+  arlEmployerPct: 1.20,
+  regularOTPct: 35,
+  holidayOTPct: 100,
+  isrBrackets2026: [
+    { from: 0, to: 416_220, rate: 0, note: 'Exempt' },
+    { from: 416_220.01, to: 624_329, rate: 15, note: '15% over excess of 416,220.00' },
+    { from: 624_329.01, to: 867_123, rate: 20, note: '20% + RD$31,216 over excess of 624,329.00' },
+    { from: 867_123.01, to: Infinity, rate: 25, note: '25% + RD$79,776 over excess of 867,123.00' },
+  ],
+}
 
 function formatHour(h: number) {
   if (h === 0) return '12 AM'
@@ -324,8 +345,10 @@ export default function AdminSettings() {
               <TrendingUp className="w-5 h-5 text-amber-600" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-medium text-surface-900 text-sm sm:text-base">Overtime multiplier</p>
-              <p className="text-xs sm:text-sm text-surface-500">Pay rate for OT (e.g. 1.35 = 35% extra)</p>
+              <p className="font-medium text-surface-900 text-sm sm:text-base">Regular overtime multiplier (X35%)</p>
+              <p className="text-xs sm:text-sm text-surface-500">
+                Pay rate for regular OT hours (1.35 = 35% extra). Holiday OT is fixed at 2.00 (100% extra) — see Tax &amp; Deduction Rates below.
+              </p>
             </div>
             <input
               type="number"
@@ -396,6 +419,80 @@ export default function AdminSettings() {
           <Save className="w-4 h-4 shrink-0" />
           {saving ? 'Saving…' : 'Save rules'}
         </button>
+      </div>
+
+      {/* Tax & Deduction Rates (read-only reference) — added per 18MAY2026 client feedback */}
+      <div className="rounded-xl sm:rounded-2xl border border-surface-200/80 bg-white p-4 sm:p-6 shadow-sm">
+        <div className="flex flex-col sm:flex-row items-start gap-3 mb-4">
+          <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0">
+            <Percent className="w-5 h-5 text-emerald-700" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h2 className="text-sm sm:text-base font-semibold text-surface-900">Tax &amp; Deduction Rates (Reference)</h2>
+            <p className="text-xs sm:text-sm text-surface-500 mt-0.5">
+              Values used by the payroll engine. Stored in code (Dominican Republic 2026 labor &amp; tax rules). Change via code update if rates change by law.
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+          <div className="rounded-lg border border-surface-200/80 p-3">
+            <p className="text-[10px] font-semibold text-surface-500 uppercase tracking-wider mb-2">Employee Deductions (TSS)</p>
+            <div className="space-y-1.5 text-xs">
+              <div className="flex justify-between"><span className="text-surface-600">AFP (Pensions)</span><span className="font-semibold tabular-nums">{TAX_REFERENCE.afpEmployeePct}%</span></div>
+              <div className="flex justify-between"><span className="text-surface-600">SFS (Health)</span><span className="font-semibold tabular-nums">{TAX_REFERENCE.sfsEmployeePct}%</span></div>
+              <div className="flex justify-between"><span className="text-surface-600">INFOTEP (on profit-sharing only)</span><span className="font-semibold tabular-nums">{TAX_REFERENCE.infotepEmployeePct}%</span></div>
+            </div>
+          </div>
+          <div className="rounded-lg border border-surface-200/80 p-3">
+            <p className="text-[10px] font-semibold text-surface-500 uppercase tracking-wider mb-2">Employer Costs</p>
+            <div className="space-y-1.5 text-xs">
+              <div className="flex justify-between"><span className="text-surface-600">AFP</span><span className="font-semibold tabular-nums">{TAX_REFERENCE.afpEmployerPct}%</span></div>
+              <div className="flex justify-between"><span className="text-surface-600">SFS</span><span className="font-semibold tabular-nums">{TAX_REFERENCE.sfsEmployerPct}%</span></div>
+              <div className="flex justify-between"><span className="text-surface-600">INFOTEP</span><span className="font-semibold tabular-nums">{TAX_REFERENCE.infotepEmployerPct}%</span></div>
+              <div className="flex justify-between"><span className="text-surface-600">ARL (Labor Risk)</span><span className="font-semibold tabular-nums">{TAX_REFERENCE.arlEmployerPct}%</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-surface-200/80 p-3 mb-4">
+          <p className="text-[10px] font-semibold text-surface-500 uppercase tracking-wider mb-2">Overtime Premiums</p>
+          <div className="grid grid-cols-2 gap-3 text-xs">
+            <div className="flex justify-between"><span className="text-surface-600">Regular OT (X35%)</span><span className="font-semibold tabular-nums">+{TAX_REFERENCE.regularOTPct}% (configurable above)</span></div>
+            <div className="flex justify-between"><span className="text-surface-600">Holiday OT (X100%)</span><span className="font-semibold tabular-nums">+{TAX_REFERENCE.holidayOTPct}% (fixed by law)</span></div>
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-surface-200/80 overflow-hidden">
+          <div className="px-3 py-2 bg-surface-50 border-b border-surface-200/80">
+            <p className="text-[10px] font-semibold text-surface-500 uppercase tracking-wider">ISR Tax Brackets (Monthly, 2026)</p>
+          </div>
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b border-surface-200/80 text-surface-500">
+                <th className="px-3 py-2 text-left font-medium">From (RD$)</th>
+                <th className="px-3 py-2 text-left font-medium">To (RD$)</th>
+                <th className="px-3 py-2 text-left font-medium">Rate</th>
+                <th className="px-3 py-2 text-left font-medium">Calculation</th>
+              </tr>
+            </thead>
+            <tbody>
+              {TAX_REFERENCE.isrBrackets2026.map((b, i) => (
+                <tr key={i} className="border-b border-surface-100 last:border-b-0">
+                  <td className="px-3 py-2 tabular-nums">{b.from.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                  <td className="px-3 py-2 tabular-nums">{b.to === Infinity ? 'Over' : b.to.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                  <td className="px-3 py-2 font-semibold">{b.rate}%</td>
+                  <td className="px-3 py-2 text-surface-600">{b.note}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <p className="text-[11px] text-surface-500 mt-3 flex items-start gap-1.5">
+          <Info className="w-3 h-3 mt-0.5 shrink-0" />
+          Bi-weekly periods use ÷ 26/12 to map back to monthly equivalents for ISR brackets and TSS caps.
+        </p>
       </div>
 
       <div className="rounded-xl sm:rounded-2xl border border-surface-200/80 bg-white p-4 sm:p-6 shadow-sm">

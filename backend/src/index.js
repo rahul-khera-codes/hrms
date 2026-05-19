@@ -176,6 +176,7 @@ try {
     await pool.query(`ALTER TABLE clients ADD COLUMN IF NOT EXISTS contract_status VARCHAR(20) DEFAULT 'active'`)
     await pool.query(`ALTER TABLE clients ADD COLUMN IF NOT EXISTS termination_date DATE`)
     await pool.query(`ALTER TABLE clients ADD COLUMN IF NOT EXISTS termination_reason VARCHAR(100)`)
+    await pool.query(`ALTER TABLE clients ADD COLUMN IF NOT EXISTS is_locked BOOLEAN DEFAULT FALSE`)
   } catch (e) {
     if (e.code !== '42701') console.warn('clients new columns migration:', e.message)
   }
