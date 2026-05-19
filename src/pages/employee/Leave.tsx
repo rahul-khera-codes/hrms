@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
-import { CalendarCheck2, LayoutGrid, Table2, Search, ArrowUp, ArrowDown, Filter } from 'lucide-react'
-import { getMyLeaveRequests, type LeaveRequestItem } from '@/lib/apiEmployee'
+import { CalendarCheck2, LayoutGrid, Table2, Search, ArrowUp, ArrowDown, Filter, Plus, X } from 'lucide-react'
+import { getMyLeaveRequests, createLeaveRequest, type LeaveRequestItem } from '@/lib/apiEmployee'
 import AdminSelect from '@/components/AdminSelect'
 import { PageHeader } from '@/components/PageHeader'
 import { SkeletonTableRows } from '@/components/Skeleton'
+import { useToast } from '@/components/Toast'
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -55,6 +56,41 @@ export default function EmployeeLeave() {
 
   // Detail modal
   const [detailRow, setDetailRow] = useState<LeaveRequestItem | null>(null)
+
+  // New leave creation (limited form per 18MAY2026 client video)
+  const [createOpen, setCreateOpen] = useState(false)
+  const [createCategory, setCreateCategory] = useState('time_off')
+  const [createStartDate, setCreateStartDate] = useState('')
+  const [createNotes, setCreateNotes] = useState('')
+  const [createSaving, setCreateSaving] = useState(false)
+  const toast = useToast()
+
+  async function handleCreateLeave() {
+    if (!createStartDate) { toast.error('Please pick a start date.'); return }
+    setCreateSaving(true)
+    try {
+      // End date defaults to start date — admin will adjust during review per client video
+      await createLeaveRequest({
+        leaveType: 'paid',
+        leaveCategory: createCategory,
+        startDate: createStartDate,
+        endDate: createStartDate,
+        reason: createNotes.trim() || undefined,
+      })
+      toast.success('Leave request submitted.')
+      setCreateOpen(false)
+      setCreateCategory('time_off')
+      setCreateStartDate('')
+      setCreateNotes('')
+      // Reload
+      const list = await getMyLeaveRequests()
+      setRequests(list)
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Failed to submit leave.')
+    } finally {
+      setCreateSaving(false)
+    }
+  }
 
   const colAccessor = (r: LeaveRequestItem, col: string): string | number => {
     switch (col) {
@@ -170,6 +206,15 @@ export default function EmployeeLeave() {
         title="My Leaves"
         subtitle="View your leave requests and status."
         icon={<CalendarCheck2 className="w-5 h-5" />}
+        actions={
+          <button
+            type="button"
+            onClick={() => setCreateOpen(true)}
+            className="btn-primary rounded-xl"
+          >
+            <Plus className="w-4 h-4" /> New Leave
+          </button>
+        }
       />
 
       {/* Summary cards */}
@@ -498,6 +543,72 @@ export default function EmployeeLeave() {
                   <p className="text-sm text-surface-700">{detailRow.reviewedNote}</p>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* New Leave submission modal (limited fields per 18MAY2026 client video) */}
+      {createOpen && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true">
+          <button type="button" className="absolute inset-0" onClick={() => setCreateOpen(false)} aria-label="Close" />
+          <div className="modal-frame">
+            <div className="modal-header">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-9 h-9 rounded-lg bg-brand-50 border border-brand-100 text-brand-600 flex items-center justify-center shrink-0">
+                  <CalendarCheck2 className="w-5 h-5" />
+                </div>
+                <div className="min-w-0">
+                  <h2 className="text-base font-semibold text-surface-900">Request a leave</h2>
+                  <p className="text-xs text-surface-500 mt-0.5">Your supervisor will confirm the dates and details.</p>
+                </div>
+              </div>
+              <button type="button" onClick={() => setCreateOpen(false)} className="btn-icon" aria-label="Close">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="modal-body space-y-4">
+              <div>
+                <label className="label">Leave Type</label>
+                <AdminSelect
+                  value={createCategory}
+                  onChange={(val) => setCreateCategory(val)}
+                  options={leaveCategoryOptions}
+                />
+              </div>
+              <div>
+                <label className="label">Start Date</label>
+                <input
+                  type="date"
+                  className="input w-full rounded-xl"
+                  value={createStartDate}
+                  onChange={(e) => setCreateStartDate(e.target.value)}
+                />
+                <p className="text-[11px] text-surface-500 mt-1">
+                  Your supervisor will confirm end date, return date, and payment details.
+                </p>
+              </div>
+              <div>
+                <label className="label">Notes (optional)</label>
+                <textarea
+                  className="input w-full rounded-xl"
+                  rows={3}
+                  value={createNotes}
+                  onChange={(e) => setCreateNotes(e.target.value)}
+                  placeholder="Any context that helps your supervisor approve"
+                />
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button type="button" onClick={() => setCreateOpen(false)} className="btn-secondary rounded-xl">Cancel</button>
+              <button
+                type="button"
+                onClick={() => void handleCreateLeave()}
+                disabled={createSaving || !createStartDate}
+                className="btn-primary rounded-xl disabled:opacity-60"
+              >
+                {createSaving ? 'Submitting…' : 'Submit'}
+              </button>
             </div>
           </div>
         </div>

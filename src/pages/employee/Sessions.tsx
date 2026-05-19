@@ -6,6 +6,7 @@ import type { AttendanceRecord } from '@/types'
 import DateRangePicker from '@/components/DateRangePicker'
 import AdminSelect from '@/components/AdminSelect'
 import { PageHeader } from '@/components/PageHeader'
+import { EmployeeClockWidget } from '@/components/EmployeeClockWidget'
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -243,9 +244,12 @@ export default function EmployeeSessions() {
     <div className="page overflow-x-hidden">
       <PageHeader
         title="My Attendance"
-        subtitle="View your attendance records and hours."
+        subtitle="Track your time and view your records."
         icon={<Clock className="w-5 h-5" />}
       />
+
+      {/* Clock-in/out + Today's Shift widget (top of page per 18MAY2026 client video) */}
+      <EmployeeClockWidget onChange={() => void fetchAttendance()} />
 
       {/* Filters */}
       <div className="toolbar">

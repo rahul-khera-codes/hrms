@@ -341,52 +341,53 @@ router.get('/my-attendance', async (req, res) => {
   try {
     const userId = req.user.id
     const { from, to } = req.query
+    // ONE ROW PER SESSION (not aggregated per day) — per 18MAY2026 client video,
+    // employee My Attendance should mirror admin Attendance.
     let sql = `
       SELECT
+        s.id AS session_id,
         u.id AS user_id,
         u.name AS user_name,
         (s.clock_in AT TIME ZONE 'UTC')::date AS date,
-        MIN(s.clock_in) AS first_clock_in,
-        MAX(s.clock_out) AS last_clock_out,
-        COALESCE(SUM(s.regular_minutes), 0)::int AS regular_minutes,
-        COALESCE(SUM(s.overtime_minutes), 0)::int AS overtime_minutes,
-        COALESCE(SUM(s.night_minutes), 0)::int AS night_minutes,
-        COALESCE(SUM(CASE WHEN s.clock_out IS NOT NULL THEN EXTRACT(EPOCH FROM (s.clock_out - s.clock_in)) / 60.0 ELSE 0 END), 0) AS precise_total_minutes,
-        BOOL_OR(s.clock_out IS NULL) AS has_active_session,
-        MIN(s.shift_start) AS shift_start,
-        MAX(s.shift_end) AS shift_end,
-        MAX(COALESCE(s.location, e.location)) AS location,
-        MAX(COALESCE(s.stage, 'Production')) AS stage,
-        MAX(s.task) AS task,
-        MAX(s.status_override) AS status_override,
-        MAX(s.pay_type) AS pay_type,
-        MAX(s.bill_type) AS bill_type,
-        STRING_AGG(DISTINCT s.comments, '; ') FILTER (WHERE s.comments IS NOT NULL AND s.comments != '') AS comments,
-        COALESCE(SUM(s.scheduled_minutes), 0)::int AS scheduled_minutes,
-        COALESCE(SUM(s.actual_minutes), 0)::int AS actual_minutes,
-        MAX(s.dbt_minutes) AS dbt_minutes,
-        MAX(s.holiday_name) AS holiday_name,
-        COALESCE(SUM(s.reg_hours), 0) AS reg_hours,
-        COALESCE(SUM(s.n15_hours), 0) AS n15_hours,
-        COALESCE(SUM(s.x35_hours), 0) AS x35_hours,
-        COALESCE(SUM(s.x100_hours), 0) AS x100_hours,
-        COALESCE(SUM(s.hol_hours), 0) AS hol_hours,
-        COALESCE(SUM(s.billable_reg_hours), 0) AS billable_reg_hours,
-        COALESCE(SUM(s.billable_prm_hours), 0) AS billable_prm_hours,
-        COALESCE(SUM(s.billable_rvw_hours), 0) AS billable_rvw_hours,
-        COALESCE(SUM(s.payable_rvw_hours), 0) AS payable_rvw_hours,
-        MAX(mgr.name) AS reports_to_name,
-        MAX(c.name) AS account_name,
-        MAX(e.cmid) AS employee_cmid,
-        BOOL_OR(s.is_locked) AS is_locked,
-        (ARRAY_AGG(s.id ORDER BY s.clock_in DESC))[1] AS session_id,
-        MIN(
+        s.clock_in AS first_clock_in,
+        s.clock_out AS last_clock_out,
+        COALESCE(s.regular_minutes, 0)::int AS regular_minutes,
+        COALESCE(s.overtime_minutes, 0)::int AS overtime_minutes,
+        COALESCE(s.night_minutes, 0)::int AS night_minutes,
+        COALESCE(CASE WHEN s.clock_out IS NOT NULL THEN EXTRACT(EPOCH FROM (s.clock_out - s.clock_in)) / 60.0 ELSE 0 END, 0) AS precise_total_minutes,
+        (s.clock_out IS NULL) AS has_active_session,
+        s.shift_start, s.shift_end,
+        COALESCE(s.location, e.location) AS location,
+        COALESCE(s.stage, 'Production') AS stage,
+        s.task,
+        s.status_override,
+        s.pay_type,
+        s.bill_type,
+        s.comments,
+        COALESCE(s.scheduled_minutes, 0)::int AS scheduled_minutes,
+        COALESCE(s.actual_minutes, 0)::int AS actual_minutes,
+        s.dbt_minutes,
+        s.holiday_name,
+        COALESCE(s.reg_hours, 0) AS reg_hours,
+        COALESCE(s.n15_hours, 0) AS n15_hours,
+        COALESCE(s.x35_hours, 0) AS x35_hours,
+        COALESCE(s.x100_hours, 0) AS x100_hours,
+        COALESCE(s.hol_hours, 0) AS hol_hours,
+        COALESCE(s.billable_reg_hours, 0) AS billable_reg_hours,
+        COALESCE(s.billable_prm_hours, 0) AS billable_prm_hours,
+        COALESCE(s.billable_rvw_hours, 0) AS billable_rvw_hours,
+        COALESCE(s.payable_rvw_hours, 0) AS payable_rvw_hours,
+        mgr.name AS reports_to_name,
+        c.name AS account_name,
+        e.cmid AS employee_cmid,
+        s.is_locked,
+        CASE WHEN sh.start_time IS NOT NULL THEN
           (((s.clock_in AT TIME ZONE 'UTC')::date || 'T' || COALESCE(sa_shift.override_start, sh.start_time)::text)::timestamp AT TIME ZONE 'UTC')
-        ) FILTER (WHERE sh.start_time IS NOT NULL) AS dynamic_shift_start,
-        MAX(
+        ELSE NULL END AS dynamic_shift_start,
+        CASE WHEN sh.end_time IS NOT NULL THEN
           (((s.clock_in AT TIME ZONE 'UTC')::date || 'T' || COALESCE(sa_shift.override_end, sh.end_time)::text)::timestamp AT TIME ZONE 'UTC')
-        ) FILTER (WHERE sh.end_time IS NOT NULL) AS dynamic_shift_end,
-        MAX(h.name) AS dynamic_holiday_name
+        ELSE NULL END AS dynamic_shift_end,
+        h.name AS dynamic_holiday_name
       FROM sessions s
       JOIN users u ON u.id = s.user_id
       LEFT JOIN employees e ON e.user_id = u.id
@@ -414,8 +415,7 @@ router.get('/my-attendance', async (req, res) => {
       sql += ` AND (s.clock_in AT TIME ZONE 'UTC')::date <= $${params.length}::date`
     }
     sql += `
-      GROUP BY u.id, u.name, (s.clock_in AT TIME ZONE 'UTC')::date
-      ORDER BY date DESC, u.name
+      ORDER BY date DESC, s.clock_in DESC
       LIMIT 5000
     `
     const result = await query(sql, params)

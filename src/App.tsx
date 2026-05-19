@@ -6,7 +6,6 @@ import { KeyboardShortcuts } from './components/KeyboardShortcuts'
 import Landing from './pages/Landing'
 import EmployeeLayout from './layouts/EmployeeLayout'
 import AdminLayout from './layouts/AdminLayout'
-import EmployeeDashboard from './pages/employee/Dashboard'
 import EmployeeSessions from './pages/employee/Sessions'
 import EmployeeMySchedule from './pages/employee/MySchedule'
 import EmployeeLeave from './pages/employee/Leave'
@@ -67,7 +66,7 @@ export default function App() {
             </ProtectedEmployee>
           }
         >
-          <Route index element={<EmployeeDashboard />} />
+          <Route index element={<Navigate to="sessions" replace />} />
           <Route path="sessions" element={<EmployeeSessions />} />
           <Route path="schedule" element={<EmployeeMySchedule />} />
           <Route path="leave" element={<EmployeeLeave />} />

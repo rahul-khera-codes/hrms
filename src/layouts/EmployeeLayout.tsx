@@ -1,17 +1,17 @@
 import { useState } from 'react'
 import { Outlet, NavLink } from 'react-router-dom'
-import { LayoutDashboard, Clock, CalendarDays, LogOut, PanelLeftClose, PanelLeft, CalendarCheck2, Calendar, FileText } from 'lucide-react'
+import { Clock, CalendarDays, LogOut, PanelLeftClose, PanelLeft, CalendarCheck2, Calendar, FileText } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { Navbar } from '@/components/Navbar'
 import clsx from 'clsx'
 
+// Sidebar order per 18MAY2026 client feedback: no Dashboard tab, My Payroll before Payroll Calendar
 const nav = [
-  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/dashboard/sessions', label: 'My Attendance', icon: Clock },
   { to: '/dashboard/schedule', label: 'My Schedule', icon: CalendarDays },
   { to: '/dashboard/leave', label: 'My Leaves', icon: CalendarCheck2 },
-  { to: '/dashboard/payroll-calendar', label: 'Payroll Calendar', icon: Calendar },
   { to: '/dashboard/payroll', label: 'My Payroll', icon: FileText },
+  { to: '/dashboard/payroll-calendar', label: 'Payroll Calendar', icon: Calendar },
 ]
 
 export default function EmployeeLayout() {
@@ -134,7 +134,7 @@ export default function EmployeeLayout() {
         </aside>
 
         <main className="flex-1 min-w-0 overflow-auto">
-          <div className="max-w-5xl mx-auto px-3 sm:px-5 md:px-6 lg:px-8 py-4 sm:py-5 md:py-6 lg:py-7">
+          <div className="mx-auto px-3 sm:px-5 md:px-6 lg:px-8 py-4 sm:py-5 md:py-6 lg:py-7">
             <button
               type="button"
               onClick={() => setMobileMenuOpen(true)}
