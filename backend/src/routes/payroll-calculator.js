@@ -651,45 +651,49 @@ export function buildPaystubHTML(r, employeeExtra) {
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PayStub - ${escapeHtml(r.employee_name)} - ${r.payroll_cycle_code}</title>
 <style>
+/* Callmax brand palette per 19MAY2026 client video:
+   "we need to keep everything with the call max colors, which are blue, dark blue and lighter blue" */
 @media print { body{margin:0;background:#fff;padding:0} .no-print{display:none!important} @page{margin:0.4in;size:letter} }
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Segoe UI',Tahoma,Arial,sans-serif;font-size:10.5px;color:#1e293b;background:#e2e8f0;padding:16px}
 .stub{max-width:800px;margin:0 auto;background:#fff;border:1px solid #cbd5e1;box-shadow:0 2px 8px rgba(0,0,0,.08)}
-.hdr{text-align:center;padding:12px 20px 8px;border-bottom:2px solid #0d9488}
-.hdr h1{font-size:18px;letter-spacing:1.5px;font-weight:800;color:#0d9488}
+.hdr{text-align:center;padding:12px 20px 8px;border-bottom:2px solid #1e40af}
+.hdr .logo-wrap{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:4px}
+.hdr .logo-mark{width:36px;height:36px;flex-shrink:0}
+.hdr h1{font-size:20px;letter-spacing:1.5px;font-weight:800;color:#1e40af}
 .hdr .sub{font-size:9px;color:#64748b;margin-top:2px}
-.emp-bar{background:#f0fdfa;border:2px solid #0d9488;border-radius:6px;margin:12px 20px 8px;padding:8px 14px;text-align:center}
-.emp-bar b{font-size:13px;color:#0d9488}
+.emp-bar{background:#eff6ff;border:2px solid #1e40af;border-radius:6px;margin:12px 20px 8px;padding:8px 14px;text-align:center}
+.emp-bar b{font-size:13px;color:#1e40af}
 .info-row{display:flex;justify-content:space-between;padding:0 20px;margin-bottom:8px;gap:12px}
 .info-left,.info-right{font-size:10px;line-height:1.7}
-.info-left b,.info-right b{font-weight:700;color:#334155}
+.info-left b,.info-right b{font-weight:700;color:#1e3a8a}
 .info-right{text-align:right}
 .notes-line{padding:2px 20px;font-size:10px;margin-bottom:4px}
-.notes-line b{font-weight:700}
+.notes-line b{font-weight:700;color:#1e3a8a}
 .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;border:1px solid #cbd5e1;margin:0 20px 10px}
 .grid3 .col{padding:8px 10px;font-size:9.5px;line-height:1.6;border-right:1px solid #e2e8f0}
 .grid3 .col:last-child{border-right:none}
-.grid3 .col-hdr{background:#0d9488;color:#fff;font-weight:700;font-size:9px;text-transform:uppercase;letter-spacing:.5px;padding:4px 10px;text-align:center}
+.grid3 .col-hdr{background:#1e40af;color:#fff;font-weight:700;font-size:9px;text-transform:uppercase;letter-spacing:.5px;padding:4px 10px;text-align:center}
 .grid3 .col-hdr.ded{grid-column:3;background:#991b1b}
-.grid3 .sec-lbl{font-weight:700;color:#334155;margin-top:6px;margin-bottom:2px;font-size:9.5px}
+.grid3 .sec-lbl{font-weight:700;color:#1e3a8a;margin-top:6px;margin-bottom:2px;font-size:9.5px}
 .il{color:#334155;padding:1px 0}
 .il:before{content:'';display:inline}
 .dl{color:#334155;padding:1px 0}
-.tss-box{background:#f0fdfa;border:1px solid #99f6e4;border-radius:3px;padding:3px 8px;margin:4px 0;font-size:9px;color:#0d9488;font-weight:600}
+.tss-box{background:#eff6ff;border:1px solid #93c5fd;border-radius:3px;padding:3px 8px;margin:4px 0;font-size:9px;color:#1e40af;font-weight:600}
 .rare{color:#94a3b8}
 .rare:before{content:'*'}
-.summary-bar{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;text-align:center;margin:8px 20px;padding:10px 0;border-top:2px solid #0d9488;border-bottom:2px solid #0d9488}
-.summary-bar .s-lbl{font-size:9px;font-weight:700;color:#475569;text-transform:uppercase}
-.summary-bar .s-val{font-size:14px;font-weight:800;color:#0d9488;font-family:monospace;margin-top:2px}
+.summary-bar{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;text-align:center;margin:8px 20px;padding:10px 0;border-top:2px solid #1e40af;border-bottom:2px solid #1e40af;background:#eff6ff}
+.summary-bar .s-lbl{font-size:9px;font-weight:700;color:#1e3a8a;text-transform:uppercase}
+.summary-bar .s-val{font-size:14px;font-weight:800;color:#1e40af;font-family:monospace;margin-top:2px}
 .summary-bar .s-val.ded{color:#dc2626}
-.summary-bar .s-val.net{color:#166534;font-size:16px}
+.summary-bar .s-val.net{color:#1e40af;font-size:16px}
 .employer-sec{padding:4px 20px;margin-bottom:4px}
-.employer-sec .sec-lbl{font-size:9px;font-weight:700;color:#475569;margin-bottom:3px}
+.employer-sec .sec-lbl{font-size:9px;font-weight:700;color:#1e3a8a;margin-bottom:3px}
 .employer-row{display:flex;gap:16px;font-size:9.5px;color:#64748b}
 .ftr{padding:8px 20px;font-size:8px;color:#94a3b8;text-align:center;line-height:1.5;border-top:1px solid #e2e8f0}
-.ftr a{color:#0d9488}
-.print-btn{display:block;margin:16px auto;padding:10px 40px;background:#0d9488;color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer;font-weight:600}
-.print-btn:hover{background:#0f766e}
+.ftr a{color:#1e40af}
+.print-btn{display:block;margin:16px auto;padding:10px 40px;background:#1e40af;color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer;font-weight:600}
+.print-btn:hover{background:#1e3a8a}
 </style>
 </head>
 <body>
@@ -697,7 +701,22 @@ body{font-family:'Segoe UI',Tahoma,Arial,sans-serif;font-size:10.5px;color:#1e29
 <div class="stub">
 
   <div class="hdr">
-    <h1>CMAX SOLUTIONS</h1>
+    <div class="logo-wrap">
+      <svg class="logo-mark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" aria-hidden="true">
+        <defs>
+          <linearGradient id="cmaxGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#1e40af"/>
+            <stop offset="100%" stop-color="#1e3a8a"/>
+          </linearGradient>
+        </defs>
+        <rect x="2" y="2" width="60" height="60" rx="12" fill="url(#cmaxGrad)"/>
+        <path d="M22 32 Q22 22 32 22 Q42 22 42 32" stroke="#dbeafe" stroke-width="4" fill="none" stroke-linecap="round"/>
+        <circle cx="32" cy="38" r="4" fill="#dbeafe"/>
+        <path d="M32 38 L32 28" stroke="#dbeafe" stroke-width="3" stroke-linecap="round"/>
+        <text x="32" y="56" text-anchor="middle" font-family="Arial,sans-serif" font-size="9" font-weight="800" fill="#dbeafe">CMAX</text>
+      </svg>
+      <h1>CMAX SOLUTIONS</h1>
+    </div>
     <div class="sub">Volante de Pago No. ${escapeHtml(paystubId)}, emitido el ${generatedDate}</div>
   </div>
 
