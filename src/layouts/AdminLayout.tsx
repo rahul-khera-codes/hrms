@@ -4,7 +4,6 @@ import {
   LayoutDashboard,
   Clock,
   FileText,
-  BarChart3,
   Settings,
   LogOut,
   PanelLeftClose,
@@ -16,18 +15,25 @@ import {
   Calendar,
   CalendarCheck2,
   Receipt,
+  Calculator,
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { Navbar } from '@/components/Navbar'
 import clsx from 'clsx'
 
+// Sidebar reorganization per 19MAY2026 client video — grouped sections
 const navSections: { title?: string; items: { to: string; label: string; icon: typeof LayoutDashboard }[] }[] = [
   {
-    title: 'Workforce',
+    title: 'Core',
     items: [
       { to: '/admin/employees', label: 'Employees', icon: Users },
+      { to: '/admin/clients', label: 'Accounts', icon: Building2 },
+    ],
+  },
+  {
+    title: 'Attendance',
+    items: [
       { to: '/admin/attendance', label: 'Attendance', icon: Clock },
-      { to: '/admin/schedule', label: 'Schedule', icon: CalendarDays },
       { to: '/admin/leave-requests', label: 'Leaves', icon: CalendarCheck2 },
     ],
   },
@@ -36,15 +42,20 @@ const navSections: { title?: string; items: { to: string; label: string; icon: t
     items: [
       { to: '/admin/payroll-calendar', label: 'Payroll calendar', icon: Calendar },
       { to: '/admin/payroll-inputs', label: 'Payroll inputs', icon: Receipt },
-      { to: '/admin/payroll', label: 'Payroll', icon: FileText },
-      { to: '/admin/reports', label: 'Reports', icon: BarChart3 },
+      { to: '/admin/payroll', label: 'Payroll calculator', icon: FileText },
     ],
   },
   {
-    title: 'Configuration',
+    title: 'Billables',
     items: [
-      { to: '/admin/clients', label: 'Accounts', icon: Building2 },
+      { to: '/admin/billables', label: 'Billables calculator', icon: Calculator },
+    ],
+  },
+  {
+    title: 'Admin',
+    items: [
       { to: '/admin/shifts', label: 'Shifts', icon: Timer },
+      { to: '/admin/schedule', label: 'Scheduler', icon: CalendarDays },
       { to: '/admin/settings', label: 'Settings', icon: Settings },
     ],
   },

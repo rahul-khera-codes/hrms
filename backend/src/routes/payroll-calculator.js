@@ -613,7 +613,7 @@ const calcLengthOfService = (hireDate, termDate) => {
 }
 const escapeHtml = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 
-function buildPaystubHTML(r, employeeExtra) {
+export function buildPaystubHTML(r, employeeExtra) {
   const cmid = r.employee_cmid != null ? Number(r.employee_cmid) : ''
   const paystubId = `${r.payroll_cycle_code}-${cmid || r.user_id.slice(0, 8)}`
   const generatedDate = fmtDateTime()

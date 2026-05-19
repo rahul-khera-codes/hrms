@@ -78,6 +78,7 @@ export default function AdminEmployees() {
   const [shiftFilter, setShiftFilter] = useState('all')
   const [locationFilter, setLocationFilter] = useState('all')
   const [reportsToFilter, setReportsToFilter] = useState('all')
+  const [contractStatusFilter, setContractStatusFilter] = useState('all')
   const [currentPage, setCurrentPage] = useState(1)
   const [saving, setSaving] = useState(false)
   const [viewMode, setViewMode] = useState<'card' | 'table'>('table')
@@ -317,10 +318,11 @@ export default function AdminEmployees() {
       const shiftMatch = shiftFilter === 'all' || assignment?.shiftName === shiftFilter
       const locMatch = locationFilter === 'all' || (emp.location ?? '') === locationFilter
       const rtMatch = reportsToFilter === 'all' || (emp.reportsToName ?? '') === reportsToFilter
+      const csMatch = contractStatusFilter === 'all' || (emp.contractStatus ?? '').toLowerCase() === contractStatusFilter.toLowerCase()
       const searchMatch = !q || emp.name.toLowerCase().includes(q) || emp.email.toLowerCase().includes(q) || (emp.cmid != null && String(emp.cmid).includes(q))
-      return clientMatch && shiftMatch && locMatch && rtMatch && searchMatch
+      return clientMatch && shiftMatch && locMatch && rtMatch && csMatch && searchMatch
     })
-  }, [employees, assignmentByEmployee, clientFilter, shiftFilter, locationFilter, reportsToFilter, search])
+  }, [employees, assignmentByEmployee, clientFilter, shiftFilter, locationFilter, reportsToFilter, contractStatusFilter, search])
 
   const empColAccessor = useCallback((emp: EmployeeRecord, col: string): string | number => {
     switch (col) {
@@ -921,6 +923,20 @@ export default function AdminEmployees() {
               options={[
                 { value: 'all', label: 'All supervisors' },
                 ...uniqueReportsToNames.map((n) => ({ value: n, label: n })),
+              ]}
+            />
+          </div>
+          <div className="w-full sm:w-40">
+            <AdminSelect
+              value={contractStatusFilter}
+              onChange={(val) => setContractStatusFilter(val)}
+              options={[
+                { value: 'all', label: 'All contract status' },
+                { value: 'Onboarding', label: 'Onboarding' },
+                { value: 'Active', label: 'Active' },
+                { value: 'Suspended', label: 'Suspended' },
+                { value: 'Prenotice', label: 'Prenotice' },
+                { value: 'Terminated', label: 'Terminated' },
               ]}
             />
           </div>

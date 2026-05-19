@@ -47,8 +47,10 @@ function toAttendanceRecord(row) {
   const shiftStart = row.dynamic_shift_start || row.shift_start || null
   const shiftEnd = row.dynamic_shift_end || row.shift_end || null
 
-  // Auto-detect status from shift vs clock comparison
-  let autoStatus = hasActive ? 'active' : 'present'
+  // Auto-detect status from shift vs clock comparison.
+  // Output strings match the inline-edit dropdown options (STATUS_OPTIONS) so the
+  // badge colors and dropdown selection both work — per 19MAY2026 client video.
+  let autoStatus = hasActive ? 'active' : 'Present'
   if (!hasActive && clockIn && shiftStart) {
     const clockInMs = new Date(clockIn).getTime()
     const shiftStartMs = new Date(shiftStart).getTime()
@@ -57,13 +59,26 @@ function toAttendanceRecord(row) {
     const lateThreshold = 5 * 60 * 1000 // 5 minutes
     const isLate = clockInMs - shiftStartMs > lateThreshold
     const isEarlyOut = clockOutMs && shiftEndMs && (shiftEndMs - clockOutMs > lateThreshold)
-    if (isLate && isEarlyOut) autoStatus = 'late_in_early_out'
-    else if (isLate) autoStatus = 'late_in'
-    else if (isEarlyOut) autoStatus = 'early_out'
+    if (isLate && isEarlyOut) autoStatus = 'Late & Left Early'
+    else if (isLate) autoStatus = 'Late'
+    else if (isEarlyOut) autoStatus = 'Left Early'
   }
-  if (!clockIn && !hasActive) autoStatus = 'absent'
+  if (!clockIn && !hasActive) autoStatus = 'Absent'
 
-  const status = row.status_override || autoStatus
+  // Backward-compat: normalize any legacy snake_case status_override values to the
+  // canonical title-case form expected by the dropdown.
+  const LEGACY_MAP = {
+    late_in_early_out: 'Late & Left Early',
+    late_in: 'Late',
+    early_out: 'Left Early',
+    present: 'Present',
+    absent: 'Absent',
+    time_off: 'Time Off',
+    system_issues: 'System Issues',
+  }
+  const rawOverride = row.status_override
+  const normalizedOverride = rawOverride && LEGACY_MAP[rawOverride] ? LEGACY_MAP[rawOverride] : rawOverride
+  const status = normalizedOverride || autoStatus
 
   // --- SCH: Scheduled hours (ShiftEnd - ShiftStart) ---
   let scheduledHours = 0

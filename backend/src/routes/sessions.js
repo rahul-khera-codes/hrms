@@ -5,6 +5,7 @@ import { createNotification } from './notifications.js'
 import { getSettings } from '../lib/payrollSettings.js'
 import { buildPayrollEmployeeRow } from '../lib/payrollEmployeeRow.js'
 import { renderPayrollSlipPdf } from '../lib/renderPayrollSlipPdf.js'
+import { buildPaystubHTML } from './payroll-calculator.js'
 
 const router = express.Router()
 const REGULAR_MINUTES_PER_DAY = 8 * 60 // 480
@@ -96,7 +97,8 @@ function toMyAttendanceRecord(row) {
   const shiftStart = row.dynamic_shift_start || row.shift_start || null
   const shiftEnd = row.dynamic_shift_end || row.shift_end || null
 
-  let autoStatus = hasActive ? 'active' : 'present'
+  // Same canonical title-case strings as the admin endpoint (per 19MAY2026 client video).
+  let autoStatus = hasActive ? 'active' : 'Present'
   if (!hasActive && clockIn && shiftStart) {
     const clockInMs = new Date(clockIn).getTime()
     const shiftStartMs = new Date(shiftStart).getTime()
@@ -105,12 +107,23 @@ function toMyAttendanceRecord(row) {
     const lateThreshold = 5 * 60 * 1000
     const isLate = clockInMs - shiftStartMs > lateThreshold
     const isEarlyOut = clockOutMs && shiftEndMs && (shiftEndMs - clockOutMs > lateThreshold)
-    if (isLate && isEarlyOut) autoStatus = 'late_in_early_out'
-    else if (isLate) autoStatus = 'late_in'
-    else if (isEarlyOut) autoStatus = 'early_out'
+    if (isLate && isEarlyOut) autoStatus = 'Late & Left Early'
+    else if (isLate) autoStatus = 'Late'
+    else if (isEarlyOut) autoStatus = 'Left Early'
   }
-  if (!clockIn && !hasActive) autoStatus = 'absent'
-  const status = row.status_override || autoStatus
+  if (!clockIn && !hasActive) autoStatus = 'Absent'
+  const LEGACY_MAP = {
+    late_in_early_out: 'Late & Left Early',
+    late_in: 'Late',
+    early_out: 'Left Early',
+    present: 'Present',
+    absent: 'Absent',
+    time_off: 'Time Off',
+    system_issues: 'System Issues',
+  }
+  const rawOverride = row.status_override
+  const normalizedOverride = rawOverride && LEGACY_MAP[rawOverride] ? LEGACY_MAP[rawOverride] : rawOverride
+  const status = normalizedOverride || autoStatus
 
   let scheduledHours = 0
   if (shiftStart && shiftEnd) {
@@ -554,7 +567,8 @@ router.get('/leave-requests', async (req, res) => {
               lr.leave_calculation_type, lr.leave_payable_days, lr.leave_payable_amount,
               lr.leave_category, lr.leave_associate_days_off,
               lr.return_date::text AS return_date_str,
-              lr.start_time::text, lr.end_time::text, lr.return_time::text
+              lr.start_time::text, lr.end_time::text, lr.return_time::text,
+              lr.asset_deactivation
        FROM leave_requests lr
        LEFT JOIN users reviewer ON reviewer.id = lr.reviewed_by
        WHERE lr.user_id = $1
@@ -581,6 +595,7 @@ router.get('/leave-requests', async (req, res) => {
       startTime: r.start_time || null,
       endTime: r.end_time || null,
       returnTime: r.return_time || null,
+      assetDeactivation: r.asset_deactivation || null,
     })))
   } catch (err) {
     console.error('List leave requests error:', err)
@@ -930,6 +945,36 @@ router.get('/payroll-periods', async (req, res) => {
     })))
   } catch (err) {
     console.error('Employee payroll periods error:', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// GET /api/sessions/paystub/:id — Render HTML pay stub for the logged-in employee.
+// Same renderer as admin (buildPaystubHTML) so the format is identical — per
+// 19MAY2026 client video: "we have to make sure that it's the same thing".
+router.get('/paystub/:id', async (req, res) => {
+  try {
+    const { id } = req.params
+    // Scope strictly to the logged-in user — no cross-employee access
+    const result = await query(
+      'SELECT * FROM payroll_calculator_results WHERE id = $1 AND user_id = $2',
+      [id, req.user.id]
+    )
+    if (!result.rows.length) return res.status(404).json({ error: 'Not found' })
+    const r = result.rows[0]
+    const empRes = await query(`
+      SELECT e.hire_date, e.job_title, e.location, e.company_email, e.personal_email,
+             e.termination_date, sup.name AS supervisor_name
+      FROM employees e
+      LEFT JOIN users sup ON sup.id = e.reports_to
+      WHERE e.user_id = $1
+    `, [r.user_id])
+    const employeeExtra = empRes.rows[0] || {}
+    const html = buildPaystubHTML(r, employeeExtra)
+    res.setHeader('Content-Type', 'text/html; charset=utf-8')
+    res.send(html)
+  } catch (err) {
+    console.error('Employee paystub render error:', err)
     res.status(500).json({ error: 'Internal server error' })
   }
 })

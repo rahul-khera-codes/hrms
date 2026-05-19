@@ -12,6 +12,7 @@ import { EmployeeClockWidget } from '@/components/EmployeeClockWidget'
 // Constants
 // ---------------------------------------------------------------------------
 
+// Same scheme as admin Attendance — per 19MAY2026 client video
 const statusColors: Record<string, string> = {
   Present: 'bg-emerald-100 text-emerald-700',
   Absent: 'bg-red-100 text-red-700',
@@ -19,16 +20,19 @@ const statusColors: Record<string, string> = {
   'Left Early': 'bg-amber-100 text-amber-700',
   'Late & Left Early': 'bg-amber-100 text-amber-700',
   'Time Off': 'bg-sky-100 text-sky-700',
-  'System Issues': 'bg-orange-100 text-orange-700',
-  Terminated: 'bg-rose-100 text-rose-700',
-  Prenotice: 'bg-violet-100 text-violet-700',
-  Breastfeeding: 'bg-pink-100 text-pink-700',
+  'System Issues': 'bg-surface-200 text-surface-700',
+  Terminated: 'bg-surface-200 text-surface-700',
+  Prenotice: 'bg-surface-200 text-surface-700',
+  Breastfeeding: 'bg-surface-200 text-surface-700',
   REVIEW: 'bg-indigo-100 text-indigo-700',
   present: 'bg-emerald-100 text-emerald-700',
   absent: 'bg-red-100 text-red-700',
   active: 'bg-amber-100 text-amber-700',
   leave: 'bg-sky-100 text-sky-700',
   adjusted: 'bg-indigo-100 text-indigo-700',
+  late_in: 'bg-amber-100 text-amber-700',
+  early_out: 'bg-amber-100 text-amber-700',
+  late_in_early_out: 'bg-amber-100 text-amber-700',
   'Late In': 'bg-amber-100 text-amber-700',
   'Early Out': 'bg-amber-100 text-amber-700',
   'Late In-Early Out': 'bg-amber-100 text-amber-700',
@@ -101,6 +105,7 @@ export default function EmployeeSessions() {
   // Payroll cycle filter
   const [payrollPeriods, setPayrollPeriods] = useState<PayrollPeriod[]>([])
   const [filterCycle, setFilterCycle] = useState('')
+  const [filterStatus, setFilterStatus] = useState('')
 
   function handleDateRangeChange(start: string, end: string) {
     setDateFrom(start)
@@ -211,6 +216,15 @@ export default function EmployeeSessions() {
       })
     }
 
+    // Status filter (per 19MAY2026 client video)
+    if (filterStatus) {
+      if (filterStatus === 'blank') {
+        result = result.filter((r) => !r.status || r.status.trim() === '')
+      } else {
+        result = result.filter((r) => (r.status ?? '') === filterStatus)
+      }
+    }
+
     // Column filters
     for (const [col, filterVal] of Object.entries(columnFilters)) {
       if (!filterVal) continue
@@ -229,7 +243,7 @@ export default function EmployeeSessions() {
       })
     }
     return result
-  }, [records, search, columnFilters, sortCol, sortDir, colAccessor])
+  }, [records, search, filterStatus, columnFilters, sortCol, sortDir, colAccessor])
 
   function handleSort(col: string) {
     if (sortCol === col) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
@@ -289,6 +303,26 @@ export default function EmployeeSessions() {
             options={[
               { value: '', label: 'All cycles' },
               ...payrollPeriods.map((p) => ({ value: p.cycleCode, label: p.cycleCode })),
+            ]}
+          />
+        </div>
+        <div className="w-full sm:w-auto sm:min-w-[180px]">
+          <AdminSelect
+            value={filterStatus}
+            onChange={(val) => setFilterStatus(val)}
+            options={[
+              { value: '', label: 'All statuses' },
+              { value: 'blank', label: '— (no status)' },
+              { value: 'Present', label: 'Present' },
+              { value: 'Absent', label: 'Absent' },
+              { value: 'Late', label: 'Late' },
+              { value: 'Left Early', label: 'Left Early' },
+              { value: 'Late & Left Early', label: 'Late & Left Early' },
+              { value: 'Time Off', label: 'Time Off' },
+              { value: 'System Issues', label: 'System Issues' },
+              { value: 'Terminated', label: 'Terminated' },
+              { value: 'Prenotice', label: 'Prenotice' },
+              { value: 'Breastfeeding', label: 'Breastfeeding' },
             ]}
           />
         </div>
@@ -587,7 +621,7 @@ export default function EmployeeSessions() {
                 </div>
               </div>
 
-              {/* Classification */}
+              {/* Classification — added Account/Stage/Reports To per 19MAY2026 client video */}
               <div className="rounded-xl border border-surface-200 bg-surface-50 p-4">
                 <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider mb-3">Classification</p>
                 <div className="grid grid-cols-3 gap-3">
@@ -598,12 +632,24 @@ export default function EmployeeSessions() {
                     </span>
                   </div>
                   <div className="text-center rounded-lg bg-white border border-surface-100 py-2 px-1">
-                    <p className="text-[10px] font-medium text-surface-400 uppercase">Pay Type</p>
-                    <p className="text-sm font-semibold text-surface-800 mt-0.5">{detailRecord.payType ?? '--'}</p>
+                    <p className="text-[10px] font-medium text-surface-400 uppercase">Account</p>
+                    <p className="text-sm font-semibold text-surface-800 mt-0.5 truncate" title={detailRecord.accountName ?? ''}>{detailRecord.accountName ?? '--'}</p>
                   </div>
                   <div className="text-center rounded-lg bg-white border border-surface-100 py-2 px-1">
                     <p className="text-[10px] font-medium text-surface-400 uppercase">Task</p>
-                    <p className="text-sm font-semibold text-surface-800 mt-0.5 truncate">{detailRecord.task ?? '--'}</p>
+                    <p className="text-sm font-semibold text-surface-800 mt-0.5 truncate" title={detailRecord.task ?? ''}>{detailRecord.task ?? '--'}</p>
+                  </div>
+                  <div className="text-center rounded-lg bg-white border border-surface-100 py-2 px-1">
+                    <p className="text-[10px] font-medium text-surface-400 uppercase">Stage</p>
+                    <p className="text-sm font-semibold text-surface-800 mt-0.5 truncate">{detailRecord.stage ?? '--'}</p>
+                  </div>
+                  <div className="text-center rounded-lg bg-white border border-surface-100 py-2 px-1">
+                    <p className="text-[10px] font-medium text-surface-400 uppercase">Reports To</p>
+                    <p className="text-sm font-semibold text-surface-800 mt-0.5 truncate" title={detailRecord.reportsTo ?? ''}>{detailRecord.reportsTo ?? '--'}</p>
+                  </div>
+                  <div className="text-center rounded-lg bg-white border border-surface-100 py-2 px-1">
+                    <p className="text-[10px] font-medium text-surface-400 uppercase">Pay</p>
+                    <p className="text-sm font-semibold text-surface-800 mt-0.5">{detailRecord.payType ?? '--'}</p>
                   </div>
                 </div>
               </div>

@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Wallet, CalendarDays, Download, FileText, Eye, Loader2 } from 'lucide-react'
-import { getMyPayroll, getEmployeePayrollPeriods, type MyPayrollResult, type PayrollPeriod } from '@/lib/apiEmployee'
-import { fetchMyPayrollSlipPdfBlob, downloadMyPayrollSlipPdf } from '@/lib/apiSessions'
+import { getMyPayroll, getEmployeePayrollPeriods, getMyPaystubUrl, type MyPayrollResult, type PayrollPeriod } from '@/lib/apiEmployee'
+import { downloadMyPayrollSlipPdf } from '@/lib/apiSessions'
 import AdminSelect from '@/components/AdminSelect'
 import { PageHeader } from '@/components/PageHeader'
 
@@ -220,20 +220,11 @@ export default function EmployeeMyPayroll() {
   }, [periods])
 
   async function handlePreviewPayslip() {
-    if (!selectedPeriod) return
-    setPayslipLoading(true)
-    try {
-      const blob = await fetchMyPayrollSlipPdfBlob({
-        from: selectedPeriod.periodFrom,
-        to: selectedPeriod.periodTo,
-      })
-      const url = URL.createObjectURL(blob)
-      setPayslipPreviewUrl(url)
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to load pay slip')
-    } finally {
-      setPayslipLoading(false)
-    }
+    // Per 19MAY2026 client video: employee pay stub must look exactly like admin's.
+    // Use the same HTML view backend route (buildPaystubHTML), scoped to logged-in user.
+    if (!result) return
+    const url = getMyPaystubUrl(result.id)
+    setPayslipPreviewUrl(url)
   }
 
   async function handleDownloadPayslip() {
@@ -386,6 +377,8 @@ export default function EmployeeMyPayroll() {
               <thead>
                 {/* Group header row */}
                 <tr>
+                  {/* Empty group cell over the checkbox column */}
+                  <th className="border-b border-surface-200 bg-surface-50"></th>
                   {GROUPS.map((g) => (
                     <th
                       key={g.name}
@@ -395,9 +388,14 @@ export default function EmployeeMyPayroll() {
                       {g.name}
                     </th>
                   ))}
+                  {/* Empty group cell over the Pay Stub action column */}
+                  <th className="border-b border-surface-200 bg-surface-50"></th>
                 </tr>
                 {/* Column label row */}
                 <tr>
+                  <th className="px-2 py-1 w-8 border-b border-surface-200 bg-surface-50">
+                    <input type="checkbox" disabled aria-label="Select payroll" />
+                  </th>
                   {GROUPS.flatMap((g) =>
                     g.cols.map((c) => (
                       <th
@@ -408,10 +406,14 @@ export default function EmployeeMyPayroll() {
                       </th>
                     ))
                   )}
+                  <th className="px-2 py-1 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 bg-surface-50 text-right">PayStub</th>
                 </tr>
               </thead>
               <tbody>
                 <tr className="border-b border-surface-100">
+                  <td className="px-2 py-1.5 w-8" onClick={(e) => e.stopPropagation()}>
+                    <input type="checkbox" aria-label="Select this payroll cycle" />
+                  </td>
                   {GROUPS.flatMap((g) =>
                     g.cols.map((c) => (
                       <td
@@ -422,6 +424,17 @@ export default function EmployeeMyPayroll() {
                       </td>
                     ))
                   )}
+                  <td className="px-2 py-2 whitespace-nowrap text-right">
+                    <button
+                      type="button"
+                      onClick={() => void handlePreviewPayslip()}
+                      disabled={payslipLoading}
+                      className="p-1.5 rounded-lg text-brand-600 hover:bg-brand-50 disabled:opacity-50"
+                      title="Preview pay stub"
+                    >
+                      <FileText className="w-4 h-4" />
+                    </button>
+                  </td>
                 </tr>
               </tbody>
             </table>
@@ -429,13 +442,10 @@ export default function EmployeeMyPayroll() {
         </div>
       )}
 
-      {/* PayStub preview modal */}
+      {/* PayStub preview modal — uses same HTML renderer as admin (per 19MAY2026 client video) */}
       {payslipPreviewUrl && (
         <div className="modal-backdrop" role="dialog" aria-modal="true">
-          <button type="button" className="absolute inset-0" onClick={() => {
-            URL.revokeObjectURL(payslipPreviewUrl)
-            setPayslipPreviewUrl(null)
-          }} aria-label="Close" />
+          <button type="button" className="absolute inset-0" onClick={() => setPayslipPreviewUrl(null)} aria-label="Close" />
           <div className="relative z-10 w-[95vw] max-w-5xl h-[90vh] rounded-2xl bg-white shadow-2xl overflow-hidden flex flex-col">
             <div className="modal-header">
               <h2 className="text-base font-semibold text-surface-900">Pay Stub Preview</h2>
@@ -443,10 +453,7 @@ export default function EmployeeMyPayroll() {
                 <button type="button" onClick={() => void handleDownloadPayslip()} className="btn-secondary rounded-xl text-sm">
                   <Download className="w-4 h-4" /> Download PDF
                 </button>
-                <button type="button" onClick={() => {
-                  URL.revokeObjectURL(payslipPreviewUrl)
-                  setPayslipPreviewUrl(null)
-                }} className="btn-icon" aria-label="Close">
+                <button type="button" onClick={() => setPayslipPreviewUrl(null)} className="btn-icon" aria-label="Close">
                   <Eye className="w-4 h-4" />
                 </button>
               </div>

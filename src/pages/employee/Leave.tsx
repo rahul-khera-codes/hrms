@@ -497,7 +497,7 @@ export default function EmployeeLeave() {
                 </div>
               </div>
 
-              {/* Info */}
+              {/* Info — Payable Amount + Asset Deactivation always visible per 19MAY2026 client video */}
               <div className="rounded-xl border border-surface-200 bg-surface-50 p-4">
                 <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider mb-3">Details</p>
                 <div className="grid grid-cols-2 gap-3">
@@ -522,13 +522,32 @@ export default function EmployeeLeave() {
                 </div>
               </div>
 
-              {/* Pay */}
-              {detailRow.leavePayableAmount != null && detailRow.leavePayableAmount > 0 && (
-                <div className="rounded-xl border border-brand-200 bg-brand-50/50 p-4">
-                  <p className="text-[10px] font-semibold text-brand-700 uppercase tracking-wider mb-1">Payable Amount</p>
-                  <p className="text-xl font-bold text-brand-700 tabular-nums">${detailRow.leavePayableAmount.toFixed(2)}</p>
-                </div>
-              )}
+              {/* Payable Amount — always shown when leave is paid */}
+              <div className="rounded-xl border border-brand-200 bg-brand-50/50 p-4">
+                <p className="text-[10px] font-semibold text-brand-700 uppercase tracking-wider mb-1">Payable Amount</p>
+                <p className="text-xl font-bold text-brand-700 tabular-nums">
+                  ${(detailRow.leavePayableAmount ?? 0).toFixed(2)}
+                </p>
+                {detailRow.status === 'pending' && (
+                  <p className="text-[11px] text-surface-500 mt-1">Final amount confirmed when your supervisor approves.</p>
+                )}
+              </div>
+
+              {/* Asset Deactivation / Access to pause */}
+              <div className="rounded-xl border border-surface-200 bg-surface-50 p-4">
+                <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider mb-2">Access to pause</p>
+                {detailRow.assetDeactivation ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {detailRow.assetDeactivation.split(',').map((s) => s.trim()).filter(Boolean).map((asset) => (
+                      <span key={asset} className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 text-amber-700 border border-amber-200">
+                        {asset}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-surface-500">No accesses to pause for this leave.</p>
+                )}
+              </div>
 
               {/* Reason & Notes */}
               {detailRow.reason && (

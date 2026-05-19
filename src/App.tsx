@@ -22,6 +22,7 @@ import AdminEmployees from './pages/admin/Employees'
 import AdminPayrollCalendar from './pages/admin/PayrollCalendar'
 import AdminPayrollInputs from './pages/admin/PayrollInputs'
 import AdminLeaveRequests from './pages/admin/LeaveRequests'
+import AdminBillablesCalculator from './pages/admin/BillablesCalculator'
 
 function ProtectedEmployee({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -94,6 +95,7 @@ export default function App() {
           <Route path="shifts" element={<AdminShifts />} />
           <Route path="schedule" element={<AdminSchedule />} />
           <Route path="leave-requests" element={<AdminLeaveRequests />} />
+          <Route path="billables" element={<AdminBillablesCalculator />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

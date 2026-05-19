@@ -75,6 +75,10 @@ const TASK_OPTIONS = [
   'Accountant',
 ] as const
 
+// Color scheme per 19MAY2026 client video:
+// "Present this green, absent this red, late/left early/everything in between this orange,
+// Time off goes this color [sky]. And system issues, terminated, prenotice, breastfeeding,
+// you can have all of those in red as well. Or maybe just gray, I guess gray to avoid conflicts."
 const statusColors: Record<string, string> = {
   Present: 'bg-emerald-100 text-emerald-700',
   Absent: 'bg-red-100 text-red-700',
@@ -82,17 +86,20 @@ const statusColors: Record<string, string> = {
   'Left Early': 'bg-amber-100 text-amber-700',
   'Late & Left Early': 'bg-amber-100 text-amber-700',
   'Time Off': 'bg-sky-100 text-sky-700',
-  'System Issues': 'bg-orange-100 text-orange-700',
-  Terminated: 'bg-rose-100 text-rose-700',
-  Prenotice: 'bg-violet-100 text-violet-700',
-  Breastfeeding: 'bg-pink-100 text-pink-700',
+  'System Issues': 'bg-surface-200 text-surface-700',
+  Terminated: 'bg-surface-200 text-surface-700',
+  Prenotice: 'bg-surface-200 text-surface-700',
+  Breastfeeding: 'bg-surface-200 text-surface-700',
   REVIEW: 'bg-indigo-100 text-indigo-700',
-  // Legacy lowercase mappings
+  // Legacy lowercase mappings (backward compat with old data)
   present: 'bg-emerald-100 text-emerald-700',
   absent: 'bg-red-100 text-red-700',
   active: 'bg-amber-100 text-amber-700',
   leave: 'bg-sky-100 text-sky-700',
   adjusted: 'bg-indigo-100 text-indigo-700',
+  late_in: 'bg-amber-100 text-amber-700',
+  early_out: 'bg-amber-100 text-amber-700',
+  late_in_early_out: 'bg-amber-100 text-amber-700',
   // Legacy capitalized mappings
   'Late In': 'bg-amber-100 text-amber-700',
   'Early Out': 'bg-amber-100 text-amber-700',
@@ -190,6 +197,7 @@ export default function AdminAttendance() {
 
   // Account filter
   const [filterAccount, setFilterAccount] = useState('')
+  const [filterStatus, setFilterStatus] = useState('') // '' = all, 'blank' = unclassified, 'Present' etc
 
   // Payroll cycle filter
   const [payrollPeriods, setPayrollPeriods] = useState<PayrollPeriod[]>([])
@@ -459,6 +467,15 @@ export default function AdminAttendance() {
       result = result.filter((r) => (r.accountName ?? '') === filterAccount)
     }
 
+    // Apply status filter (per 19MAY2026 client video — including 'blank' to find unclassified records)
+    if (filterStatus) {
+      if (filterStatus === 'blank') {
+        result = result.filter((r) => !r.status || r.status.trim() === '')
+      } else {
+        result = result.filter((r) => (r.status ?? '') === filterStatus)
+      }
+    }
+
     // Apply column filters
     for (const [col, filterVal] of Object.entries(columnFilters)) {
       if (!filterVal) continue
@@ -482,7 +499,7 @@ export default function AdminAttendance() {
       })
     }
     return result
-  }, [records, filterAccount, columnFilters, sortCol, sortDir, colAccessor])
+  }, [records, filterAccount, filterStatus, columnFilters, sortCol, sortDir, colAccessor])
 
   function handleSort(col: string) {
     if (sortCol === col) {
@@ -554,6 +571,19 @@ export default function AdminAttendance() {
             <option value="">All accounts</option>
             {allClients.map((c) => (
               <option key={c.id} value={c.name}>{c.name}</option>
+            ))}
+          </select>
+        </div>
+        <div className="w-full sm:w-auto sm:min-w-[180px]">
+          <select
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+            className="input text-sm w-full"
+          >
+            <option value="">All statuses</option>
+            <option value="blank">— (no status, needs classification)</option>
+            {STATUS_OPTIONS.map((s) => (
+              <option key={s} value={s}>{s}</option>
             ))}
           </select>
         </div>

@@ -1,5 +1,12 @@
-import { api } from './api'
+import { api, getToken } from './api'
 import type { AttendanceRecord } from '@/types'
+
+/** Build the URL for the employee HTML pay stub view (same HTML renderer as admin) */
+export function getMyPaystubUrl(payrollResultId: string): string {
+  const base = import.meta.env.VITE_API_URL || 'http://localhost:4000'
+  const token = getToken()
+  return `${base}/api/sessions/paystub/${encodeURIComponent(payrollResultId)}${token ? `?token=${encodeURIComponent(token)}` : ''}`
+}
 
 export async function getMyAttendance(params: { from?: string; to?: string }): Promise<AttendanceRecord[]> {
   const search = new URLSearchParams()
@@ -43,6 +50,7 @@ export interface LeaveRequestItem {
   startTime?: string | null
   endTime?: string | null
   returnTime?: string | null
+  assetDeactivation?: string | null
 }
 
 export async function getMyLeaveRequests(): Promise<LeaveRequestItem[]> {
