@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Wallet, CalendarDays, Download, FileText, Eye, Loader2 } from 'lucide-react'
-import { getPayrollPeriods, type PayrollPeriod } from '@/lib/apiAdmin'
-import { getMyPayroll, type MyPayrollResult } from '@/lib/apiEmployee'
+import { getMyPayroll, getEmployeePayrollPeriods, type MyPayrollResult, type PayrollPeriod } from '@/lib/apiEmployee'
 import { fetchMyPayrollSlipPdfBlob, downloadMyPayrollSlipPdf } from '@/lib/apiSessions'
 import AdminSelect from '@/components/AdminSelect'
 import { PageHeader } from '@/components/PageHeader'
@@ -190,7 +189,7 @@ export default function EmployeeMyPayroll() {
   const [payslipPreviewUrl, setPayslipPreviewUrl] = useState<string | null>(null)
 
   useEffect(() => {
-    getPayrollPeriods(periodsYear).then((data) => {
+    getEmployeePayrollPeriods(periodsYear).then((data) => {
       setPeriods(data)
       const today = new Date().toISOString().slice(0, 10)
       const current = data.find((p) => p.periodFrom <= today && today <= p.periodTo)

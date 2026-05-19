@@ -78,6 +78,7 @@ export interface PayrollPeriod {
   yearCycle: number
   status: string
   bs?: number
+  isSpecial?: boolean
 }
 
 export async function getEmployeePayrollPeriods(year?: number): Promise<PayrollPeriod[]> {

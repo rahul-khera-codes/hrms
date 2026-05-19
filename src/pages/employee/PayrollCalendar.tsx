@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { CalendarDays, Calendar, DollarSign } from 'lucide-react'
-import { getPayrollPeriods, type PayrollPeriod } from '@/lib/apiAdmin'
+import { getEmployeePayrollPeriods, type PayrollPeriod } from '@/lib/apiEmployee'
 import AdminSelect from '@/components/AdminSelect'
 import { PageHeader } from '@/components/PageHeader'
 
@@ -17,7 +17,7 @@ export default function EmployeePayrollCalendar() {
   const [periods, setPeriods] = useState<PayrollPeriod[]>([])
 
   useEffect(() => {
-    getPayrollPeriods(periodsYear).then(setPeriods).catch(() => setPeriods([]))
+    getEmployeePayrollPeriods(periodsYear).then(setPeriods).catch(() => setPeriods([]))
   }, [periodsYear])
 
   const today = new Date()
