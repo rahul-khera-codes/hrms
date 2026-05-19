@@ -173,11 +173,15 @@ export default function EmployeeSessions() {
   const colAccessor = useCallback((r: AttendanceRecord, col: string): string | number => {
     switch (col) {
       case 'Date': return r.date ?? ''
+      case 'Account': return (r.accountName ?? '').toLowerCase()
       case 'Shift Start': return r.shiftStart ?? ''
       case 'Clock In': return r.clockIn ?? ''
       case 'Shift End': return r.shiftEnd ?? ''
       case 'Clock Out': return r.clockOut ?? ''
       case 'Status': return r.status.toLowerCase()
+      case 'Bill': return (r.billType ?? '').toLowerCase()
+      case 'Stage': return (r.stage ?? '').toLowerCase()
+      case 'Comments': return (r.comments ?? '').toLowerCase()
       case 'Pay': return (r.payType ?? '').toLowerCase()
       case 'Stage': return (r.stage ?? '').toLowerCase()
       case 'Task': return (r.task ?? '').toLowerCase()
@@ -338,22 +342,26 @@ export default function EmployeeSessions() {
               <thead className="sticky top-0 z-10 bg-surface-50">
                 {/* Group header row */}
                 <tr>
-                  <th colSpan={1} className="px-2 py-1 text-[9px] font-bold text-brand-600 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 bg-brand-50/40 text-center">Date</th>
+                  <th colSpan={2} className="px-2 py-1 text-[9px] font-bold text-brand-600 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 bg-brand-50/40 text-center">Employee</th>
                   <th colSpan={4} className="px-2 py-1 text-[9px] font-bold text-violet-600 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 bg-violet-50/40 text-center">Shift</th>
-                  <th colSpan={3} className="px-2 py-1 text-[9px] font-bold text-amber-600 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 bg-amber-50/40 text-center">Classification</th>
+                  <th colSpan={5} className="px-2 py-1 text-[9px] font-bold text-amber-600 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 bg-amber-50/40 text-center">Classification</th>
                   <th colSpan={4} className="px-2 py-1 text-[9px] font-bold text-surface-500 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 bg-surface-50 text-center">Time</th>
                   <th colSpan={6} className="px-2 py-1 text-[9px] font-bold text-blue-600 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 bg-blue-50/40 text-center">Payable Hours</th>
+                  <th colSpan={1} className="px-2 py-1 text-[9px] font-bold text-surface-500 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 bg-surface-50 text-center">&nbsp;</th>
                 </tr>
                 {/* Column header row */}
                 <tr>
                   {[
                     'Date',
+                    'Account',
                     'Shift Start',
                     'Clock In',
                     'Shift End',
                     'Clock Out',
                     'Status',
                     'Pay',
+                    'Bill',
+                    'Stage',
                     'Task',
                     'SCH',
                     'SDBT',
@@ -365,6 +373,7 @@ export default function EmployeeSessions() {
                     'P-X100%',
                     'P-HDY',
                     'P-RVW',
+                    'Comments',
                   ].map((col) => (
                     <th
                       key={col}
@@ -410,7 +419,7 @@ export default function EmployeeSessions() {
               <tbody>
                 {filteredAndSorted.length === 0 ? (
                   <tr>
-                    <td colSpan={18} className="py-12">
+                    <td colSpan={22} className="py-12">
                       <div className="flex flex-col items-center justify-center text-center">
                         <div className="w-12 h-12 rounded-full bg-surface-100 flex items-center justify-center text-surface-400 mb-3">
                           <Search className="w-5 h-5" />
@@ -438,6 +447,10 @@ export default function EmployeeSessions() {
                       <td className="px-2 py-1.5 text-xs font-medium text-surface-900 whitespace-nowrap">
                         {r.date ?? ''}
                       </td>
+                      {/* Account */}
+                      <td className="px-2 py-1.5 text-xs text-surface-700 whitespace-nowrap">
+                        {r.accountName ?? '-'}
+                      </td>
                       {/* Shift Start */}
                       <td className="px-2 py-1.5 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">
                         {fmtDateTime(r.shiftStart)}
@@ -463,6 +476,14 @@ export default function EmployeeSessions() {
                       {/* Pay */}
                       <td className="px-2 py-1.5 text-xs text-surface-700 whitespace-nowrap">
                         {r.payType ?? ''}
+                      </td>
+                      {/* Bill */}
+                      <td className="px-2 py-1.5 text-xs text-surface-700 whitespace-nowrap">
+                        {r.billType ?? ''}
+                      </td>
+                      {/* Stage */}
+                      <td className="px-2 py-1.5 text-xs text-surface-700 whitespace-nowrap">
+                        {r.stage ?? ''}
                       </td>
                       {/* Task */}
                       <td className="px-2 py-1.5 text-xs text-surface-700 whitespace-nowrap">
@@ -507,6 +528,10 @@ export default function EmployeeSessions() {
                       {/* P-RVW */}
                       <td className={`px-2 py-1.5 text-xs tabular-nums whitespace-nowrap text-right font-medium ${(r.payableRvwHours ?? 0) > 0 ? 'text-red-600' : 'text-surface-300'}`}>
                         {fmtHours(r.payableRvwHours)}
+                      </td>
+                      {/* Comments */}
+                      <td className="px-2 py-1.5 text-xs text-surface-600 whitespace-nowrap max-w-[200px] truncate" title={r.comments ?? ''}>
+                        {r.comments ?? ''}
                       </td>
                     </tr>
                   )

@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
-import { format } from 'date-fns'
-import { Briefcase, Play, Square } from 'lucide-react'
+import { format, addDays } from 'date-fns'
+import { Briefcase, Play, Square, CalendarDays } from 'lucide-react'
 import {
   getActiveSession,
   clockIn as apiClockIn,
@@ -19,19 +19,25 @@ export function EmployeeClockWidget({ onChange }: { onChange?: () => void }) {
   const [activeSession, setActiveSession] = useState<ClockSession | null>(null)
   const [actionLoading, setActionLoading] = useState(false)
   const [todaySchedule, setTodaySchedule] = useState<MyScheduleEntry | null>(null)
+  const [upcomingShifts, setUpcomingShifts] = useState<MyScheduleEntry[]>([])
   const [todayAttendance, setTodayAttendance] = useState<AttendanceRecord | null>(null)
   const [now, setNow] = useState(() => new Date())
 
   const reload = useCallback(async () => {
     const today = format(new Date(), 'yyyy-MM-dd')
+    // Next 5 days starting tomorrow — per 18MAY2026 client video request
+    const tomorrow = format(addDays(new Date(), 1), 'yyyy-MM-dd')
+    const fiveDaysOut = format(addDays(new Date(), 5), 'yyyy-MM-dd')
     try {
-      const [active, schedule, attendance] = await Promise.all([
+      const [active, todaySched, nextFive, attendance] = await Promise.all([
         getActiveSession().catch(() => null),
         getMySchedule({ from: today, to: today }).catch(() => [] as MyScheduleEntry[]),
+        getMySchedule({ from: tomorrow, to: fiveDaysOut }).catch(() => [] as MyScheduleEntry[]),
         getMyAttendance({ from: today, to: today }).catch(() => [] as AttendanceRecord[]),
       ])
       setActiveSession(active)
-      setTodaySchedule(schedule[0] ?? null)
+      setTodaySchedule(todaySched[0] ?? null)
+      setUpcomingShifts(nextFive)
       setTodayAttendance(attendance[0] ?? null)
     } catch {
       // silent
@@ -210,6 +216,35 @@ export function EmployeeClockWidget({ onChange }: { onChange?: () => void }) {
         <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl" />
         <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2 blur-2xl" />
       </div>
+
+      {/* Upcoming shifts (next 5 days) — per 18MAY2026 client video */}
+      {upcomingShifts.length > 0 && (
+        <div className="lg:col-span-2 card overflow-hidden">
+          <div className="card-header">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-lg bg-sky-50 border border-sky-100 text-sky-600 flex items-center justify-center shrink-0">
+                <CalendarDays className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <h3 className="text-sm font-semibold text-surface-900">Upcoming shifts</h3>
+                <p className="text-[11px] text-surface-500 mt-0.5">Next 5 days</p>
+              </div>
+            </div>
+          </div>
+          <div className="p-3 sm:p-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+            {upcomingShifts.slice(0, 5).map((s) => (
+              <div key={s.id} className="rounded-lg border border-surface-200/80 bg-surface-50/40 p-3">
+                <p className="text-[10px] font-semibold text-surface-500 uppercase tracking-wider">
+                  {s.date ? format(new Date(s.date + 'T00:00:00'), 'EEE MMM d') : '—'}
+                </p>
+                <p className="text-xs font-semibold text-violet-700 mt-1">{s.shiftName}</p>
+                <p className="text-[11px] text-surface-600 mt-0.5">{s.startTime} – {s.endTime}</p>
+                <p className="text-[11px] text-surface-500 truncate mt-0.5">{s.clientName}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
