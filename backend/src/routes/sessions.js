@@ -603,8 +603,10 @@ router.post('/leave-requests', async (req, res) => {
 
     const start = new Date(`${startDate}T00:00:00Z`)
     const end = new Date(`${endDate}T00:00:00Z`)
-    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) {
-      return res.status(400).json({ error: 'Bad request', message: 'End date must be at least one day after start date' })
+    // Allow same-day leave (single-day requests). Employees submit just the
+    // start date per 18MAY2026 client video; admin sets the real end date on review.
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) {
+      return res.status(400).json({ error: 'Bad request', message: 'End date cannot be before start date' })
     }
 
     const overlap = await query(

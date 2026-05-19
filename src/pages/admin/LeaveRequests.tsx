@@ -925,7 +925,7 @@ export default function AdminLeaveRequests() {
             <table className="min-w-[1600px] w-full text-left border-collapse">
               <thead className="sticky top-0 z-10 bg-surface-50 border-b border-surface-200">
                 <tr>
-                  <th className="px-3 py-1.5 w-10 border-b border-surface-200">
+                  <th className="px-2 py-1 w-10 border-b border-surface-200">
                     <input
                       type="checkbox"
                       aria-label="Select all visible"
@@ -1011,7 +1011,7 @@ export default function AdminLeaveRequests() {
                     className={`border-b border-surface-100 hover:bg-brand-50/40 transition-colors cursor-pointer group ${selectedIds.has(r.id) ? 'bg-brand-50/30' : ''}`}
                     onClick={() => (r.isLocked ? setDetailRow(r) : openReview(r))}
                   >
-                    <td className="px-3 py-2 w-10" onClick={(e) => e.stopPropagation()}>
+                    <td className="px-2 py-1.5 w-10" onClick={(e) => e.stopPropagation()}>
                       <input
                         type="checkbox"
                         aria-label={`Select ${r.employeeName}`}
@@ -1020,29 +1020,29 @@ export default function AdminLeaveRequests() {
                         onChange={() => toggleSelect(r.id)}
                       />
                     </td>
-                    <td className="px-3 py-2 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">{r.employeeCmid ?? '-'}</td>
-                    <td className="px-3 py-2 text-xs font-medium text-surface-900 whitespace-nowrap">{r.employeeName}</td>
-                    <td className="px-3 py-2 text-xs text-surface-700 whitespace-nowrap">{r.accountName ?? '-'}</td>
-                    <td className="px-3 py-2 text-xs text-surface-700 whitespace-nowrap">{CATEGORY_LABELS[r.leaveCategory ?? ''] || r.leaveCategory || '-'}</td>
-                    <td className="px-3 py-2 whitespace-nowrap">
+                    <td className="px-2 py-1.5 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">{r.employeeCmid ?? '-'}</td>
+                    <td className="px-2 py-1.5 text-xs font-medium text-surface-900 whitespace-nowrap">{r.employeeName}</td>
+                    <td className="px-2 py-1.5 text-xs text-surface-700 whitespace-nowrap">{r.accountName ?? '-'}</td>
+                    <td className="px-2 py-1.5 text-xs text-surface-700 whitespace-nowrap">{CATEGORY_LABELS[r.leaveCategory ?? ''] || r.leaveCategory || '-'}</td>
+                    <td className="px-2 py-1.5 whitespace-nowrap">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize ${statusColors[r.status] || 'bg-surface-100 text-surface-600'}`}>
                         {r.status}
                       </span>
                     </td>
-                    <td className="px-3 py-2 text-xs text-surface-700 whitespace-nowrap">
+                    <td className="px-2 py-1.5 text-xs text-surface-700 whitespace-nowrap">
                       {r.leaveCalculationType === 'non_payable' ? 'Non Payable' : r.leaveCalculationType === 'hourly_salary' ? 'Hourly Salary' : r.leaveCalculationType === 'monthly_salary' ? 'Monthly Salary' : '-'}
                     </td>
-                    <td className="px-3 py-2 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">{r.startDate ?? ''}{r.startTime ? ` ${r.startTime}` : ''}</td>
-                    <td className="px-3 py-2 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">{r.endDate ?? ''}{r.endTime ? ` ${r.endTime}` : ''}</td>
-                    <td className="px-3 py-2 text-xs text-surface-700 whitespace-nowrap">{r.leaveAssociateDaysOff ?? '-'}</td>
-                    <td className="px-3 py-2 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">{r.returnDate ?? ''}{r.returnTime ? ` ${r.returnTime}` : ''}</td>
-                    <td className="px-3 py-2 text-xs text-surface-700 tabular-nums whitespace-nowrap text-right">{r.leavePayableDays != null ? r.leavePayableDays : '-'}</td>
-                    <td className="px-3 py-2 text-xs text-surface-700 tabular-nums whitespace-nowrap text-right font-medium">{r.dailySalary != null ? `$${r.dailySalary.toFixed(2)}` : '-'}</td>
-                    <td className={`px-3 py-2 text-xs tabular-nums whitespace-nowrap text-right font-semibold ${r.leavePayableAmount != null && r.leavePayableAmount > 0 ? 'text-brand-700' : 'text-surface-400'}`}>
+                    <td className="px-2 py-1.5 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">{r.startDate ?? ''}{r.startTime ? ` ${r.startTime}` : ''}</td>
+                    <td className="px-2 py-1.5 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">{r.endDate ?? ''}{r.endTime ? ` ${r.endTime}` : ''}</td>
+                    <td className="px-2 py-1.5 text-xs text-surface-700 whitespace-nowrap">{r.leaveAssociateDaysOff ?? '-'}</td>
+                    <td className="px-2 py-1.5 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">{r.returnDate ?? ''}{r.returnTime ? ` ${r.returnTime}` : ''}</td>
+                    <td className="px-2 py-1.5 text-xs text-surface-700 tabular-nums whitespace-nowrap text-right">{r.leavePayableDays != null ? r.leavePayableDays : '-'}</td>
+                    <td className="px-2 py-1.5 text-xs text-surface-700 tabular-nums whitespace-nowrap text-right font-medium">{r.dailySalary != null ? `$${r.dailySalary.toFixed(2)}` : '-'}</td>
+                    <td className={`px-2 py-1.5 text-xs tabular-nums whitespace-nowrap text-right font-semibold ${r.leavePayableAmount != null && r.leavePayableAmount > 0 ? 'text-brand-700' : 'text-surface-400'}`}>
                       {r.leavePayableAmount != null ? `$${r.leavePayableAmount.toFixed(2)}` : '-'}
                     </td>
-                    <td className="px-3 py-2 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">{r.payrollCycleCode ?? '-'}</td>
-                    <td className="px-3 py-2 whitespace-nowrap text-right" onClick={(e) => e.stopPropagation()}>
+                    <td className="px-2 py-1.5 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">{r.payrollCycleCode ?? '-'}</td>
+                    <td className="px-2 py-1.5 whitespace-nowrap text-right" onClick={(e) => e.stopPropagation()}>
                       <button
                         type="button"
                         onClick={() => (r.isLocked ? setDetailRow(r) : openReview(r))}
