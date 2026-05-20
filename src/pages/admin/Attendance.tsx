@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { format, startOfWeek, endOfWeek } from 'date-fns'
 import { Search, Download, X, ArrowUp, ArrowDown, Filter, Clock, Plus, Lock, Unlock, Pencil } from 'lucide-react'
-import { getAdminAttendance, updateAttendanceRecord, createAttendanceRecord, getEmployees, getClients, getPayrollPeriods, type EmployeeRecord, type Client, type PayrollPeriod } from '@/lib/apiAdmin'
+import { getAdminAttendance, updateAttendanceRecord, createAttendanceRecord, getEmployees, getClients, getPayrollPeriods, setAttendanceReviewed, type EmployeeRecord, type Client, type PayrollPeriod } from '@/lib/apiAdmin'
+import { buildCycleOptions } from '@/lib/cycleOptions'
 import type { AttendanceRecord } from '@/types'
 import DateRangePicker from '@/components/DateRangePicker'
 import AdminSelect from '@/components/AdminSelect'
@@ -86,10 +87,10 @@ const statusColors: Record<string, string> = {
   'Left Early': 'bg-amber-100 text-amber-700',
   'Late & Left Early': 'bg-amber-100 text-amber-700',
   'Time Off': 'bg-sky-100 text-sky-700',
-  'System Issues': 'bg-surface-200 text-surface-700',
-  Terminated: 'bg-surface-200 text-surface-700',
-  Prenotice: 'bg-surface-200 text-surface-700',
-  Breastfeeding: 'bg-surface-200 text-surface-700',
+  'System Issues': 'bg-surface-200 text-surface-700 dark:text-surface-200',
+  Terminated: 'bg-surface-200 text-surface-700 dark:text-surface-200',
+  Prenotice: 'bg-surface-200 text-surface-700 dark:text-surface-200',
+  Breastfeeding: 'bg-surface-200 text-surface-700 dark:text-surface-200',
   REVIEW: 'bg-indigo-100 text-indigo-700',
   // Legacy lowercase mappings (backward compat with old data)
   present: 'bg-emerald-100 text-emerald-700',
@@ -198,6 +199,10 @@ export default function AdminAttendance() {
   // Account filter
   const [filterAccount, setFilterAccount] = useState('')
   const [filterStatus, setFilterStatus] = useState('') // '' = all, 'blank' = unclassified, 'Present' etc
+
+  // Reviewed filter — 19MAY2026 Scheduler Demos meeting.
+  // '' = all, 'pending' = needs review, 'done' = already reviewed
+  const [filterReviewed, setFilterReviewed] = useState('')
 
   // Payroll cycle filter
   const [payrollPeriods, setPayrollPeriods] = useState<PayrollPeriod[]>([])
@@ -476,6 +481,13 @@ export default function AdminAttendance() {
       }
     }
 
+    // Apply Reviewed/Normalized filter — 19MAY2026 Scheduler Demos meeting.
+    if (filterReviewed === 'pending') {
+      result = result.filter((r) => !r.reviewed)
+    } else if (filterReviewed === 'done') {
+      result = result.filter((r) => !!r.reviewed)
+    }
+
     // Apply column filters
     for (const [col, filterVal] of Object.entries(columnFilters)) {
       if (!filterVal) continue
@@ -499,7 +511,7 @@ export default function AdminAttendance() {
       })
     }
     return result
-  }, [records, filterAccount, filterStatus, columnFilters, sortCol, sortDir, colAccessor])
+  }, [records, filterAccount, filterStatus, filterReviewed, columnFilters, sortCol, sortDir, colAccessor])
 
   function handleSort(col: string) {
     if (sortCol === col) {
@@ -550,7 +562,7 @@ export default function AdminAttendance() {
       {/* Filters */}
       <div className="toolbar">
         <div className="relative flex-1 min-w-0">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400 shrink-0" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400 dark:text-surface-500 shrink-0" />
           <input
             type="text"
             placeholder="Search by name"
@@ -588,6 +600,17 @@ export default function AdminAttendance() {
           </select>
         </div>
         <div className="w-full sm:w-auto sm:min-w-[180px]">
+          <select
+            value={filterReviewed}
+            onChange={(e) => setFilterReviewed(e.target.value)}
+            className="input text-sm w-full"
+          >
+            <option value="">All review states</option>
+            <option value="pending">Needs review</option>
+            <option value="done">Reviewed</option>
+          </select>
+        </div>
+        <div className="w-full sm:w-auto sm:min-w-[180px]">
           <AdminSelect
             value={filterCycle}
             onChange={(val) => {
@@ -603,10 +626,7 @@ export default function AdminAttendance() {
                 setDateTo(format(endOfWeek(new Date(), { weekStartsOn: 0 }), 'yyyy-MM-dd'))
               }
             }}
-            options={[
-              { value: '', label: 'All cycles' },
-              ...payrollPeriods.map((p) => ({ value: p.cycleCode, label: p.cycleCode })),
-            ]}
+            options={buildCycleOptions(payrollPeriods, [{ value: '', label: 'All cycles' }])}
           />
         </div>
       </div>
@@ -624,7 +644,7 @@ export default function AdminAttendance() {
 
       {/* Summary cards - Row 2: Payable Hours */}
       <div>
-        <p className="text-[10px] sm:text-xs font-semibold text-surface-500 uppercase tracking-wider mb-2">Payable Hours</p>
+        <p className="text-[10px] sm:text-xs font-semibold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider mb-2">Payable Hours</p>
         <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-7 gap-3 sm:gap-4">
           <SummaryCard label="Regular" value={fmtHours(summary.totalReg)} color="brand" />
           <SummaryCard label="Night (15%)" value={fmtHours(summary.totalN15)} color="violet" />
@@ -638,7 +658,7 @@ export default function AdminAttendance() {
 
       {/* Summary cards - Row 3: Billable Hours */}
       <div>
-        <p className="text-[10px] sm:text-xs font-semibold text-surface-500 uppercase tracking-wider mb-2">Billable Hours</p>
+        <p className="text-[10px] sm:text-xs font-semibold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider mb-2">Billable Hours</p>
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-4 gap-3 sm:gap-4">
           <SummaryCard label="Regular" value={fmtHours(summary.totalBillableReg)} color="brand" />
           <SummaryCard label="Premium" value={fmtHours(summary.totalBillablePrm)} color="violet" />
@@ -648,14 +668,14 @@ export default function AdminAttendance() {
       </div>
 
       {/* Table */}
-      <div className="rounded-xl sm:rounded-2xl border border-surface-200/80 bg-white overflow-hidden shadow-sm min-w-0">
+      <div className="rounded-xl sm:rounded-2xl border border-surface-200/80 bg-white dark:bg-surface-900 overflow-hidden shadow-sm min-w-0">
         {loading ? (
           <div className="p-12 flex items-center justify-center">
             <div className="w-8 h-8 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : records.length === 0 ? (
           <div className="p-8 sm:p-16 text-center">
-            <p className="text-surface-500 text-xs sm:text-sm">
+            <p className="text-surface-500 dark:text-surface-400 dark:text-surface-500 text-xs sm:text-sm">
               No records match your filters.
             </p>
           </div>
@@ -663,16 +683,16 @@ export default function AdminAttendance() {
           <div className="overflow-x-auto" onClick={(e) => { if ((e.target as HTMLElement).closest('select, input')) e.stopPropagation() }}>
             <table className="min-w-[2400px] w-full text-left border-collapse">
               {/* Header */}
-              <thead className="sticky top-0 z-10 bg-surface-50">
+              <thead className="sticky top-0 z-10 bg-surface-50 dark:bg-surface-900">
                 {/* Group header row */}
                 <tr>
-                  <th colSpan={3} className="px-2 py-1 text-[9px] font-bold text-brand-600 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 bg-brand-50/40 text-center">Employee</th>
-                  <th colSpan={4} className="px-2 py-1 text-[9px] font-bold text-violet-600 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 bg-violet-50/40 text-center">Shift</th>
-                  <th colSpan={5} className="px-2 py-1 text-[9px] font-bold text-amber-600 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 bg-amber-50/40 text-center">Shift Classification</th>
-                  <th colSpan={4} className="px-2 py-1 text-[9px] font-bold text-surface-500 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 bg-surface-50 text-center">Time</th>
-                  <th colSpan={6} className="px-2 py-1 text-[9px] font-bold text-blue-600 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 bg-blue-50/40 text-center">Payable Hours</th>
-                  <th colSpan={3} className="px-2 py-1 text-[9px] font-bold text-emerald-600 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 bg-emerald-50/40 text-center">Billable Hours</th>
-                  <th colSpan={2} className="px-2 py-1 text-[9px] font-bold text-surface-500 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 bg-surface-50 text-center">&nbsp;</th>
+                  <th colSpan={3} className="px-2 py-1 text-[9px] font-bold text-brand-600 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 dark:border-surface-700 bg-brand-50/40 text-center">Employee</th>
+                  <th colSpan={4} className="px-2 py-1 text-[9px] font-bold text-violet-600 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 dark:border-surface-700 bg-violet-50/40 text-center">Shift</th>
+                  <th colSpan={5} className="px-2 py-1 text-[9px] font-bold text-amber-600 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 dark:border-surface-700 bg-amber-50/40 text-center">Shift Classification</th>
+                  <th colSpan={4} className="px-2 py-1 text-[9px] font-bold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900 text-center">Time</th>
+                  <th colSpan={6} className="px-2 py-1 text-[9px] font-bold text-blue-600 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 dark:border-surface-700 bg-blue-50/40 text-center">Payable Hours</th>
+                  <th colSpan={3} className="px-2 py-1 text-[9px] font-bold text-emerald-600 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 dark:border-surface-700 bg-emerald-50/40 text-center">Billable Hours</th>
+                  <th colSpan={2} className="px-2 py-1 text-[9px] font-bold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900 text-center">&nbsp;</th>
                 </tr>
                 {/* Column header row */}
                 <tr>
@@ -707,14 +727,14 @@ export default function AdminAttendance() {
                   ].map((col) => (
                     <th
                       key={col}
-                      className={`px-2 py-1 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 ${col === 'Actions' ? 'text-right' : ''}`}
+                      className={`px-2 py-1 text-[10px] font-semibold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 dark:border-surface-700 ${col === 'Actions' ? 'text-right' : ''}`}
                     >
                       {col === 'Actions' ? col : (
                       <>
                       <div className="flex items-center gap-0.5">
                         <button
                           type="button"
-                          className="flex items-center gap-0.5 hover:text-surface-700 transition-colors"
+                          className="flex items-center gap-0.5 hover:text-surface-700 dark:text-surface-200 transition-colors"
                           onClick={() => handleSort(col)}
                         >
                           {col}
@@ -724,7 +744,7 @@ export default function AdminAttendance() {
                         </button>
                         <button
                           type="button"
-                          className={`p-0.5 rounded hover:bg-surface-200/60 transition-colors ${columnFilters[col] ? 'text-brand-600' : 'text-surface-400'}`}
+                          className={`p-0.5 rounded hover:bg-surface-200/60 transition-colors ${columnFilters[col] ? 'text-brand-600' : 'text-surface-400 dark:text-surface-500'}`}
                           onClick={(e) => { e.stopPropagation(); setFilterOpen(filterOpen === col ? null : col) }}
                         >
                           <Filter className="w-2.5 h-2.5" />
@@ -737,7 +757,7 @@ export default function AdminAttendance() {
                             value={columnFilters[col] ?? ''}
                             onChange={(e) => handleColumnFilter(col, e.target.value)}
                             placeholder={`Filter ${col}...`}
-                            className="w-full text-[10px] font-normal normal-case tracking-normal border border-surface-200 rounded px-1.5 py-1 bg-white focus:ring-1 focus:ring-brand-300 outline-none"
+                            className="w-full text-[10px] font-normal normal-case tracking-normal border border-surface-200 dark:border-surface-700 rounded px-1.5 py-1 bg-white dark:bg-surface-900 focus:ring-1 focus:ring-brand-300 outline-none"
                             autoFocus
                           />
                         </div>
@@ -757,35 +777,35 @@ export default function AdminAttendance() {
                   return (
                     <tr
                       key={sid}
-                      className={`border-b border-surface-100 hover:bg-surface-50/60 transition-colors cursor-pointer ${isSaving ? 'opacity-60' : ''}`}
+                      className={`border-b border-surface-100 dark:border-surface-800 hover:bg-surface-50/60 transition-colors cursor-pointer ${isSaving ? 'opacity-60' : ''}`}
                       onClick={() => setDetailRecord(r)}
                     >
                       {/* EID */}
-                      <td className="px-2 py-1.5 text-xs text-surface-700 tabular-nums whitespace-nowrap">
+                      <td className="px-2 py-1.5 text-xs text-surface-700 dark:text-surface-200 tabular-nums whitespace-nowrap">
                         {r.employeeCmid ?? ''}
                       </td>
                       {/* Employee */}
-                      <td className="px-2 py-1.5 text-xs font-medium text-surface-900 whitespace-nowrap max-w-[140px] truncate">
+                      <td className="px-2 py-1.5 text-xs font-medium text-surface-900 dark:text-surface-50 whitespace-nowrap max-w-[140px] truncate">
                         {r.employeeName}
                       </td>
                       {/* Account */}
-                      <td className="px-2 py-1.5 text-xs text-surface-700 whitespace-nowrap">
+                      <td className="px-2 py-1.5 text-xs text-surface-700 dark:text-surface-200 whitespace-nowrap">
                         {r.accountName ?? ''}
                       </td>
                       {/* Shift Start */}
-                      <td className="px-2 py-1.5 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">
+                      <td className="px-2 py-1.5 text-xs font-mono text-surface-700 dark:text-surface-200 tabular-nums whitespace-nowrap">
                         {fmtDateTime(r.shiftStart)}
                       </td>
                       {/* Clock In */}
-                      <td className="px-2 py-1.5 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">
+                      <td className="px-2 py-1.5 text-xs font-mono text-surface-700 dark:text-surface-200 tabular-nums whitespace-nowrap">
                         {fmtDateTime(r.clockIn)}
                       </td>
                       {/* Shift End */}
-                      <td className="px-2 py-1.5 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">
+                      <td className="px-2 py-1.5 text-xs font-mono text-surface-700 dark:text-surface-200 tabular-nums whitespace-nowrap">
                         {fmtDateTime(r.shiftEnd)}
                       </td>
                       {/* Clock Out */}
-                      <td className="px-2 py-1.5 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">
+                      <td className="px-2 py-1.5 text-xs font-mono text-surface-700 dark:text-surface-200 tabular-nums whitespace-nowrap">
                         {fmtDateTime(r.clockOut)}
                       </td>
                       {/* Status (editable) */}
@@ -832,19 +852,19 @@ export default function AdminAttendance() {
                         />
                       </td>
                       {/* SCH */}
-                      <td className={`px-2 py-1.5 text-xs tabular-nums whitespace-nowrap text-right ${(r.scheduledHours ?? 0) > 0 ? 'text-surface-700 font-medium' : 'text-surface-300'}`}>
+                      <td className={`px-2 py-1.5 text-xs tabular-nums whitespace-nowrap text-right ${(r.scheduledHours ?? 0) > 0 ? 'text-surface-700 dark:text-surface-200 font-medium' : 'text-surface-300'}`}>
                         {fmtHours(r.scheduledHours)}
                       </td>
                       {/* SDBT */}
-                      <td className={`px-2 py-1.5 text-xs tabular-nums whitespace-nowrap text-right ${(r.sdbtHours ?? 0) > 0 ? 'text-surface-700 font-medium' : 'text-surface-300'}`}>
+                      <td className={`px-2 py-1.5 text-xs tabular-nums whitespace-nowrap text-right ${(r.sdbtHours ?? 0) > 0 ? 'text-surface-700 dark:text-surface-200 font-medium' : 'text-surface-300'}`}>
                         {fmtHours(r.sdbtHours)}
                       </td>
                       {/* ACT */}
-                      <td className={`px-2 py-1.5 text-xs tabular-nums whitespace-nowrap text-right ${(r.actualHours ?? 0) > 0 ? 'text-surface-700 font-medium' : 'text-surface-300'}`}>
+                      <td className={`px-2 py-1.5 text-xs tabular-nums whitespace-nowrap text-right ${(r.actualHours ?? 0) > 0 ? 'text-surface-700 dark:text-surface-200 font-medium' : 'text-surface-300'}`}>
                         {fmtHours(r.actualHours)}
                       </td>
                       {/* ADBT */}
-                      <td className={`px-2 py-1.5 text-xs tabular-nums whitespace-nowrap text-right ${(r.adbtHours ?? 0) > 0 ? 'text-surface-700 font-medium' : 'text-surface-300'}`}>
+                      <td className={`px-2 py-1.5 text-xs tabular-nums whitespace-nowrap text-right ${(r.adbtHours ?? 0) > 0 ? 'text-surface-700 dark:text-surface-200 font-medium' : 'text-surface-300'}`}>
                         {fmtHours(r.adbtHours)}
                       </td>
                       {/* P-REG */}
@@ -895,7 +915,7 @@ export default function AdminAttendance() {
                         <button
                           type="button"
                           onClick={() => setDetailRecord(r)}
-                          className="p-1.5 rounded-lg text-surface-500 hover:bg-surface-100"
+                          className="p-1.5 rounded-lg text-surface-500 dark:text-surface-400 dark:text-surface-500 hover:bg-surface-100 dark:hover:bg-surface-700 dark:bg-surface-800"
                           title="Edit"
                         >
                           <Pencil className="w-3.5 h-3.5" />
@@ -919,9 +939,9 @@ export default function AdminAttendance() {
             onClick={() => setDetailRecord(null)}
             aria-label="Close"
           />
-          <div className="relative z-10 w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl border border-surface-200 bg-white shadow-xl">
+          <div className="relative z-10 w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl border border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-900 shadow-xl">
             {/* Header */}
-            <div className="sticky top-0 z-10 bg-white rounded-t-2xl">
+            <div className="sticky top-0 z-10 bg-white dark:bg-surface-900 rounded-t-2xl">
               {/* Client standard header (14APR2026): Name + CMID + Reports To */}
               <DetailModalHeader
                 employeeName={detailRecord.employeeName}
@@ -944,8 +964,8 @@ export default function AdminAttendance() {
               )}
 
               {/* Shift & Clock — editable datetime-local inputs */}
-              <div className="rounded-xl border border-surface-200 bg-surface-50 p-4">
-                <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider mb-3">Shift & Clock (Editable)</p>
+              <div className="rounded-xl border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900 p-4">
+                <p className="text-[10px] font-semibold text-surface-400 dark:text-surface-500 uppercase tracking-wider mb-3">Shift & Clock (Editable)</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <ShiftTimeInput
                     label="Shift Start"
@@ -975,8 +995,8 @@ export default function AdminAttendance() {
               </div>
 
               {/* Hours */}
-              <div className="rounded-xl border border-surface-200 bg-surface-50 p-4">
-                <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider mb-3">Hours</p>
+              <div className="rounded-xl border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900 p-4">
+                <p className="text-[10px] font-semibold text-surface-400 dark:text-surface-500 uppercase tracking-wider mb-3">Hours</p>
                 <div className="grid grid-cols-4 gap-2 mb-3">
                   {([
                     { label: 'SCH', val: detailRecord.scheduledHours },
@@ -984,9 +1004,9 @@ export default function AdminAttendance() {
                     { label: 'ACT', val: detailRecord.actualHours },
                     { label: 'ADBT', val: detailRecord.adbtHours },
                   ] as const).map((item) => (
-                    <div key={item.label} className="text-center rounded-lg bg-white border border-surface-100 py-2 px-1">
+                    <div key={item.label} className="text-center rounded-lg bg-white dark:bg-surface-900 border border-surface-100 dark:border-surface-800 py-2 px-1">
                       <p className="label">{item.label}</p>
-                      <p className={`text-sm font-semibold tabular-nums mt-0.5 ${(item.val ?? 0) > 0 ? 'text-surface-800' : 'text-surface-300'}`}>{fmtHours(item.val)}</p>
+                      <p className={`text-sm font-semibold tabular-nums mt-0.5 ${(item.val ?? 0) > 0 ? 'text-surface-800 dark:text-surface-100' : 'text-surface-300'}`}>{fmtHours(item.val)}</p>
                     </div>
                   ))}
                 </div>
@@ -1008,8 +1028,8 @@ export default function AdminAttendance() {
                         : item.color === 'amber' ? 'bg-amber-50 border-amber-200 text-amber-700'
                         : item.color === 'red' ? 'bg-red-50 border-red-200 text-red-700'
                         : item.color === 'emerald' ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
-                        : 'bg-surface-50 border-surface-200 text-surface-500'
-                      : 'bg-white border-surface-100 text-surface-300'
+                        : 'bg-surface-50 dark:bg-surface-900 border-surface-200 dark:border-surface-700 text-surface-500 dark:text-surface-400 dark:text-surface-500'
+                      : 'bg-white dark:bg-surface-900 border-surface-100 dark:border-surface-800 text-surface-300'
                     return (
                       <div key={item.label} className={`text-center rounded-lg border py-2 px-1 ${badgeBg}`}>
                         <p className="text-[10px] font-medium uppercase opacity-70">{item.label}</p>
@@ -1030,9 +1050,9 @@ export default function AdminAttendance() {
                     const badgeBg = isNonZero
                       ? item.color === 'brand' ? 'bg-blue-50 border-blue-200 text-blue-700'
                         : item.color === 'violet' ? 'bg-violet-50 border-violet-200 text-violet-700'
-                        : item.color === 'surface' ? 'bg-surface-50 border-surface-200 text-surface-500'
+                        : item.color === 'surface' ? 'bg-surface-50 dark:bg-surface-900 border-surface-200 dark:border-surface-700 text-surface-500 dark:text-surface-400 dark:text-surface-500'
                         : 'bg-red-50 border-red-200 text-red-700'
-                      : 'bg-white border-surface-100 text-surface-300'
+                      : 'bg-white dark:bg-surface-900 border-surface-100 dark:border-surface-800 text-surface-300'
                     return (
                       <div key={item.label} className={`text-center rounded-lg border py-2 px-1 ${badgeBg}`}>
                         <p className="text-[10px] font-medium uppercase opacity-70">{item.label}</p>
@@ -1044,8 +1064,8 @@ export default function AdminAttendance() {
               </div>
 
               {/* Editable Shift Classification */}
-              <div className="rounded-xl border border-surface-200 bg-surface-50 p-4">
-                <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider mb-3">Shift Classification (Editable)</p>
+              <div className="rounded-xl border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900 p-4">
+                <p className="text-[10px] font-semibold text-surface-400 dark:text-surface-500 uppercase tracking-wider mb-3">Shift Classification (Editable)</p>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-3">
                   <div>
                     <label className="label">Status</label>
@@ -1053,7 +1073,7 @@ export default function AdminAttendance() {
                       value={detailRecord.status}
                       disabled={detailRecord.isLocked ?? false}
                       onChange={(e) => handleFieldUpdate(detailRecord, 'status', e.target.value)}
-                      className="text-sm border border-surface-200 rounded-lg px-2 py-1.5 w-full bg-white focus:ring-1 focus:ring-brand-300 outline-none disabled:opacity-60"
+                      className="text-sm border border-surface-200 dark:border-surface-700 rounded-lg px-2 py-1.5 w-full bg-white dark:bg-surface-900 focus:ring-1 focus:ring-brand-300 outline-none disabled:opacity-60"
                     >
                       <option value="">--</option>
                       {STATUS_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
@@ -1077,7 +1097,7 @@ export default function AdminAttendance() {
                       value={detailRecord.task ?? ''}
                       disabled={detailRecord.isLocked ?? false}
                       onChange={(e) => handleFieldUpdate(detailRecord, 'task', e.target.value)}
-                      className="text-sm border border-surface-200 rounded-lg px-2 py-1.5 w-full bg-white focus:ring-1 focus:ring-brand-300 outline-none disabled:opacity-60"
+                      className="text-sm border border-surface-200 dark:border-surface-700 rounded-lg px-2 py-1.5 w-full bg-white dark:bg-surface-900 focus:ring-1 focus:ring-brand-300 outline-none disabled:opacity-60"
                     >
                       <option value="">--</option>
                       {TASK_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
@@ -1091,7 +1111,7 @@ export default function AdminAttendance() {
                       value={detailRecord.stage ?? ''}
                       disabled={detailRecord.isLocked ?? false}
                       onChange={(e) => handleFieldUpdate(detailRecord, 'stage', e.target.value)}
-                      className="text-sm border border-surface-200 rounded-lg px-2 py-1.5 w-full bg-white focus:ring-1 focus:ring-brand-300 outline-none disabled:opacity-60"
+                      className="text-sm border border-surface-200 dark:border-surface-700 rounded-lg px-2 py-1.5 w-full bg-white dark:bg-surface-900 focus:ring-1 focus:ring-brand-300 outline-none disabled:opacity-60"
                     >
                       <option value="">--</option>
                       {STAGE_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
@@ -1115,7 +1135,7 @@ export default function AdminAttendance() {
                       value={detailRecord.payType ?? ''}
                       disabled={detailRecord.isLocked ?? false}
                       onChange={(e) => handleFieldUpdate(detailRecord, 'payType', e.target.value)}
-                      className="text-sm border border-surface-200 rounded-lg px-1.5 py-1.5 w-full bg-white focus:ring-1 focus:ring-brand-300 outline-none disabled:opacity-60"
+                      className="text-sm border border-surface-200 dark:border-surface-700 rounded-lg px-1.5 py-1.5 w-full bg-white dark:bg-surface-900 focus:ring-1 focus:ring-brand-300 outline-none disabled:opacity-60"
                     >
                       <option value="">--</option>
                       {PAY_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
@@ -1127,7 +1147,7 @@ export default function AdminAttendance() {
                       value={detailRecord.billType ?? ''}
                       disabled={detailRecord.isLocked ?? false}
                       onChange={(e) => handleFieldUpdate(detailRecord, 'billType', e.target.value)}
-                      className="text-sm border border-surface-200 rounded-lg px-1.5 py-1.5 w-full bg-white focus:ring-1 focus:ring-brand-300 outline-none disabled:opacity-60"
+                      className="text-sm border border-surface-200 dark:border-surface-700 rounded-lg px-1.5 py-1.5 w-full bg-white dark:bg-surface-900 focus:ring-1 focus:ring-brand-300 outline-none disabled:opacity-60"
                     >
                       <option value="">--</option>
                       {BILL_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
@@ -1137,8 +1157,8 @@ export default function AdminAttendance() {
               </div>
 
               {/* Comments (editable) */}
-              <div className="rounded-xl border border-surface-200 bg-surface-50 p-4">
-                <label className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider block mb-2">Comments</label>
+              <div className="rounded-xl border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900 p-4">
+                <label className="text-[10px] font-semibold text-surface-400 dark:text-surface-500 uppercase tracking-wider block mb-2">Comments</label>
                 <ModalCommentInput
                   value={detailRecord.comments ?? ''}
                   disabled={detailRecord.isLocked ?? false}
@@ -1147,13 +1167,13 @@ export default function AdminAttendance() {
               </div>
 
               {/* Lock toggle */}
-              <div className="flex items-center justify-between rounded-xl border border-surface-200 bg-surface-50 p-4">
+              <div className="flex items-center justify-between rounded-xl border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900 p-4">
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-surface-900 flex items-center gap-2">
-                    {detailRecord.isLocked ? <Lock className="w-4 h-4 text-amber-600" /> : <Unlock className="w-4 h-4 text-surface-400" />}
+                  <p className="text-sm font-semibold text-surface-900 dark:text-surface-50 flex items-center gap-2">
+                    {detailRecord.isLocked ? <Lock className="w-4 h-4 text-amber-600" /> : <Unlock className="w-4 h-4 text-surface-400 dark:text-surface-500" />}
                     {detailRecord.isLocked ? 'Record is locked' : 'Record is editable'}
                   </p>
-                  <p className="text-[11px] text-surface-500 mt-0.5">
+                  <p className="text-[11px] text-surface-500 dark:text-surface-400 dark:text-surface-500 mt-0.5">
                     Locking prevents further changes until an admin unlocks it.
                   </p>
                 </div>
@@ -1164,6 +1184,57 @@ export default function AdminAttendance() {
                 >
                   {detailRecord.isLocked ? <><Unlock className="w-3.5 h-3.5" /> Unlock</> : <><Lock className="w-3.5 h-3.5" /> Lock</>}
                 </button>
+              </div>
+
+              {/* Reviewed/Normalized toggle — 19MAY2026 Scheduler Demos meeting. */}
+              <div className="flex items-center justify-between rounded-xl border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900 p-4">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-surface-900 dark:text-surface-50">
+                    {detailRecord.reviewed ? 'Reviewed / Normalized' : 'Needs review'}
+                  </p>
+                  <p className="text-[11px] text-surface-500 dark:text-surface-400 mt-0.5">
+                    {detailRecord.reviewed
+                      ? (detailRecord.reviewedByName ? `Marked by ${detailRecord.reviewedByName}` : 'Marked reviewed')
+                          + (detailRecord.reviewedAt ? ` · ${new Date(detailRecord.reviewedAt).toLocaleString()}` : '')
+                      : 'Flag once the supervisor has finished normalizing this timesheet.'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      const next = !(detailRecord.reviewed ?? false)
+                      await setAttendanceReviewed(detailRecord.id, next)
+                      setDetailRecord({ ...detailRecord, reviewed: next, reviewedAt: next ? new Date().toISOString() : null })
+                      setRecords((prev) => prev.map((r) => r.id === detailRecord.id ? { ...r, reviewed: next } : r))
+                    } catch (e) {
+                      console.error('Toggle reviewed failed', e)
+                    }
+                  }}
+                  className={detailRecord.reviewed ? 'btn-secondary btn-sm' : 'btn-primary btn-sm'}
+                >
+                  {detailRecord.reviewed ? 'Mark as needs review' : 'Mark as Reviewed'}
+                </button>
+              </div>
+
+              {/* Audit footer — 19MAY2026 Scheduler Demos meeting. */}
+              <div className="rounded-xl border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900 p-4 grid grid-cols-1 sm:grid-cols-2 gap-3 text-[11px] text-surface-600 dark:text-surface-300">
+                <div>
+                  <p className="font-semibold uppercase tracking-wider text-surface-400 dark:text-surface-500 mb-0.5">Created By</p>
+                  <p className="text-surface-800 dark:text-surface-100">{detailRecord.createdByName || '—'}</p>
+                </div>
+                <div>
+                  <p className="font-semibold uppercase tracking-wider text-surface-400 dark:text-surface-500 mb-0.5">Created On</p>
+                  <p className="text-surface-800 dark:text-surface-100 tabular-nums">{detailRecord.createdOn ? new Date(detailRecord.createdOn).toLocaleString() : '—'}</p>
+                </div>
+                <div>
+                  <p className="font-semibold uppercase tracking-wider text-surface-400 dark:text-surface-500 mb-0.5">Modified By</p>
+                  <p className="text-surface-800 dark:text-surface-100">{detailRecord.modifiedByName || '—'}</p>
+                </div>
+                <div>
+                  <p className="font-semibold uppercase tracking-wider text-surface-400 dark:text-surface-500 mb-0.5">Modified On</p>
+                  <p className="text-surface-800 dark:text-surface-100 tabular-nums">{detailRecord.modifiedOn ? new Date(detailRecord.modifiedOn).toLocaleString() : '—'}</p>
+                </div>
               </div>
             </div>
           </div>
@@ -1256,9 +1327,9 @@ function AddAttendanceRecordModal({
         <div className="modal-header">
           <div>
             <h2 className="modal-title">Add Attendance Record</h2>
-            <p className="text-[11px] text-surface-500 mt-0.5">Manually create an attendance entry (for supervisors filling in for absent employees, etc.)</p>
+            <p className="text-[11px] text-surface-500 dark:text-surface-400 dark:text-surface-500 mt-0.5">Manually create an attendance entry (for supervisors filling in for absent employees, etc.)</p>
           </div>
-          <button type="button" onClick={onClose} className="btn-icon text-surface-400 hover:text-surface-700 hover:bg-surface-100" aria-label="Close">
+          <button type="button" onClick={onClose} className="btn-icon text-surface-400 dark:text-surface-500 hover:text-surface-700 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-700 dark:bg-surface-800" aria-label="Close">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -1296,7 +1367,7 @@ function AddAttendanceRecordModal({
             </div>
           </div>
 
-          <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider">Shift Classification</p>
+          <p className="text-[10px] font-semibold text-surface-400 dark:text-surface-500 uppercase tracking-wider">Shift Classification</p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label className="label">Status</label>
@@ -1358,7 +1429,7 @@ const CARD_COLORS: Record<string, { border: string; bg: string; label: string }>
   sky: { border: 'border-sky-200/80', bg: 'bg-sky-50/50', label: 'text-sky-700' },
   violet: { border: 'border-violet-200/80', bg: 'bg-violet-50/50', label: 'text-violet-700' },
   indigo: { border: 'border-indigo-200/80', bg: 'bg-indigo-50/50', label: 'text-indigo-700' },
-  surface: { border: 'border-surface-200/80', bg: 'bg-surface-50/50', label: 'text-surface-500' },
+  surface: { border: 'border-surface-200/80', bg: 'bg-surface-50/50', label: 'text-surface-500 dark:text-surface-400 dark:text-surface-500' },
 }
 
 function SummaryCard({
@@ -1374,14 +1445,14 @@ function SummaryCard({
 
   return (
     <div
-      className={`rounded-xl border ${c?.border ?? 'border-surface-200/70'} ${c?.bg ?? 'bg-white'} p-3 sm:p-3.5 shadow-card`}
+      className={`rounded-xl border ${c?.border ?? 'border-surface-200/70'} ${c?.bg ?? 'bg-white dark:bg-surface-900'} p-3 sm:p-3.5 shadow-card`}
     >
       <p
-        className={`text-[10px] sm:text-[11px] font-semibold ${c?.label ?? 'text-surface-500'} uppercase tracking-wider`}
+        className={`text-[10px] sm:text-[11px] font-semibold ${c?.label ?? 'text-surface-500 dark:text-surface-400 dark:text-surface-500'} uppercase tracking-wider`}
       >
         {label}
       </p>
-      <p className="mt-0.5 text-base sm:text-lg font-bold text-surface-900 tabular-nums tracking-tight">
+      <p className="mt-0.5 text-base sm:text-lg font-bold text-surface-900 dark:text-surface-50 tabular-nums tracking-tight">
         {value}
       </p>
     </div>
@@ -1404,7 +1475,7 @@ function InlineSelect({
     <select
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className={`text-xs bg-transparent border-0 outline-none cursor-pointer py-0 px-0 pr-4 rounded ${colorClass || 'text-surface-700'} focus:ring-1 focus:ring-brand-300`}
+      className={`text-xs bg-transparent border-0 outline-none cursor-pointer py-0 px-0 pr-4 rounded ${colorClass || 'text-surface-700 dark:text-surface-200'} focus:ring-1 focus:ring-brand-300`}
     >
       <option value="">--</option>
       {options.map((opt) => (
@@ -1448,7 +1519,7 @@ function InlineInput({
           e.currentTarget.blur()
         }
       }}
-      className="text-xs bg-transparent border-0 outline-none w-[120px] py-0 px-0 text-surface-700 placeholder:text-surface-300 focus:ring-1 focus:ring-brand-300 rounded"
+      className="text-xs bg-transparent border-0 outline-none w-[120px] py-0 px-0 text-surface-700 dark:text-surface-200 placeholder:text-surface-300 focus:ring-1 focus:ring-brand-300 rounded"
       placeholder="Add comment..."
     />
   )
@@ -1480,7 +1551,7 @@ function ModalCommentInput({
       }}
       rows={2}
       disabled={disabled}
-      className="text-sm border border-surface-200 rounded-lg px-3 py-2 w-full bg-white focus:ring-1 focus:ring-brand-300 outline-none resize-none disabled:bg-surface-100 disabled:opacity-70"
+      className="text-sm border border-surface-200 dark:border-surface-700 rounded-lg px-3 py-2 w-full bg-white dark:bg-surface-900 focus:ring-1 focus:ring-brand-300 outline-none resize-none disabled:bg-surface-100 dark:bg-surface-800 disabled:opacity-70"
       placeholder="Add comment..."
     />
   )
@@ -1505,7 +1576,7 @@ function ShiftTimeInput({
   }, [value])
 
   return (
-    <div className="rounded-lg bg-white border border-surface-100 p-2.5">
+    <div className="rounded-lg bg-white dark:bg-surface-900 border border-surface-100 dark:border-surface-800 p-2.5">
       <p className="label">{label}</p>
       <input
         ref={timeRef}
@@ -1514,7 +1585,7 @@ function ShiftTimeInput({
         onChange={(e) => setLocal(e.target.value)}
         onBlur={() => { if (local !== value) onSave(local) }}
         disabled={disabled}
-        className="w-full text-sm font-medium text-surface-900 tabular-nums mt-0.5 bg-transparent border-0 outline-none focus:ring-1 focus:ring-brand-300 rounded disabled:opacity-70"
+        className="w-full text-sm font-medium text-surface-900 dark:text-surface-50 tabular-nums mt-0.5 bg-transparent border-0 outline-none focus:ring-1 focus:ring-brand-300 rounded disabled:opacity-70"
       />
     </div>
   )

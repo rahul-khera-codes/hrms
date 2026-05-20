@@ -244,7 +244,7 @@ export default function EmployeeLeave() {
       {/* Toolbar */}
       <div className="toolbar">
         <div className="relative flex-1 min-w-0">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400 shrink-0" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400 dark:text-surface-500 shrink-0" />
           <input
             type="text"
             placeholder="Search by type, status, or date"
@@ -298,7 +298,7 @@ export default function EmployeeLeave() {
       </div>
 
       {/* Data */}
-      <div className="rounded-xl sm:rounded-2xl border border-surface-200/80 bg-white shadow-sm overflow-hidden">
+      <div className="rounded-xl sm:rounded-2xl border border-surface-200/80 bg-white dark:bg-surface-900 shadow-sm overflow-hidden">
         {loading ? (
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
@@ -323,24 +323,24 @@ export default function EmployeeLeave() {
             {displayedRows.map((r) => (
               <li
                 key={r.id}
-                className="flex flex-col sm:flex-row sm:items-center gap-4 p-4 sm:p-5 rounded-xl border border-surface-200/80 bg-white transition-all hover:shadow-md hover:border-brand-200/80 cursor-pointer"
+                className="flex flex-col sm:flex-row sm:items-center gap-4 p-4 sm:p-5 rounded-xl border border-surface-200/80 bg-white dark:bg-surface-900 transition-all hover:shadow-md hover:border-brand-200/80 cursor-pointer"
                 onClick={() => setDetailRow(r)}
               >
                 <div className="w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center shrink-0">
                   <CalendarCheck2 className="w-5 h-5 text-brand-600" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-surface-900">
+                  <p className="text-sm font-medium text-surface-900 dark:text-surface-50">
                     {r.startDate} - {r.endDate}
-                    {r.leaveCategory ? <span className="text-surface-500 font-normal"> · {CATEGORY_LABELS[r.leaveCategory] || r.leaveCategory}</span> : ''}
+                    {r.leaveCategory ? <span className="text-surface-500 dark:text-surface-400 dark:text-surface-500 font-normal"> · {CATEGORY_LABELS[r.leaveCategory] || r.leaveCategory}</span> : ''}
                   </p>
-                  <p className="text-xs text-surface-500 mt-0.5">
+                  <p className="text-xs text-surface-500 dark:text-surface-400 dark:text-surface-500 mt-0.5">
                     {r.leaveType === 'paid' ? 'Paid leave' : 'Unpaid leave'}
                     {r.associateDaysOff ? ` · Days off: ${r.associateDaysOff}` : ''}
                     {r.returnDate ? ` · Return: ${r.returnDate}` : ''}
                   </p>
-                  {r.reason ? <p className="text-xs text-surface-500 mt-0.5">Reason: {r.reason}</p> : null}
-                  {r.reviewedNote ? <p className="text-xs text-surface-500 mt-0.5">Note: {r.reviewedNote}</p> : null}
+                  {r.reason ? <p className="text-xs text-surface-500 dark:text-surface-400 dark:text-surface-500 mt-0.5">Reason: {r.reason}</p> : null}
+                  {r.reviewedNote ? <p className="text-xs text-surface-500 dark:text-surface-400 dark:text-surface-500 mt-0.5">Note: {r.reviewedNote}</p> : null}
                   {r.status === 'approved' && r.leavePayableAmount != null && r.leavePayableAmount > 0 ? (
                     <p className="text-xs font-medium text-brand-700 mt-0.5 tabular-nums">
                       Approved leave pay: ${r.leavePayableAmount.toFixed(2)}
@@ -348,7 +348,7 @@ export default function EmployeeLeave() {
                   ) : null}
                 </div>
                 <span
-                  className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium capitalize shrink-0 self-start sm:self-auto ${statusColors[r.status] || 'bg-surface-100 text-surface-600'}`}
+                  className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium capitalize shrink-0 self-start sm:self-auto ${statusColors[r.status] || 'bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-300'}`}
                 >
                   {r.status}
                 </span>
@@ -358,7 +358,7 @@ export default function EmployeeLeave() {
         ) : (
           <div className="overflow-x-auto scroll-fade-x">
             <table className="min-w-[900px] w-full text-left border-collapse">
-              <thead className="sticky top-0 z-10 bg-surface-50 border-b border-surface-200">
+              <thead className="sticky top-0 z-10 bg-surface-50 dark:bg-surface-900 border-b border-surface-200 dark:border-surface-700">
                 <tr>
                   {[
                     'Leave Type',
@@ -373,20 +373,20 @@ export default function EmployeeLeave() {
                   ].map((col) => (
                     <th
                       key={col}
-                      className={`px-3 py-1.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 ${['Payable Days', 'Payable Amount'].includes(col) ? 'text-right' : ''}`}
+                      className={`px-3 py-1.5 text-[10px] font-semibold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 dark:border-surface-700 ${['Payable Days', 'Payable Amount'].includes(col) ? 'text-right' : ''}`}
                     >
                       <div className="flex items-center gap-0.5">
-                        <button type="button" className="flex items-center gap-0.5 hover:text-surface-700 transition-colors" onClick={() => handleSort(col)}>
+                        <button type="button" className="flex items-center gap-0.5 hover:text-surface-700 dark:text-surface-200 transition-colors" onClick={() => handleSort(col)}>
                           {col}
                           {sortCol === col && (sortDir === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
                         </button>
-                        <button type="button" className={`p-0.5 rounded hover:bg-surface-200/60 transition-colors ${columnFilters[col] ? 'text-brand-600' : 'text-surface-400'}`} onClick={(e) => { e.stopPropagation(); setFilterOpen(filterOpen === col ? null : col) }}>
+                        <button type="button" className={`p-0.5 rounded hover:bg-surface-200/60 transition-colors ${columnFilters[col] ? 'text-brand-600' : 'text-surface-400 dark:text-surface-500'}`} onClick={(e) => { e.stopPropagation(); setFilterOpen(filterOpen === col ? null : col) }}>
                           <Filter className="w-2.5 h-2.5" />
                         </button>
                       </div>
                       {filterOpen === col && (
                         <div className="mt-1" onClick={(e) => e.stopPropagation()}>
-                          <input type="text" value={columnFilters[col] ?? ''} onChange={(e) => handleColumnFilter(col, e.target.value)} placeholder={`Filter ${col}...`} className="w-full text-[10px] font-normal normal-case tracking-normal border border-surface-200 rounded px-1.5 py-1 bg-white focus:ring-1 focus:ring-brand-300 outline-none" autoFocus />
+                          <input type="text" value={columnFilters[col] ?? ''} onChange={(e) => handleColumnFilter(col, e.target.value)} placeholder={`Filter ${col}...`} className="w-full text-[10px] font-normal normal-case tracking-normal border border-surface-200 dark:border-surface-700 rounded px-1.5 py-1 bg-white dark:bg-surface-900 focus:ring-1 focus:ring-brand-300 outline-none" autoFocus />
                         </div>
                       )}
                     </th>
@@ -398,11 +398,11 @@ export default function EmployeeLeave() {
                   <tr>
                     <td colSpan={9} className="py-12">
                       <div className="flex flex-col items-center justify-center text-center">
-                        <div className="w-12 h-12 rounded-full bg-surface-100 flex items-center justify-center text-surface-400 mb-3">
+                        <div className="w-12 h-12 rounded-full bg-surface-100 dark:bg-surface-800 flex items-center justify-center text-surface-400 dark:text-surface-500 mb-3">
                           <Search className="w-5 h-5" />
                         </div>
-                        <p className="text-sm font-medium text-surface-700">No matches</p>
-                        <p className="text-xs text-surface-500 mt-1">Try adjusting your search or column filters.</p>
+                        <p className="text-sm font-medium text-surface-700 dark:text-surface-200">No matches</p>
+                        <p className="text-xs text-surface-500 dark:text-surface-400 dark:text-surface-500 mt-1">Try adjusting your search or column filters.</p>
                         {Object.values(columnFilters).some(Boolean) && (
                           <button type="button" className="btn-secondary btn-sm mt-3" onClick={() => { setColumnFilters({}); setFilterOpen(null) }}>
                             Clear column filters
@@ -415,24 +415,24 @@ export default function EmployeeLeave() {
                 {displayedRows.map((r) => (
                   <tr
                     key={r.id}
-                    className="border-b border-surface-100 hover:bg-brand-50/40 transition-colors cursor-pointer"
+                    className="border-b border-surface-100 dark:border-surface-800 hover:bg-brand-50/40 transition-colors cursor-pointer"
                     onClick={() => setDetailRow(r)}
                   >
-                    <td className="px-2 py-1.5 text-xs text-surface-700 whitespace-nowrap">{CATEGORY_LABELS[r.leaveCategory ?? ''] || r.leaveCategory || '-'}</td>
+                    <td className="px-2 py-1.5 text-xs text-surface-700 dark:text-surface-200 whitespace-nowrap">{CATEGORY_LABELS[r.leaveCategory ?? ''] || r.leaveCategory || '-'}</td>
                     <td className="px-2 py-1.5 whitespace-nowrap">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize ${statusColors[r.status] || 'bg-surface-100 text-surface-600'}`}>
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize ${statusColors[r.status] || 'bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-300'}`}>
                         {r.status}
                       </span>
                     </td>
-                    <td className="px-2 py-1.5 text-xs text-surface-700 whitespace-nowrap">
+                    <td className="px-2 py-1.5 text-xs text-surface-700 dark:text-surface-200 whitespace-nowrap">
                       {r.leaveCalculationType === 'non_payable' ? 'Non Payable' : r.leaveCalculationType === 'hourly_salary' ? 'Hourly Salary' : r.leaveCalculationType === 'monthly_salary' ? 'Monthly Salary' : '-'}
                     </td>
-                    <td className="px-2 py-1.5 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">{r.startDate ?? ''}{r.startTime ? ` ${r.startTime}` : ''}</td>
-                    <td className="px-2 py-1.5 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">{r.endDate ?? ''}{r.endTime ? ` ${r.endTime}` : ''}</td>
-                    <td className="px-2 py-1.5 text-xs text-surface-700 whitespace-nowrap">{r.associateDaysOff ?? '-'}</td>
-                    <td className="px-2 py-1.5 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">{r.returnDate ?? ''}{r.returnTime ? ` ${r.returnTime}` : ''}</td>
-                    <td className="px-2 py-1.5 text-xs text-surface-700 tabular-nums whitespace-nowrap text-right">{r.leavePayableDays != null ? r.leavePayableDays : '-'}</td>
-                    <td className={`px-2 py-1.5 text-xs tabular-nums whitespace-nowrap text-right font-semibold ${r.leavePayableAmount != null && r.leavePayableAmount > 0 ? 'text-brand-700' : 'text-surface-400'}`}>
+                    <td className="px-2 py-1.5 text-xs font-mono text-surface-700 dark:text-surface-200 tabular-nums whitespace-nowrap">{r.startDate ?? ''}{r.startTime ? ` ${r.startTime}` : ''}</td>
+                    <td className="px-2 py-1.5 text-xs font-mono text-surface-700 dark:text-surface-200 tabular-nums whitespace-nowrap">{r.endDate ?? ''}{r.endTime ? ` ${r.endTime}` : ''}</td>
+                    <td className="px-2 py-1.5 text-xs text-surface-700 dark:text-surface-200 whitespace-nowrap">{r.associateDaysOff ?? '-'}</td>
+                    <td className="px-2 py-1.5 text-xs font-mono text-surface-700 dark:text-surface-200 tabular-nums whitespace-nowrap">{r.returnDate ?? ''}{r.returnTime ? ` ${r.returnTime}` : ''}</td>
+                    <td className="px-2 py-1.5 text-xs text-surface-700 dark:text-surface-200 tabular-nums whitespace-nowrap text-right">{r.leavePayableDays != null ? r.leavePayableDays : '-'}</td>
+                    <td className={`px-2 py-1.5 text-xs tabular-nums whitespace-nowrap text-right font-semibold ${r.leavePayableAmount != null && r.leavePayableAmount > 0 ? 'text-brand-700' : 'text-surface-400 dark:text-surface-500'}`}>
                       {r.leavePayableAmount != null ? `$${r.leavePayableAmount.toFixed(2)}` : '-'}
                     </td>
                   </tr>
@@ -452,14 +452,14 @@ export default function EmployeeLeave() {
             onClick={() => setDetailRow(null)}
             aria-label="Close"
           />
-          <div className="relative z-10 w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl border border-surface-200 bg-white shadow-xl">
+          <div className="relative z-10 w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl border border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-900 shadow-xl">
             {/* Header */}
-            <div className="sticky top-0 z-10 bg-white rounded-t-2xl border-b border-surface-100 px-6 py-4 flex items-center justify-between">
+            <div className="sticky top-0 z-10 bg-white dark:bg-surface-900 rounded-t-2xl border-b border-surface-100 dark:border-surface-800 px-6 py-4 flex items-center justify-between">
               <div>
-                <h2 className="text-base font-semibold text-surface-900">Leave Detail</h2>
-                <p className="text-xs text-surface-500 mt-0.5">
+                <h2 className="text-base font-semibold text-surface-900 dark:text-surface-50">Leave Detail</h2>
+                <p className="text-xs text-surface-500 dark:text-surface-400 dark:text-surface-500 mt-0.5">
                   {CATEGORY_LABELS[detailRow.leaveCategory ?? ''] || detailRow.leaveCategory || 'Leave'} &middot;{' '}
-                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium capitalize ${statusColors[detailRow.status] || 'bg-surface-100 text-surface-600'}`}>
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium capitalize ${statusColors[detailRow.status] || 'bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-300'}`}>
                     {detailRow.status}
                   </span>
                 </p>
@@ -467,7 +467,7 @@ export default function EmployeeLeave() {
               <button
                 type="button"
                 onClick={() => setDetailRow(null)}
-                className="p-2 rounded-lg text-surface-400 hover:bg-surface-100 hover:text-surface-700"
+                className="p-2 rounded-lg text-surface-400 dark:text-surface-500 hover:bg-surface-100 dark:hover:bg-surface-700 dark:bg-surface-800 hover:text-surface-700 dark:text-surface-200"
               >
                 <span className="sr-only">Close</span>
                 <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M18 6L6 18M6 6l12 12" /></svg>
@@ -476,48 +476,48 @@ export default function EmployeeLeave() {
 
             <div className="p-6 space-y-4">
               {/* Dates */}
-              <div className="rounded-xl border border-surface-200 bg-surface-50 p-4">
-                <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider mb-3">Dates</p>
+              <div className="rounded-xl border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900 p-4">
+                <p className="text-[10px] font-semibold text-surface-400 dark:text-surface-500 uppercase tracking-wider mb-3">Dates</p>
                 <div className="grid grid-cols-3 gap-3">
-                  <div className="text-center rounded-lg bg-white border border-surface-100 py-2 px-1">
-                    <p className="text-[10px] font-medium text-surface-400 uppercase">Start</p>
-                    <p className="text-xs font-semibold text-surface-800 mt-0.5 font-mono">{detailRow.startDate ?? '--'}</p>
-                    {detailRow.startTime && <p className="text-[10px] text-surface-500 font-mono">{detailRow.startTime}</p>}
+                  <div className="text-center rounded-lg bg-white dark:bg-surface-900 border border-surface-100 dark:border-surface-800 py-2 px-1">
+                    <p className="text-[10px] font-medium text-surface-400 dark:text-surface-500 uppercase">Start</p>
+                    <p className="text-xs font-semibold text-surface-800 dark:text-surface-100 mt-0.5 font-mono">{detailRow.startDate ?? '--'}</p>
+                    {detailRow.startTime && <p className="text-[10px] text-surface-500 dark:text-surface-400 dark:text-surface-500 font-mono">{detailRow.startTime}</p>}
                   </div>
-                  <div className="text-center rounded-lg bg-white border border-surface-100 py-2 px-1">
-                    <p className="text-[10px] font-medium text-surface-400 uppercase">End</p>
-                    <p className="text-xs font-semibold text-surface-800 mt-0.5 font-mono">{detailRow.endDate ?? '--'}</p>
-                    {detailRow.endTime && <p className="text-[10px] text-surface-500 font-mono">{detailRow.endTime}</p>}
+                  <div className="text-center rounded-lg bg-white dark:bg-surface-900 border border-surface-100 dark:border-surface-800 py-2 px-1">
+                    <p className="text-[10px] font-medium text-surface-400 dark:text-surface-500 uppercase">End</p>
+                    <p className="text-xs font-semibold text-surface-800 dark:text-surface-100 mt-0.5 font-mono">{detailRow.endDate ?? '--'}</p>
+                    {detailRow.endTime && <p className="text-[10px] text-surface-500 dark:text-surface-400 dark:text-surface-500 font-mono">{detailRow.endTime}</p>}
                   </div>
-                  <div className="text-center rounded-lg bg-white border border-surface-100 py-2 px-1">
-                    <p className="text-[10px] font-medium text-surface-400 uppercase">Return</p>
-                    <p className="text-xs font-semibold text-surface-800 mt-0.5 font-mono">{detailRow.returnDate ?? '--'}</p>
-                    {detailRow.returnTime && <p className="text-[10px] text-surface-500 font-mono">{detailRow.returnTime}</p>}
+                  <div className="text-center rounded-lg bg-white dark:bg-surface-900 border border-surface-100 dark:border-surface-800 py-2 px-1">
+                    <p className="text-[10px] font-medium text-surface-400 dark:text-surface-500 uppercase">Return</p>
+                    <p className="text-xs font-semibold text-surface-800 dark:text-surface-100 mt-0.5 font-mono">{detailRow.returnDate ?? '--'}</p>
+                    {detailRow.returnTime && <p className="text-[10px] text-surface-500 dark:text-surface-400 dark:text-surface-500 font-mono">{detailRow.returnTime}</p>}
                   </div>
                 </div>
               </div>
 
               {/* Info — Payable Amount + Asset Deactivation always visible per 19MAY2026 client video */}
-              <div className="rounded-xl border border-surface-200 bg-surface-50 p-4">
-                <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider mb-3">Details</p>
+              <div className="rounded-xl border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900 p-4">
+                <p className="text-[10px] font-semibold text-surface-400 dark:text-surface-500 uppercase tracking-wider mb-3">Details</p>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <p className="text-[10px] font-medium text-surface-400 uppercase">Type</p>
-                    <p className="text-sm font-semibold text-surface-800 mt-0.5">{detailRow.leaveType === 'paid' ? 'Paid' : 'Unpaid'}</p>
+                    <p className="text-[10px] font-medium text-surface-400 dark:text-surface-500 uppercase">Type</p>
+                    <p className="text-sm font-semibold text-surface-800 dark:text-surface-100 mt-0.5">{detailRow.leaveType === 'paid' ? 'Paid' : 'Unpaid'}</p>
                   </div>
                   <div>
-                    <p className="text-[10px] font-medium text-surface-400 uppercase">Days Off</p>
-                    <p className="text-sm font-semibold text-surface-800 mt-0.5">{detailRow.associateDaysOff ?? '--'}</p>
+                    <p className="text-[10px] font-medium text-surface-400 dark:text-surface-500 uppercase">Days Off</p>
+                    <p className="text-sm font-semibold text-surface-800 dark:text-surface-100 mt-0.5">{detailRow.associateDaysOff ?? '--'}</p>
                   </div>
                   <div>
-                    <p className="text-[10px] font-medium text-surface-400 uppercase">Calculation</p>
-                    <p className="text-sm font-semibold text-surface-800 mt-0.5">
+                    <p className="text-[10px] font-medium text-surface-400 dark:text-surface-500 uppercase">Calculation</p>
+                    <p className="text-sm font-semibold text-surface-800 dark:text-surface-100 mt-0.5">
                       {detailRow.leaveCalculationType === 'non_payable' ? 'Non Payable' : detailRow.leaveCalculationType === 'hourly_salary' ? 'Hourly Salary' : detailRow.leaveCalculationType === 'monthly_salary' ? 'Monthly Salary' : '--'}
                     </p>
                   </div>
                   <div>
-                    <p className="text-[10px] font-medium text-surface-400 uppercase">Payable Days</p>
-                    <p className="text-sm font-semibold text-surface-800 mt-0.5">{detailRow.leavePayableDays ?? '--'}</p>
+                    <p className="text-[10px] font-medium text-surface-400 dark:text-surface-500 uppercase">Payable Days</p>
+                    <p className="text-sm font-semibold text-surface-800 dark:text-surface-100 mt-0.5">{detailRow.leavePayableDays ?? '--'}</p>
                   </div>
                 </div>
               </div>
@@ -529,13 +529,13 @@ export default function EmployeeLeave() {
                   ${(detailRow.leavePayableAmount ?? 0).toFixed(2)}
                 </p>
                 {detailRow.status === 'pending' && (
-                  <p className="text-[11px] text-surface-500 mt-1">Final amount confirmed when your supervisor approves.</p>
+                  <p className="text-[11px] text-surface-500 dark:text-surface-400 dark:text-surface-500 mt-1">Final amount confirmed when your supervisor approves.</p>
                 )}
               </div>
 
               {/* Asset Deactivation / Access to pause */}
-              <div className="rounded-xl border border-surface-200 bg-surface-50 p-4">
-                <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider mb-2">Access to pause</p>
+              <div className="rounded-xl border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900 p-4">
+                <p className="text-[10px] font-semibold text-surface-400 dark:text-surface-500 uppercase tracking-wider mb-2">Access to pause</p>
                 {detailRow.assetDeactivation ? (
                   <div className="flex flex-wrap gap-1.5">
                     {detailRow.assetDeactivation.split(',').map((s) => s.trim()).filter(Boolean).map((asset) => (
@@ -545,21 +545,21 @@ export default function EmployeeLeave() {
                     ))}
                   </div>
                 ) : (
-                  <p className="text-xs text-surface-500">No accesses to pause for this leave.</p>
+                  <p className="text-xs text-surface-500 dark:text-surface-400 dark:text-surface-500">No accesses to pause for this leave.</p>
                 )}
               </div>
 
               {/* Reason & Notes */}
               {detailRow.reason && (
-                <div className="rounded-xl border border-surface-200 bg-surface-50 p-4">
-                  <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider mb-2">Reason</p>
-                  <p className="text-sm text-surface-700">{detailRow.reason}</p>
+                <div className="rounded-xl border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900 p-4">
+                  <p className="text-[10px] font-semibold text-surface-400 dark:text-surface-500 uppercase tracking-wider mb-2">Reason</p>
+                  <p className="text-sm text-surface-700 dark:text-surface-200">{detailRow.reason}</p>
                 </div>
               )}
               {detailRow.reviewedNote && (
-                <div className="rounded-xl border border-surface-200 bg-surface-50 p-4">
-                  <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider mb-2">Reviewer Note</p>
-                  <p className="text-sm text-surface-700">{detailRow.reviewedNote}</p>
+                <div className="rounded-xl border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900 p-4">
+                  <p className="text-[10px] font-semibold text-surface-400 dark:text-surface-500 uppercase tracking-wider mb-2">Reviewer Note</p>
+                  <p className="text-sm text-surface-700 dark:text-surface-200">{detailRow.reviewedNote}</p>
                 </div>
               )}
             </div>
@@ -578,8 +578,8 @@ export default function EmployeeLeave() {
                   <CalendarCheck2 className="w-5 h-5" />
                 </div>
                 <div className="min-w-0">
-                  <h2 className="text-base font-semibold text-surface-900">Request a leave</h2>
-                  <p className="text-xs text-surface-500 mt-0.5">Your supervisor will confirm the dates and details.</p>
+                  <h2 className="text-base font-semibold text-surface-900 dark:text-surface-50">Request a leave</h2>
+                  <p className="text-xs text-surface-500 dark:text-surface-400 dark:text-surface-500 mt-0.5">Your supervisor will confirm the dates and details.</p>
                 </div>
               </div>
               <button type="button" onClick={() => setCreateOpen(false)} className="btn-icon" aria-label="Close">
@@ -603,7 +603,7 @@ export default function EmployeeLeave() {
                   value={createStartDate}
                   onChange={(e) => setCreateStartDate(e.target.value)}
                 />
-                <p className="text-[11px] text-surface-500 mt-1">
+                <p className="text-[11px] text-surface-500 dark:text-surface-400 dark:text-surface-500 mt-1">
                   Your supervisor will confirm end date, return date, and payment details.
                 </p>
               </div>

@@ -78,8 +78,8 @@ export default function AdminPayrollCalendar() {
                 <CalendarDays className="w-4 h-4" />
               </div>
               <div className="min-w-0">
-                <h2 className="text-sm font-semibold text-surface-900">Bi-weekly periods</h2>
-                <p className="text-[11px] text-surface-500 mt-0.5">TSS calendar pay periods · run payroll for a cycle</p>
+                <h2 className="text-sm font-semibold text-surface-900 dark:text-surface-50">Bi-weekly periods</h2>
+                <p className="text-[11px] text-surface-500 dark:text-surface-400 dark:text-surface-500 mt-0.5">TSS calendar pay periods · run payroll for a cycle</p>
               </div>
             </div>
             <div className="w-24 shrink-0">
@@ -102,10 +102,10 @@ export default function AdminPayrollCalendar() {
                 <table className="w-full min-w-[520px] text-left border-collapse">
                   <thead className="sticky top-0 bg-surface-50/95 backdrop-blur-sm shadow-[0_1px_0_0_theme(colors.surface.200)] z-10">
                     <tr>
-                      <th className="px-4 py-2.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider">Cycle</th>
-                      <th className="px-4 py-2.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider">Period</th>
-                      <th className="px-4 py-2.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider">Pay date</th>
-                      <th className="px-4 py-2.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider text-center">Payment #</th>
+                      <th className="px-4 py-2.5 text-[10px] font-semibold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider">Cycle</th>
+                      <th className="px-4 py-2.5 text-[10px] font-semibold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider">Period</th>
+                      <th className="px-4 py-2.5 text-[10px] font-semibold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider">Pay date</th>
+                      <th className="px-4 py-2.5 text-[10px] font-semibold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider text-center">Payment #</th>
                       <th className="px-4 py-2.5 w-28" />
                     </tr>
                   </thead>
@@ -115,23 +115,23 @@ export default function AdminPayrollCalendar() {
                       const toD = new Date(p.periodTo)
                       const isCurrent = today >= fromD && today <= toD
                       return (
-                        <tr key={p.cycleCode} className={`border-t border-surface-100 transition-colors ${p.isSpecial ? 'bg-red-50/60 hover:bg-red-50' : 'hover:bg-brand-50/30'}`}>
+                        <tr key={p.cycleCode} className={`border-t border-surface-100 dark:border-surface-800 transition-colors ${p.isSpecial ? 'bg-red-50/60 hover:bg-red-50' : 'hover:bg-brand-50/30'}`}>
                           <td className="px-4 py-3 whitespace-nowrap">
                             <div className="flex items-center gap-2">
-                              <span className={`text-xs font-mono font-semibold ${p.isSpecial ? 'text-red-700' : 'text-surface-900'}`}>{p.cycleCode}</span>
+                              <span className={`text-xs font-mono font-semibold ${p.isSpecial ? 'text-red-700' : 'text-surface-900 dark:text-surface-50'}`}>{p.cycleCode}</span>
                               {isCurrent && <span className="badge-brand">Current</span>}
                               {p.isSpecial && <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-100 text-red-700 border border-red-200">27th cycle</span>}
                             </div>
                           </td>
-                          <td className="px-4 py-3 text-xs text-surface-700 whitespace-nowrap tabular-nums">{fmtPeriodDate(p.periodFrom)} – {fmtPeriodDate(p.periodTo)}</td>
-                          <td className="px-4 py-3 text-xs text-surface-700 whitespace-nowrap tabular-nums">
+                          <td className="px-4 py-3 text-xs text-surface-700 dark:text-surface-200 whitespace-nowrap tabular-nums">{fmtPeriodDate(p.periodFrom)} – {fmtPeriodDate(p.periodTo)}</td>
+                          <td className="px-4 py-3 text-xs text-surface-700 dark:text-surface-200 whitespace-nowrap tabular-nums">
                             <span className="inline-flex items-center gap-1.5">
                               <DollarSign className="w-3 h-3 text-emerald-500" />
                               {fmtPeriodDate(p.payDate)}
                             </span>
                           </td>
-                          <td className="px-4 py-3 text-xs text-surface-700 whitespace-nowrap tabular-nums text-center">
-                            <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-surface-100 text-surface-700 font-semibold text-[11px]">
+                          <td className="px-4 py-3 text-xs text-surface-700 dark:text-surface-200 whitespace-nowrap tabular-nums text-center">
+                            <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-surface-100 dark:bg-surface-800 text-surface-700 dark:text-surface-200 font-semibold text-[11px]">
                               {p.bs ?? '-'}
                             </span>
                           </td>
@@ -163,8 +163,8 @@ export default function AdminPayrollCalendar() {
                 <Calendar className="w-4 h-4" />
               </div>
               <div className="min-w-0">
-                <h2 className="text-sm font-semibold text-surface-900">Custom week</h2>
-                <p className="text-[11px] text-surface-500 mt-0.5">Pick a week to set the pay period</p>
+                <h2 className="text-sm font-semibold text-surface-900 dark:text-surface-50">Custom week</h2>
+                <p className="text-[11px] text-surface-500 dark:text-surface-400 dark:text-surface-500 mt-0.5">Pick a week to set the pay period</p>
               </div>
             </div>
           </div>
@@ -175,16 +175,16 @@ export default function AdminPayrollCalendar() {
               <button
                 type="button"
                 onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
-                className="btn-icon text-surface-500 hover:text-surface-900 hover:bg-surface-100"
+                className="btn-icon text-surface-500 dark:text-surface-400 dark:text-surface-500 hover:text-surface-900 dark:text-surface-50 hover:bg-surface-100 dark:hover:bg-surface-700 dark:bg-surface-800"
                 aria-label="Previous month"
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
-              <p className="text-sm font-semibold text-surface-900 tabular-nums">{format(currentMonth, 'MMMM yyyy')}</p>
+              <p className="text-sm font-semibold text-surface-900 dark:text-surface-50 tabular-nums">{format(currentMonth, 'MMMM yyyy')}</p>
               <button
                 type="button"
                 onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
-                className="btn-icon text-surface-500 hover:text-surface-900 hover:bg-surface-100"
+                className="btn-icon text-surface-500 dark:text-surface-400 dark:text-surface-500 hover:text-surface-900 dark:text-surface-50 hover:bg-surface-100 dark:hover:bg-surface-700 dark:bg-surface-800"
                 aria-label="Next month"
               >
                 <ChevronRight className="w-4 h-4" />
@@ -194,7 +194,7 @@ export default function AdminPayrollCalendar() {
             {/* Weekday labels */}
             <div className="grid grid-cols-7 gap-1 mb-1">
               {weekDayNames.map((day) => (
-                <div key={day} className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider text-center py-1">
+                <div key={day} className="text-[10px] font-semibold text-surface-400 dark:text-surface-500 uppercase tracking-wider text-center py-1">
                   {day}
                 </div>
               ))}
@@ -213,7 +213,7 @@ export default function AdminPayrollCalendar() {
                   <div
                     key={wi}
                     className={`grid grid-cols-7 gap-1 rounded-xl p-0.5 transition-colors cursor-pointer ${
-                      weekSelected ? 'bg-brand-50 ring-1 ring-brand-300' : 'hover:bg-surface-50'
+                      weekSelected ? 'bg-brand-50 ring-1 ring-brand-300' : 'hover:bg-surface-50 dark:hover:bg-surface-800 dark:bg-surface-900'
                     }`}
                     onClick={() => selectWeek(weekStart, weekEnd)}
                     role="button"
@@ -239,7 +239,7 @@ export default function AdminPayrollCalendar() {
                                   ? 'bg-brand-600 text-white shadow-sm'
                                   : isToday
                                     ? 'text-brand-700 font-bold ring-1 ring-brand-300 bg-brand-50'
-                                    : 'text-surface-700'
+                                    : 'text-surface-700 dark:text-surface-200'
                             }`}
                           >
                             {format(day, 'd')}
@@ -252,26 +252,26 @@ export default function AdminPayrollCalendar() {
               })}
             </div>
 
-            <p className="text-[11px] text-surface-400 mt-3 text-center">
+            <p className="text-[11px] text-surface-400 dark:text-surface-500 mt-3 text-center">
               <Clock className="w-3 h-3 inline mr-1 -mt-0.5" />
               Click any row to select that week
             </p>
           </div>
 
           {selectedFrom && selectedTo && (
-            <div className="border-t border-surface-100 bg-brand-50/40 p-4">
+            <div className="border-t border-surface-100 dark:border-surface-800 bg-brand-50/40 p-4">
               <div className="flex flex-col gap-2.5">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-semibold text-brand-700 uppercase tracking-wider">Selected period</span>
                   <button
                     type="button"
                     onClick={() => { setSelectedFrom(null); setSelectedTo(null) }}
-                    className="text-[11px] text-surface-500 hover:text-surface-700 font-medium"
+                    className="text-[11px] text-surface-500 dark:text-surface-400 dark:text-surface-500 hover:text-surface-700 dark:text-surface-200 font-medium"
                   >
                     Clear
                   </button>
                 </div>
-                <p className="text-sm font-semibold text-surface-900 tabular-nums">
+                <p className="text-sm font-semibold text-surface-900 dark:text-surface-50 tabular-nums">
                   {format(new Date(selectedFrom), 'MMM d')} – {format(new Date(selectedTo), 'MMM d, yyyy')}
                 </p>
                 <button

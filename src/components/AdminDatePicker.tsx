@@ -141,16 +141,16 @@ export default function AdminDatePicker({ value, onChange, className = '' }: Adm
         type="button"
         className={
           'input flex items-center justify-between px-3 ' +
-          'transition-colors duration-150 hover:bg-surface-50 ' +
+          'transition-colors duration-150 hover:bg-surface-50 dark:hover:bg-surface-800 dark:bg-surface-900 ' +
           className
         }
         onClick={() => setOpen((o) => !o)}
       >
         <span className="flex items-center gap-2 min-w-0">
-          <Calendar className="w-4 h-4 text-surface-400 shrink-0" />
-          <span className="text-sm text-surface-900 tabular-nums whitespace-nowrap">{display}</span>
+          <Calendar className="w-4 h-4 text-surface-400 dark:text-surface-500 shrink-0" />
+          <span className="text-sm text-surface-900 dark:text-surface-50 tabular-nums whitespace-nowrap">{display}</span>
         </span>
-        <span className="ml-2 text-surface-400 text-[11px] uppercase tracking-wider font-medium shrink-0 whitespace-nowrap">{format(date, 'EEE')}</span>
+        <span className="ml-2 text-surface-400 dark:text-surface-500 text-[11px] uppercase tracking-wider font-medium shrink-0 whitespace-nowrap">{format(date, 'EEE')}</span>
       </button>
       {/* Invisible native input to keep browser logic identical */}
       <input
@@ -163,7 +163,7 @@ export default function AdminDatePicker({ value, onChange, className = '' }: Adm
       {open && createPortal(
         <div
           ref={dropdownRef}
-          className="fixed z-[200] rounded-2xl border border-surface-200 bg-white shadow-xl p-3"
+          className="fixed z-[200] rounded-2xl border border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-900 shadow-xl p-3"
           style={{
             top: position.placement === 'bottom' ? `${position.top}px` : undefined,
             bottom: position.placement === 'top'
@@ -177,24 +177,24 @@ export default function AdminDatePicker({ value, onChange, className = '' }: Adm
             <button
               type="button"
               onClick={() => setViewMonth((m) => subMonths(m, 1))}
-              className="p-1.5 rounded-lg text-surface-500 hover:bg-surface-50 hover:text-surface-800"
+              className="p-1.5 rounded-lg text-surface-500 dark:text-surface-400 dark:text-surface-500 hover:bg-surface-50 dark:hover:bg-surface-800 dark:bg-surface-900 hover:text-surface-800 dark:text-surface-100"
               aria-label="Previous month"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
-            <div className="text-sm font-semibold text-surface-800">
+            <div className="text-sm font-semibold text-surface-800 dark:text-surface-100">
               {format(viewMonth, 'MMMM yyyy')}
             </div>
             <button
               type="button"
               onClick={() => setViewMonth((m) => addMonths(m, 1))}
-              className="p-1.5 rounded-lg text-surface-500 hover:bg-surface-50 hover:text-surface-800"
+              className="p-1.5 rounded-lg text-surface-500 dark:text-surface-400 dark:text-surface-500 hover:bg-surface-50 dark:hover:bg-surface-800 dark:bg-surface-900 hover:text-surface-800 dark:text-surface-100"
               aria-label="Next month"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>
-          <div className="grid grid-cols-7 gap-1 text-[11px] font-semibold text-surface-400 mb-1">
+          <div className="grid grid-cols-7 gap-1 text-[11px] font-semibold text-surface-400 dark:text-surface-500 mb-1">
             {WEEKDAYS.map((dLabel) => (
               <div key={dLabel} className="text-center py-1 uppercase">
                 {dLabel}
@@ -215,9 +215,9 @@ export default function AdminDatePicker({ value, onChange, className = '' }: Adm
                 } else if (isToday) {
                   cellClass += 'border border-brand-300 text-brand-700 bg-brand-50 hover:bg-brand-100'
                 } else if (!inMonth) {
-                  cellClass += 'text-surface-300 hover:bg-surface-50'
+                  cellClass += 'text-surface-300 hover:bg-surface-50 dark:hover:bg-surface-800 dark:bg-surface-900'
                 } else {
-                  cellClass += 'text-surface-700 hover:bg-surface-100'
+                  cellClass += 'text-surface-700 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-700 dark:bg-surface-800'
                 }
                 return (
                   <button
@@ -236,7 +236,7 @@ export default function AdminDatePicker({ value, onChange, className = '' }: Adm
               }),
             )}
           </div>
-          <div className="flex items-center justify-between mt-2 pt-2 border-t border-surface-100">
+          <div className="flex items-center justify-between mt-2 pt-2 border-t border-surface-100 dark:border-surface-800">
             <button
               type="button"
               className="text-xs font-medium text-brand-600 hover:text-brand-700"
@@ -251,7 +251,7 @@ export default function AdminDatePicker({ value, onChange, className = '' }: Adm
             </button>
             <button
               type="button"
-              className="text-xs font-medium text-surface-400 hover:text-surface-600"
+              className="text-xs font-medium text-surface-400 dark:text-surface-500 hover:text-surface-600 dark:text-surface-300"
               onClick={() => {
                 setInternal('')
                 onChange('')

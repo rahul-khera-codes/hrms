@@ -153,13 +153,13 @@ export default function DateRangePicker({ startDate, endDate, onChange, classNam
     return (
       <div style={{ width: CAL_W }}>
         {/* Month title */}
-        <div className="text-center text-[13px] font-semibold text-surface-800 pb-2 select-none">
+        <div className="text-center text-[13px] font-semibold text-surface-800 dark:text-surface-100 pb-2 select-none">
           {format(month, 'MMMM yyyy')}
         </div>
         {/* Weekday header */}
         <div className="grid grid-cols-7" style={{ height: 28 }}>
           {DAYS.map(d => (
-            <div key={d} className="flex items-center justify-center text-[10px] font-semibold text-surface-400 uppercase select-none">{d}</div>
+            <div key={d} className="flex items-center justify-center text-[10px] font-semibold text-surface-400 dark:text-surface-500 uppercase select-none">{d}</div>
           ))}
         </div>
         {/* Day grid */}
@@ -192,7 +192,7 @@ export default function DateRangePicker({ startDate, endDate, onChange, classNam
               } else if (!inMonth) {
                 btnClass += 'text-surface-300 '
               } else {
-                btnClass += 'text-surface-700 hover:bg-surface-100 '
+                btnClass += 'text-surface-700 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-700 dark:bg-surface-800 '
               }
 
               return (
@@ -224,8 +224,8 @@ export default function DateRangePicker({ startDate, endDate, onChange, classNam
         className={'input flex items-center gap-2 px-3 ' + className}
         onClick={() => setOpen(o => !o)}
       >
-        <Calendar className="w-4 h-4 text-surface-400 shrink-0" />
-        <span className="text-sm text-surface-900 tabular-nums whitespace-nowrap">{display}</span>
+        <Calendar className="w-4 h-4 text-surface-400 dark:text-surface-500 shrink-0" />
+        <span className="text-sm text-surface-900 dark:text-surface-50 tabular-nums whitespace-nowrap">{display}</span>
       </button>
 
       {open && createPortal(
@@ -240,10 +240,10 @@ export default function DateRangePicker({ startDate, endDate, onChange, classNam
             left: pos.left,
             width: window.innerWidth < 640 ? 'calc(100vw - 16px)' : POPUP_W,
           }}
-          className="rounded-xl border border-surface-200 bg-white shadow-xl"
+          className="rounded-xl border border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-900 shadow-xl"
         >
           {/* Mode toggle bar */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-surface-100">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-surface-100 dark:border-surface-800">
             <div className="segmented">
               <button type="button" onClick={() => { setMode('week'); setPickingEnd(false) }}
                 className={`segmented-item text-[11px] ${mode === 'week' ? 'segmented-item-active' : ''}`}>
@@ -254,7 +254,7 @@ export default function DateRangePicker({ startDate, endDate, onChange, classNam
                 Custom
               </button>
             </div>
-            <span className="text-[11px] text-surface-400 hidden sm:inline">
+            <span className="text-[11px] text-surface-400 dark:text-surface-500 hidden sm:inline">
               {mode === 'week' ? 'Click a day → selects Sun – Sat' : pickingEnd ? 'Click end date' : 'Click start date'}
             </span>
           </div>
@@ -262,7 +262,7 @@ export default function DateRangePicker({ startDate, endDate, onChange, classNam
           {/* Calendars */}
           <div className="flex items-start justify-between px-3 py-3 overflow-x-auto">
             <button type="button" onClick={() => setLeftMonth(m => subMonths(m, 1))}
-              className="p-1 rounded-lg text-surface-400 hover:bg-surface-100 hover:text-surface-700 mt-0.5 shrink-0">
+              className="p-1 rounded-lg text-surface-400 dark:text-surface-500 hover:bg-surface-100 dark:hover:bg-surface-700 dark:bg-surface-800 hover:text-surface-700 dark:text-surface-200 mt-0.5 shrink-0">
               <ChevronLeft className="w-4 h-4" />
             </button>
 
@@ -274,13 +274,13 @@ export default function DateRangePicker({ startDate, endDate, onChange, classNam
             </div>
 
             <button type="button" onClick={() => setLeftMonth(m => addMonths(m, 1))}
-              className="p-1 rounded-lg text-surface-400 hover:bg-surface-100 hover:text-surface-700 mt-0.5 shrink-0">
+              className="p-1 rounded-lg text-surface-400 dark:text-surface-500 hover:bg-surface-100 dark:hover:bg-surface-700 dark:bg-surface-800 hover:text-surface-700 dark:text-surface-200 mt-0.5 shrink-0">
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>
 
           {/* Footer shortcuts */}
-          <div className="flex items-center justify-between px-4 py-2.5 border-t border-surface-100 bg-surface-50/60">
+          <div className="flex items-center justify-between px-4 py-2.5 border-t border-surface-100 dark:border-surface-800 bg-surface-50/60">
             <div className="flex items-center gap-2.5">
               <button type="button" className="text-xs font-medium text-brand-600 hover:text-brand-700"
                 onClick={() => {
@@ -289,14 +289,14 @@ export default function DateRangePicker({ startDate, endDate, onChange, classNam
                   setLeftMonth(startOfMonth(n)); setOpen(false)
                 }}>This week</button>
               <span className="text-surface-200">|</span>
-              <button type="button" className="text-xs font-medium text-surface-500 hover:text-surface-700"
+              <button type="button" className="text-xs font-medium text-surface-500 dark:text-surface-400 dark:text-surface-500 hover:text-surface-700 dark:text-surface-200"
                 onClick={() => {
                   const p = new Date(); p.setDate(p.getDate() - 7)
                   onChange(format(startOfWeek(p, { weekStartsOn: 0 }), 'yyyy-MM-dd'), format(endOfWeek(p, { weekStartsOn: 0 }), 'yyyy-MM-dd'))
                   setLeftMonth(startOfMonth(startOfWeek(p, { weekStartsOn: 0 }))); setOpen(false)
                 }}>Last week</button>
             </div>
-            <button type="button" className="text-xs font-medium text-surface-400 hover:text-surface-600"
+            <button type="button" className="text-xs font-medium text-surface-400 dark:text-surface-500 hover:text-surface-600 dark:text-surface-300"
               onClick={() => { setOpen(false); setPickingEnd(false); setHover(null) }}>
               Close
             </button>

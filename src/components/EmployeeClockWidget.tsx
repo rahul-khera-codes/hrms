@@ -94,8 +94,8 @@ export function EmployeeClockWidget({ onChange }: { onChange?: () => void }) {
               <Briefcase className="w-4 h-4" />
             </div>
             <div className="min-w-0">
-              <h3 className="text-sm font-semibold text-surface-900">Today's Shift</h3>
-              <p className="text-[11px] text-surface-500 mt-0.5">{format(new Date(), 'EEEE, MMM d, yyyy')}</p>
+              <h3 className="text-sm font-semibold text-surface-900 dark:text-surface-50">Today's Shift</h3>
+              <p className="text-[11px] text-surface-500 dark:text-surface-400 dark:text-surface-500 mt-0.5">{format(new Date(), 'EEEE, MMM d, yyyy')}</p>
             </div>
           </div>
         </div>
@@ -108,16 +108,16 @@ export function EmployeeClockWidget({ onChange }: { onChange?: () => void }) {
                     {todaySchedule.shiftName}
                   </span>
                 </div>
-                <p className="text-sm text-surface-600 font-medium">{todaySchedule.clientName}</p>
+                <p className="text-sm text-surface-600 dark:text-surface-300 font-medium">{todaySchedule.clientName}</p>
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <div className="rounded-lg bg-surface-50 border border-surface-100 py-2.5 px-3 text-center">
+                <div className="rounded-lg bg-surface-50 dark:bg-surface-900 border border-surface-100 dark:border-surface-800 py-2.5 px-3 text-center">
                   <p className="label">Shift Start</p>
-                  <p className="text-lg font-bold tabular-nums text-surface-800 mt-0.5">{todaySchedule.startTime || '--:--'}</p>
+                  <p className="text-lg font-bold tabular-nums text-surface-800 dark:text-surface-100 mt-0.5">{todaySchedule.startTime || '--:--'}</p>
                 </div>
-                <div className="rounded-lg bg-surface-50 border border-surface-100 py-2.5 px-3 text-center">
+                <div className="rounded-lg bg-surface-50 dark:bg-surface-900 border border-surface-100 dark:border-surface-800 py-2.5 px-3 text-center">
                   <p className="label">Shift End</p>
-                  <p className="text-lg font-bold tabular-nums text-surface-800 mt-0.5">{todaySchedule.endTime || '--:--'}</p>
+                  <p className="text-lg font-bold tabular-nums text-surface-800 dark:text-surface-100 mt-0.5">{todaySchedule.endTime || '--:--'}</p>
                 </div>
                 <div className="rounded-lg bg-blue-50 border border-blue-100 py-2.5 px-3 text-center">
                   <p className="label text-blue-400">Clock In</p>
@@ -135,10 +135,10 @@ export function EmployeeClockWidget({ onChange }: { onChange?: () => void }) {
             </div>
           ) : (
             <div className="text-center py-6">
-              <div className="w-10 h-10 rounded-full bg-surface-100 flex items-center justify-center mx-auto mb-2">
-                <Briefcase className="w-4 h-4 text-surface-400" />
+              <div className="w-10 h-10 rounded-full bg-surface-100 dark:bg-surface-800 flex items-center justify-center mx-auto mb-2">
+                <Briefcase className="w-4 h-4 text-surface-400 dark:text-surface-500" />
               </div>
-              <p className="text-sm text-surface-500">No shift scheduled for today</p>
+              <p className="text-sm text-surface-500 dark:text-surface-400 dark:text-surface-500">No shift scheduled for today</p>
               {(clockedIn || todayAttendance) && (
                 <div className="grid grid-cols-2 gap-2 mt-4">
                   <div className="rounded-lg bg-blue-50 border border-blue-100 py-2.5 px-3 text-center">
@@ -201,7 +201,7 @@ export function EmployeeClockWidget({ onChange }: { onChange?: () => void }) {
                 type="button"
                 onClick={handleClockIn}
                 disabled={actionLoading}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-white text-brand-700 hover:bg-brand-50 font-semibold px-6 py-3.5 shadow-lg transition-all active:scale-[0.98] w-full sm:w-auto min-h-[3rem] disabled:opacity-70"
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-white dark:bg-surface-900 text-brand-700 hover:bg-brand-50 font-semibold px-6 py-3.5 shadow-lg transition-all active:scale-[0.98] w-full sm:w-auto min-h-[3rem] disabled:opacity-70"
               >
                 {actionLoading ? (
                   <span className="w-5 h-5 border-2 border-brand-700 border-t-transparent rounded-full animate-spin" />
@@ -226,20 +226,20 @@ export function EmployeeClockWidget({ onChange }: { onChange?: () => void }) {
                 <CalendarDays className="w-4 h-4" />
               </div>
               <div className="min-w-0">
-                <h3 className="text-sm font-semibold text-surface-900">Upcoming shifts</h3>
-                <p className="text-[11px] text-surface-500 mt-0.5">Next 5 days</p>
+                <h3 className="text-sm font-semibold text-surface-900 dark:text-surface-50">Upcoming shifts</h3>
+                <p className="text-[11px] text-surface-500 dark:text-surface-400 dark:text-surface-500 mt-0.5">Next 5 days</p>
               </div>
             </div>
           </div>
           <div className="p-3 sm:p-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
             {upcomingShifts.slice(0, 5).map((s) => (
               <div key={s.id} className="rounded-lg border border-surface-200/80 bg-surface-50/40 p-3">
-                <p className="text-[10px] font-semibold text-surface-500 uppercase tracking-wider">
+                <p className="text-[10px] font-semibold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider">
                   {s.date ? format(new Date(s.date + 'T00:00:00'), 'EEE MMM d') : '—'}
                 </p>
                 <p className="text-xs font-semibold text-violet-700 mt-1">{s.shiftName}</p>
-                <p className="text-[11px] text-surface-600 mt-0.5">{s.startTime} – {s.endTime}</p>
-                <p className="text-[11px] text-surface-500 truncate mt-0.5">{s.clientName}</p>
+                <p className="text-[11px] text-surface-600 dark:text-surface-300 mt-0.5">{s.startTime} – {s.endTime}</p>
+                <p className="text-[11px] text-surface-500 dark:text-surface-400 dark:text-surface-500 truncate mt-0.5">{s.clientName}</p>
               </div>
             ))}
           </div>

@@ -93,6 +93,17 @@ try {
     await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS account_override UUID REFERENCES clients(id)`)
     // Supports manually-created attendance records (Add Record feature)
     await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS is_manual BOOLEAN NOT NULL DEFAULT FALSE`)
+    // 19MAY2026 Scheduler Demos meeting: audit fields + reviewed flag.
+    await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS created_by UUID REFERENCES users(id)`)
+    await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS created_on TIMESTAMPTZ DEFAULT NOW()`)
+    await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS modified_by UUID REFERENCES users(id)`)
+    await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS modified_on TIMESTAMPTZ`)
+    await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS reviewed BOOLEAN NOT NULL DEFAULT FALSE`)
+    await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS reviewed_by UUID REFERENCES users(id)`)
+    await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMPTZ`)
+    // Pre-populated from scheduler bulk-assign (no clock in/out yet). Lets the
+    // attendance module surface upcoming shifts that need normalization.
+    await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS is_scheduled BOOLEAN NOT NULL DEFAULT FALSE`)
   } catch (e) {
     if (e.code !== '42701') console.warn('sessions attendance columns migration:', e.message)
   }

@@ -34,7 +34,7 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen flex bg-surface-50">
+    <div className="min-h-screen flex bg-surface-50 dark:bg-surface-900">
       {/* Left: Branding panel */}
       <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-surface-900 via-surface-800 to-brand-900 relative overflow-hidden flex-col justify-between p-12">
         {/* Background decorations */}
@@ -75,22 +75,22 @@ export default function Login() {
           </div>
         </div>
 
-        <p className="relative z-10 text-surface-500 text-xs">© HARMONY. Sign in with your account.</p>
+        <p className="relative z-10 text-surface-500 dark:text-surface-400 dark:text-surface-500 text-xs">© HARMONY. Sign in with your account.</p>
       </div>
 
       {/* Right: Login form */}
-      <div className="flex-1 flex items-center justify-center p-6 sm:p-8 bg-white">
+      <div className="flex-1 flex items-center justify-center p-6 sm:p-8 bg-white dark:bg-surface-900">
         <div className="w-full max-w-sm">
           <div className="flex items-center gap-3 lg:hidden mb-8">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center shadow-sm">
               <Clock className="w-5 h-5 text-white" />
             </div>
-            <span className="text-xl font-semibold text-surface-900 tracking-tight">HARMONY</span>
+            <span className="text-xl font-semibold text-surface-900 dark:text-surface-50 tracking-tight">HARMONY</span>
           </div>
 
           <div className="mb-8">
-            <h1 className="text-2xl sm:text-3xl font-bold text-surface-900 tracking-tight">Welcome back</h1>
-            <p className="text-surface-500 text-sm mt-1.5">Enter your credentials to access your dashboard.</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-surface-900 dark:text-surface-50 tracking-tight">Welcome back</h1>
+            <p className="text-surface-500 dark:text-surface-400 dark:text-surface-500 text-sm mt-1.5">Enter your credentials to access your dashboard.</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -136,7 +136,7 @@ export default function Login() {
             </button>
           </form>
 
-          <p className="text-[11px] text-surface-400 text-center mt-6">
+          <p className="text-[11px] text-surface-400 dark:text-surface-500 text-center mt-6">
             Need help? Contact your administrator.
           </p>
         </div>

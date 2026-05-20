@@ -99,7 +99,7 @@ export default function AdminSelect({
 
   const buttonClass =
     'input flex items-center justify-between px-3 ' +
-    'transition-colors duration-150 hover:bg-surface-50 ' +
+    'transition-colors duration-150 hover:bg-surface-50 dark:hover:bg-surface-800 dark:bg-surface-900' +
     (disabled ? 'pointer-events-none ' : '') +
     className
 
@@ -115,16 +115,16 @@ export default function AdminSelect({
         disabled={disabled}
       >
         <span className="truncate text-left min-w-0 flex-1">
-          {selected ? selected.label : <span className="text-surface-400">{placeholder}</span>}
+          {selected ? selected.label : <span className="text-surface-400 dark:text-surface-500 dark:text-surface-400">{placeholder}</span>}
         </span>
-        <span className="ml-2 inline-flex h-5 w-5 items-center justify-center rounded-full text-surface-400 transition-colors">
+        <span className="ml-2 inline-flex h-5 w-5 items-center justify-center rounded-full text-surface-400 dark:text-surface-500 dark:text-surface-400 transition-colors">
           {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
         </span>
       </button>
       {open && !disabled && createPortal(
         <div
           ref={dropdownRef}
-          className="fixed z-[200] rounded-xl border border-surface-200 bg-white shadow-xl overflow-auto"
+          className="fixed z-[200] rounded-xl border border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-900 shadow-xl overflow-auto"
           style={{
             top: dropdownPosition.placement === 'bottom' ? `${dropdownPosition.top}px` : undefined,
             bottom: dropdownPosition.placement === 'top'
@@ -150,15 +150,15 @@ export default function AdminSelect({
                     className={
                       'w-full text-left px-3 py-2 flex items-center justify-between transition-colors duration-150 ' +
                       (isActive
-                        ? 'bg-brand-50 text-brand-700'
-                        : 'text-surface-700 hover:bg-surface-50 hover:text-surface-900')
+                        ? 'bg-brand-50 text-brand-700 dark:bg-brand-900/40 dark:text-brand-300'
+                        : 'text-surface-700 dark:text-surface-200 hover:bg-surface-50 dark:hover:bg-surface-800 dark:bg-surface-900 hover:text-surface-900 dark:text-surface-50 dark:hover:text-surface-50')
                     }
                     role="option"
                     aria-selected={isActive}
                   >
                     <span className="truncate">{opt.label}</span>
                     {isActive && (
-                      <span className="ml-2 text-brand-500 shrink-0">
+                      <span className="ml-2 text-brand-500 dark:text-brand-300 shrink-0">
                         <Check className="h-4 w-4" />
                       </span>
                     )}

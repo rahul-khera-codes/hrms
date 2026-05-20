@@ -37,8 +37,8 @@ export default function EmployeePayrollCalendar() {
               <CalendarDays className="w-4 h-4" />
             </div>
             <div className="min-w-0">
-              <h2 className="text-sm font-semibold text-surface-900">Bi-weekly periods</h2>
-              <p className="text-[11px] text-surface-500 mt-0.5">TSS calendar pay periods</p>
+              <h2 className="text-sm font-semibold text-surface-900 dark:text-surface-50">Bi-weekly periods</h2>
+              <p className="text-[11px] text-surface-500 dark:text-surface-400 dark:text-surface-500 mt-0.5">TSS calendar pay periods</p>
             </div>
           </div>
           <div className="w-24 shrink-0">
@@ -61,10 +61,10 @@ export default function EmployeePayrollCalendar() {
               <table className="w-full min-w-[480px] text-left border-collapse">
                 <thead className="sticky top-0 bg-surface-50/95 backdrop-blur-sm shadow-[0_1px_0_0_theme(colors.surface.200)] z-10">
                   <tr>
-                    <th className="px-4 py-2.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider">Cycle</th>
-                    <th className="px-4 py-2.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider">Period</th>
-                    <th className="px-4 py-2.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider">Pay date</th>
-                    <th className="px-4 py-2.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider text-center">Payment #</th>
+                    <th className="px-4 py-2.5 text-[10px] font-semibold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider">Cycle</th>
+                    <th className="px-4 py-2.5 text-[10px] font-semibold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider">Period</th>
+                    <th className="px-4 py-2.5 text-[10px] font-semibold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider">Pay date</th>
+                    <th className="px-4 py-2.5 text-[10px] font-semibold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider text-center">Payment #</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -73,23 +73,23 @@ export default function EmployeePayrollCalendar() {
                     const toD = new Date(p.periodTo)
                     const isCurrent = today >= fromD && today <= toD
                     return (
-                      <tr key={p.cycleCode} className={`border-t border-surface-100 transition-colors ${p.isSpecial ? 'bg-red-50/60 hover:bg-red-50' : 'hover:bg-brand-50/30'}`}>
+                      <tr key={p.cycleCode} className={`border-t border-surface-100 dark:border-surface-800 transition-colors ${p.isSpecial ? 'bg-red-50/60 hover:bg-red-50' : 'hover:bg-brand-50/30'}`}>
                         <td className="px-4 py-3 whitespace-nowrap">
                           <div className="flex items-center gap-2">
-                            <span className={`text-xs font-mono font-semibold ${p.isSpecial ? 'text-red-700' : 'text-surface-900'}`}>{p.cycleCode}</span>
+                            <span className={`text-xs font-mono font-semibold ${p.isSpecial ? 'text-red-700' : 'text-surface-900 dark:text-surface-50'}`}>{p.cycleCode}</span>
                             {isCurrent && <span className="badge-brand">Current</span>}
                             {p.isSpecial && <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-100 text-red-700 border border-red-200">27th cycle</span>}
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-xs text-surface-700 whitespace-nowrap tabular-nums">{fmtPeriodDate(p.periodFrom)} – {fmtPeriodDate(p.periodTo)}</td>
-                        <td className="px-4 py-3 text-xs text-surface-700 whitespace-nowrap tabular-nums">
+                        <td className="px-4 py-3 text-xs text-surface-700 dark:text-surface-200 whitespace-nowrap tabular-nums">{fmtPeriodDate(p.periodFrom)} – {fmtPeriodDate(p.periodTo)}</td>
+                        <td className="px-4 py-3 text-xs text-surface-700 dark:text-surface-200 whitespace-nowrap tabular-nums">
                           <span className="inline-flex items-center gap-1.5">
                             <DollarSign className="w-3 h-3 text-emerald-500" />
                             {fmtPeriodDate(p.payDate)}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-xs text-surface-700 whitespace-nowrap tabular-nums text-center">
-                          <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-surface-100 text-surface-700 font-semibold text-[11px]">
+                        <td className="px-4 py-3 text-xs text-surface-700 dark:text-surface-200 whitespace-nowrap tabular-nums text-center">
+                          <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-surface-100 dark:bg-surface-800 text-surface-700 dark:text-surface-200 font-semibold text-[11px]">
                             {p.bs ?? '-'}
                           </span>
                         </td>

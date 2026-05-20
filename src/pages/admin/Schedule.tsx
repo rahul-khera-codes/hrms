@@ -331,7 +331,7 @@ export default function AdminSchedule() {
 
       <div className="toolbar">
         <div className="relative flex-1 min-w-0">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400 shrink-0" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400 dark:text-surface-500 shrink-0" />
           <input
             type="text"
             placeholder="Search employees by name"
@@ -351,16 +351,16 @@ export default function AdminSchedule() {
           />
         </div>
         <div className="flex items-center gap-1 sm:ml-auto">
-          <button type="button" onClick={prevWeek} className="btn-icon text-surface-600 bg-white border border-surface-200 hover:bg-surface-50" aria-label="Previous week">
+          <button type="button" onClick={prevWeek} className="btn-icon text-surface-600 dark:text-surface-300 bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-700 hover:bg-surface-50 dark:hover:bg-surface-800" aria-label="Previous week">
             <ChevronLeft className="w-4 h-4" />
           </button>
-          <div className="flex items-center gap-2 min-w-[180px] justify-center px-3 py-2 rounded-xl bg-surface-50 border border-surface-200">
-            <CalendarIcon className="w-4 h-4 text-surface-500 shrink-0" />
-            <span className="text-xs font-semibold text-surface-900 text-center tabular-nums whitespace-nowrap">
+          <div className="flex items-center gap-2 min-w-[180px] justify-center px-3 py-2 rounded-xl bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700">
+            <CalendarIcon className="w-4 h-4 text-surface-500 dark:text-surface-400 dark:text-surface-500 shrink-0" />
+            <span className="text-xs font-semibold text-surface-900 dark:text-surface-50 text-center tabular-nums whitespace-nowrap">
               {format(weekDates[0], 'd MMM')} – {format(weekDates[6], 'd MMM yyyy')}
             </span>
           </div>
-          <button type="button" onClick={nextWeek} className="btn-icon text-surface-600 bg-white border border-surface-200 hover:bg-surface-50" aria-label="Next week">
+          <button type="button" onClick={nextWeek} className="btn-icon text-surface-600 dark:text-surface-300 bg-white dark:bg-surface-900 border border-surface-200 dark:border-surface-700 hover:bg-surface-50 dark:hover:bg-surface-800" aria-label="Next week">
             <ChevronRight className="w-4 h-4" />
           </button>
         </div>
@@ -379,7 +379,7 @@ export default function AdminSchedule() {
         <div className="card overflow-hidden">
           <div className="p-3 sm:p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="rounded-xl border border-surface-200/70 bg-white p-3 flex items-center gap-3">
+              <div key={i} className="rounded-xl border border-surface-200/70 bg-white dark:bg-surface-900 p-3 flex items-center gap-3">
                 <span className="inline-block w-9 h-9 rounded-lg bg-surface-200/70 animate-pulse shrink-0" />
                 <div className="flex-1 space-y-1.5">
                   <span className="block h-3 w-1/2 rounded bg-surface-200/70 animate-pulse" />
@@ -394,13 +394,13 @@ export default function AdminSchedule() {
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm border-collapse min-w-[780px]">
               <thead>
-                <tr className="border-b border-surface-200 bg-surface-50/80">
-                  <th className="py-3 px-3 text-[10px] font-semibold text-surface-500 uppercase tracking-wider md:sticky md:left-0 bg-surface-50 md:z-10 min-w-[160px]">Employee</th>
+                <tr className="border-b border-surface-200 dark:border-surface-700 bg-surface-50/80">
+                  <th className="py-3 px-3 text-[10px] font-semibold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider md:sticky md:left-0 bg-surface-50 dark:bg-surface-900 md:z-10 min-w-[160px]">Employee</th>
                   {weekDates.map((d) => (
-                    <th key={d.toISOString()} className="py-3 px-2 text-[10px] font-semibold text-surface-500 uppercase tracking-wider text-center whitespace-nowrap min-w-[110px]">
+                    <th key={d.toISOString()} className="py-3 px-2 text-[10px] font-semibold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider text-center whitespace-nowrap min-w-[110px]">
                       {WEEKDAY_LABELS[d.getDay() === 0 ? 6 : d.getDay() - 1]}
                       <br />
-                      <span className="text-xs font-normal text-surface-700 normal-case">{format(d, 'd MMM')}</span>
+                      <span className="text-xs font-normal text-surface-700 dark:text-surface-200 normal-case">{format(d, 'd MMM')}</span>
                     </th>
                   ))}
                 </tr>
@@ -408,12 +408,12 @@ export default function AdminSchedule() {
               <tbody>
                 {filteredEmployees.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="py-8 text-center text-surface-500 text-sm">{search ? `No employees match "${search}".` : 'No employees.'}</td>
+                    <td colSpan={8} className="py-8 text-center text-surface-500 dark:text-surface-400 dark:text-surface-500 text-sm">{search ? `No employees match "${search}".` : 'No employees.'}</td>
                   </tr>
                 ) : (
                   filteredEmployees.map((emp) => (
-                    <tr key={emp.id} className="border-b border-surface-100 hover:bg-brand-50/20">
-                      <td className="py-2 px-3 text-xs font-medium text-surface-900 md:sticky md:left-0 bg-white md:z-10 min-w-[160px]">{emp.name}</td>
+                    <tr key={emp.id} className="border-b border-surface-100 dark:border-surface-800 hover:bg-brand-50/20">
+                      <td className="py-2 px-3 text-xs font-medium text-surface-900 dark:text-surface-50 md:sticky md:left-0 bg-white dark:bg-surface-900 md:z-10 min-w-[160px]">{emp.name}</td>
                       {weekDates.map((d) => {
                         const dateStr = format(d, 'yyyy-MM-dd')
                         const a = getAssignment(emp.id, dateStr)
@@ -431,13 +431,13 @@ export default function AdminSchedule() {
                                   {String(a.shiftStart).slice(0, 5)}–{String(a.shiftEnd).slice(0, 5)}
                                 </span>
                                 {!a.published && (
-                                  <span className="absolute top-0.5 right-0.5 px-1 rounded-sm bg-white/80 text-[8px] font-bold uppercase tracking-wider text-surface-600 leading-tight">
+                                  <span className="absolute top-0.5 right-0.5 px-1 rounded-sm bg-white/80 text-[8px] font-bold uppercase tracking-wider text-surface-600 dark:text-surface-300 leading-tight">
                                     Draft
                                   </span>
                                 )}
                               </button>
                             ) : (
-                              <div className="w-full h-9 rounded-lg border border-dashed border-surface-200 bg-surface-50/40 text-[10px] text-surface-400 inline-flex items-center justify-center">
+                              <div className="w-full h-9 rounded-lg border border-dashed border-surface-200 dark:border-surface-700 bg-surface-50/40 text-[10px] text-surface-400 dark:text-surface-500 inline-flex items-center justify-center">
                                 Open
                               </div>
                             )}
@@ -467,18 +467,18 @@ export default function AdminSchedule() {
       {paneOpen && (
         <div className="fixed inset-0 z-40">
           <div className="absolute inset-0 bg-black/30" onClick={() => !paneSubmitting && setPaneOpen(false)} />
-          <aside className="absolute right-0 top-0 h-full w-full max-w-md bg-white shadow-xl border-l border-surface-200 overflow-y-auto">
-            <div className="sticky top-0 z-10 bg-white/95 backdrop-blur border-b border-surface-200 px-5 py-3.5 flex items-center justify-between">
+          <aside className="absolute right-0 top-0 h-full w-full max-w-md bg-white dark:bg-surface-900 shadow-xl border-l border-surface-200 dark:border-surface-700 overflow-y-auto">
+            <div className="sticky top-0 z-10 bg-white/95 backdrop-blur border-b border-surface-200 dark:border-surface-700 px-5 py-3.5 flex items-center justify-between">
               <div>
-                <h2 className="text-base font-semibold text-surface-900">Assign Shifts</h2>
-                <p className="text-xs text-surface-500">Bulk-assign across employees, groups or the whole account.</p>
+                <h2 className="text-base font-semibold text-surface-900 dark:text-surface-50">Assign Shifts</h2>
+                <p className="text-xs text-surface-500 dark:text-surface-400 dark:text-surface-500">Bulk-assign across employees, groups or the whole account.</p>
               </div>
-              <button type="button" onClick={() => !paneSubmitting && setPaneOpen(false)} className="text-surface-500 hover:text-surface-900 text-sm">Close</button>
+              <button type="button" onClick={() => !paneSubmitting && setPaneOpen(false)} className="text-surface-500 dark:text-surface-400 dark:text-surface-500 hover:text-surface-900 dark:text-surface-50 text-sm">Close</button>
             </div>
 
             <div className="p-5 space-y-5">
               <section>
-                <h3 className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-2">Shift</h3>
+                <h3 className="text-xs font-semibold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider mb-2">Shift</h3>
                 <label className="label">Shift Template</label>
                 <AdminSelect
                   value={paneShiftId}
@@ -503,26 +503,26 @@ export default function AdminSchedule() {
               </section>
 
               <section>
-                <h3 className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-2">Who</h3>
+                <h3 className="text-xs font-semibold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider mb-2">Who</h3>
                 <label className="label">Employees</label>
-                <div className="max-h-44 overflow-y-auto rounded-xl border border-surface-200 bg-white">
+                <div className="max-h-44 overflow-y-auto rounded-xl border border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-900">
                   {employees.length === 0 ? (
-                    <p className="p-3 text-xs text-surface-500">No employees.</p>
+                    <p className="p-3 text-xs text-surface-500 dark:text-surface-400 dark:text-surface-500">No employees.</p>
                   ) : (
                     employees.map((e) => (
-                      <label key={e.id} className="flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-surface-50 cursor-pointer">
+                      <label key={e.id} className="flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-surface-50 dark:hover:bg-surface-800 dark:bg-surface-900 cursor-pointer">
                         <input
                           type="checkbox"
                           checked={paneEmployeeIds.includes(e.id)}
                           onChange={() => togglePaneEmp(e.id)}
                           className="rounded text-brand-600 focus:ring-brand-500"
                         />
-                        <span className="text-surface-800">{e.name}</span>
+                        <span className="text-surface-800 dark:text-surface-100">{e.name}</span>
                       </label>
                     ))
                   )}
                 </div>
-                <p className="mt-1 text-[11px] text-surface-500">{paneEmployeeIds.length} selected</p>
+                <p className="mt-1 text-[11px] text-surface-500 dark:text-surface-400 dark:text-surface-500">{paneEmployeeIds.length} selected</p>
 
                 <div className="mt-3">
                   <label className="label">Shift Group (optional)</label>
@@ -533,7 +533,7 @@ export default function AdminSchedule() {
                   />
                 </div>
 
-                <label className="mt-3 flex items-center gap-2 text-xs text-surface-700 cursor-pointer">
+                <label className="mt-3 flex items-center gap-2 text-xs text-surface-700 dark:text-surface-200 cursor-pointer">
                   <input
                     type="checkbox"
                     className="rounded text-brand-600 focus:ring-brand-500"
@@ -545,7 +545,7 @@ export default function AdminSchedule() {
               </section>
 
               <section>
-                <h3 className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-2">When</h3>
+                <h3 className="text-xs font-semibold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider mb-2">When</h3>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <label className="label">From</label>
@@ -569,7 +569,7 @@ export default function AdminSchedule() {
                         className={`px-2.5 py-1 rounded-full text-[11px] font-medium border ${
                           active
                             ? 'bg-brand-600 text-white border-brand-600'
-                            : 'bg-white text-surface-700 border-surface-200 hover:bg-surface-50'
+                            : 'bg-white dark:bg-surface-900 text-surface-700 dark:text-surface-200 border-surface-200 dark:border-surface-700 hover:bg-surface-50 dark:hover:bg-surface-800'
                         }`}
                         title={`${d.long}${active ? ' — off' : ''}`}
                       >
@@ -578,25 +578,25 @@ export default function AdminSchedule() {
                     )
                   })}
                 </div>
-                <p className="mt-1 text-[11px] text-surface-500">Selected days will be skipped when assigning.</p>
+                <p className="mt-1 text-[11px] text-surface-500 dark:text-surface-400 dark:text-surface-500">Selected days will be skipped when assigning.</p>
               </section>
 
               {paneSummary && (
-                <div className="rounded-xl bg-surface-50 border border-surface-200 px-3 py-2.5 text-xs text-surface-700 space-y-1.5">
-                  <div className="text-[11px] font-semibold uppercase tracking-wider text-surface-500">Summary</div>
-                  <div className="flex items-center justify-between"><span className="text-surface-500">Employees</span><span className="font-medium text-surface-900">{paneSummary.employeeLabel || '—'}</span></div>
-                  <div className="flex items-center justify-between"><span className="text-surface-500">Shift</span><span className="font-medium text-surface-900 text-right">{paneSummary.shiftLabel || '—'}</span></div>
-                  <div className="flex items-center justify-between"><span className="text-surface-500">Date Range</span><span className="font-medium text-surface-900">{paneSummary.rangeLabel}</span></div>
-                  <div className="flex items-center justify-between"><span className="text-surface-500">Working Days</span><span className="font-medium text-surface-900 tabular-nums">{paneSummary.totalDays}</span></div>
-                  <div className="flex items-center justify-between border-t border-surface-200 pt-1.5 mt-1.5">
-                    <span className="text-surface-500">Total Shifts</span>
-                    <span className="font-semibold text-surface-900 tabular-nums">{paneSummary.totalShifts != null ? paneSummary.totalShifts : 'Resolved on assign'}</span>
+                <div className="rounded-xl bg-surface-50 dark:bg-surface-900 border border-surface-200 dark:border-surface-700 px-3 py-2.5 text-xs text-surface-700 dark:text-surface-200 space-y-1.5">
+                  <div className="text-[11px] font-semibold uppercase tracking-wider text-surface-500 dark:text-surface-400 dark:text-surface-500">Summary</div>
+                  <div className="flex items-center justify-between"><span className="text-surface-500 dark:text-surface-400 dark:text-surface-500">Employees</span><span className="font-medium text-surface-900 dark:text-surface-50">{paneSummary.employeeLabel || '—'}</span></div>
+                  <div className="flex items-center justify-between"><span className="text-surface-500 dark:text-surface-400 dark:text-surface-500">Shift</span><span className="font-medium text-surface-900 dark:text-surface-50 text-right">{paneSummary.shiftLabel || '—'}</span></div>
+                  <div className="flex items-center justify-between"><span className="text-surface-500 dark:text-surface-400 dark:text-surface-500">Date Range</span><span className="font-medium text-surface-900 dark:text-surface-50">{paneSummary.rangeLabel}</span></div>
+                  <div className="flex items-center justify-between"><span className="text-surface-500 dark:text-surface-400 dark:text-surface-500">Working Days</span><span className="font-medium text-surface-900 dark:text-surface-50 tabular-nums">{paneSummary.totalDays}</span></div>
+                  <div className="flex items-center justify-between border-t border-surface-200 dark:border-surface-700 pt-1.5 mt-1.5">
+                    <span className="text-surface-500 dark:text-surface-400 dark:text-surface-500">Total Shifts</span>
+                    <span className="font-semibold text-surface-900 dark:text-surface-50 tabular-nums">{paneSummary.totalShifts != null ? paneSummary.totalShifts : 'Resolved on assign'}</span>
                   </div>
                 </div>
               )}
             </div>
 
-            <div className="sticky bottom-0 z-10 bg-white/95 backdrop-blur border-t border-surface-200 px-5 py-3 flex items-center justify-end gap-2">
+            <div className="sticky bottom-0 z-10 bg-white/95 backdrop-blur border-t border-surface-200 dark:border-surface-700 px-5 py-3 flex items-center justify-end gap-2">
               <button type="button" className="btn-secondary" onClick={() => !paneSubmitting && setPaneOpen(false)} disabled={paneSubmitting}>Cancel</button>
               <button type="button" className="btn-primary" onClick={submitAssign} disabled={paneSubmitting}>
                 {paneSubmitting ? 'Assigning…' : 'Assign Shifts'}
@@ -611,13 +611,13 @@ export default function AdminSchedule() {
 
 function StatCard({ label, value, icon }: { label: string; value: number; icon: React.ReactNode }) {
   return (
-    <div className="rounded-xl border border-surface-200 bg-white p-3 flex items-center gap-3">
+    <div className="rounded-xl border border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-900 p-3 flex items-center gap-3">
       <div className="w-9 h-9 rounded-lg bg-brand-50 text-brand-700 inline-flex items-center justify-center shrink-0">
         {icon}
       </div>
       <div className="min-w-0">
-        <p className="text-[10px] uppercase tracking-wider text-surface-500 font-semibold">{label}</p>
-        <p className="text-base font-semibold text-surface-900 tabular-nums">{typeof value === 'number' && !Number.isInteger(value) ? value.toFixed(2) : value}</p>
+        <p className="text-[10px] uppercase tracking-wider text-surface-500 dark:text-surface-400 dark:text-surface-500 font-semibold">{label}</p>
+        <p className="text-base font-semibold text-surface-900 dark:text-surface-50 tabular-nums">{typeof value === 'number' && !Number.isInteger(value) ? value.toFixed(2) : value}</p>
       </div>
     </div>
   )

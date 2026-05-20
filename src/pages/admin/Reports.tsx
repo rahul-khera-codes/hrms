@@ -132,7 +132,7 @@ export default function AdminReports() {
       {/* Unified toolbar: search + filters + view toggle */}
       <div className="toolbar">
         <div className="relative flex-1 min-w-0">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400 shrink-0" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400 dark:text-surface-500 shrink-0" />
           <input
             type="text"
             placeholder="Search by employee name"
@@ -192,10 +192,10 @@ export default function AdminReports() {
               <BarChart3 className="w-4 h-4" />
             </div>
             <div className="min-w-0">
-              <h2 className="text-sm font-semibold text-surface-900">
+              <h2 className="text-sm font-semibold text-surface-900 dark:text-surface-50">
                 {isAttendance ? 'Attendance summary' : 'Payroll summary'}
               </h2>
-              <p className="text-[11px] text-surface-500 mt-0.5 tabular-nums">{rangeLabel}</p>
+              <p className="text-[11px] text-surface-500 dark:text-surface-400 dark:text-surface-500 mt-0.5 tabular-nums">{rangeLabel}</p>
             </div>
           </div>
           {isAttendance && !loading && (
@@ -263,26 +263,26 @@ export default function AdminReports() {
             <table className="w-full text-left border-collapse">
               <thead className="sticky top-0 bg-surface-50/95 backdrop-blur-sm shadow-[0_1px_0_0_theme(colors.surface.200)] z-10">
                 <tr>
-                  <th className="px-3 py-2.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap">Employee</th>
-                  <th className="px-3 py-2.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap">Date</th>
-                  <th className="px-3 py-2.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap">Clock In</th>
-                  <th className="px-3 py-2.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap">Clock Out</th>
-                  <th className="px-3 py-2.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap text-right">Hours</th>
-                  <th className="px-3 py-2.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap">Status</th>
+                  <th className="px-3 py-2.5 text-[10px] font-semibold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider whitespace-nowrap">Employee</th>
+                  <th className="px-3 py-2.5 text-[10px] font-semibold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider whitespace-nowrap">Date</th>
+                  <th className="px-3 py-2.5 text-[10px] font-semibold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider whitespace-nowrap">Clock In</th>
+                  <th className="px-3 py-2.5 text-[10px] font-semibold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider whitespace-nowrap">Clock Out</th>
+                  <th className="px-3 py-2.5 text-[10px] font-semibold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider whitespace-nowrap text-right">Hours</th>
+                  <th className="px-3 py-2.5 text-[10px] font-semibold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider whitespace-nowrap">Status</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredAttendance.map((r) => (
-                  <tr key={r.id} className="border-b border-surface-100 hover:bg-brand-50/30 transition-colors">
-                    <td className="px-3 py-2.5 text-xs font-medium text-surface-900 whitespace-nowrap">{r.employeeName}</td>
-                    <td className="px-3 py-2.5 text-xs text-surface-700 tabular-nums whitespace-nowrap">{r.date}</td>
-                    <td className="px-3 py-2.5 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">
+                  <tr key={r.id} className="border-b border-surface-100 dark:border-surface-800 hover:bg-brand-50/30 transition-colors">
+                    <td className="px-3 py-2.5 text-xs font-medium text-surface-900 dark:text-surface-50 whitespace-nowrap">{r.employeeName}</td>
+                    <td className="px-3 py-2.5 text-xs text-surface-700 dark:text-surface-200 tabular-nums whitespace-nowrap">{r.date}</td>
+                    <td className="px-3 py-2.5 text-xs font-mono text-surface-700 dark:text-surface-200 tabular-nums whitespace-nowrap">
                       {r.clockIn ? format(new Date(r.clockIn), 'HH:mm:ss') : '-'}
                     </td>
-                    <td className="px-3 py-2.5 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">
+                    <td className="px-3 py-2.5 text-xs font-mono text-surface-700 dark:text-surface-200 tabular-nums whitespace-nowrap">
                       {r.clockOut ? format(new Date(r.clockOut), 'HH:mm:ss') : '-'}
                     </td>
-                    <td className="px-3 py-2.5 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap text-right">
+                    <td className="px-3 py-2.5 text-xs font-mono text-surface-700 dark:text-surface-200 tabular-nums whitespace-nowrap text-right">
                       {formatDurationFromHours(r.regularHours + r.overtimeHours)}
                     </td>
                     <td className="px-3 py-2.5 whitespace-nowrap">
@@ -298,14 +298,14 @@ export default function AdminReports() {
             {filteredAttendance.map((r) => (
               <li
                 key={r.id}
-                className="flex items-center gap-3 p-3 rounded-xl border border-surface-200/70 bg-white hover:shadow-card-hover hover:border-brand-200/70 transition-all"
+                className="flex items-center gap-3 p-3 rounded-xl border border-surface-200/70 bg-white dark:bg-surface-900 hover:shadow-card-hover hover:border-brand-200/70 transition-all"
               >
-                <div className="w-9 h-9 rounded-lg bg-surface-100 flex items-center justify-center text-surface-500 text-xs font-semibold shrink-0">
+                <div className="w-9 h-9 rounded-lg bg-surface-100 dark:bg-surface-800 flex items-center justify-center text-surface-500 dark:text-surface-400 dark:text-surface-500 text-xs font-semibold shrink-0">
                   {r.employeeName.charAt(0).toUpperCase()}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-surface-900 truncate">{r.employeeName}</p>
-                  <p className="text-[11px] text-surface-500 mt-0.5 tabular-nums">
+                  <p className="text-sm font-medium text-surface-900 dark:text-surface-50 truncate">{r.employeeName}</p>
+                  <p className="text-[11px] text-surface-500 dark:text-surface-400 dark:text-surface-500 mt-0.5 tabular-nums">
                     {r.date} · {formatDurationFromHours(r.regularHours + r.overtimeHours)}
                   </p>
                 </div>

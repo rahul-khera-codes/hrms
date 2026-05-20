@@ -72,7 +72,7 @@ function contractStatusBadge(status: string | null) {
     Prenotice: 'bg-orange-50 text-orange-700 border-orange-200',
     Terminated: 'bg-red-50 text-red-700 border-red-200',
   }
-  const cls = map[status] ?? 'bg-surface-100 text-surface-600 border-surface-200'
+  const cls = map[status] ?? 'bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-300 border-surface-200 dark:border-surface-700'
   return (
     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium border ${cls}`}>
       {status}
@@ -488,7 +488,7 @@ export default function AdminClients() {
       {/* Filter bar */}
       <div className="toolbar">
         <div className="relative flex-1 min-w-0">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400 shrink-0" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400 dark:text-surface-500 shrink-0" />
           <input
             type="text"
             placeholder="Search by name, vertical, owner, status..."
@@ -536,27 +536,27 @@ export default function AdminClients() {
               <li
                 key={c.id}
                 onClick={() => openEdit(c)}
-                className="flex flex-col sm:flex-row sm:items-center gap-4 p-4 sm:p-5 rounded-xl border border-surface-200/80 bg-white transition-all hover:shadow-md hover:border-brand-200/80 cursor-pointer"
+                className="flex flex-col sm:flex-row sm:items-center gap-4 p-4 sm:p-5 rounded-xl border border-surface-200/80 bg-white dark:bg-surface-900 transition-all hover:shadow-md hover:border-brand-200/80 cursor-pointer"
               >
-                <div className="w-10 h-10 rounded-xl bg-surface-100 flex items-center justify-center shrink-0">
-                  <Building2 className="w-5 h-5 text-surface-600" />
+                <div className="w-10 h-10 rounded-xl bg-surface-100 dark:bg-surface-800 flex items-center justify-center shrink-0">
+                  <Building2 className="w-5 h-5 text-surface-600 dark:text-surface-300" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium text-surface-900">{c.name}</p>
+                  <p className="font-medium text-surface-900 dark:text-surface-50">{c.name}</p>
                   <div className="flex flex-wrap items-center gap-2 mt-1">
-                    {c.vertical && <span className="text-xs text-surface-500">{c.vertical}</span>}
+                    {c.vertical && <span className="text-xs text-surface-500 dark:text-surface-400 dark:text-surface-500">{c.vertical}</span>}
                     {c.contractStatus && contractStatusBadge(c.contractStatus)}
                   </div>
-                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1 text-xs text-surface-500">
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1 text-xs text-surface-500 dark:text-surface-400 dark:text-surface-500">
                     {c.salesOwnerName && <span>Sales: {c.salesOwnerName}</span>}
                     {c.opsOwnerName && <span>Ops: {c.opsOwnerName}</span>}
                   </div>
                 </div>
                 <div className="flex items-center gap-2 self-end sm:self-auto">
-                  <button type="button" onClick={(e) => { e.stopPropagation(); openEdit(c) }} disabled={c.isLocked} className="p-2 rounded-lg text-surface-500 hover:bg-surface-100 disabled:opacity-40" title="Edit">
+                  <button type="button" onClick={(e) => { e.stopPropagation(); openEdit(c) }} disabled={c.isLocked} className="p-2 rounded-lg text-surface-500 dark:text-surface-400 dark:text-surface-500 hover:bg-surface-100 dark:hover:bg-surface-700 dark:bg-surface-800 disabled:opacity-40" title="Edit">
                     <Pencil className="w-4 h-4" />
                   </button>
-                  <button type="button" onClick={(e) => { e.stopPropagation(); handleToggleLock(c) }} className="p-2 rounded-lg text-surface-500 hover:bg-surface-100" title={c.isLocked ? 'Unlock' : 'Lock'}>
+                  <button type="button" onClick={(e) => { e.stopPropagation(); handleToggleLock(c) }} className="p-2 rounded-lg text-surface-500 dark:text-surface-400 dark:text-surface-500 hover:bg-surface-100 dark:hover:bg-surface-700 dark:bg-surface-800" title={c.isLocked ? 'Unlock' : 'Lock'}>
                     {c.isLocked ? <Unlock className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
                   </button>
                   <button type="button" onClick={(e) => { e.stopPropagation(); handleDelete(c) }} disabled={c.isLocked} className="p-2 rounded-lg text-red-500 hover:bg-red-50 disabled:opacity-40" title="Delete">
@@ -569,9 +569,9 @@ export default function AdminClients() {
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full w-full text-left border-collapse">
-              <thead className="sticky top-0 z-10 bg-surface-50 shadow-[0_1px_0_0_theme(colors.surface.200)]">
+              <thead className="sticky top-0 z-10 bg-surface-50 dark:bg-surface-900 shadow-[0_1px_0_0_theme(colors.surface.200)]">
                 <tr>
-                  <th className="px-3 py-1.5 w-8 border-b border-surface-200">
+                  <th className="px-3 py-1.5 w-8 border-b border-surface-200 dark:border-surface-700">
                     <input
                       type="checkbox"
                       className="cursor-pointer"
@@ -589,20 +589,20 @@ export default function AdminClients() {
                   {TABLE_COLUMNS.map((col) => (
                     <th
                       key={col}
-                      className={`px-3 py-1.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 ${col === 'Actions' ? 'text-right' : ''}`}
+                      className={`px-3 py-1.5 text-[10px] font-semibold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 dark:border-surface-700 ${col === 'Actions' ? 'text-right' : ''}`}
                     >
                       {col === 'Actions' ? (
                         col
                       ) : (
                         <>
                           <div className="flex items-center gap-0.5">
-                            <button type="button" className="flex items-center gap-0.5 hover:text-surface-700 transition-colors" onClick={() => handleSort(col)}>
+                            <button type="button" className="flex items-center gap-0.5 hover:text-surface-700 dark:text-surface-200 transition-colors" onClick={() => handleSort(col)}>
                               {col}
                               {sortCol === col && (sortDir === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
                             </button>
                             <button
                               type="button"
-                              className={`p-0.5 rounded hover:bg-surface-200/60 transition-colors ${columnFilters[col] ? 'text-brand-600' : 'text-surface-400'}`}
+                              className={`p-0.5 rounded hover:bg-surface-200/60 transition-colors ${columnFilters[col] ? 'text-brand-600' : 'text-surface-400 dark:text-surface-500'}`}
                               onClick={(e) => { e.stopPropagation(); setFilterOpen(filterOpen === col ? null : col) }}
                             >
                               <Filter className="w-2.5 h-2.5" />
@@ -615,7 +615,7 @@ export default function AdminClients() {
                                 value={columnFilters[col] ?? ''}
                                 onChange={(e) => handleColumnFilter(col, e.target.value)}
                                 placeholder={`Filter ${col}...`}
-                                className="w-full text-[10px] font-normal normal-case tracking-normal border border-surface-200 rounded px-1.5 py-1 bg-white focus:ring-1 focus:ring-brand-300 outline-none"
+                                className="w-full text-[10px] font-normal normal-case tracking-normal border border-surface-200 dark:border-surface-700 rounded px-1.5 py-1 bg-white dark:bg-surface-900 focus:ring-1 focus:ring-brand-300 outline-none"
                                 autoFocus
                               />
                             </div>
@@ -630,7 +630,7 @@ export default function AdminClients() {
                 {filteredClients.map((c) => (
                   <tr
                     key={c.id}
-                    className="border-b border-surface-100 hover:bg-brand-50/40 transition-colors cursor-pointer"
+                    className="border-b border-surface-100 dark:border-surface-800 hover:bg-brand-50/40 transition-colors cursor-pointer"
                     onClick={() => openEdit(c)}
                   >
                     <td className="px-3 py-2.5 w-8" onClick={(e) => e.stopPropagation()}>
@@ -642,23 +642,23 @@ export default function AdminClients() {
                         onChange={() => toggleSelect(c.id)}
                       />
                     </td>
-                    <td className="px-3 py-2.5 text-xs font-medium text-surface-900 whitespace-nowrap">
+                    <td className="px-3 py-2.5 text-xs font-medium text-surface-900 dark:text-surface-50 whitespace-nowrap">
                       <span className="flex items-center gap-1.5">
                         {c.name}
-                        {c.isLocked && <Lock className="w-3 h-3 text-surface-400" />}
+                        {c.isLocked && <Lock className="w-3 h-3 text-surface-400 dark:text-surface-500" />}
                       </span>
                     </td>
-                    <td className="px-3 py-2.5 text-xs text-surface-600 whitespace-nowrap">{c.vertical || '-'}</td>
-                    <td className="px-3 py-2.5 text-xs text-surface-600 whitespace-nowrap">{c.salesOwnerName || '-'}</td>
-                    <td className="px-3 py-2.5 text-xs text-surface-600 whitespace-nowrap">{c.opsOwnerName || '-'}</td>
-                    <td className="px-3 py-2.5 whitespace-nowrap">{contractStatusBadge(c.contractStatus) ?? <span className="text-xs text-surface-400">-</span>}</td>
+                    <td className="px-3 py-2.5 text-xs text-surface-600 dark:text-surface-300 whitespace-nowrap">{c.vertical || '-'}</td>
+                    <td className="px-3 py-2.5 text-xs text-surface-600 dark:text-surface-300 whitespace-nowrap">{c.salesOwnerName || '-'}</td>
+                    <td className="px-3 py-2.5 text-xs text-surface-600 dark:text-surface-300 whitespace-nowrap">{c.opsOwnerName || '-'}</td>
+                    <td className="px-3 py-2.5 whitespace-nowrap">{contractStatusBadge(c.contractStatus) ?? <span className="text-xs text-surface-400 dark:text-surface-500">-</span>}</td>
                     <td className="px-3 py-2.5 whitespace-nowrap text-right">
                       <div className="flex items-center gap-1 justify-end">
                         <button
                           type="button"
                           onClick={(e) => { e.stopPropagation(); openEdit(c) }}
                           disabled={c.isLocked}
-                          className="p-1.5 rounded-lg text-surface-500 hover:bg-surface-100 disabled:opacity-40"
+                          className="p-1.5 rounded-lg text-surface-500 dark:text-surface-400 dark:text-surface-500 hover:bg-surface-100 dark:hover:bg-surface-700 dark:bg-surface-800 disabled:opacity-40"
                           title="Edit"
                         >
                           <Pencil className="w-3.5 h-3.5" />
@@ -666,7 +666,7 @@ export default function AdminClients() {
                         <button
                           type="button"
                           onClick={(e) => { e.stopPropagation(); handleToggleLock(c) }}
-                          className="p-1.5 rounded-lg text-surface-500 hover:bg-surface-100"
+                          className="p-1.5 rounded-lg text-surface-500 dark:text-surface-400 dark:text-surface-500 hover:bg-surface-100 dark:hover:bg-surface-700 dark:bg-surface-800"
                           title={c.isLocked ? 'Unlock' : 'Lock'}
                         >
                           {c.isLocked ? <Unlock className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5" />}
@@ -702,10 +702,10 @@ export default function AdminClients() {
                     {editing.name ? editing.name.charAt(0).toUpperCase() : '-'}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <h2 className="text-base font-semibold text-surface-900 truncate">{editing.name}</h2>
+                    <h2 className="text-base font-semibold text-surface-900 dark:text-surface-50 truncate">{editing.name}</h2>
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1">
                       {editing.vertical && (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-surface-100 border border-surface-200 text-[11px] font-medium text-surface-700">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-surface-100 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-[11px] font-medium text-surface-700 dark:text-surface-200">
                           {editing.vertical}
                         </span>
                       )}
@@ -716,7 +716,7 @@ export default function AdminClients() {
                 <button
                   type="button"
                   onClick={() => setModal(null)}
-                  className="p-2.5 min-w-[2.75rem] min-h-[2.75rem] rounded-lg text-surface-400 hover:text-surface-700 hover:bg-surface-100 shrink-0 transition-colors flex items-center justify-center"
+                  className="p-2.5 min-w-[2.75rem] min-h-[2.75rem] rounded-lg text-surface-400 dark:text-surface-500 hover:text-surface-700 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-700 dark:bg-surface-800 shrink-0 transition-colors flex items-center justify-center"
                   aria-label="Close"
                 >
                   <X className="w-4 h-4" />
@@ -730,13 +730,13 @@ export default function AdminClients() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <h2 className="modal-title">Add account</h2>
-                    <p className="text-[11px] text-surface-500 mt-0.5">Create a new client account.</p>
+                    <p className="text-[11px] text-surface-500 dark:text-surface-400 dark:text-surface-500 mt-0.5">Create a new client account.</p>
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => setModal(null)}
-                  className="p-2.5 min-w-[2.75rem] min-h-[2.75rem] rounded-lg text-surface-400 hover:text-surface-700 hover:bg-surface-100 shrink-0 transition-colors flex items-center justify-center"
+                  className="p-2.5 min-w-[2.75rem] min-h-[2.75rem] rounded-lg text-surface-400 dark:text-surface-500 hover:text-surface-700 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-700 dark:bg-surface-800 shrink-0 transition-colors flex items-center justify-center"
                   aria-label="Close"
                 >
                   <X className="w-4 h-4" />
@@ -746,7 +746,7 @@ export default function AdminClients() {
 
             <div className="modal-body">
               {/* ── ACCOUNT INFORMATION ── */}
-              <p className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-2">Account Information</p>
+              <p className="text-xs font-semibold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider mb-2">Account Information</p>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
@@ -771,7 +771,7 @@ export default function AdminClients() {
               </div>
 
               {/* ── CONTACT INFORMATION ── */}
-              <p className="text-xs font-semibold text-surface-500 uppercase tracking-wider mt-4 mb-2 pt-3 border-t border-surface-100">Contact Information</p>
+              <p className="text-xs font-semibold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider mt-4 mb-2 pt-3 border-t border-surface-100 dark:border-surface-800">Contact Information</p>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
@@ -819,7 +819,7 @@ export default function AdminClients() {
               </div>
 
               {/* ── BILLING INFORMATION ── */}
-              <p className="text-xs font-semibold text-surface-500 uppercase tracking-wider mt-4 mb-2 pt-3 border-t border-surface-100">Billing Information</p>
+              <p className="text-xs font-semibold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider mt-4 mb-2 pt-3 border-t border-surface-100 dark:border-surface-800">Billing Information</p>
 
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div>
@@ -841,7 +841,7 @@ export default function AdminClients() {
               </div>
 
               {/* ── CONTRACT STATUS ── */}
-              <p className="text-xs font-semibold text-surface-500 uppercase tracking-wider mt-4 mb-2 pt-3 border-t border-surface-100">Contract Status</p>
+              <p className="text-xs font-semibold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider mt-4 mb-2 pt-3 border-t border-surface-100 dark:border-surface-800">Contract Status</p>
 
               <div>
                 <label className="label">Contract Status</label>
@@ -873,14 +873,14 @@ export default function AdminClients() {
 
               {/* ── DOCUMENTS ── */}
               <>
-                <p className="text-xs font-semibold text-surface-500 uppercase tracking-wider mt-4 mb-2 pt-3 border-t border-surface-100">Documents</p>
+                <p className="text-xs font-semibold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider mt-4 mb-2 pt-3 border-t border-surface-100 dark:border-surface-800">Documents</p>
                 {editing ? (
                   <DocumentUpload entityType="account" entityId={editing.id} />
                 ) : (
                   <div className="rounded-xl border border-dashed border-surface-300 bg-surface-50/60 p-4 text-center">
-                    <Upload className="w-5 h-5 text-surface-400 mx-auto mb-1.5" />
-                    <p className="text-xs font-medium text-surface-500">Documents</p>
-                    <p className="text-[11px] text-surface-400 mt-0.5">Save the record first, then you can upload documents.</p>
+                    <Upload className="w-5 h-5 text-surface-400 dark:text-surface-500 mx-auto mb-1.5" />
+                    <p className="text-xs font-medium text-surface-500 dark:text-surface-400 dark:text-surface-500">Documents</p>
+                    <p className="text-[11px] text-surface-400 dark:text-surface-500 mt-0.5">Save the record first, then you can upload documents.</p>
                   </div>
                 )}
               </>

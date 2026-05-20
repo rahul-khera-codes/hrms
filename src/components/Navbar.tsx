@@ -8,6 +8,7 @@ import {
   deleteNotification,
 } from '../lib/apiNotifications'
 import { useUIPrefs } from '../contexts/UIPrefsContext'
+import ThemeToggle from './ThemeToggle'
 
 export function Navbar() {
   const [showNotifications, setShowNotifications] = useState(false)
@@ -111,19 +112,20 @@ export function Navbar() {
   }
 
   return (
-    <div className="flex items-center justify-between gap-3 bg-white/80 backdrop-blur-sm border-b border-surface-200/70 px-4 sm:px-6 py-3 sticky top-0 z-30">
+    <div className="flex items-center justify-between gap-3 bg-white/80 backdrop-blur-sm border-b border-surface-200/70 px-4 sm:px-6 py-3 sticky top-0 z-30 dark:bg-surface-900/80 dark:border-surface-800">
       <div className="flex items-center gap-2">
         <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center shadow-sm group transition-transform hover:scale-105">
           <span className="text-white text-xs font-bold tracking-tight">H</span>
         </div>
-        <div className="text-sm sm:text-base font-semibold text-surface-900 tracking-tight font-display">HARMONY</div>
+        <div className="text-sm sm:text-base font-semibold text-surface-900 dark:text-surface-50 tracking-tight font-display">HARMONY</div>
       </div>
 
       <div className="flex items-center gap-1">
+        <ThemeToggle />
         <button
           type="button"
           onClick={toggleDensity}
-          className="btn-icon text-surface-500 hover:text-surface-900 hover:bg-surface-100"
+          className="btn-icon text-surface-500 dark:text-surface-400 dark:text-surface-500 hover:text-surface-900 dark:text-surface-50 hover:bg-surface-100 dark:hover:bg-surface-700 dark:bg-surface-800 dark:hover:text-surface-50 dark:hover:bg-surface-800"
           aria-label={density === 'comfortable' ? 'Switch to compact density' : 'Switch to comfortable density'}
           title={density === 'comfortable' ? 'Compact rows' : 'Comfortable rows'}
         >
@@ -136,7 +138,7 @@ export function Navbar() {
             const evt = new KeyboardEvent('keydown', { key: '?', bubbles: true })
             window.dispatchEvent(evt)
           }}
-          className="hidden sm:inline-flex btn-icon text-surface-500 hover:text-surface-900 hover:bg-surface-100"
+          className="hidden sm:inline-flex btn-icon text-surface-500 dark:text-surface-400 dark:text-surface-500 hover:text-surface-900 dark:text-surface-50 hover:bg-surface-100 dark:hover:bg-surface-700 dark:bg-surface-800 dark:hover:text-surface-50 dark:hover:bg-surface-800"
           aria-label="Keyboard shortcuts"
           title="Keyboard shortcuts (?)"
         >
@@ -146,22 +148,22 @@ export function Navbar() {
       <div ref={notificationWrapRef} className="relative">
         <button
           onClick={() => setShowNotifications(!showNotifications)}
-          className="relative btn-icon text-surface-500 hover:text-surface-900 hover:bg-surface-100"
+          className="relative btn-icon text-surface-500 dark:text-surface-400 dark:text-surface-500 hover:text-surface-900 dark:text-surface-50 hover:bg-surface-100 dark:hover:bg-surface-700 dark:bg-surface-800 dark:hover:text-surface-50 dark:hover:bg-surface-800"
           aria-label="Notifications"
         >
           <Bell size={18} />
           {unreadCount > 0 && (
-            <span className="absolute top-0.5 right-0.5 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold leading-none text-white bg-red-500 rounded-full ring-2 ring-white tabular-nums">
+            <span className="absolute top-0.5 right-0.5 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold leading-none text-white bg-red-500 rounded-full ring-2 ring-white dark:ring-surface-900 tabular-nums">
               {unreadCount > 9 ? '9+' : unreadCount}
             </span>
           )}
         </button>
 
         {showNotifications && (
-          <div className="absolute right-0 mt-2 w-[min(24rem,calc(100vw-1.5rem))] sm:w-96 bg-white rounded-2xl shadow-xl border border-surface-200 z-50 max-h-[20rem] sm:max-h-[28rem] overflow-hidden flex flex-col">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-surface-100">
+          <div className="absolute right-0 mt-2 w-[min(24rem,calc(100vw-1.5rem))] sm:w-96 bg-white dark:bg-surface-900 rounded-2xl shadow-xl border border-surface-200 dark:border-surface-700 z-50 max-h-[20rem] sm:max-h-[28rem] overflow-hidden flex flex-col dark:border-surface-800">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-surface-100 dark:border-surface-800">
               <div className="flex items-center gap-2">
-                <h3 className="text-sm font-semibold text-surface-900">Notifications</h3>
+                <h3 className="text-sm font-semibold text-surface-900 dark:text-surface-50">Notifications</h3>
                 {unreadCount > 0 && (
                   <span className="badge-brand text-[10px]">{unreadCount} new</span>
                 )}
@@ -187,13 +189,13 @@ export function Navbar() {
                   <p className="empty-state-description">You're all caught up.</p>
                 </div>
               ) : (
-                <div className="divide-y divide-surface-100">
+                <div className="divide-y divide-surface-100 dark:divide-surface-800">
                   {notifications.map((notif) => (
                     <div
                       key={notif.id}
                       onClick={() => { if (!notif.is_read) handleMarkAsRead(notif.id) }}
-                      className={`px-4 py-3 hover:bg-surface-50 transition-colors cursor-pointer ${
-                        !notif.is_read ? 'bg-brand-50/40' : ''
+                      className={`px-4 py-3 hover:bg-surface-50 dark:hover:bg-surface-800 dark:bg-surface-900 dark:hover:bg-surface-800 transition-colors cursor-pointer ${
+                        !notif.is_read ? 'bg-brand-50/40 dark:bg-brand-900/20' : ''
                       }`}
                     >
                       <div className="flex items-start justify-between gap-2">
@@ -202,17 +204,17 @@ export function Navbar() {
                             {!notif.is_read && (
                               <span className="inline-block w-1.5 h-1.5 bg-brand-500 rounded-full shrink-0" />
                             )}
-                            <h4 className="text-sm font-semibold text-surface-900 truncate">{notif.title}</h4>
+                            <h4 className="text-sm font-semibold text-surface-900 dark:text-surface-50 truncate">{notif.title}</h4>
                           </div>
-                          <p className="text-xs text-surface-600 mt-1 leading-relaxed">{notif.message}</p>
-                          <p className="text-[11px] text-surface-400 mt-1.5">{formatDate(notif.created_at)}</p>
+                          <p className="text-xs text-surface-600 dark:text-surface-300 mt-1 leading-relaxed">{notif.message}</p>
+                          <p className="text-[11px] text-surface-400 dark:text-surface-500 dark:text-surface-400 mt-1.5">{formatDate(notif.created_at)}</p>
                         </div>
 
                         <div className="flex items-center gap-0.5 flex-shrink-0">
                           {!notif.is_read && (
                             <button
                               onClick={(e) => { e.stopPropagation(); handleMarkAsRead(notif.id) }}
-                              className="p-1.5 rounded-md text-surface-400 hover:text-brand-600 hover:bg-brand-50 transition-colors"
+                              className="p-1.5 rounded-md text-surface-400 dark:text-surface-500 hover:text-brand-600 hover:bg-brand-50 dark:hover:text-brand-300 dark:hover:bg-brand-900/40 transition-colors"
                               title="Mark as read"
                             >
                               <Check size={14} />
@@ -220,7 +222,7 @@ export function Navbar() {
                           )}
                           <button
                             onClick={(e) => { e.stopPropagation(); handleDelete(notif.id) }}
-                            className="p-1.5 rounded-md text-surface-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                            className="p-1.5 rounded-md text-surface-400 dark:text-surface-500 hover:text-red-600 hover:bg-red-50 dark:hover:text-red-300 dark:hover:bg-red-900/30 transition-colors"
                             title="Delete"
                           >
                             <X size={14} />

@@ -94,29 +94,29 @@ export default function DocumentUpload({ entityType, entityId }: DocumentUploadP
   }
 
   return (
-    <div className="rounded-xl border border-surface-200 bg-surface-50/80 p-4">
-      <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider mb-3">
+    <div className="rounded-xl border border-surface-200 dark:border-surface-700 bg-surface-50/80 p-4">
+      <p className="text-[10px] font-semibold text-surface-400 dark:text-surface-500 uppercase tracking-wider mb-3">
         Documents
       </p>
 
       {/* File list */}
       {loading ? (
-        <p className="text-xs text-surface-500">Loading documents...</p>
+        <p className="text-xs text-surface-500 dark:text-surface-400 dark:text-surface-500">Loading documents...</p>
       ) : docs.length > 0 ? (
         <ul className="space-y-2 mb-3">
           {docs.map((doc) => (
             <li
               key={doc.id}
-              className="flex items-center gap-3 rounded-lg border border-surface-200 bg-white p-2.5"
+              className="flex items-center gap-3 rounded-lg border border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-900 p-2.5"
             >
               <div className="w-8 h-8 rounded-lg bg-brand-50 border border-brand-100 flex items-center justify-center shrink-0">
                 <File className="w-4 h-4 text-brand-600" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-surface-900 truncate">
+                <p className="text-xs font-medium text-surface-900 dark:text-surface-50 truncate">
                   {doc.originalName}
                 </p>
-                <p className="text-[10px] text-surface-500">
+                <p className="text-[10px] text-surface-500 dark:text-surface-400 dark:text-surface-500">
                   {formatFileSize(doc.fileSize)}
                   {doc.createdAt ? ` · ${new Date(doc.createdAt).toLocaleDateString()}` : ''}
                 </p>
@@ -125,7 +125,7 @@ export default function DocumentUpload({ entityType, entityId }: DocumentUploadP
                 <button
                   type="button"
                   onClick={() => handleDownload(doc)}
-                  className="p-1.5 rounded-lg text-surface-500 hover:bg-surface-100 transition-colors"
+                  className="p-1.5 rounded-lg text-surface-500 dark:text-surface-400 dark:text-surface-500 hover:bg-surface-100 dark:hover:bg-surface-700 dark:bg-surface-800 transition-colors"
                   title="Download"
                 >
                   <Download className="w-3.5 h-3.5" />
@@ -145,7 +145,7 @@ export default function DocumentUpload({ entityType, entityId }: DocumentUploadP
       ) : null}
 
       {/* Upload button */}
-      <label className="flex items-center gap-2 cursor-pointer rounded-lg border border-dashed border-surface-300 bg-white px-3 py-2.5 text-xs text-surface-600 hover:border-brand-400 hover:bg-brand-50/30 transition-colors">
+      <label className="flex items-center gap-2 cursor-pointer rounded-lg border border-dashed border-surface-300 bg-white dark:bg-surface-900 px-3 py-2.5 text-xs text-surface-600 dark:text-surface-300 hover:border-brand-400 hover:bg-brand-50/30 transition-colors">
         <Upload className="w-4 h-4 shrink-0" />
         <span>{uploading ? 'Uploading...' : 'Upload a document'}</span>
         <input

@@ -247,6 +247,18 @@ function toAttendanceRecord(row) {
     accountId: row.account_override || row.account_id || null,
     employeeCmid: row.employee_cmid != null ? Number(row.employee_cmid) : null,
     isLocked: row.is_locked === true,
+    // 19MAY2026 Scheduler Demos meeting: audit + reviewed fields surfaced.
+    createdBy: row.created_by || null,
+    createdByName: row.created_by_name || null,
+    createdOn: row.created_on || null,
+    modifiedBy: row.modified_by || null,
+    modifiedByName: row.modified_by_name || null,
+    modifiedOn: row.modified_on || null,
+    reviewed: row.reviewed === true,
+    reviewedBy: row.reviewed_by || null,
+    reviewedByName: row.reviewed_by_name || null,
+    reviewedAt: row.reviewed_at || null,
+    isScheduled: row.is_scheduled === true,
     // Backward-compatible fields
     regularHours,
     overtimeHours,
@@ -475,6 +487,12 @@ router.get('/attendance', async (req, res) => {
         s.is_locked,
         s.reports_to_override,
         s.account_override,
+        s.created_by, s.created_on, s.modified_by, s.modified_on,
+        s.reviewed, s.reviewed_by, s.reviewed_at,
+        s.is_scheduled,
+        created_user.name AS created_by_name,
+        modified_user.name AS modified_by_name,
+        reviewed_user.name AS reviewed_by_name,
         -- Dynamic shift lookup (UTC-safe)
         CASE WHEN sh.start_time IS NOT NULL THEN
           (((s.clock_in AT TIME ZONE 'UTC')::date || 'T' || COALESCE(sa_shift.override_start, sh.start_time)::text)::timestamp AT TIME ZONE 'UTC')
@@ -500,6 +518,9 @@ router.get('/attendance', async (req, res) => {
       ) sa_shift ON true
       LEFT JOIN shifts sh ON sh.id = sa_shift.shift_id
       LEFT JOIN holidays h ON h.holiday_date = (s.clock_in AT TIME ZONE 'UTC')::date AND h.is_paid = TRUE
+      LEFT JOIN users created_user ON created_user.id = s.created_by
+      LEFT JOIN users modified_user ON modified_user.id = s.modified_by
+      LEFT JOIN users reviewed_user ON reviewed_user.id = s.reviewed_by
       WHERE 1=1
     `
     const params = []
@@ -713,6 +734,15 @@ router.patch('/attendance/:sessionId', async (req, res) => {
     if (reportsToOverride !== undefined) { updates.push(`reports_to_override = $${i++}`); params.push(reportsToOverride || null) }
     if (accountOverride !== undefined) { updates.push(`account_override = $${i++}`); params.push(accountOverride || null) }
     if (isLocked !== undefined) { updates.push(`is_locked = $${i++}`); params.push(!!isLocked) }
+    // Per 19MAY2026 Scheduler Demos meeting: audit who/when on every edit.
+    updates.push(`modified_by = $${i++}`); params.push(req.user?.id || null)
+    updates.push(`modified_on = NOW()`)
+    // Editing implicitly counts as the supervisor reviewing the record.
+    if (req.body && req.body.markReviewed) {
+      updates.push(`reviewed = TRUE`)
+      updates.push(`reviewed_by = $${i++}`); params.push(req.user?.id || null)
+      updates.push(`reviewed_at = NOW()`)
+    }
 
     if (updates.length === 0) {
       return res.status(400).json({ error: 'Bad request', message: 'No fields to update' })
@@ -743,6 +773,12 @@ router.patch('/attendance/:sessionId', async (req, res) => {
               s.billable_reg_hours, s.billable_prm_hours, s.billable_rvw_hours, s.payable_rvw_hours,
               s.is_locked,
               s.reports_to_override, s.account_override,
+              s.created_by, s.created_on, s.modified_by, s.modified_on,
+              s.reviewed, s.reviewed_by, s.reviewed_at,
+              s.is_scheduled,
+              created_user.name AS created_by_name,
+              modified_user.name AS modified_by_name,
+              reviewed_user.name AS reviewed_by_name,
               COALESCE(mgr_ov.name, mgr.name) AS reports_to_name,
               COALESCE(c_ov.name, c.name) AS account_name,
               e.cmid AS employee_cmid
@@ -753,6 +789,9 @@ router.patch('/attendance/:sessionId', async (req, res) => {
        LEFT JOIN users mgr_ov ON mgr_ov.id = s.reports_to_override
        LEFT JOIN clients c ON c.id = e.primary_client_id
        LEFT JOIN clients c_ov ON c_ov.id = s.account_override
+       LEFT JOIN users created_user ON created_user.id = s.created_by
+       LEFT JOIN users modified_user ON modified_user.id = s.modified_by
+       LEFT JOIN users reviewed_user ON reviewed_user.id = s.reviewed_by
        WHERE s.id = $1`,
       [sessionId]
     )
@@ -794,8 +833,9 @@ router.post('/attendance', async (req, res) => {
       `INSERT INTO sessions (
          user_id, clock_in, clock_out, shift_start, shift_end,
          status_override, pay_type, bill_type, task, stage, comments,
-         reports_to_override, account_override, is_locked, is_manual
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, TRUE)
+         reports_to_override, account_override, is_locked, is_manual,
+         created_by, created_on
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, TRUE, $15, NOW())
        RETURNING id`,
       [
         employeeId,
@@ -812,6 +852,7 @@ router.post('/attendance', async (req, res) => {
         reportsToOverride || null,
         accountOverride || null,
         !!isLocked,
+        req.user?.id || null,
       ]
     )
     const newId = inserted.rows[0].id
@@ -837,6 +878,12 @@ router.post('/attendance', async (req, res) => {
               s.reg_hours, s.n15_hours, s.x35_hours, s.x100_hours, s.hol_hours,
               s.billable_reg_hours, s.billable_prm_hours, s.billable_rvw_hours, s.payable_rvw_hours,
               s.is_locked, s.reports_to_override, s.account_override,
+              s.created_by, s.created_on, s.modified_by, s.modified_on,
+              s.reviewed, s.reviewed_by, s.reviewed_at,
+              s.is_scheduled,
+              created_user.name AS created_by_name,
+              modified_user.name AS modified_by_name,
+              reviewed_user.name AS reviewed_by_name,
               COALESCE(mgr_ov.name, mgr.name) AS reports_to_name,
               COALESCE(c_ov.name, c.name) AS account_name,
               e.cmid AS employee_cmid
@@ -847,6 +894,9 @@ router.post('/attendance', async (req, res) => {
        LEFT JOIN users mgr_ov ON mgr_ov.id = s.reports_to_override
        LEFT JOIN clients c ON c.id = e.primary_client_id
        LEFT JOIN clients c_ov ON c_ov.id = s.account_override
+       LEFT JOIN users created_user ON created_user.id = s.created_by
+       LEFT JOIN users modified_user ON modified_user.id = s.modified_by
+       LEFT JOIN users reviewed_user ON reviewed_user.id = s.reviewed_by
        WHERE s.id = $1`,
       [newId]
     )
@@ -855,6 +905,53 @@ router.post('/attendance', async (req, res) => {
     res.status(201).json(toAttendanceRecord({ ...row, id: row.session_id, date: dateStr }))
   } catch (err) {
     console.error('Admin create attendance error:', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// PATCH /api/admin/attendance/:sessionId/reviewed — toggle Reviewed/Normalized flag.
+// Per 19MAY2026 Scheduler Demos meeting: admins need to flag timesheets as
+// reviewed/normalized so they can filter unreviewed ones quickly.
+router.patch('/attendance/:sessionId/reviewed', async (req, res) => {
+  try {
+    const { sessionId } = req.params
+    const reviewed = !!(req.body && req.body.reviewed)
+    const result = await query(
+      `UPDATE sessions
+       SET reviewed = $1::boolean,
+           reviewed_by = CASE WHEN $1::boolean THEN $2::uuid ELSE NULL END,
+           reviewed_at = CASE WHEN $1::boolean THEN NOW() ELSE NULL END
+       WHERE id = $3::uuid
+       RETURNING id`,
+      [reviewed, req.user?.id || null, sessionId],
+    )
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' })
+    res.json({ id: sessionId, reviewed })
+  } catch (err) {
+    console.error('Admin toggle reviewed error:', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// GET /api/admin/attendance/needs-review?from=&to= — count of unreviewed records.
+// Used by the admin dashboard to alert about pending normalizations.
+router.get('/attendance/needs-review', async (req, res) => {
+  try {
+    const { from, to } = req.query
+    const fromDate = from || new Date().toISOString().slice(0, 10)
+    const toDate = to || fromDate
+    const r = await query(
+      `SELECT COUNT(*)::int AS n FROM sessions s
+       JOIN users u ON u.id = s.user_id AND u.role = 'employee'
+       WHERE s.reviewed = FALSE
+         AND s.clock_out IS NOT NULL
+         AND (s.clock_in AT TIME ZONE 'UTC')::date >= $1::date
+         AND (s.clock_in AT TIME ZONE 'UTC')::date <= $2::date`,
+      [fromDate, toDate],
+    )
+    res.json({ needsReview: Number(r.rows[0]?.n || 0) })
+  } catch (err) {
+    console.error('Admin needs-review error:', err)
     res.status(500).json({ error: 'Internal server error' })
   }
 })
@@ -2949,8 +3046,17 @@ router.post('/schedule/bulk-assign', async (req, res) => {
       return res.status(400).json({ error: 'Bad request', message: 'All days in the range are marked as days off' })
     }
 
+    // Look up the resolved shift's actual times so we can stamp sessions.shift_start/end.
+    const shiftRow = await query(
+      `SELECT start_time, end_time FROM shifts WHERE id = $1`,
+      [resolvedShiftId],
+    )
+    const shiftStartTime = startOverride || (shiftRow.rows[0]?.start_time ? String(shiftRow.rows[0].start_time).slice(0, 5) : null)
+    const shiftEndTime = endOverride || (shiftRow.rows[0]?.end_time ? String(shiftRow.rows[0].end_time).slice(0, 5) : null)
+
     let created = 0
     let updated = 0
+    let attendanceCreated = 0
     for (const userId of employeeIds) {
       for (const date of dates) {
         const existing = await query(
@@ -2970,6 +3076,39 @@ router.post('/schedule/bulk-assign', async (req, res) => {
         )
         if (isUpdate) updated++
         else created++
+
+        // 19MAY2026 Scheduler Demos meeting: pre-populate an attendance record for each
+        // assigned shift (no clock in/out yet) so it surfaces in the Attendance module
+        // ahead of time and the supervisor can normalize once the day arrives.
+        // We use the shift_start moment as the placeholder clock_in to anchor the date,
+        // and leave clock_out NULL — but we mark is_scheduled = TRUE and zero out the
+        // hours so it doesn't pollute payroll until the supervisor edits it.
+        if (shiftStartTime && shiftEndTime) {
+          // Skip if any session already exists for this user × date (avoid duplicates).
+          const dupe = await query(
+            `SELECT id FROM sessions
+             WHERE user_id = $1
+               AND (clock_in AT TIME ZONE 'UTC')::date = $2::date
+             LIMIT 1`,
+            [userId, date],
+          )
+          if (dupe.rows.length === 0) {
+            await query(
+              `INSERT INTO sessions (
+                 user_id, clock_in, clock_out,
+                 shift_start, shift_end,
+                 account_override,
+                 is_scheduled, is_manual,
+                 created_by, created_on
+               ) VALUES ($1, ($2::date || ' ' || $3::text)::timestamptz, NULL,
+                          ($2::date || ' ' || $3::text)::timestamptz,
+                          ($2::date || ' ' || $4::text)::timestamptz,
+                          $5, TRUE, TRUE, $6, NOW())`,
+              [userId, date, shiftStartTime, shiftEndTime, clientId, req.user?.id || null],
+            )
+            attendanceCreated++
+          }
+        }
       }
     }
 
@@ -2980,6 +3119,7 @@ router.post('/schedule/bulk-assign', async (req, res) => {
       employees: employeeIds.length,
       dates: dates.length,
       shiftId: resolvedShiftId,
+      attendanceCreated,
     })
   } catch (err) {
     console.error('Admin bulk-assign schedule error:', err)

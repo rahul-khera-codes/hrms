@@ -815,10 +815,10 @@ export default function AdminEmployees() {
         <div className="card overflow-hidden">
           <div className="overflow-x-auto scroll-fade-x">
             <table className="w-full text-left border-collapse">
-              <thead className="bg-surface-50">
+              <thead className="bg-surface-50 dark:bg-surface-900">
                 <tr>
                   {Array.from({ length: 6 }).map((_, i) => (
-                    <th key={i} className="px-3 py-2.5 text-[10px] uppercase tracking-wider whitespace-nowrap border-b border-surface-200">
+                    <th key={i} className="px-3 py-2.5 text-[10px] uppercase tracking-wider whitespace-nowrap border-b border-surface-200 dark:border-surface-700">
                       <span className="inline-block bg-surface-200/70 rounded animate-pulse h-3 w-16" />
                     </th>
                   ))}
@@ -873,7 +873,7 @@ export default function AdminEmployees() {
       <div className="toolbar">
         <div className="flex flex-col sm:flex-row gap-2 sm:gap-2.5 sm:items-center w-full">
           <div className="relative flex-1 min-w-0">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400 shrink-0" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400 dark:text-surface-500 shrink-0" />
             <input
               type="text"
               placeholder="Search by name, email, or CMID"
@@ -885,7 +885,7 @@ export default function AdminEmployees() {
               <button
                 type="button"
                 onClick={() => setSearch('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 rounded text-surface-400 hover:text-surface-700 hover:bg-surface-100 transition-colors"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 rounded text-surface-400 dark:text-surface-500 hover:text-surface-700 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-700 dark:bg-surface-800 transition-colors"
                 aria-label="Clear search"
               >
                 <X className="w-3.5 h-3.5" />
@@ -990,26 +990,26 @@ export default function AdminEmployees() {
             {paginatedEmployees.map((emp) => (
               <li
                 key={emp.id}
-                className="flex flex-col sm:flex-row sm:items-center gap-4 p-4 sm:p-5 rounded-xl border border-surface-200/80 bg-white transition-all hover:shadow-md hover:border-brand-200/80"
+                className="flex flex-col sm:flex-row sm:items-center gap-4 p-4 sm:p-5 rounded-xl border border-surface-200/80 bg-white dark:bg-surface-900 transition-all hover:shadow-md hover:border-brand-200/80"
               >
-                <div className="w-10 h-10 rounded-xl bg-surface-100 flex items-center justify-center shrink-0">
-                  <Users className="w-5 h-5 text-surface-600" />
+                <div className="w-10 h-10 rounded-xl bg-surface-100 dark:bg-surface-800 flex items-center justify-center shrink-0">
+                  <Users className="w-5 h-5 text-surface-600 dark:text-surface-300" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <p className="font-medium text-surface-900">{emp.name}</p>
+                    <p className="font-medium text-surface-900 dark:text-surface-50">{emp.name}</p>
                     {activeEmployees.has(emp.id) && (
                       <span className="badge-success shrink-0" title="Currently clocked in">
                         Active
                       </span>
                     )}
                   </div>
-                  <p className="text-xs text-surface-500 mt-0.5">{emp.email}</p>
-                  <p className="text-xs text-surface-500 mt-0.5">
+                  <p className="text-xs text-surface-500 dark:text-surface-400 dark:text-surface-500 mt-0.5">{emp.email}</p>
+                  <p className="text-xs text-surface-500 dark:text-surface-400 dark:text-surface-500 mt-0.5">
                     {emp.salaryType === 'monthly' ? 'Monthly' : 'Hourly'} · {emp.salaryType === 'monthly' ? emp.baseSalary.toLocaleString() : emp.baseSalary.toFixed(2)}
                   </p>
                   {emp.contractStatus && (
-                    <p className="text-xs text-surface-500 mt-0.5">
+                    <p className="text-xs text-surface-500 dark:text-surface-400 dark:text-surface-500 mt-0.5">
                       {emp.contractType === 'contractor' ? 'Contractor' : 'Employee'}
                       {emp.harmonyId ? ` · ${emp.harmonyId}` : ''}
                       {emp.location ? ` · ${emp.location}` : ''}
@@ -1032,7 +1032,7 @@ export default function AdminEmployees() {
                   ) : null}
                 </div>
                 <div className="flex items-center gap-2 self-end sm:self-auto">
-                  <button type="button" onClick={() => openEdit(emp)} className="p-2 rounded-lg text-surface-500 hover:bg-surface-100" title="Edit">
+                  <button type="button" onClick={() => openEdit(emp)} className="p-2 rounded-lg text-surface-500 dark:text-surface-400 dark:text-surface-500 hover:bg-surface-100 dark:hover:bg-surface-700 dark:bg-surface-800" title="Edit">
                     <Pencil className="w-4 h-4" />
                   </button>
                 </div>
@@ -1042,9 +1042,9 @@ export default function AdminEmployees() {
         ) : (
           <div className="overflow-x-auto scroll-fade-x">
             <table className="min-w-[1200px] w-full text-left border-collapse">
-              <thead className="sticky top-0 z-10 bg-surface-50 border-b border-surface-200">
+              <thead className="sticky top-0 z-10 bg-surface-50 dark:bg-surface-900 border-b border-surface-200 dark:border-surface-700">
                 <tr>
-                  <th className="px-3 py-1.5 w-10 border-b border-surface-200">
+                  <th className="px-3 py-1.5 w-10 border-b border-surface-200 dark:border-surface-700">
                     <input
                       type="checkbox"
                       aria-label="Select all visible"
@@ -1065,14 +1065,14 @@ export default function AdminEmployees() {
                   {['CMID', 'Employee Name', 'Account', 'Email', 'Location', 'Department', 'Job Title', 'Reports To', 'Shift', 'Salary Type', 'Salary', 'Contract Status', 'Actions'].map((col) => (
                     <th
                       key={col}
-                      className={`px-3 py-1.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 ${col === 'Actions' ? 'text-right' : col === 'Salary' ? 'text-right' : ''}`}
+                      className={`px-3 py-1.5 text-[10px] font-semibold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 dark:border-surface-700 ${col === 'Actions' ? 'text-right' : col === 'Salary' ? 'text-right' : ''}`}
                     >
                       {col === 'Actions' ? col : (
                         <>
                           <div className="flex items-center gap-0.5">
                             <button
                               type="button"
-                              className="flex items-center gap-0.5 hover:text-surface-700 transition-colors"
+                              className="flex items-center gap-0.5 hover:text-surface-700 dark:text-surface-200 transition-colors"
                               onClick={() => handleEmpSort(col)}
                             >
                               {col}
@@ -1080,7 +1080,7 @@ export default function AdminEmployees() {
                             </button>
                             <button
                               type="button"
-                              className={`p-0.5 rounded hover:bg-surface-200/60 transition-colors ${columnFilters[col] ? 'text-brand-600' : 'text-surface-400'}`}
+                              className={`p-0.5 rounded hover:bg-surface-200/60 transition-colors ${columnFilters[col] ? 'text-brand-600' : 'text-surface-400 dark:text-surface-500'}`}
                               onClick={(e) => { e.stopPropagation(); setFilterOpen(filterOpen === col ? null : col) }}
                             >
                               <Filter className="w-2.5 h-2.5" />
@@ -1093,14 +1093,14 @@ export default function AdminEmployees() {
                                 value={columnFilters[col] ?? ''}
                                 onChange={(e) => handleEmpColumnFilter(col, e.target.value)}
                                 placeholder={`Filter ${col}...`}
-                                className="w-full text-[10px] font-normal normal-case tracking-normal border border-surface-200 rounded px-1.5 py-1 pr-5 bg-white focus:ring-1 focus:ring-brand-300 outline-none"
+                                className="w-full text-[10px] font-normal normal-case tracking-normal border border-surface-200 dark:border-surface-700 rounded px-1.5 py-1 pr-5 bg-white dark:bg-surface-900 focus:ring-1 focus:ring-brand-300 outline-none"
                                 autoFocus
                               />
                               {columnFilters[col] && (
                                 <button
                                   type="button"
                                   onClick={() => handleEmpColumnFilter(col, '')}
-                                  className="absolute right-1 top-1/2 -translate-y-1/2 p-0.5 rounded text-surface-400 hover:text-surface-700"
+                                  className="absolute right-1 top-1/2 -translate-y-1/2 p-0.5 rounded text-surface-400 dark:text-surface-500 hover:text-surface-700 dark:text-surface-200"
                                   aria-label="Clear filter"
                                 >
                                   <X className="w-2.5 h-2.5" />
@@ -1119,11 +1119,11 @@ export default function AdminEmployees() {
                   <tr>
                     <td colSpan={14} className="py-12">
                       <div className="flex flex-col items-center justify-center text-center">
-                        <div className="w-12 h-12 rounded-full bg-surface-100 flex items-center justify-center text-surface-400 mb-3">
+                        <div className="w-12 h-12 rounded-full bg-surface-100 dark:bg-surface-800 flex items-center justify-center text-surface-400 dark:text-surface-500 mb-3">
                           <Search className="w-5 h-5" />
                         </div>
-                        <p className="text-sm font-medium text-surface-700">No matches</p>
-                        <p className="text-xs text-surface-500 mt-1">Try adjusting your search or column filters.</p>
+                        <p className="text-sm font-medium text-surface-700 dark:text-surface-200">No matches</p>
+                        <p className="text-xs text-surface-500 dark:text-surface-400 dark:text-surface-500 mt-1">Try adjusting your search or column filters.</p>
                         {Object.values(columnFilters).some(Boolean) && (
                           <button type="button" className="btn-secondary btn-sm mt-3" onClick={() => { setColumnFilters({}); setFilterOpen(null) }}>
                             Clear column filters
@@ -1134,7 +1134,7 @@ export default function AdminEmployees() {
                   </tr>
                 ) : null}
                 {paginatedEmployees.map((emp) => (
-                  <tr key={emp.id} className={`border-b border-surface-100 hover:bg-brand-50/40 transition-colors cursor-pointer ${selectedEmpIds.has(emp.id) ? 'bg-brand-50/30' : ''}`} onClick={() => openEdit(emp)}>
+                  <tr key={emp.id} className={`border-b border-surface-100 dark:border-surface-800 hover:bg-brand-50/40 transition-colors cursor-pointer ${selectedEmpIds.has(emp.id) ? 'bg-brand-50/30' : ''}`} onClick={() => openEdit(emp)}>
                     <td className="px-3 py-2.5 w-10" onClick={(e) => e.stopPropagation()}>
                       <input
                         type="checkbox"
@@ -1144,8 +1144,8 @@ export default function AdminEmployees() {
                         onChange={() => toggleEmpSelect(emp.id)}
                       />
                     </td>
-                    <td className="px-3 py-2.5 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">{emp.cmid ?? '-'}</td>
-                    <td className="px-3 py-2.5 text-xs font-medium text-surface-900 whitespace-nowrap">
+                    <td className="px-3 py-2.5 text-xs font-mono text-surface-700 dark:text-surface-200 tabular-nums whitespace-nowrap">{emp.cmid ?? '-'}</td>
+                    <td className="px-3 py-2.5 text-xs font-medium text-surface-900 dark:text-surface-50 whitespace-nowrap">
                       <div className="flex items-center gap-2">
                         {emp.name}
                         {activeEmployees.has(emp.id) && (
@@ -1153,15 +1153,15 @@ export default function AdminEmployees() {
                         )}
                       </div>
                     </td>
-                    <td className="px-3 py-2.5 text-xs text-surface-700 whitespace-nowrap">{emp.primaryClientName ?? '-'}</td>
-                    <td className="px-3 py-2.5 text-xs text-surface-600 whitespace-nowrap max-w-[200px] truncate">{emp.email}</td>
-                    <td className="px-3 py-2.5 text-xs text-surface-600 whitespace-nowrap">{emp.location ?? '-'}</td>
-                    <td className="px-3 py-2.5 text-xs text-surface-600 whitespace-nowrap">{emp.department ?? '-'}</td>
-                    <td className="px-3 py-2.5 text-xs text-surface-600 whitespace-nowrap">{emp.jobTitle ?? '-'}</td>
-                    <td className="px-3 py-2.5 text-xs text-surface-600 whitespace-nowrap">{emp.reportsToName ?? '-'}</td>
-                    <td className="px-3 py-2.5 text-xs text-surface-600 whitespace-nowrap">{assignmentByEmployee[emp.id]?.shiftName ?? '-'}</td>
-                    <td className="px-3 py-2.5 text-xs text-surface-700 whitespace-nowrap capitalize">{emp.salaryType ?? '-'}</td>
-                    <td className="px-3 py-2.5 text-xs text-surface-700 tabular-nums whitespace-nowrap text-right font-medium">
+                    <td className="px-3 py-2.5 text-xs text-surface-700 dark:text-surface-200 whitespace-nowrap">{emp.primaryClientName ?? '-'}</td>
+                    <td className="px-3 py-2.5 text-xs text-surface-600 dark:text-surface-300 whitespace-nowrap max-w-[200px] truncate">{emp.email}</td>
+                    <td className="px-3 py-2.5 text-xs text-surface-600 dark:text-surface-300 whitespace-nowrap">{emp.location ?? '-'}</td>
+                    <td className="px-3 py-2.5 text-xs text-surface-600 dark:text-surface-300 whitespace-nowrap">{emp.department ?? '-'}</td>
+                    <td className="px-3 py-2.5 text-xs text-surface-600 dark:text-surface-300 whitespace-nowrap">{emp.jobTitle ?? '-'}</td>
+                    <td className="px-3 py-2.5 text-xs text-surface-600 dark:text-surface-300 whitespace-nowrap">{emp.reportsToName ?? '-'}</td>
+                    <td className="px-3 py-2.5 text-xs text-surface-600 dark:text-surface-300 whitespace-nowrap">{assignmentByEmployee[emp.id]?.shiftName ?? '-'}</td>
+                    <td className="px-3 py-2.5 text-xs text-surface-700 dark:text-surface-200 whitespace-nowrap capitalize">{emp.salaryType ?? '-'}</td>
+                    <td className="px-3 py-2.5 text-xs text-surface-700 dark:text-surface-200 tabular-nums whitespace-nowrap text-right font-medium">
                       {emp.salaryType === 'monthly' ? emp.baseSalary.toLocaleString() : emp.baseSalary.toFixed(2)}
                     </td>
                     <td className="px-3 py-2.5 whitespace-nowrap">
@@ -1173,10 +1173,10 @@ export default function AdminEmployees() {
                     </td>
                     <td className="px-3 py-2.5 whitespace-nowrap text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center gap-1 justify-end">
-                        <button type="button" onClick={() => openEdit(emp)} disabled={emp.isLocked} className="p-1.5 rounded-lg text-surface-500 hover:bg-surface-100 disabled:opacity-40" title="Edit">
+                        <button type="button" onClick={() => openEdit(emp)} disabled={emp.isLocked} className="p-1.5 rounded-lg text-surface-500 dark:text-surface-400 dark:text-surface-500 hover:bg-surface-100 dark:hover:bg-surface-700 dark:bg-surface-800 disabled:opacity-40" title="Edit">
                           <Pencil className="w-3.5 h-3.5" />
                         </button>
-                        <button type="button" onClick={() => void handleToggleEmployeeLock(emp)} className="p-1.5 rounded-lg text-surface-500 hover:bg-surface-100" title={emp.isLocked ? 'Unlock' : 'Lock'}>
+                        <button type="button" onClick={() => void handleToggleEmployeeLock(emp)} className="p-1.5 rounded-lg text-surface-500 dark:text-surface-400 dark:text-surface-500 hover:bg-surface-100 dark:hover:bg-surface-700 dark:bg-surface-800" title={emp.isLocked ? 'Unlock' : 'Lock'}>
                           {emp.isLocked ? <Unlock className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5" />}
                         </button>
                         <button type="button" onClick={() => void handleDeleteEmployee(emp)} disabled={emp.isLocked} className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 disabled:opacity-40" title="Delete">
@@ -1194,7 +1194,7 @@ export default function AdminEmployees() {
 
       {filteredEmployees.length > 0 && (
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <p className="text-xs sm:text-sm text-surface-500">
+          <p className="text-xs sm:text-sm text-surface-500 dark:text-surface-400 dark:text-surface-500">
             Showing {pageStart + 1}-{Math.min(pageStart + EMPLOYEES_PER_PAGE, filteredEmployees.length)} of {filteredEmployees.length}
           </p>
           <div className="flex items-center gap-2 w-full sm:w-auto">
@@ -1206,7 +1206,7 @@ export default function AdminEmployees() {
             >
               Previous
             </button>
-            <span className="text-xs sm:text-sm text-surface-600 min-w-[80px] text-center flex-none">
+            <span className="text-xs sm:text-sm text-surface-600 dark:text-surface-300 min-w-[80px] text-center flex-none">
               Page {safeCurrentPage} / {totalPages}
             </span>
             <button
@@ -1294,13 +1294,13 @@ export default function AdminEmployees() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <h2 className="modal-title">Add employee</h2>
-                    <p className="text-[11px] text-surface-500 mt-0.5">Create a new employee record.</p>
+                    <p className="text-[11px] text-surface-500 dark:text-surface-400 dark:text-surface-500 mt-0.5">Create a new employee record.</p>
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => setModal(null)}
-                  className="p-2.5 min-w-[2.75rem] min-h-[2.75rem] rounded-lg text-surface-400 hover:text-surface-700 hover:bg-surface-100 shrink-0 transition-colors flex items-center justify-center"
+                  className="p-2.5 min-w-[2.75rem] min-h-[2.75rem] rounded-lg text-surface-400 dark:text-surface-500 hover:text-surface-700 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-700 dark:bg-surface-800 shrink-0 transition-colors flex items-center justify-center"
                   aria-label="Close"
                 >
                   <span aria-hidden>×</span>
@@ -1309,7 +1309,7 @@ export default function AdminEmployees() {
             )}
             <div className="modal-body">
               {/* ── PERSONAL DETAILS ── */}
-              <p className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-2">Personal Details</p>
+              <p className="text-xs font-semibold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider mb-2">Personal Details</p>
               <div>
                 <label className="label">Full Name <span className="text-red-500" aria-hidden>*</span></label>
                 <input
@@ -1385,7 +1385,7 @@ export default function AdminEmployees() {
               )}
 
               {/* ── ENGAGEMENT DETAILS ── */}
-              <p className="text-xs font-semibold text-surface-500 uppercase tracking-wider mt-4 mb-2 pt-3 border-t border-surface-100">Engagement Details</p>
+              <p className="text-xs font-semibold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider mt-4 mb-2 pt-3 border-t border-surface-100 dark:border-surface-800">Engagement Details</p>
               <div className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
@@ -1404,7 +1404,7 @@ export default function AdminEmployees() {
                     <label className="label">Harmony ID</label>
                     <input
                       type="text"
-                      className="input w-full bg-surface-50 text-surface-500"
+                      className="input w-full bg-surface-50 dark:bg-surface-900 text-surface-500 dark:text-surface-400 dark:text-surface-500"
                       value={cmid ? `HRM-${cmid.padStart(5, '0')}` : ''}
                       readOnly
                       disabled
@@ -1457,7 +1457,7 @@ export default function AdminEmployees() {
                     onChange={(e) => setShiftGroup(e.target.value)}
                     placeholder="e.g. Business Hours, Night Shift, Group A"
                   />
-                  <p className="mt-1 text-xs text-surface-500">Used for bulk shift assignment in the Scheduler.</p>
+                  <p className="mt-1 text-xs text-surface-500 dark:text-surface-400 dark:text-surface-500">Used for bulk shift assignment in the Scheduler.</p>
                 </div>
                 <div>
                   <label className="label">Primary Account</label>
@@ -1494,7 +1494,7 @@ export default function AdminEmployees() {
               </div>
 
               {/* ── CONTRACT STATUS ── */}
-              <p className="text-xs font-semibold text-surface-500 uppercase tracking-wider mt-4 mb-2 pt-3 border-t border-surface-100">Contract Status</p>
+              <p className="text-xs font-semibold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider mt-4 mb-2 pt-3 border-t border-surface-100 dark:border-surface-800">Contract Status</p>
               <div className="space-y-4">
                 <div>
                   <label className="label">Contract Status</label>
@@ -1534,7 +1534,7 @@ export default function AdminEmployees() {
               </div>
 
               {/* ── BANK DETAILS ── */}
-              <p className="text-xs font-semibold text-surface-500 uppercase tracking-wider mt-4 mb-2 pt-3 border-t border-surface-100">Bank Details</p>
+              <p className="text-xs font-semibold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider mt-4 mb-2 pt-3 border-t border-surface-100 dark:border-surface-800">Bank Details</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="label">Bank</label>
@@ -1563,7 +1563,7 @@ export default function AdminEmployees() {
               </div>
 
               {/* ── SALARY ── */}
-              <p className="text-xs font-semibold text-surface-500 uppercase tracking-wider mt-4 mb-2 pt-3 border-t border-surface-100">Salary</p>
+              <p className="text-xs font-semibold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider mt-4 mb-2 pt-3 border-t border-surface-100 dark:border-surface-800">Salary</p>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="label">Salary Type</label>
@@ -1592,7 +1592,7 @@ export default function AdminEmployees() {
                   <label className="label">Hourly Rate</label>
                   <input
                     type="text"
-                    className="input bg-surface-50 text-surface-600"
+                    className="input bg-surface-50 dark:bg-surface-900 text-surface-600 dark:text-surface-300"
                     readOnly
                     value={(() => {
                       const s = parseFloat(baseSalary) || 0
@@ -1606,7 +1606,7 @@ export default function AdminEmployees() {
               </div>
 
               {/* ── CONTACT DETAILS ── */}
-              <p className="text-xs font-semibold text-surface-500 uppercase tracking-wider mt-4 mb-2 pt-3 border-t border-surface-100">Contact Details</p>
+              <p className="text-xs font-semibold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider mt-4 mb-2 pt-3 border-t border-surface-100 dark:border-surface-800">Contact Details</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="label">Personal Email</label>
@@ -1655,7 +1655,7 @@ export default function AdminEmployees() {
               {/* ── SCHEDULE ASSIGNMENT ── */}
               {(modal === 'add' || modal === 'edit') && (
                 <>
-                  <p className="text-xs font-semibold text-surface-500 uppercase tracking-wider mt-4 mb-2 pt-3 border-t border-surface-100">Schedule Assignment</p>
+                  <p className="text-xs font-semibold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider mt-4 mb-2 pt-3 border-t border-surface-100 dark:border-surface-800">Schedule Assignment</p>
                   <div>
                     <label className="label">Assign client</label>
                     <AdminSelect
@@ -1713,9 +1713,9 @@ export default function AdminEmployees() {
                 <DocumentUpload entityType="employee" entityId={editing.id} />
               ) : modal === 'add' ? (
                 <div className="rounded-xl border border-dashed border-surface-300 bg-surface-50/60 p-4 text-center">
-                  <Upload className="w-5 h-5 text-surface-400 mx-auto mb-1.5" />
-                  <p className="text-xs font-medium text-surface-500">Documents</p>
-                  <p className="text-[11px] text-surface-400 mt-0.5">Save the record first, then you can upload documents.</p>
+                  <Upload className="w-5 h-5 text-surface-400 dark:text-surface-500 mx-auto mb-1.5" />
+                  <p className="text-xs font-medium text-surface-500 dark:text-surface-400 dark:text-surface-500">Documents</p>
+                  <p className="text-[11px] text-surface-400 dark:text-surface-500 mt-0.5">Save the record first, then you can upload documents.</p>
                 </div>
               ) : null}
             </div>

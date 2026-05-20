@@ -4,6 +4,7 @@ import AdminSelect from '@/components/AdminSelect'
 import { PageHeader } from '@/components/PageHeader'
 import { SkeletonTableRows } from '@/components/Skeleton'
 import { useToast } from '@/components/Toast'
+import { buildCycleOptions } from '@/lib/cycleOptions'
 import {
   getPayrollPeriods,
   getPayrollCalcResults,
@@ -47,8 +48,8 @@ const PAY_METHOD_OPTIONS = ['', 'Deposito', 'Cheque']
 const sections: SectionDef[] = [
   {
     name: 'Employee',
-    bg: 'bg-surface-50',
-    headerText: 'text-surface-700',
+    bg: 'bg-surface-50 dark:bg-surface-900',
+    headerText: 'text-surface-700 dark:text-surface-200',
     columns: [
       { key: 'cmid', label: 'CMID', type: 'text', accessor: (r) => r.employeeCmid ?? '-' },
       { key: 'employeeName', label: 'Name', type: 'text', accessor: (r) => r.employeeName },
@@ -76,8 +77,8 @@ const sections: SectionDef[] = [
   },
   {
     name: 'Leaves (VPL)',
-    bg: 'bg-surface-50',
-    headerText: 'text-surface-700',
+    bg: 'bg-surface-50 dark:bg-surface-900',
+    headerText: 'text-surface-700 dark:text-surface-200',
     columns: [
       { key: 'vacation', label: 'Vacation', type: 'money', accessor: (r) => r.vacation },
       { key: 'matrimony', label: 'Matrimony', type: 'money', accessor: (r) => r.matrimony },
@@ -98,8 +99,8 @@ const sections: SectionDef[] = [
   },
   {
     name: 'Overtime',
-    bg: 'bg-surface-50',
-    headerText: 'text-surface-700',
+    bg: 'bg-surface-50 dark:bg-surface-900',
+    headerText: 'text-surface-700 dark:text-surface-200',
     columns: [
       { key: 'hn15Hours', label: 'N15% Hrs', type: 'hours', accessor: (r) => r.hn15Hours },
       { key: 'hn15Amount', label: 'N15% $', type: 'money', accessor: (r) => r.hn15Amount },
@@ -125,8 +126,8 @@ const sections: SectionDef[] = [
   },
   {
     name: 'Incentives',
-    bg: 'bg-surface-50',
-    headerText: 'text-surface-700',
+    bg: 'bg-surface-50 dark:bg-surface-900',
+    headerText: 'text-surface-700 dark:text-surface-200',
     columns: [
       { key: 'attendanceIncentive', label: 'Attendance', type: 'money', accessor: (r) => r.attendanceIncentive },
       { key: 'kpiIncentive', label: 'KPI', type: 'money', accessor: (r) => r.kpiIncentive },
@@ -194,8 +195,8 @@ const sections: SectionDef[] = [
   },
   {
     name: 'Employer Cost',
-    bg: 'bg-surface-50',
-    headerText: 'text-surface-700',
+    bg: 'bg-surface-50 dark:bg-surface-900',
+    headerText: 'text-surface-700 dark:text-surface-200',
     columns: [
       { key: 'afpEmployer', label: 'AFP', type: 'money', accessor: (r) => r.afpEmployer },
       { key: 'sfsEmployer', label: 'SFS', type: 'money', accessor: (r) => r.sfsEmployer },
@@ -221,19 +222,19 @@ const allColumns = sections.flatMap((s) => s.columns)
 /* ------------------------------------------------------------------ */
 
 const sectionColorMap: Record<string, { bg: string; text: string; totalText: string }> = {
-  'Employee': { bg: 'bg-surface-50', text: 'text-surface-700', totalText: 'text-surface-700' },
+  'Employee': { bg: 'bg-surface-50 dark:bg-surface-900', text: 'text-surface-700 dark:text-surface-200', totalText: 'text-surface-700 dark:text-surface-200' },
   'Ordinary Salary': { bg: 'bg-emerald-50/40', text: 'text-emerald-800', totalText: 'text-emerald-700' },
-  'Leaves (VPL)': { bg: 'bg-surface-50', text: 'text-surface-700', totalText: 'text-surface-700' },
+  'Leaves (VPL)': { bg: 'bg-surface-50 dark:bg-surface-900', text: 'text-surface-700 dark:text-surface-200', totalText: 'text-surface-700 dark:text-surface-200' },
   'Commissions': { bg: 'bg-emerald-50/40', text: 'text-emerald-800', totalText: 'text-emerald-700' },
-  'Overtime': { bg: 'bg-surface-50', text: 'text-surface-700', totalText: 'text-surface-700' },
+  'Overtime': { bg: 'bg-surface-50 dark:bg-surface-900', text: 'text-surface-700 dark:text-surface-200', totalText: 'text-surface-700 dark:text-surface-200' },
   'Bonuses': { bg: 'bg-emerald-50/40', text: 'text-emerald-800', totalText: 'text-emerald-700' },
-  'Incentives': { bg: 'bg-surface-50', text: 'text-surface-700', totalText: 'text-surface-700' },
+  'Incentives': { bg: 'bg-surface-50 dark:bg-surface-900', text: 'text-surface-700 dark:text-surface-200', totalText: 'text-surface-700 dark:text-surface-200' },
   'Other Income': { bg: 'bg-emerald-50/40', text: 'text-emerald-800', totalText: 'text-emerald-700' },
   'Salary Classification': { bg: 'bg-sky-50/40', text: 'text-sky-800', totalText: 'text-sky-700' },
   'Gov. Deductions': { bg: 'bg-red-50/40', text: 'text-red-800', totalText: 'text-red-700' },
   'Other Deductions': { bg: 'bg-red-50/40', text: 'text-red-800', totalText: 'text-red-700' },
   'Payroll Summary': { bg: 'bg-emerald-50/40', text: 'text-emerald-800', totalText: 'text-emerald-700' },
-  'Employer Cost': { bg: 'bg-surface-50', text: 'text-surface-700', totalText: 'text-surface-700' },
+  'Employer Cost': { bg: 'bg-surface-50 dark:bg-surface-900', text: 'text-surface-700 dark:text-surface-200', totalText: 'text-surface-700 dark:text-surface-200' },
   'Notes & CC': { bg: 'bg-amber-50/40', text: 'text-amber-800', totalText: 'text-amber-700' },
 }
 
@@ -490,9 +491,9 @@ export default function AdminPayroll() {
   /* ---------- Cycle selector options ---------- */
   const cycleOptions = useMemo(() => {
     const today = new Date().toISOString().slice(0, 10)
-    return payrollPeriods
-      .filter((p) => p.payDate >= today)
-      .map((p) => ({ value: p.cycleCode, label: p.cycleCode }))
+    // Future + still-running cycles only — but we still want the current cycle highlighted
+    // green when it appears in the list (per 19MAY2026 meeting).
+    return buildCycleOptions(payrollPeriods.filter((p) => p.payDate >= today))
   }, [payrollPeriods])
 
   /* ---------- Detail modal: get section total value ---------- */
@@ -555,7 +556,7 @@ export default function AdminPayroll() {
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 sm:gap-3">
         <div className="stat-card">
           <div className="flex items-center gap-1.5 mb-1">
-            <Users className="w-3.5 h-3.5 text-surface-400" />
+            <Users className="w-3.5 h-3.5 text-surface-400 dark:text-surface-500" />
             <p className="stat-label text-[10px]">Employees</p>
           </div>
           <p className="stat-value text-base">{summary.employees}</p>
@@ -616,8 +617,8 @@ export default function AdminPayroll() {
         </div>
         <div className="stat-card border-surface-200/70 bg-surface-50/40">
           <div className="flex items-center gap-1.5 mb-1">
-            <Building2 className="w-3.5 h-3.5 text-surface-500" />
-            <p className="stat-label text-[10px] text-surface-600">Employer Cost</p>
+            <Building2 className="w-3.5 h-3.5 text-surface-500 dark:text-surface-400 dark:text-surface-500" />
+            <p className="stat-label text-[10px] text-surface-600 dark:text-surface-300">Employer Cost</p>
           </div>
           <p className="stat-value text-sm">{money(summary.employerCost)}</p>
         </div>
@@ -636,7 +637,7 @@ export default function AdminPayroll() {
           />
         </div>
         <div className="relative flex-1 min-w-[160px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400 shrink-0" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400 dark:text-surface-500 shrink-0" />
           <input
             type="text"
             placeholder="Search name, CMID, Gov ID, account..."
@@ -703,22 +704,22 @@ export default function AdminPayroll() {
             <thead>
               {/* Row 1: section group headers */}
               <tr>
-                <th className="px-2 py-2 text-xs bg-surface-50 border-b border-surface-200 w-10">&nbsp;</th>
+                <th className="px-2 py-2 text-xs bg-surface-50 dark:bg-surface-900 border-b border-surface-200 dark:border-surface-700 w-10">&nbsp;</th>
                 {sections.map((s) => (
                   <th
                     key={s.name}
                     colSpan={s.columns.length}
-                    className={`px-3 py-2 text-xs font-semibold text-center border-b border-surface-200 ${s.bg} ${s.headerText}`}
+                    className={`px-3 py-2 text-xs font-semibold text-center border-b border-surface-200 dark:border-surface-700 ${s.bg} ${s.headerText}`}
                   >
                     {s.name}
                   </th>
                 ))}
-                <th className="px-2 py-2 text-xs bg-surface-50 border-b border-surface-200 w-16 text-center">Actions</th>
+                <th className="px-2 py-2 text-xs bg-surface-50 dark:bg-surface-900 border-b border-surface-200 dark:border-surface-700 w-16 text-center">Actions</th>
               </tr>
               {/* Row 2: individual column headers */}
               <tr>
-                <th className="px-2 py-2.5 border-b border-surface-200 bg-surface-50">
-                  <button type="button" onClick={toggleAll} className="text-surface-500 hover:text-brand-600">
+                <th className="px-2 py-2.5 border-b border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900">
+                  <button type="button" onClick={toggleAll} className="text-surface-500 dark:text-surface-400 dark:text-surface-500 hover:text-brand-600">
                     {allSelected ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
                   </button>
                 </th>
@@ -726,7 +727,7 @@ export default function AdminPayroll() {
                   s.columns.map((col) => (
                     <th
                       key={col.key}
-                      className={`px-3 py-2.5 text-xs font-medium whitespace-nowrap border-b border-surface-200 ${
+                      className={`px-3 py-2.5 text-xs font-medium whitespace-nowrap border-b border-surface-200 dark:border-surface-700 ${
                         col.type === 'money' || col.type === 'hours' || col.type === 'bool'
                           ? 'text-right'
                           : 'text-left'
@@ -736,7 +737,7 @@ export default function AdminPayroll() {
                     </th>
                   )),
                 )}
-                <th className="px-2 py-2.5 text-xs border-b border-surface-200 bg-surface-50 text-center">PayStub</th>
+                <th className="px-2 py-2.5 text-xs border-b border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900 text-center">PayStub</th>
               </tr>
             </thead>
 
@@ -745,11 +746,11 @@ export default function AdminPayroll() {
                 <SkeletonTableRows rows={8} cols={allColumns.length + 2} />
               ) : displayedRows.length === 0 ? (
                 <tr>
-                  <td colSpan={allColumns.length + 2} className="py-16 text-center text-surface-400">
+                  <td colSpan={allColumns.length + 2} className="py-16 text-center text-surface-400 dark:text-surface-500">
                     <div className="flex flex-col items-center gap-3">
                       <Calculator className="w-10 h-10 text-surface-300" />
-                      <p className="text-base font-medium text-surface-500">No payroll data</p>
-                      <p className="text-sm text-surface-400">
+                      <p className="text-base font-medium text-surface-500 dark:text-surface-400 dark:text-surface-500">No payroll data</p>
+                      <p className="text-sm text-surface-400 dark:text-surface-500">
                         Select a payroll cycle and click Calculate Payroll
                       </p>
                     </div>
@@ -759,12 +760,12 @@ export default function AdminPayroll() {
                 displayedRows.map((r) => (
                   <tr
                     key={r.id}
-                    className={`border-b border-surface-100 hover:bg-surface-50/70 transition-colors cursor-pointer ${selectedIds.has(r.id) ? 'bg-brand-50/30' : 'bg-white'}`}
+                    className={`border-b border-surface-100 dark:border-surface-800 hover:bg-surface-50/70 transition-colors cursor-pointer ${selectedIds.has(r.id) ? 'bg-brand-50/30' : 'bg-white dark:bg-surface-900'}`}
                     onClick={() => setDetailRow(r)}
                   >
                     {/* Checkbox */}
                     <td className="px-2 py-1 text-center" onClick={(e) => e.stopPropagation()}>
-                      <button type="button" onClick={() => toggleOne(r.id)} className="text-surface-400 hover:text-brand-600">
+                      <button type="button" onClick={() => toggleOne(r.id)} className="text-surface-400 dark:text-surface-500 hover:text-brand-600">
                         {selectedIds.has(r.id) ? <CheckSquare className="w-4 h-4 text-brand-600" /> : <Square className="w-4 h-4" />}
                       </button>
                     </td>
@@ -777,7 +778,7 @@ export default function AdminPayroll() {
                           return (
                             <td key={col.key} className="py-1 px-1 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                               <select
-                                className="w-full text-xs border border-surface-200 rounded px-1.5 py-1.5 bg-white text-surface-700 focus:ring-1 focus:ring-brand-400 focus:border-brand-400 outline-none"
+                                className="w-full text-xs border border-surface-200 dark:border-surface-700 rounded px-1.5 py-1.5 bg-white dark:bg-surface-900 text-surface-700 dark:text-surface-200 focus:ring-1 focus:ring-brand-400 focus:border-brand-400 outline-none"
                                 value={String(val)}
                                 onChange={(e) => handleInlineUpdate(r, 'payMethod', e.target.value)}
                               >
@@ -795,7 +796,7 @@ export default function AdminPayroll() {
                             <td key={col.key} className="py-1 px-1 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                               <input
                                 type="text"
-                                className="w-full text-xs border border-surface-200 rounded px-1.5 py-1.5 bg-white text-surface-700 focus:ring-1 focus:ring-brand-400 outline-none min-w-[100px]"
+                                className="w-full text-xs border border-surface-200 dark:border-surface-700 rounded px-1.5 py-1.5 bg-white dark:bg-surface-900 text-surface-700 dark:text-surface-200 focus:ring-1 focus:ring-brand-400 outline-none min-w-[100px]"
                                 defaultValue={String(val)}
                                 placeholder="Note..."
                                 onBlur={(e) => { if (e.target.value !== String(val)) handleInlineUpdate(r, 'notes', e.target.value) }}
@@ -811,7 +812,7 @@ export default function AdminPayroll() {
                             <td key={col.key} className="py-1 px-1 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                               <input
                                 type="email"
-                                className="w-full text-xs border border-surface-200 rounded px-1.5 py-1.5 bg-white text-surface-700 focus:ring-1 focus:ring-brand-400 outline-none min-w-[120px]"
+                                className="w-full text-xs border border-surface-200 dark:border-surface-700 rounded px-1.5 py-1.5 bg-white dark:bg-surface-900 text-surface-700 dark:text-surface-200 focus:ring-1 focus:ring-brand-400 outline-none min-w-[120px]"
                                 defaultValue={String(val)}
                                 placeholder="cc@email.com"
                                 onBlur={(e) => { if (e.target.value !== String(val)) handleInlineUpdate(r, 'ccEmail', e.target.value) }}
@@ -826,7 +827,7 @@ export default function AdminPayroll() {
                           return (
                             <td
                               key={col.key}
-                              className="py-3 px-3 text-surface-900 font-medium whitespace-nowrap sticky left-0 bg-white z-10 border-r border-surface-100"
+                              className="py-3 px-3 text-surface-900 dark:text-surface-50 font-medium whitespace-nowrap sticky left-0 bg-white dark:bg-surface-900 z-10 border-r border-surface-100 dark:border-surface-800"
                             >
                               {String(val)}
                             </td>
@@ -855,7 +856,7 @@ export default function AdminPayroll() {
                         /* Money */
                         if (col.type === 'money') {
                           return (
-                            <td key={col.key} className="py-3 px-3 text-right tabular-nums whitespace-nowrap text-surface-700">
+                            <td key={col.key} className="py-3 px-3 text-right tabular-nums whitespace-nowrap text-surface-700 dark:text-surface-200">
                               {money(val as number)}
                             </td>
                           )
@@ -864,7 +865,7 @@ export default function AdminPayroll() {
                         /* Hours */
                         if (col.type === 'hours') {
                           return (
-                            <td key={col.key} className="py-3 px-3 text-right tabular-nums whitespace-nowrap text-surface-700">
+                            <td key={col.key} className="py-3 px-3 text-right tabular-nums whitespace-nowrap text-surface-700 dark:text-surface-200">
                               {hrs(val as number)}
                             </td>
                           )
@@ -872,7 +873,7 @@ export default function AdminPayroll() {
 
                         /* Text (default) */
                         return (
-                          <td key={col.key} className="py-3 px-3 text-surface-700 whitespace-nowrap">
+                          <td key={col.key} className="py-3 px-3 text-surface-700 dark:text-surface-200 whitespace-nowrap">
                             {String(val) || <span className="text-surface-300">--</span>}
                           </td>
                         )
@@ -901,14 +902,14 @@ export default function AdminPayroll() {
       {detailRow && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setDetailRow(null)}>
           <div
-            className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[85vh] overflow-y-auto mx-4"
+            className="bg-white dark:bg-surface-900 rounded-xl shadow-xl w-full max-w-2xl max-h-[85vh] overflow-y-auto mx-4"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-surface-200">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-surface-200 dark:border-surface-700">
               <div>
-                <h2 className="text-lg font-semibold text-surface-900">{detailRow.employeeName}</h2>
-                <p className="text-sm text-surface-500">
+                <h2 className="text-lg font-semibold text-surface-900 dark:text-surface-50">{detailRow.employeeName}</h2>
+                <p className="text-sm text-surface-500 dark:text-surface-400 dark:text-surface-500">
                   {[
                     detailRow.governmentId ? `Cédula ${detailRow.governmentId}` : null,
                     detailRow.employeeCmid != null ? `CMID ${detailRow.employeeCmid}` : null,
@@ -927,8 +928,8 @@ export default function AdminPayroll() {
                   <FileText className="w-3.5 h-3.5" />
                   PayStub
                 </button>
-                <button type="button" onClick={() => setDetailRow(null)} className="p-1 rounded hover:bg-surface-100">
-                  <X className="w-5 h-5 text-surface-500" />
+                <button type="button" onClick={() => setDetailRow(null)} className="p-1 rounded hover:bg-surface-100 dark:hover:bg-surface-700 dark:bg-surface-800">
+                  <X className="w-5 h-5 text-surface-500 dark:text-surface-400 dark:text-surface-500" />
                 </button>
               </div>
             </div>
@@ -936,7 +937,7 @@ export default function AdminPayroll() {
             {/* Body */}
             <div className="px-6 py-4 space-y-3">
               {sections.map((s) => {
-                const colors = sectionColorMap[s.name] || { bg: 'bg-surface-50', text: 'text-surface-700', totalText: 'text-surface-700' }
+                const colors = sectionColorMap[s.name] || { bg: 'bg-surface-50 dark:bg-surface-900', text: 'text-surface-700 dark:text-surface-200', totalText: 'text-surface-700 dark:text-surface-200' }
                 const totalVal = getSectionTotal(s, detailRow)
 
                 // For "Salary Classification" and "Payroll Summary" — no total in header
@@ -949,7 +950,7 @@ export default function AdminPayroll() {
                   : s.columns
 
                 return (
-                  <div key={s.name} className={`rounded-xl border border-surface-200 p-3 ${colors.bg}`}>
+                  <div key={s.name} className={`rounded-xl border border-surface-200 dark:border-surface-700 p-3 ${colors.bg}`}>
                     <div className="flex items-center justify-between mb-2">
                       <h3 className={`text-xs font-semibold uppercase tracking-wider ${colors.text}`}>{s.name}</h3>
                       {showHeaderTotal && (
@@ -967,7 +968,7 @@ export default function AdminPayroll() {
                         if (col.key === 'payMethod') {
                           display = (
                             <select
-                              className="text-sm font-medium border border-surface-200 rounded px-1.5 py-0.5 bg-white text-surface-800 focus:ring-1 focus:ring-brand-400 outline-none"
+                              className="text-sm font-medium border border-surface-200 dark:border-surface-700 rounded px-1.5 py-0.5 bg-white dark:bg-surface-900 text-surface-800 dark:text-surface-100 focus:ring-1 focus:ring-brand-400 outline-none"
                               value={String(val)}
                               onChange={(e) => {
                                 handleInlineUpdate(detailRow, 'payMethod', e.target.value)
@@ -981,9 +982,9 @@ export default function AdminPayroll() {
                         } else if (col.key === 'notes') {
                           return (
                             <div key={col.key} className="col-span-3 flex flex-col gap-1 py-0.5">
-                              <span className="text-xs text-surface-500">{col.label}</span>
+                              <span className="text-xs text-surface-500 dark:text-surface-400 dark:text-surface-500">{col.label}</span>
                               <textarea
-                                className="text-sm border border-surface-200 rounded px-2 py-1.5 bg-white text-surface-800 focus:ring-1 focus:ring-brand-400 outline-none w-full resize-none"
+                                className="text-sm border border-surface-200 dark:border-surface-700 rounded px-2 py-1.5 bg-white dark:bg-surface-900 text-surface-800 dark:text-surface-100 focus:ring-1 focus:ring-brand-400 outline-none w-full resize-none"
                                 rows={2}
                                 defaultValue={String(val)}
                                 placeholder="Optional note..."
@@ -994,10 +995,10 @@ export default function AdminPayroll() {
                         } else if (col.key === 'ccEmail') {
                           return (
                             <div key={col.key} className="col-span-3 flex flex-col gap-1 py-0.5">
-                              <span className="text-xs text-surface-500">{col.label}</span>
+                              <span className="text-xs text-surface-500 dark:text-surface-400 dark:text-surface-500">{col.label}</span>
                               <input
                                 type="email"
-                                className="text-sm border border-surface-200 rounded px-2 py-1.5 bg-white text-surface-800 focus:ring-1 focus:ring-brand-400 outline-none w-full"
+                                className="text-sm border border-surface-200 dark:border-surface-700 rounded px-2 py-1.5 bg-white dark:bg-surface-900 text-surface-800 dark:text-surface-100 focus:ring-1 focus:ring-brand-400 outline-none w-full"
                                 defaultValue={String(val)}
                                 placeholder="cc@email.com"
                                 onBlur={(e) => { if (e.target.value !== String(val)) handleInlineUpdate(detailRow, 'ccEmail', e.target.value) }}
@@ -1006,9 +1007,9 @@ export default function AdminPayroll() {
                             </div>
                           )
                         } else if (col.type === 'money') {
-                          display = <span className="text-surface-800 font-medium tabular-nums">{money(val as number)}</span>
+                          display = <span className="text-surface-800 dark:text-surface-100 font-medium tabular-nums">{money(val as number)}</span>
                         } else if (col.type === 'hours') {
-                          display = <span className="text-surface-800 font-medium tabular-nums">{hrs(val as number)}</span>
+                          display = <span className="text-surface-800 dark:text-surface-100 font-medium tabular-nums">{hrs(val as number)}</span>
                         } else if (col.type === 'bool') {
                           const isInvalid = val === true
                           display = isInvalid ? (
@@ -1019,12 +1020,12 @@ export default function AdminPayroll() {
                             <span className="text-emerald-700 font-semibold text-sm">Valid</span>
                           )
                         } else {
-                          display = <span className="text-surface-800 font-medium">{String(val) || '--'}</span>
+                          display = <span className="text-surface-800 dark:text-surface-100 font-medium">{String(val) || '--'}</span>
                         }
 
                         return (
                           <div key={col.key} className="flex justify-between text-sm py-0.5">
-                            <span className="text-surface-500">{col.label}</span>
+                            <span className="text-surface-500 dark:text-surface-400 dark:text-surface-500">{col.label}</span>
                             {display}
                           </div>
                         )

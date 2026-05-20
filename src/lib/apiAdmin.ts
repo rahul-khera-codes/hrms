@@ -61,6 +61,21 @@ export async function updateAttendanceRecord(
   })
 }
 
+export async function setAttendanceReviewed(sessionId: string, reviewed: boolean): Promise<{ id: string; reviewed: boolean }> {
+  return api<{ id: string; reviewed: boolean }>(`/api/admin/attendance/${sessionId}/reviewed`, {
+    method: 'PATCH',
+    body: JSON.stringify({ reviewed }),
+  })
+}
+
+export async function getAttendanceNeedsReview(params?: { from?: string; to?: string }): Promise<{ needsReview: number }> {
+  const q = new URLSearchParams()
+  if (params?.from) q.set('from', params.from)
+  if (params?.to) q.set('to', params.to)
+  const qs = q.toString()
+  return api<{ needsReview: number }>(`/api/admin/attendance/needs-review${qs ? `?${qs}` : ''}`)
+}
+
 export async function createAttendanceRecord(data: {
   employeeId: string
   clockIn: string

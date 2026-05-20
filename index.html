@@ -8,6 +8,18 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <script>
+      // Apply theme before React boots to prevent light/dark flash.
+      (function () {
+        try {
+          var stored = localStorage.getItem('hrms.theme')
+          var mq = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)')
+          var theme = stored === 'dark' || stored === 'light' ? stored : (mq && mq.matches ? 'dark' : 'light')
+          if (theme === 'dark') document.documentElement.classList.add('dark')
+          document.documentElement.style.colorScheme = theme
+        } catch (_) {}
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>

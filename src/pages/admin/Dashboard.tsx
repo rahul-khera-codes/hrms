@@ -95,7 +95,7 @@ export default function AdminDashboard() {
   const toneStyles = {
     brand: 'bg-brand-50 text-brand-600 border-brand-100',
     amber: 'bg-amber-50 text-amber-600 border-amber-100',
-    surface: 'bg-surface-100 text-surface-600 border-surface-200',
+    surface: 'bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-300 border-surface-200 dark:border-surface-700',
     indigo: 'bg-indigo-50 text-indigo-600 border-indigo-100',
   }
 
@@ -123,7 +123,7 @@ export default function AdminDashboard() {
             <div key={i} className="stat-card animate-pulse">
               <div className="h-3 bg-surface-200 rounded w-20 mb-2" />
               <div className="h-7 bg-surface-200 rounded w-12 mb-1" />
-              <div className="h-2.5 bg-surface-100 rounded w-24" />
+              <div className="h-2.5 bg-surface-100 dark:bg-surface-800 rounded w-24" />
             </div>
           ))}
         </div>
@@ -135,7 +135,7 @@ export default function AdminDashboard() {
                 <div className="min-w-0 flex-1">
                   <p className="stat-label truncate">{label}</p>
                   <p className="stat-value truncate">{value}</p>
-                  <p className="text-[11px] text-surface-400 mt-0.5 truncate">{sub}</p>
+                  <p className="text-[11px] text-surface-400 dark:text-surface-500 mt-0.5 truncate">{sub}</p>
                 </div>
                 <div className={`w-9 h-9 rounded-xl border flex items-center justify-center shrink-0 ${toneStyles[tone]}`}>
                   <Icon className="w-4 h-4" />
@@ -150,8 +150,8 @@ export default function AdminDashboard() {
         <div className="card lg:col-span-2">
           <div className="card-header">
             <div>
-              <h2 className="text-sm font-semibold text-surface-900">Recent attendance</h2>
-              <p className="text-xs text-surface-500 mt-0.5">Latest clock-in activity (last 7 days)</p>
+              <h2 className="text-sm font-semibold text-surface-900 dark:text-surface-50">Recent attendance</h2>
+              <p className="text-xs text-surface-500 dark:text-surface-400 dark:text-surface-500 mt-0.5">Latest clock-in activity (last 7 days)</p>
             </div>
             <Link to="/admin/attendance" className="text-xs font-medium text-brand-600 hover:text-brand-700 flex items-center gap-1">
               View all <ChevronRight className="w-3 h-3" />
@@ -161,7 +161,7 @@ export default function AdminDashboard() {
             {loading ? (
               <div className="space-y-2">
                 {[1, 2, 3].map((i) => (
-                  <div key={i} className="h-14 bg-surface-100 rounded-xl animate-pulse" />
+                  <div key={i} className="h-14 bg-surface-100 dark:bg-surface-800 rounded-xl animate-pulse" />
                 ))}
               </div>
             ) : recentAttendance.length === 0 ? (
@@ -175,15 +175,15 @@ export default function AdminDashboard() {
                 {recentAttendance.map((r) => (
                   <div
                     key={r.id}
-                    className="flex items-center justify-between gap-3 py-2.5 px-3 rounded-xl bg-white ring-1 ring-surface-200/70 hover:ring-brand-200/80 hover:bg-brand-50/20 transition-all"
+                    className="flex items-center justify-between gap-3 py-2.5 px-3 rounded-xl bg-white dark:bg-surface-900 ring-1 ring-surface-200/70 hover:ring-brand-200/80 hover:bg-brand-50/20 transition-all"
                   >
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-8 h-8 rounded-lg bg-surface-100 flex items-center justify-center text-surface-500 text-xs font-semibold shrink-0">
+                      <div className="w-8 h-8 rounded-lg bg-surface-100 dark:bg-surface-800 flex items-center justify-center text-surface-500 dark:text-surface-400 dark:text-surface-500 text-xs font-semibold shrink-0">
                         {r.employeeName.charAt(0).toUpperCase()}
                       </div>
                       <div className="min-w-0">
-                        <p className="text-sm font-medium text-surface-900 truncate">{r.employeeName}</p>
-                        <p className="text-[11px] text-surface-500 mt-0.5 truncate">
+                        <p className="text-sm font-medium text-surface-900 dark:text-surface-50 truncate">{r.employeeName}</p>
+                        <p className="text-[11px] text-surface-500 dark:text-surface-400 dark:text-surface-500 mt-0.5 truncate">
                           {format(new Date(r.date), 'MMM d')} · {r.clockIn ? format(new Date(r.clockIn), 'HH:mm') : '—'} – {r.clockOut ? format(new Date(r.clockOut), 'HH:mm') : '—'}
                         </p>
                       </div>
@@ -199,8 +199,8 @@ export default function AdminDashboard() {
         <div className="card">
           <div className="card-header">
             <div>
-              <h2 className="text-sm font-semibold text-surface-900">Quick actions</h2>
-              <p className="text-xs text-surface-500 mt-0.5">Common tasks</p>
+              <h2 className="text-sm font-semibold text-surface-900 dark:text-surface-50">Quick actions</h2>
+              <p className="text-xs text-surface-500 dark:text-surface-400 dark:text-surface-500 mt-0.5">Common tasks</p>
             </div>
             <div className="w-7 h-7 rounded-lg bg-brand-50 text-brand-600 flex items-center justify-center">
               <TrendingUp className="w-3.5 h-3.5" />
@@ -216,13 +216,13 @@ export default function AdminDashboard() {
               <Link
                 key={to}
                 to={to}
-                className="flex items-center justify-between gap-3 rounded-xl border border-surface-200/70 px-3 py-2.5 text-sm font-medium text-surface-700 hover:bg-surface-50 hover:border-brand-200 hover:text-brand-700 transition-colors group"
+                className="flex items-center justify-between gap-3 rounded-xl border border-surface-200/70 px-3 py-2.5 text-sm font-medium text-surface-700 dark:text-surface-200 hover:bg-surface-50 dark:hover:bg-surface-800 dark:bg-surface-900 hover:border-brand-200 hover:text-brand-700 transition-colors group"
               >
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <Icon className="w-4 h-4 text-surface-400 group-hover:text-brand-600 shrink-0" />
+                  <Icon className="w-4 h-4 text-surface-400 dark:text-surface-500 group-hover:text-brand-600 shrink-0" />
                   <span className="truncate">{label}</span>
                 </div>
-                <ChevronRight className="w-4 h-4 text-surface-400 group-hover:text-brand-600 shrink-0" />
+                <ChevronRight className="w-4 h-4 text-surface-400 dark:text-surface-500 group-hover:text-brand-600 shrink-0" />
               </Link>
             ))}
           </div>

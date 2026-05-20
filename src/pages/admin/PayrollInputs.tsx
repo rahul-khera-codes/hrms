@@ -11,6 +11,7 @@ import { PageHeader } from '@/components/PageHeader'
 import { DetailModalHeader } from '@/components/DetailModalHeader'
 import { SkeletonTableRows } from '@/components/Skeleton'
 import { useToast } from '@/components/Toast'
+import { buildCycleOptions } from '@/lib/cycleOptions'
 import {
   getPayrollInputs,
   createPayrollInput,
@@ -57,32 +58,8 @@ function statusBadgeClass(bs: string): string {
   return 'badge-warning'
 }
 
-/** Return today's payroll cycle code, if any */
-function currentCycleCode(periods: PayrollPeriod[]): string | null {
-  const today = new Date().toISOString().slice(0, 10)
-  const hit = periods.find((p) => p.periodFrom <= today && today <= p.periodTo)
-  return hit ? hit.cycleCode : null
-}
-
-/** Build cycle dropdown options with current cycle visually marked */
-function buildCycleOptions(periods: PayrollPeriod[]) {
-  const cur = currentCycleCode(periods)
-  return periods.map((p) => {
-    const isCurrent = cur === p.cycleCode
-    return {
-      value: p.cycleCode,
-      label: isCurrent ? (
-        <span className="inline-flex items-center gap-1.5">
-          <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500" />
-          <span>{p.cycleCode}</span>
-          <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-semibold uppercase tracking-wider bg-emerald-100 text-emerald-700">current</span>
-        </span>
-      ) : (
-        <span>{p.cycleCode}</span>
-      ),
-    }
-  })
-}
+// Cycle dropdown options come from the shared helper so the green-highlight
+// behavior is consistent everywhere — per 19MAY2026 client meeting.
 
 export default function AdminPayrollInputs() {
   const [rows, setRows] = useState<PayrollInput[]>([])
@@ -426,7 +403,7 @@ export default function AdminPayrollInputs() {
       {/* Toolbar */}
       <div className="toolbar">
         <div className="relative flex-1 min-w-0">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400 shrink-0" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400 dark:text-surface-500 shrink-0" />
           <input
             type="text"
             placeholder="Search by employee, CMID, account, or input type"
@@ -498,7 +475,7 @@ export default function AdminPayrollInputs() {
             {displayedRows.map((r) => (
               <li
                 key={r.id}
-                className="flex items-start gap-3 p-3 sm:p-4 rounded-xl border border-surface-200/70 bg-white hover:shadow-card-hover hover:border-brand-200/70 transition-all cursor-pointer"
+                className="flex items-start gap-3 p-3 sm:p-4 rounded-xl border border-surface-200/70 bg-white dark:bg-surface-900 hover:shadow-card-hover hover:border-brand-200/70 transition-all cursor-pointer"
                 onClick={() => (r.isLocked ? null : openEdit(r))}
               >
                 <div className={`w-10 h-10 rounded-xl border flex items-center justify-center shrink-0 ${isDeductionInputType(r.inputType) ? 'bg-red-50 border-red-100 text-red-600' : 'bg-brand-50 border-brand-100 text-brand-600'}`}>
@@ -506,14 +483,14 @@ export default function AdminPayrollInputs() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <p className="text-sm font-semibold text-surface-900 truncate">{r.employeeName ?? '—'}</p>
-                    {r.employeeCmid != null && <span className="text-[11px] font-mono text-surface-500">CMID {r.employeeCmid}</span>}
+                    <p className="text-sm font-semibold text-surface-900 dark:text-surface-50 truncate">{r.employeeName ?? '—'}</p>
+                    {r.employeeCmid != null && <span className="text-[11px] font-mono text-surface-500 dark:text-surface-400 dark:text-surface-500">CMID {r.employeeCmid}</span>}
                   </div>
-                  <p className="text-xs text-surface-700 mt-1">{r.inputType}</p>
+                  <p className="text-xs text-surface-700 dark:text-surface-200 mt-1">{r.inputType}</p>
                   <p className={`text-sm font-bold mt-1 tabular-nums ${isDeductionInputType(r.inputType) ? 'text-red-600' : 'text-brand-700'}`}>
                     {isDeductionInputType(r.inputType) ? '−' : '+'}${r.inputAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </p>
-                  {r.payrollCycleCode && <p className="text-[11px] text-surface-500 mt-0.5">Cycle {r.payrollCycleCode}</p>}
+                  {r.payrollCycleCode && <p className="text-[11px] text-surface-500 dark:text-surface-400 dark:text-surface-500 mt-0.5">Cycle {r.payrollCycleCode}</p>}
                 </div>
                 <div className="flex flex-col items-end gap-1 shrink-0">
                   <span className={`${r.status === 'approved' ? 'badge-success' : 'badge-warning'}`}>{backendToPayrollStatus(r.status)}</span>
@@ -525,9 +502,9 @@ export default function AdminPayrollInputs() {
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-[1400px] w-full text-left border-collapse">
-              <thead className="sticky top-0 z-10 bg-surface-50 shadow-[0_1px_0_0_theme(colors.surface.200)]">
+              <thead className="sticky top-0 z-10 bg-surface-50 dark:bg-surface-900 shadow-[0_1px_0_0_theme(colors.surface.200)]">
                 <tr>
-                  <th className="px-2 py-1 w-8 border-b border-surface-200">
+                  <th className="px-2 py-1 w-8 border-b border-surface-200 dark:border-surface-700">
                     <input
                       type="checkbox"
                       className="cursor-pointer"
@@ -543,21 +520,21 @@ export default function AdminPayrollInputs() {
                     />
                   </th>
                   {['CMID', 'Employee Name', 'Account', 'Input Type', 'Calculation', 'Input Amount', 'Payroll Cycle', 'Approver', 'Approver Status', 'Actions'].map((col) => (
-                    <th key={col} className={`px-2 py-1 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 ${col === 'Actions' ? 'text-right' : col === 'Input Amount' ? 'text-right' : ''}`}>
+                    <th key={col} className={`px-2 py-1 text-[10px] font-semibold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 dark:border-surface-700 ${col === 'Actions' ? 'text-right' : col === 'Input Amount' ? 'text-right' : ''}`}>
                       {col === 'Actions' ? col : (
                         <>
                           <div className="flex items-center gap-0.5">
-                            <button type="button" className="flex items-center gap-0.5 hover:text-surface-700 transition-colors" onClick={() => handleSort(col)}>
+                            <button type="button" className="flex items-center gap-0.5 hover:text-surface-700 dark:text-surface-200 transition-colors" onClick={() => handleSort(col)}>
                               {col}
                               {sortCol === col && (sortDir === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
                             </button>
-                            <button type="button" className={`p-0.5 rounded hover:bg-surface-200/60 transition-colors ${columnFilters[col] ? 'text-brand-600' : 'text-surface-400'}`} onClick={(e) => { e.stopPropagation(); setFilterOpen(filterOpen === col ? null : col) }}>
+                            <button type="button" className={`p-0.5 rounded hover:bg-surface-200/60 transition-colors ${columnFilters[col] ? 'text-brand-600' : 'text-surface-400 dark:text-surface-500'}`} onClick={(e) => { e.stopPropagation(); setFilterOpen(filterOpen === col ? null : col) }}>
                               <Filter className="w-2.5 h-2.5" />
                             </button>
                           </div>
                           {filterOpen === col && (
                             <div className="mt-1" onClick={(e) => e.stopPropagation()}>
-                              <input type="text" value={columnFilters[col] ?? ''} onChange={(e) => setColumnFilters((prev) => ({ ...prev, [col]: e.target.value }))} placeholder={`Filter ${col}...`} className="w-full text-[10px] font-normal normal-case tracking-normal border border-surface-200 rounded px-1.5 py-1 bg-white focus:ring-1 focus:ring-brand-300 outline-none" autoFocus />
+                              <input type="text" value={columnFilters[col] ?? ''} onChange={(e) => setColumnFilters((prev) => ({ ...prev, [col]: e.target.value }))} placeholder={`Filter ${col}...`} className="w-full text-[10px] font-normal normal-case tracking-normal border border-surface-200 dark:border-surface-700 rounded px-1.5 py-1 bg-white dark:bg-surface-900 focus:ring-1 focus:ring-brand-300 outline-none" autoFocus />
                             </div>
                           )}
                         </>
@@ -570,7 +547,7 @@ export default function AdminPayrollInputs() {
                 {displayedRows.map((r) => {
                   const isDed = isDeductionInputType(r.inputType)
                   return (
-                    <tr key={r.id} className="border-b border-surface-100 hover:bg-brand-50/30 transition-colors cursor-pointer" onClick={() => (r.isLocked ? null : openEdit(r))}>
+                    <tr key={r.id} className="border-b border-surface-100 dark:border-surface-800 hover:bg-brand-50/30 transition-colors cursor-pointer" onClick={() => (r.isLocked ? null : openEdit(r))}>
                       <td className="px-2 py-1.5 w-8" onClick={(e) => e.stopPropagation()}>
                         <input
                           type="checkbox"
@@ -580,18 +557,18 @@ export default function AdminPayrollInputs() {
                           onChange={() => toggleSelect(r.id)}
                         />
                       </td>
-                      <td className="px-2 py-1.5 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">{r.employeeCmid ?? '-'}</td>
-                      <td className="px-2 py-1.5 text-xs font-medium text-surface-900 whitespace-nowrap">{r.employeeName ?? '-'}</td>
-                      <td className="px-2 py-1.5 text-xs text-surface-700 whitespace-nowrap">{r.accountName ?? '-'}</td>
-                      <td className="px-2 py-1.5 text-xs text-surface-900 whitespace-nowrap">
+                      <td className="px-2 py-1.5 text-xs font-mono text-surface-700 dark:text-surface-200 tabular-nums whitespace-nowrap">{r.employeeCmid ?? '-'}</td>
+                      <td className="px-2 py-1.5 text-xs font-medium text-surface-900 dark:text-surface-50 whitespace-nowrap">{r.employeeName ?? '-'}</td>
+                      <td className="px-2 py-1.5 text-xs text-surface-700 dark:text-surface-200 whitespace-nowrap">{r.accountName ?? '-'}</td>
+                      <td className="px-2 py-1.5 text-xs text-surface-900 dark:text-surface-50 whitespace-nowrap">
                         <span className={isDed ? 'badge-danger' : 'badge-brand'}>{r.inputType}</span>
                       </td>
-                      <td className="px-2 py-1.5 text-xs text-surface-600 whitespace-nowrap capitalize">{r.calculationType.replace('_', ' ')}</td>
+                      <td className="px-2 py-1.5 text-xs text-surface-600 dark:text-surface-300 whitespace-nowrap capitalize">{r.calculationType.replace('_', ' ')}</td>
                       <td className={`px-2 py-1.5 text-xs tabular-nums whitespace-nowrap text-right font-bold ${isDed ? 'text-red-600' : 'text-brand-700'}`}>
                         {isDed ? '−' : '+'}${r.inputAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
-                      <td className="px-2 py-1.5 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">{r.payrollCycleCode ?? '-'}</td>
-                      <td className="px-2 py-1.5 text-xs text-surface-700 whitespace-nowrap">{r.approverName ?? '-'}</td>
+                      <td className="px-2 py-1.5 text-xs font-mono text-surface-700 dark:text-surface-200 tabular-nums whitespace-nowrap">{r.payrollCycleCode ?? '-'}</td>
+                      <td className="px-2 py-1.5 text-xs text-surface-700 dark:text-surface-200 whitespace-nowrap">{r.approverName ?? '-'}</td>
                       <td className="px-2 py-1.5 whitespace-nowrap">
                         <div className="flex items-center gap-1">
                           <span className={statusBadgeClass(r.status)}>{backendToPayrollStatus(r.status)}</span>
@@ -600,10 +577,10 @@ export default function AdminPayrollInputs() {
                       </td>
                       <td className="px-2 py-1.5 whitespace-nowrap text-right">
                         <div className="flex items-center gap-1 justify-end">
-                          <button type="button" onClick={() => openEdit(r)} className="p-1.5 rounded-lg text-surface-500 hover:bg-surface-100" title="Edit" disabled={r.isLocked}>
+                          <button type="button" onClick={() => openEdit(r)} className="p-1.5 rounded-lg text-surface-500 dark:text-surface-400 dark:text-surface-500 hover:bg-surface-100 dark:hover:bg-surface-700 dark:bg-surface-800" title="Edit" disabled={r.isLocked}>
                             <Pencil className="w-3.5 h-3.5" />
                           </button>
-                          <button type="button" onClick={() => handleToggleLock(r.id, r.isLocked)} className="p-1.5 rounded-lg text-surface-500 hover:bg-surface-100" title={r.isLocked ? 'Unlock' : 'Lock'}>
+                          <button type="button" onClick={() => handleToggleLock(r.id, r.isLocked)} className="p-1.5 rounded-lg text-surface-500 dark:text-surface-400 dark:text-surface-500 hover:bg-surface-100 dark:hover:bg-surface-700 dark:bg-surface-800" title={r.isLocked ? 'Unlock' : 'Lock'}>
                             {r.isLocked ? <Unlock className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5" />}
                           </button>
                           <button type="button" onClick={() => handleDelete(r.id)} disabled={r.isLocked} className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 disabled:opacity-40" title="Delete">
@@ -827,9 +804,9 @@ function PayrollInputModal({
           <div className="modal-header">
             <div>
               <h2 className="modal-title">{isEdit ? 'Edit' : 'New'} payroll input</h2>
-              <p className="text-[11px] text-surface-500 mt-0.5">Bonus, commission, claim, or deduction</p>
+              <p className="text-[11px] text-surface-500 dark:text-surface-400 dark:text-surface-500 mt-0.5">Bonus, commission, claim, or deduction</p>
             </div>
-            <button type="button" onClick={onClose} className="btn-icon text-surface-400 hover:text-surface-900 hover:bg-surface-100">
+            <button type="button" onClick={onClose} className="btn-icon text-surface-400 dark:text-surface-500 hover:text-surface-900 dark:text-surface-50 hover:bg-surface-100 dark:hover:bg-surface-700 dark:bg-surface-800">
               <X className="w-4 h-4" />
             </button>
           </div>
@@ -867,7 +844,7 @@ function PayrollInputModal({
 
           <div>
             <label className="label">Calculation</label>
-            <div className="flex gap-0 rounded-xl overflow-hidden border border-surface-200">
+            <div className="flex gap-0 rounded-xl overflow-hidden border border-surface-200 dark:border-surface-700">
               {([
                 { value: 'hourly' as const, label: 'Hourly' },
                 { value: 'base_amount' as const, label: 'Base amount' },
@@ -878,7 +855,7 @@ function PayrollInputModal({
                   disabled={locked}
                   onClick={() => setCalcType(opt.value)}
                   className={`flex-1 px-3 py-2.5 text-xs sm:text-sm font-medium transition-colors ${
-                    calcType === opt.value ? 'bg-brand-600 text-white' : 'bg-surface-50 text-surface-600 hover:bg-surface-100'
+                    calcType === opt.value ? 'bg-brand-600 text-white' : 'bg-surface-50 dark:bg-surface-900 text-surface-600 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-700 dark:bg-surface-800'
                   } disabled:opacity-60`}
                 >
                   {opt.label}
@@ -934,10 +911,10 @@ function PayrollInputModal({
           )}
 
           {/* Live Input Amount */}
-          <div className="rounded-xl border border-surface-200 bg-surface-50 p-4 flex items-center justify-between">
+          <div className="rounded-xl border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900 p-4 flex items-center justify-between">
             <div>
-              <p className="text-[10px] font-semibold text-surface-500 uppercase tracking-wider">Input Amount (preview)</p>
-              <p className="text-xs text-surface-500 mt-0.5">Calculated automatically on save</p>
+              <p className="text-[10px] font-semibold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider">Input Amount (preview)</p>
+              <p className="text-xs text-surface-500 dark:text-surface-400 dark:text-surface-500 mt-0.5">Calculated automatically on save</p>
             </div>
             <p className={`text-2xl font-bold tabular-nums ${isDeductionInputType(inputType) ? 'text-red-600' : 'text-brand-700'}`}>
               {isDeductionInputType(inputType) ? '−' : '+'}${liveAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -973,7 +950,7 @@ function PayrollInputModal({
 
           <div>
             <label className="label">Approver Status</label>
-            <div className="flex gap-0 rounded-xl overflow-hidden border border-surface-200">
+            <div className="flex gap-0 rounded-xl overflow-hidden border border-surface-200 dark:border-surface-700">
               {([
                 { value: 'pending' as const, label: 'Pending' },
                 { value: 'approved' as const, label: 'Approved' },
@@ -985,7 +962,7 @@ function PayrollInputModal({
                   disabled={locked}
                   onClick={() => setPayrollStatus(opt.value)}
                   className={`flex-1 px-3 py-2.5 text-xs font-medium transition-colors ${
-                    payrollStatus === opt.value ? 'bg-brand-600 text-white' : 'bg-surface-50 text-surface-600 hover:bg-surface-100'
+                    payrollStatus === opt.value ? 'bg-brand-600 text-white' : 'bg-surface-50 dark:bg-surface-900 text-surface-600 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-700 dark:bg-surface-800'
                   } disabled:opacity-60`}
                 >
                   {opt.label}
@@ -1025,21 +1002,21 @@ function PayrollInputModal({
             <DocumentUpload entityType="payroll_input" entityId={existing.id} />
           ) : !isEdit ? (
             <div className="rounded-xl border border-dashed border-surface-300 bg-surface-50/60 p-4 text-center">
-              <Upload className="w-5 h-5 text-surface-400 mx-auto mb-1.5" />
-              <p className="text-xs font-medium text-surface-500">Documents</p>
-              <p className="text-[11px] text-surface-400 mt-0.5">Save the record first, then you can upload documents.</p>
+              <Upload className="w-5 h-5 text-surface-400 dark:text-surface-500 mx-auto mb-1.5" />
+              <p className="text-xs font-medium text-surface-500 dark:text-surface-400 dark:text-surface-500">Documents</p>
+              <p className="text-[11px] text-surface-400 dark:text-surface-500 mt-0.5">Save the record first, then you can upload documents.</p>
             </div>
           ) : null}
 
           {/* Lock toggle */}
           {isEdit && existing && (
-            <div className="flex items-center justify-between rounded-xl border border-surface-200 bg-surface-50 p-4">
+            <div className="flex items-center justify-between rounded-xl border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900 p-4">
               <div>
-                <p className="text-sm font-semibold text-surface-900 flex items-center gap-2">
+                <p className="text-sm font-semibold text-surface-900 dark:text-surface-50 flex items-center gap-2">
                   {locked ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
                   {locked ? 'Record is locked' : 'Record is editable'}
                 </p>
-                <p className="text-[11px] text-surface-500 mt-0.5">Locking prevents further changes.</p>
+                <p className="text-[11px] text-surface-500 dark:text-surface-400 dark:text-surface-500 mt-0.5">Locking prevents further changes.</p>
               </div>
               <button
                 type="button"
@@ -1219,9 +1196,9 @@ function BulkImportModal({
         <div className="modal-header">
           <div>
             <h2 className="modal-title">Import payroll inputs</h2>
-            <p className="text-[11px] text-surface-500 mt-0.5">Download the template, fill it in, then upload</p>
+            <p className="text-[11px] text-surface-500 dark:text-surface-400 dark:text-surface-500 mt-0.5">Download the template, fill it in, then upload</p>
           </div>
-          <button type="button" onClick={onClose} className="btn-icon text-surface-400 hover:text-surface-900 hover:bg-surface-100">
+          <button type="button" onClick={onClose} className="btn-icon text-surface-400 dark:text-surface-500 hover:text-surface-900 dark:text-surface-50 hover:bg-surface-100 dark:hover:bg-surface-700 dark:bg-surface-800">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -1237,8 +1214,8 @@ function BulkImportModal({
                     <FileSpreadsheet className="w-5 h-5 text-brand-600" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-surface-900">Step 1: Download Template</p>
-                    <p className="text-xs text-surface-600 mt-0.5">
+                    <p className="text-sm font-semibold text-surface-900 dark:text-surface-50">Step 1: Download Template</p>
+                    <p className="text-xs text-surface-600 dark:text-surface-300 mt-0.5">
                       Download the Excel template with the correct column headers and a sample row.
                     </p>
                     <button type="button" onClick={downloadTemplate} className="btn-secondary btn-sm mt-2">
@@ -1250,8 +1227,8 @@ function BulkImportModal({
               </div>
 
               {/* File upload area */}
-              <div className="rounded-xl border border-surface-200 bg-surface-50/50 p-4">
-                <p className="text-sm font-semibold text-surface-900 mb-2">Step 2: Upload your file</p>
+              <div className="rounded-xl border border-surface-200 dark:border-surface-700 bg-surface-50/50 p-4">
+                <p className="text-sm font-semibold text-surface-900 dark:text-surface-50 mb-2">Step 2: Upload your file</p>
                 <div
                   className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer ${
                     dragOver ? 'border-brand-400 bg-brand-50/40' : 'border-surface-300 hover:border-brand-300 hover:bg-brand-50/20'
@@ -1261,11 +1238,11 @@ function BulkImportModal({
                   onDrop={handleDrop}
                   onClick={() => fileInputRef.current?.click()}
                 >
-                  <Upload className="w-8 h-8 text-surface-400 mx-auto mb-2" />
-                  <p className="text-sm text-surface-700">
+                  <Upload className="w-8 h-8 text-surface-400 dark:text-surface-500 mx-auto mb-2" />
+                  <p className="text-sm text-surface-700 dark:text-surface-200">
                     Drag and drop your file here, or <span className="text-brand-600 font-medium">click to browse</span>
                   </p>
-                  <p className="text-xs text-surface-500 mt-1">Accepts .xlsx, .xls, or .csv files</p>
+                  <p className="text-xs text-surface-500 dark:text-surface-400 dark:text-surface-500 mt-1">Accepts .xlsx, .xls, or .csv files</p>
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -1275,7 +1252,7 @@ function BulkImportModal({
                   />
                 </div>
                 {fileName && step === 'upload' && !parseError && (
-                  <p className="text-xs text-surface-600 mt-2">Selected: {fileName}</p>
+                  <p className="text-xs text-surface-600 dark:text-surface-300 mt-2">Selected: {fileName}</p>
                 )}
                 {parseError && (
                   <div className="alert-error mt-2">
@@ -1289,11 +1266,11 @@ function BulkImportModal({
 
           {/* Step 2: Preview */}
           {step === 'preview' && (
-            <div className="rounded-xl border border-surface-200 bg-white p-4">
+            <div className="rounded-xl border border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-900 p-4">
               <div className="flex items-center justify-between mb-3">
                 <div>
-                  <p className="text-sm font-semibold text-surface-900">Step 3: Preview</p>
-                  <p className="text-xs text-surface-500 mt-0.5">
+                  <p className="text-sm font-semibold text-surface-900 dark:text-surface-50">Step 3: Preview</p>
+                  <p className="text-xs text-surface-500 dark:text-surface-400 dark:text-surface-500 mt-0.5">
                     Showing {previewSlice.length} of {parsedRows.length} rows. Verify the data before uploading.
                   </p>
                 </div>
@@ -1311,13 +1288,13 @@ function BulkImportModal({
                   <span>{uploadError}</span>
                 </div>
               )}
-              <div className="overflow-x-auto max-h-64 border border-surface-200 rounded-lg">
+              <div className="overflow-x-auto max-h-64 border border-surface-200 dark:border-surface-700 rounded-lg">
                 <table className="w-full text-left border-collapse text-xs">
-                  <thead className="sticky top-0 bg-surface-50">
+                  <thead className="sticky top-0 bg-surface-50 dark:bg-surface-900">
                     <tr>
-                      <th className="px-2 py-1.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider border-b border-surface-200">#</th>
+                      <th className="px-2 py-1.5 text-[10px] font-semibold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider border-b border-surface-200 dark:border-surface-700">#</th>
                       {previewCols.map((col) => (
-                        <th key={col} className="px-2 py-1.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider border-b border-surface-200 whitespace-nowrap">
+                        <th key={col} className="px-2 py-1.5 text-[10px] font-semibold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider border-b border-surface-200 dark:border-surface-700 whitespace-nowrap">
                           {col}
                         </th>
                       ))}
@@ -1325,10 +1302,10 @@ function BulkImportModal({
                   </thead>
                   <tbody>
                     {previewSlice.map((row, idx) => (
-                      <tr key={idx} className="border-b border-surface-100 hover:bg-surface-50/50">
-                        <td className="px-2 py-1.5 text-surface-400 tabular-nums">{idx + 1}</td>
+                      <tr key={idx} className="border-b border-surface-100 dark:border-surface-800 hover:bg-surface-50/50">
+                        <td className="px-2 py-1.5 text-surface-400 dark:text-surface-500 tabular-nums">{idx + 1}</td>
                         {previewCols.map((col) => (
-                          <td key={col} className="px-2 py-1.5 text-surface-700 whitespace-nowrap max-w-[200px] truncate">
+                          <td key={col} className="px-2 py-1.5 text-surface-700 dark:text-surface-200 whitespace-nowrap max-w-[200px] truncate">
                             {String(row[col] ?? '')}
                           </td>
                         ))}
@@ -1338,7 +1315,7 @@ function BulkImportModal({
                 </table>
               </div>
               {parsedRows.length > 10 && (
-                <p className="text-[11px] text-surface-500 mt-2 text-center">
+                <p className="text-[11px] text-surface-500 dark:text-surface-400 dark:text-surface-500 mt-2 text-center">
                   ...and {parsedRows.length - 10} more rows not shown in preview
                 </p>
               )}
@@ -1349,8 +1326,8 @@ function BulkImportModal({
           {step === 'uploading' && (
             <div className="flex flex-col items-center justify-center py-12">
               <div className="w-10 h-10 border-4 border-brand-200 border-t-brand-600 rounded-full animate-spin mb-4" />
-              <p className="text-sm font-semibold text-surface-900">Uploading {parsedRows.length} rows...</p>
-              <p className="text-xs text-surface-500 mt-1">Please wait while we process your data.</p>
+              <p className="text-sm font-semibold text-surface-900 dark:text-surface-50">Uploading {parsedRows.length} rows...</p>
+              <p className="text-xs text-surface-500 dark:text-surface-400 dark:text-surface-500 mt-1">Please wait while we process your data.</p>
             </div>
           )}
 
@@ -1360,19 +1337,19 @@ function BulkImportModal({
               <div className="rounded-xl border border-emerald-200 bg-emerald-50/40 p-4 flex items-start gap-3">
                 <CheckCircle2 className="w-6 h-6 text-emerald-600 shrink-0 mt-0.5" />
                 <div>
-                  <p className="text-sm font-semibold text-surface-900">Upload complete</p>
+                  <p className="text-sm font-semibold text-surface-900 dark:text-surface-50">Upload complete</p>
                   <div className="flex flex-wrap gap-4 mt-2">
                     <div>
                       <p className="text-2xl font-bold text-emerald-700 tabular-nums">{uploadResult.created}</p>
-                      <p className="text-xs text-surface-500">Created</p>
+                      <p className="text-xs text-surface-500 dark:text-surface-400 dark:text-surface-500">Created</p>
                     </div>
                     <div>
                       <p className="text-2xl font-bold text-amber-600 tabular-nums">{uploadResult.skipped}</p>
-                      <p className="text-xs text-surface-500">Skipped</p>
+                      <p className="text-xs text-surface-500 dark:text-surface-400 dark:text-surface-500">Skipped</p>
                     </div>
                     <div>
                       <p className="text-2xl font-bold text-red-600 tabular-nums">{uploadResult.errors.length}</p>
-                      <p className="text-xs text-surface-500">Errors</p>
+                      <p className="text-xs text-surface-500 dark:text-surface-400 dark:text-surface-500">Errors</p>
                     </div>
                   </div>
                 </div>

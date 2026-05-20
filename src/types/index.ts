@@ -59,6 +59,18 @@ export interface AttendanceRecord {
   billableRvwHours?: number
   comments?: string
   isLocked?: boolean
+  // 19MAY2026 Scheduler Demos meeting — audit + reviewed fields.
+  createdBy?: string | null
+  createdByName?: string | null
+  createdOn?: string | null
+  modifiedBy?: string | null
+  modifiedByName?: string | null
+  modifiedOn?: string | null
+  reviewed?: boolean
+  reviewedBy?: string | null
+  reviewedByName?: string | null
+  reviewedAt?: string | null
+  isScheduled?: boolean
   // Backward compatibility
   regularHours: number
   overtimeHours: number

@@ -16,8 +16,8 @@ export function BulkActionBar({ count, onClear, children }: BulkActionBarProps) 
   if (count <= 0) return null
   return (
     <div className="fixed bottom-4 inset-x-0 z-30 flex justify-center pointer-events-none">
-      <div className="pointer-events-auto flex items-center gap-3 rounded-2xl border border-surface-200 bg-white shadow-xl px-3 py-2 sm:px-4 sm:py-2.5 max-w-[calc(100vw-1.5rem)]">
-        <span className="text-xs sm:text-sm font-medium text-surface-700 whitespace-nowrap">
+      <div className="pointer-events-auto flex items-center gap-3 rounded-2xl border border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-900 shadow-xl px-3 py-2 sm:px-4 sm:py-2.5 max-w-[calc(100vw-1.5rem)]">
+        <span className="text-xs sm:text-sm font-medium text-surface-700 dark:text-surface-200 whitespace-nowrap">
           <span className="inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1.5 rounded-full bg-brand-50 text-brand-700 border border-brand-100 text-xs font-semibold mr-2 tabular-nums">
             {count}
           </span>
@@ -28,7 +28,7 @@ export function BulkActionBar({ count, onClear, children }: BulkActionBarProps) 
         <button
           type="button"
           onClick={onClear}
-          className="btn-icon text-surface-400 hover:text-surface-700 hover:bg-surface-100 ml-1 shrink-0"
+          className="btn-icon text-surface-400 dark:text-surface-500 hover:text-surface-700 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-700 dark:bg-surface-800 ml-1 shrink-0"
           aria-label="Clear selection"
           title="Clear selection"
         >

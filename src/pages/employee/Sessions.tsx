@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { format, startOfWeek, endOfWeek } from 'date-fns'
 import { Search, Clock, ArrowUp, ArrowDown, Filter } from 'lucide-react'
 import { getMyAttendance, getEmployeePayrollPeriods, type PayrollPeriod } from '@/lib/apiEmployee'
+import { buildCycleOptions } from '@/lib/cycleOptions'
 import type { AttendanceRecord } from '@/types'
 import DateRangePicker from '@/components/DateRangePicker'
 import AdminSelect from '@/components/AdminSelect'
@@ -20,10 +21,10 @@ const statusColors: Record<string, string> = {
   'Left Early': 'bg-amber-100 text-amber-700',
   'Late & Left Early': 'bg-amber-100 text-amber-700',
   'Time Off': 'bg-sky-100 text-sky-700',
-  'System Issues': 'bg-surface-200 text-surface-700',
-  Terminated: 'bg-surface-200 text-surface-700',
-  Prenotice: 'bg-surface-200 text-surface-700',
-  Breastfeeding: 'bg-surface-200 text-surface-700',
+  'System Issues': 'bg-surface-200 text-surface-700 dark:text-surface-200',
+  Terminated: 'bg-surface-200 text-surface-700 dark:text-surface-200',
+  Prenotice: 'bg-surface-200 text-surface-700 dark:text-surface-200',
+  Breastfeeding: 'bg-surface-200 text-surface-700 dark:text-surface-200',
   REVIEW: 'bg-indigo-100 text-indigo-700',
   present: 'bg-emerald-100 text-emerald-700',
   absent: 'bg-red-100 text-red-700',
@@ -46,7 +47,7 @@ const CARD_COLORS: Record<string, { border: string; bg: string; label: string }>
   emerald: { border: 'border-emerald-200/80', bg: 'bg-emerald-50/50', label: 'text-emerald-700' },
   sky: { border: 'border-sky-200/80', bg: 'bg-sky-50/50', label: 'text-sky-700' },
   violet: { border: 'border-violet-200/80', bg: 'bg-violet-50/50', label: 'text-violet-700' },
-  surface: { border: 'border-surface-200/80', bg: 'bg-surface-50/50', label: 'text-surface-500' },
+  surface: { border: 'border-surface-200/80', bg: 'bg-surface-50/50', label: 'text-surface-500 dark:text-surface-400 dark:text-surface-500' },
 }
 
 // ---------------------------------------------------------------------------
@@ -75,9 +76,9 @@ function fmtHours(val: number | null | undefined): string {
 function SummaryCard({ label, value, color }: { label: string; value: string | number; color?: string }) {
   const c = color && CARD_COLORS[color] ? CARD_COLORS[color] : null
   return (
-    <div className={`rounded-xl border ${c?.border ?? 'border-surface-200/70'} ${c?.bg ?? 'bg-white'} p-3 sm:p-3.5 shadow-card`}>
-      <p className={`text-[10px] sm:text-[11px] font-semibold ${c?.label ?? 'text-surface-500'} uppercase tracking-wider`}>{label}</p>
-      <p className="mt-0.5 text-base sm:text-lg font-bold text-surface-900 tabular-nums tracking-tight">{value}</p>
+    <div className={`rounded-xl border ${c?.border ?? 'border-surface-200/70'} ${c?.bg ?? 'bg-white dark:bg-surface-900'} p-3 sm:p-3.5 shadow-card`}>
+      <p className={`text-[10px] sm:text-[11px] font-semibold ${c?.label ?? 'text-surface-500 dark:text-surface-400 dark:text-surface-500'} uppercase tracking-wider`}>{label}</p>
+      <p className="mt-0.5 text-base sm:text-lg font-bold text-surface-900 dark:text-surface-50 tabular-nums tracking-tight">{value}</p>
     </div>
   )
 }
@@ -272,7 +273,7 @@ export default function EmployeeSessions() {
       {/* Filters */}
       <div className="toolbar">
         <div className="relative flex-1 min-w-0">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400 shrink-0" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400 dark:text-surface-500 shrink-0" />
           <input
             type="text"
             placeholder="Search by date, status, pay type, or task"
@@ -300,10 +301,7 @@ export default function EmployeeSessions() {
                 setDateTo(format(endOfWeek(new Date(), { weekStartsOn: 0 }), 'yyyy-MM-dd'))
               }
             }}
-            options={[
-              { value: '', label: 'All cycles' },
-              ...payrollPeriods.map((p) => ({ value: p.cycleCode, label: p.cycleCode })),
-            ]}
+            options={buildCycleOptions(payrollPeriods, [{ value: '', label: 'All cycles' }])}
           />
         </div>
         <div className="w-full sm:w-auto sm:min-w-[180px]">
@@ -341,7 +339,7 @@ export default function EmployeeSessions() {
 
       {/* Summary cards - Row 2: Payable Hours */}
       <div>
-        <p className="text-[10px] sm:text-xs font-semibold text-surface-500 uppercase tracking-wider mb-2">Payable Hours</p>
+        <p className="text-[10px] sm:text-xs font-semibold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider mb-2">Payable Hours</p>
         <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-7 gap-3 sm:gap-4">
           <SummaryCard label="Regular" value={fmtHours(summary.totalReg)} color="brand" />
           <SummaryCard label="Night (15%)" value={fmtHours(summary.totalN15)} color="violet" />
@@ -354,7 +352,7 @@ export default function EmployeeSessions() {
       </div>
 
       {/* Table */}
-      <div className="rounded-xl sm:rounded-2xl border border-surface-200/80 bg-white overflow-hidden shadow-sm min-w-0">
+      <div className="rounded-xl sm:rounded-2xl border border-surface-200/80 bg-white dark:bg-surface-900 overflow-hidden shadow-sm min-w-0">
         {loading ? (
           <div className="p-12 flex items-center justify-center">
             <div className="w-8 h-8 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
@@ -362,26 +360,26 @@ export default function EmployeeSessions() {
         ) : records.length === 0 ? (
           <div className="p-8 sm:p-16 text-center">
             <div className="flex flex-col items-center gap-3">
-              <div className="w-12 h-12 rounded-full bg-surface-100 flex items-center justify-center text-surface-400">
+              <div className="w-12 h-12 rounded-full bg-surface-100 dark:bg-surface-800 flex items-center justify-center text-surface-400 dark:text-surface-500">
                 <Clock className="w-5 h-5" />
               </div>
-              <p className="text-sm font-medium text-surface-700">No attendance records</p>
-              <p className="text-xs text-surface-500">No records match your date range. Try adjusting the dates.</p>
+              <p className="text-sm font-medium text-surface-700 dark:text-surface-200">No attendance records</p>
+              <p className="text-xs text-surface-500 dark:text-surface-400 dark:text-surface-500">No records match your date range. Try adjusting the dates.</p>
             </div>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-[1800px] w-full text-left border-collapse">
               {/* Header */}
-              <thead className="sticky top-0 z-10 bg-surface-50">
+              <thead className="sticky top-0 z-10 bg-surface-50 dark:bg-surface-900">
                 {/* Group header row */}
                 <tr>
-                  <th colSpan={2} className="px-2 py-1 text-[9px] font-bold text-brand-600 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 bg-brand-50/40 text-center">Employee</th>
-                  <th colSpan={4} className="px-2 py-1 text-[9px] font-bold text-violet-600 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 bg-violet-50/40 text-center">Shift</th>
-                  <th colSpan={5} className="px-2 py-1 text-[9px] font-bold text-amber-600 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 bg-amber-50/40 text-center">Classification</th>
-                  <th colSpan={4} className="px-2 py-1 text-[9px] font-bold text-surface-500 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 bg-surface-50 text-center">Time</th>
-                  <th colSpan={6} className="px-2 py-1 text-[9px] font-bold text-blue-600 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 bg-blue-50/40 text-center">Payable Hours</th>
-                  <th colSpan={1} className="px-2 py-1 text-[9px] font-bold text-surface-500 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 bg-surface-50 text-center">&nbsp;</th>
+                  <th colSpan={2} className="px-2 py-1 text-[9px] font-bold text-brand-600 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 dark:border-surface-700 bg-brand-50/40 text-center">Employee</th>
+                  <th colSpan={4} className="px-2 py-1 text-[9px] font-bold text-violet-600 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 dark:border-surface-700 bg-violet-50/40 text-center">Shift</th>
+                  <th colSpan={5} className="px-2 py-1 text-[9px] font-bold text-amber-600 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 dark:border-surface-700 bg-amber-50/40 text-center">Classification</th>
+                  <th colSpan={4} className="px-2 py-1 text-[9px] font-bold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900 text-center">Time</th>
+                  <th colSpan={6} className="px-2 py-1 text-[9px] font-bold text-blue-600 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 dark:border-surface-700 bg-blue-50/40 text-center">Payable Hours</th>
+                  <th colSpan={1} className="px-2 py-1 text-[9px] font-bold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900 text-center">&nbsp;</th>
                 </tr>
                 {/* Column header row */}
                 <tr>
@@ -411,12 +409,12 @@ export default function EmployeeSessions() {
                   ].map((col) => (
                     <th
                       key={col}
-                      className="px-2 py-1 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap border-b border-surface-200"
+                      className="px-2 py-1 text-[10px] font-semibold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 dark:border-surface-700"
                     >
                       <div className="flex items-center gap-0.5">
                         <button
                           type="button"
-                          className="flex items-center gap-0.5 hover:text-surface-700 transition-colors"
+                          className="flex items-center gap-0.5 hover:text-surface-700 dark:text-surface-200 transition-colors"
                           onClick={() => handleSort(col)}
                         >
                           {col}
@@ -426,7 +424,7 @@ export default function EmployeeSessions() {
                         </button>
                         <button
                           type="button"
-                          className={`p-0.5 rounded hover:bg-surface-200/60 transition-colors ${columnFilters[col] ? 'text-brand-600' : 'text-surface-400'}`}
+                          className={`p-0.5 rounded hover:bg-surface-200/60 transition-colors ${columnFilters[col] ? 'text-brand-600' : 'text-surface-400 dark:text-surface-500'}`}
                           onClick={(e) => { e.stopPropagation(); setFilterOpen(filterOpen === col ? null : col) }}
                         >
                           <Filter className="w-2.5 h-2.5" />
@@ -439,7 +437,7 @@ export default function EmployeeSessions() {
                             value={columnFilters[col] ?? ''}
                             onChange={(e) => handleColumnFilter(col, e.target.value)}
                             placeholder={`Filter ${col}...`}
-                            className="w-full text-[10px] font-normal normal-case tracking-normal border border-surface-200 rounded px-1.5 py-1 bg-white focus:ring-1 focus:ring-brand-300 outline-none"
+                            className="w-full text-[10px] font-normal normal-case tracking-normal border border-surface-200 dark:border-surface-700 rounded px-1.5 py-1 bg-white dark:bg-surface-900 focus:ring-1 focus:ring-brand-300 outline-none"
                             autoFocus
                           />
                         </div>
@@ -455,11 +453,11 @@ export default function EmployeeSessions() {
                   <tr>
                     <td colSpan={22} className="py-12">
                       <div className="flex flex-col items-center justify-center text-center">
-                        <div className="w-12 h-12 rounded-full bg-surface-100 flex items-center justify-center text-surface-400 mb-3">
+                        <div className="w-12 h-12 rounded-full bg-surface-100 dark:bg-surface-800 flex items-center justify-center text-surface-400 dark:text-surface-500 mb-3">
                           <Search className="w-5 h-5" />
                         </div>
-                        <p className="text-sm font-medium text-surface-700">No matches</p>
-                        <p className="text-xs text-surface-500 mt-1">Try adjusting your search or column filters.</p>
+                        <p className="text-sm font-medium text-surface-700 dark:text-surface-200">No matches</p>
+                        <p className="text-xs text-surface-500 dark:text-surface-400 dark:text-surface-500 mt-1">Try adjusting your search or column filters.</p>
                         {Object.values(columnFilters).some(Boolean) && (
                           <button type="button" className="btn-secondary btn-sm mt-3" onClick={() => { setColumnFilters({}); setFilterOpen(null) }}>
                             Clear column filters
@@ -474,69 +472,69 @@ export default function EmployeeSessions() {
                   return (
                     <tr
                       key={sid}
-                      className="border-b border-surface-100 hover:bg-surface-50/60 transition-colors cursor-pointer"
+                      className="border-b border-surface-100 dark:border-surface-800 hover:bg-surface-50/60 transition-colors cursor-pointer"
                       onClick={() => setDetailRecord(r)}
                     >
                       {/* Date */}
-                      <td className="px-2 py-1.5 text-xs font-medium text-surface-900 whitespace-nowrap">
+                      <td className="px-2 py-1.5 text-xs font-medium text-surface-900 dark:text-surface-50 whitespace-nowrap">
                         {r.date ?? ''}
                       </td>
                       {/* Account */}
-                      <td className="px-2 py-1.5 text-xs text-surface-700 whitespace-nowrap">
+                      <td className="px-2 py-1.5 text-xs text-surface-700 dark:text-surface-200 whitespace-nowrap">
                         {r.accountName ?? '-'}
                       </td>
                       {/* Shift Start */}
-                      <td className="px-2 py-1.5 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">
+                      <td className="px-2 py-1.5 text-xs font-mono text-surface-700 dark:text-surface-200 tabular-nums whitespace-nowrap">
                         {fmtDateTime(r.shiftStart)}
                       </td>
                       {/* Clock In */}
-                      <td className="px-2 py-1.5 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">
+                      <td className="px-2 py-1.5 text-xs font-mono text-surface-700 dark:text-surface-200 tabular-nums whitespace-nowrap">
                         {fmtDateTime(r.clockIn)}
                       </td>
                       {/* Shift End */}
-                      <td className="px-2 py-1.5 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">
+                      <td className="px-2 py-1.5 text-xs font-mono text-surface-700 dark:text-surface-200 tabular-nums whitespace-nowrap">
                         {fmtDateTime(r.shiftEnd)}
                       </td>
                       {/* Clock Out */}
-                      <td className="px-2 py-1.5 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">
+                      <td className="px-2 py-1.5 text-xs font-mono text-surface-700 dark:text-surface-200 tabular-nums whitespace-nowrap">
                         {fmtDateTime(r.clockOut)}
                       </td>
                       {/* Status */}
                       <td className="px-2 py-1.5 whitespace-nowrap">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium capitalize ${statusColors[r.status] || 'bg-surface-100 text-surface-600'}`}>
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium capitalize ${statusColors[r.status] || 'bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-300'}`}>
                           {r.status}
                         </span>
                       </td>
                       {/* Pay */}
-                      <td className="px-2 py-1.5 text-xs text-surface-700 whitespace-nowrap">
+                      <td className="px-2 py-1.5 text-xs text-surface-700 dark:text-surface-200 whitespace-nowrap">
                         {r.payType ?? ''}
                       </td>
                       {/* Bill */}
-                      <td className="px-2 py-1.5 text-xs text-surface-700 whitespace-nowrap">
+                      <td className="px-2 py-1.5 text-xs text-surface-700 dark:text-surface-200 whitespace-nowrap">
                         {r.billType ?? ''}
                       </td>
                       {/* Stage */}
-                      <td className="px-2 py-1.5 text-xs text-surface-700 whitespace-nowrap">
+                      <td className="px-2 py-1.5 text-xs text-surface-700 dark:text-surface-200 whitespace-nowrap">
                         {r.stage ?? ''}
                       </td>
                       {/* Task */}
-                      <td className="px-2 py-1.5 text-xs text-surface-700 whitespace-nowrap">
+                      <td className="px-2 py-1.5 text-xs text-surface-700 dark:text-surface-200 whitespace-nowrap">
                         {r.task ?? ''}
                       </td>
                       {/* SCH */}
-                      <td className={`px-2 py-1.5 text-xs tabular-nums whitespace-nowrap text-right ${(r.scheduledHours ?? 0) > 0 ? 'text-surface-700 font-medium' : 'text-surface-300'}`}>
+                      <td className={`px-2 py-1.5 text-xs tabular-nums whitespace-nowrap text-right ${(r.scheduledHours ?? 0) > 0 ? 'text-surface-700 dark:text-surface-200 font-medium' : 'text-surface-300'}`}>
                         {fmtHours(r.scheduledHours)}
                       </td>
                       {/* SDBT */}
-                      <td className={`px-2 py-1.5 text-xs tabular-nums whitespace-nowrap text-right ${(r.sdbtHours ?? 0) > 0 ? 'text-surface-700 font-medium' : 'text-surface-300'}`}>
+                      <td className={`px-2 py-1.5 text-xs tabular-nums whitespace-nowrap text-right ${(r.sdbtHours ?? 0) > 0 ? 'text-surface-700 dark:text-surface-200 font-medium' : 'text-surface-300'}`}>
                         {fmtHours(r.sdbtHours)}
                       </td>
                       {/* ACT */}
-                      <td className={`px-2 py-1.5 text-xs tabular-nums whitespace-nowrap text-right ${(r.actualHours ?? 0) > 0 ? 'text-surface-700 font-medium' : 'text-surface-300'}`}>
+                      <td className={`px-2 py-1.5 text-xs tabular-nums whitespace-nowrap text-right ${(r.actualHours ?? 0) > 0 ? 'text-surface-700 dark:text-surface-200 font-medium' : 'text-surface-300'}`}>
                         {fmtHours(r.actualHours)}
                       </td>
                       {/* ADBT */}
-                      <td className={`px-2 py-1.5 text-xs tabular-nums whitespace-nowrap text-right ${(r.adbtHours ?? 0) > 0 ? 'text-surface-700 font-medium' : 'text-surface-300'}`}>
+                      <td className={`px-2 py-1.5 text-xs tabular-nums whitespace-nowrap text-right ${(r.adbtHours ?? 0) > 0 ? 'text-surface-700 dark:text-surface-200 font-medium' : 'text-surface-300'}`}>
                         {fmtHours(r.adbtHours)}
                       </td>
                       {/* P-REG */}
@@ -564,7 +562,7 @@ export default function EmployeeSessions() {
                         {fmtHours(r.payableRvwHours)}
                       </td>
                       {/* Comments */}
-                      <td className="px-2 py-1.5 text-xs text-surface-600 whitespace-nowrap max-w-[200px] truncate" title={r.comments ?? ''}>
+                      <td className="px-2 py-1.5 text-xs text-surface-600 dark:text-surface-300 whitespace-nowrap max-w-[200px] truncate" title={r.comments ?? ''}>
                         {r.comments ?? ''}
                       </td>
                     </tr>
@@ -585,17 +583,17 @@ export default function EmployeeSessions() {
             onClick={() => setDetailRecord(null)}
             aria-label="Close"
           />
-          <div className="relative z-10 w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl border border-surface-200 bg-white shadow-xl">
+          <div className="relative z-10 w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl border border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-900 shadow-xl">
             {/* Header */}
-            <div className="sticky top-0 z-10 bg-white rounded-t-2xl border-b border-surface-100 px-6 py-4 flex items-center justify-between">
+            <div className="sticky top-0 z-10 bg-white dark:bg-surface-900 rounded-t-2xl border-b border-surface-100 dark:border-surface-800 px-6 py-4 flex items-center justify-between">
               <div>
-                <h2 className="text-base font-semibold text-surface-900">Attendance Detail</h2>
-                <p className="text-xs text-surface-500 mt-0.5">{detailRecord.date}</p>
+                <h2 className="text-base font-semibold text-surface-900 dark:text-surface-50">Attendance Detail</h2>
+                <p className="text-xs text-surface-500 dark:text-surface-400 dark:text-surface-500 mt-0.5">{detailRecord.date}</p>
               </div>
               <button
                 type="button"
                 onClick={() => setDetailRecord(null)}
-                className="p-2 rounded-lg text-surface-400 hover:bg-surface-100 hover:text-surface-700"
+                className="p-2 rounded-lg text-surface-400 dark:text-surface-500 hover:bg-surface-100 dark:hover:bg-surface-700 dark:bg-surface-800 hover:text-surface-700 dark:text-surface-200"
               >
                 <span className="sr-only">Close</span>
                 <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M18 6L6 18M6 6l12 12" /></svg>
@@ -604,8 +602,8 @@ export default function EmployeeSessions() {
 
             <div className="p-6 space-y-5">
               {/* Shift & Clock */}
-              <div className="rounded-xl border border-surface-200 bg-surface-50 p-4">
-                <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider mb-3">Shift & Clock</p>
+              <div className="rounded-xl border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900 p-4">
+                <p className="text-[10px] font-semibold text-surface-400 dark:text-surface-500 uppercase tracking-wider mb-3">Shift & Clock</p>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   {([
                     { label: 'Shift Start', val: fmtTime(detailRecord.shiftStart) || '--' },
@@ -613,50 +611,50 @@ export default function EmployeeSessions() {
                     { label: 'Shift End', val: fmtTime(detailRecord.shiftEnd) || '--' },
                     { label: 'Clock Out', val: fmtTime(detailRecord.clockOut) || '--' },
                   ]).map((item) => (
-                    <div key={item.label} className="text-center rounded-lg bg-white border border-surface-100 py-2 px-1">
-                      <p className="text-[10px] font-medium text-surface-400 uppercase">{item.label}</p>
-                      <p className="text-sm font-semibold tabular-nums mt-0.5 text-surface-800 font-mono">{item.val}</p>
+                    <div key={item.label} className="text-center rounded-lg bg-white dark:bg-surface-900 border border-surface-100 dark:border-surface-800 py-2 px-1">
+                      <p className="text-[10px] font-medium text-surface-400 dark:text-surface-500 uppercase">{item.label}</p>
+                      <p className="text-sm font-semibold tabular-nums mt-0.5 text-surface-800 dark:text-surface-100 font-mono">{item.val}</p>
                     </div>
                   ))}
                 </div>
               </div>
 
               {/* Classification — added Account/Stage/Reports To per 19MAY2026 client video */}
-              <div className="rounded-xl border border-surface-200 bg-surface-50 p-4">
-                <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider mb-3">Classification</p>
+              <div className="rounded-xl border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900 p-4">
+                <p className="text-[10px] font-semibold text-surface-400 dark:text-surface-500 uppercase tracking-wider mb-3">Classification</p>
                 <div className="grid grid-cols-3 gap-3">
-                  <div className="text-center rounded-lg bg-white border border-surface-100 py-2 px-1">
-                    <p className="text-[10px] font-medium text-surface-400 uppercase">Status</p>
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium capitalize mt-1 ${statusColors[detailRecord.status] || 'bg-surface-100 text-surface-600'}`}>
+                  <div className="text-center rounded-lg bg-white dark:bg-surface-900 border border-surface-100 dark:border-surface-800 py-2 px-1">
+                    <p className="text-[10px] font-medium text-surface-400 dark:text-surface-500 uppercase">Status</p>
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium capitalize mt-1 ${statusColors[detailRecord.status] || 'bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-300'}`}>
                       {detailRecord.status}
                     </span>
                   </div>
-                  <div className="text-center rounded-lg bg-white border border-surface-100 py-2 px-1">
-                    <p className="text-[10px] font-medium text-surface-400 uppercase">Account</p>
-                    <p className="text-sm font-semibold text-surface-800 mt-0.5 truncate" title={detailRecord.accountName ?? ''}>{detailRecord.accountName ?? '--'}</p>
+                  <div className="text-center rounded-lg bg-white dark:bg-surface-900 border border-surface-100 dark:border-surface-800 py-2 px-1">
+                    <p className="text-[10px] font-medium text-surface-400 dark:text-surface-500 uppercase">Account</p>
+                    <p className="text-sm font-semibold text-surface-800 dark:text-surface-100 mt-0.5 truncate" title={detailRecord.accountName ?? ''}>{detailRecord.accountName ?? '--'}</p>
                   </div>
-                  <div className="text-center rounded-lg bg-white border border-surface-100 py-2 px-1">
-                    <p className="text-[10px] font-medium text-surface-400 uppercase">Task</p>
-                    <p className="text-sm font-semibold text-surface-800 mt-0.5 truncate" title={detailRecord.task ?? ''}>{detailRecord.task ?? '--'}</p>
+                  <div className="text-center rounded-lg bg-white dark:bg-surface-900 border border-surface-100 dark:border-surface-800 py-2 px-1">
+                    <p className="text-[10px] font-medium text-surface-400 dark:text-surface-500 uppercase">Task</p>
+                    <p className="text-sm font-semibold text-surface-800 dark:text-surface-100 mt-0.5 truncate" title={detailRecord.task ?? ''}>{detailRecord.task ?? '--'}</p>
                   </div>
-                  <div className="text-center rounded-lg bg-white border border-surface-100 py-2 px-1">
-                    <p className="text-[10px] font-medium text-surface-400 uppercase">Stage</p>
-                    <p className="text-sm font-semibold text-surface-800 mt-0.5 truncate">{detailRecord.stage ?? '--'}</p>
+                  <div className="text-center rounded-lg bg-white dark:bg-surface-900 border border-surface-100 dark:border-surface-800 py-2 px-1">
+                    <p className="text-[10px] font-medium text-surface-400 dark:text-surface-500 uppercase">Stage</p>
+                    <p className="text-sm font-semibold text-surface-800 dark:text-surface-100 mt-0.5 truncate">{detailRecord.stage ?? '--'}</p>
                   </div>
-                  <div className="text-center rounded-lg bg-white border border-surface-100 py-2 px-1">
-                    <p className="text-[10px] font-medium text-surface-400 uppercase">Reports To</p>
-                    <p className="text-sm font-semibold text-surface-800 mt-0.5 truncate" title={detailRecord.reportsTo ?? ''}>{detailRecord.reportsTo ?? '--'}</p>
+                  <div className="text-center rounded-lg bg-white dark:bg-surface-900 border border-surface-100 dark:border-surface-800 py-2 px-1">
+                    <p className="text-[10px] font-medium text-surface-400 dark:text-surface-500 uppercase">Reports To</p>
+                    <p className="text-sm font-semibold text-surface-800 dark:text-surface-100 mt-0.5 truncate" title={detailRecord.reportsTo ?? ''}>{detailRecord.reportsTo ?? '--'}</p>
                   </div>
-                  <div className="text-center rounded-lg bg-white border border-surface-100 py-2 px-1">
-                    <p className="text-[10px] font-medium text-surface-400 uppercase">Pay</p>
-                    <p className="text-sm font-semibold text-surface-800 mt-0.5">{detailRecord.payType ?? '--'}</p>
+                  <div className="text-center rounded-lg bg-white dark:bg-surface-900 border border-surface-100 dark:border-surface-800 py-2 px-1">
+                    <p className="text-[10px] font-medium text-surface-400 dark:text-surface-500 uppercase">Pay</p>
+                    <p className="text-sm font-semibold text-surface-800 dark:text-surface-100 mt-0.5">{detailRecord.payType ?? '--'}</p>
                   </div>
                 </div>
               </div>
 
               {/* Hours */}
-              <div className="rounded-xl border border-surface-200 bg-surface-50 p-4">
-                <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider mb-3">Hours</p>
+              <div className="rounded-xl border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900 p-4">
+                <p className="text-[10px] font-semibold text-surface-400 dark:text-surface-500 uppercase tracking-wider mb-3">Hours</p>
                 <div className="grid grid-cols-4 gap-2 mb-3">
                   {([
                     { label: 'SCH', val: detailRecord.scheduledHours },
@@ -664,9 +662,9 @@ export default function EmployeeSessions() {
                     { label: 'ACT', val: detailRecord.actualHours },
                     { label: 'ADBT', val: detailRecord.adbtHours },
                   ] as const).map((item) => (
-                    <div key={item.label} className="text-center rounded-lg bg-white border border-surface-100 py-2 px-1">
-                      <p className="text-[10px] font-medium text-surface-400 uppercase">{item.label}</p>
-                      <p className={`text-sm font-semibold tabular-nums mt-0.5 ${(item.val ?? 0) > 0 ? 'text-surface-800' : 'text-surface-300'}`}>{fmtHours(item.val)}</p>
+                    <div key={item.label} className="text-center rounded-lg bg-white dark:bg-surface-900 border border-surface-100 dark:border-surface-800 py-2 px-1">
+                      <p className="text-[10px] font-medium text-surface-400 dark:text-surface-500 uppercase">{item.label}</p>
+                      <p className={`text-sm font-semibold tabular-nums mt-0.5 ${(item.val ?? 0) > 0 ? 'text-surface-800 dark:text-surface-100' : 'text-surface-300'}`}>{fmtHours(item.val)}</p>
                     </div>
                   ))}
                 </div>
@@ -688,8 +686,8 @@ export default function EmployeeSessions() {
                         : item.color === 'amber' ? 'bg-amber-50 border-amber-200 text-amber-700'
                         : item.color === 'red' ? 'bg-red-50 border-red-200 text-red-700'
                         : item.color === 'emerald' ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
-                        : 'bg-surface-50 border-surface-200 text-surface-500'
-                      : 'bg-white border-surface-100 text-surface-300'
+                        : 'bg-surface-50 dark:bg-surface-900 border-surface-200 dark:border-surface-700 text-surface-500 dark:text-surface-400 dark:text-surface-500'
+                      : 'bg-white dark:bg-surface-900 border-surface-100 dark:border-surface-800 text-surface-300'
                     return (
                       <div key={item.label} className={`text-center rounded-lg border py-2 px-1 ${badgeBg}`}>
                         <p className="text-[10px] font-medium uppercase">{item.label}</p>
@@ -702,9 +700,9 @@ export default function EmployeeSessions() {
 
               {/* Comments */}
               {detailRecord.comments && (
-                <div className="rounded-xl border border-surface-200 bg-surface-50 p-4">
-                  <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider mb-2">Comments</p>
-                  <p className="text-sm text-surface-700">{detailRecord.comments}</p>
+                <div className="rounded-xl border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900 p-4">
+                  <p className="text-[10px] font-semibold text-surface-400 dark:text-surface-500 uppercase tracking-wider mb-2">Comments</p>
+                  <p className="text-sm text-surface-700 dark:text-surface-200">{detailRecord.comments}</p>
                 </div>
               )}
             </div>

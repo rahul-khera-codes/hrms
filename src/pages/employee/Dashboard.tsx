@@ -34,14 +34,14 @@ function HoursChart({ data }: { data: { label: string; value: number; color: str
     <div className="space-y-2.5">
       {data.map(d => (
         <div key={d.label} className="flex items-center gap-2.5">
-          <span className="text-[11px] font-semibold text-surface-600 w-[4.5rem] shrink-0 text-right">{d.label}</span>
-          <div className="flex-1 bg-surface-100 rounded-full h-5 overflow-hidden">
+          <span className="text-[11px] font-semibold text-surface-600 dark:text-surface-300 w-[4.5rem] shrink-0 text-right">{d.label}</span>
+          <div className="flex-1 bg-surface-100 dark:bg-surface-800 rounded-full h-5 overflow-hidden">
             <div
               className={`h-full rounded-full transition-all duration-500 ${d.color}`}
               style={{ width: `${(d.value / max) * 100}%`, minWidth: d.value > 0 ? '4px' : '0' }}
             />
           </div>
-          <span className="text-xs font-bold tabular-nums w-12 text-right text-surface-700">{d.value.toFixed(2)}</span>
+          <span className="text-xs font-bold tabular-nums w-12 text-right text-surface-700 dark:text-surface-200">{d.value.toFixed(2)}</span>
         </div>
       ))}
     </div>
@@ -307,8 +307,8 @@ export default function EmployeeDashboard() {
                 <Briefcase className="w-4 h-4" />
               </div>
               <div className="min-w-0">
-                <h3 className="text-sm font-semibold text-surface-900">Today's Shift</h3>
-                <p className="text-[11px] text-surface-500 mt-0.5">{format(new Date(), 'EEEE, MMM d, yyyy')}</p>
+                <h3 className="text-sm font-semibold text-surface-900 dark:text-surface-50">Today's Shift</h3>
+                <p className="text-[11px] text-surface-500 dark:text-surface-400 dark:text-surface-500 mt-0.5">{format(new Date(), 'EEEE, MMM d, yyyy')}</p>
               </div>
             </div>
           </div>
@@ -322,18 +322,18 @@ export default function EmployeeDashboard() {
                       {todaySchedule.shiftName}
                     </span>
                   </div>
-                  <p className="text-sm text-surface-600 font-medium">{todaySchedule.clientName}</p>
+                  <p className="text-sm text-surface-600 dark:text-surface-300 font-medium">{todaySchedule.clientName}</p>
                 </div>
 
                 {/* Time grid */}
                 <div className="grid grid-cols-2 gap-2">
-                  <div className="rounded-lg bg-surface-50 border border-surface-100 py-2.5 px-3 text-center">
-                    <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider">Shift Start</p>
-                    <p className="text-lg font-bold tabular-nums text-surface-800 mt-0.5">{todaySchedule.startTime || '--:--'}</p>
+                  <div className="rounded-lg bg-surface-50 dark:bg-surface-900 border border-surface-100 dark:border-surface-800 py-2.5 px-3 text-center">
+                    <p className="text-[10px] font-semibold text-surface-400 dark:text-surface-500 uppercase tracking-wider">Shift Start</p>
+                    <p className="text-lg font-bold tabular-nums text-surface-800 dark:text-surface-100 mt-0.5">{todaySchedule.startTime || '--:--'}</p>
                   </div>
-                  <div className="rounded-lg bg-surface-50 border border-surface-100 py-2.5 px-3 text-center">
-                    <p className="text-[10px] font-semibold text-surface-400 uppercase tracking-wider">Shift End</p>
-                    <p className="text-lg font-bold tabular-nums text-surface-800 mt-0.5">{todaySchedule.endTime || '--:--'}</p>
+                  <div className="rounded-lg bg-surface-50 dark:bg-surface-900 border border-surface-100 dark:border-surface-800 py-2.5 px-3 text-center">
+                    <p className="text-[10px] font-semibold text-surface-400 dark:text-surface-500 uppercase tracking-wider">Shift End</p>
+                    <p className="text-lg font-bold tabular-nums text-surface-800 dark:text-surface-100 mt-0.5">{todaySchedule.endTime || '--:--'}</p>
                   </div>
                   <div className="rounded-lg bg-blue-50 border border-blue-100 py-2.5 px-3 text-center">
                     <p className="text-[10px] font-semibold text-blue-400 uppercase tracking-wider">Clock In</p>
@@ -351,10 +351,10 @@ export default function EmployeeDashboard() {
               </div>
             ) : (
               <div className="text-center py-6">
-                <div className="w-10 h-10 rounded-full bg-surface-100 flex items-center justify-center mx-auto mb-2">
-                  <Briefcase className="w-4 h-4 text-surface-400" />
+                <div className="w-10 h-10 rounded-full bg-surface-100 dark:bg-surface-800 flex items-center justify-center mx-auto mb-2">
+                  <Briefcase className="w-4 h-4 text-surface-400 dark:text-surface-500" />
                 </div>
-                <p className="text-sm text-surface-500">No shift scheduled for today</p>
+                <p className="text-sm text-surface-500 dark:text-surface-400 dark:text-surface-500">No shift scheduled for today</p>
                 {(clockedIn || todayAttendance) && (
                   <div className="grid grid-cols-2 gap-2 mt-4">
                     <div className="rounded-lg bg-blue-50 border border-blue-100 py-2.5 px-3 text-center">
@@ -417,7 +417,7 @@ export default function EmployeeDashboard() {
                   type="button"
                   onClick={handleClockIn}
                   disabled={actionLoading}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-white text-brand-700 hover:bg-brand-50 font-semibold px-6 py-3.5 shadow-lg transition-all active:scale-[0.98] w-full sm:w-auto min-h-[3rem] disabled:opacity-70"
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-white dark:bg-surface-900 text-brand-700 hover:bg-brand-50 font-semibold px-6 py-3.5 shadow-lg transition-all active:scale-[0.98] w-full sm:w-auto min-h-[3rem] disabled:opacity-70"
                 >
                   {actionLoading ? (
                     <span className="w-5 h-5 border-2 border-brand-700 border-t-transparent rounded-full animate-spin" />
@@ -446,12 +446,12 @@ export default function EmployeeDashboard() {
                 <Calendar className="w-4 h-4" />
               </div>
               <div className="min-w-0">
-                <h3 className="text-sm font-semibold text-surface-900">Upcoming Shifts</h3>
-                <p className="text-[11px] text-surface-500 mt-0.5">Your next 2 weeks of pre-assigned shifts.</p>
+                <h3 className="text-sm font-semibold text-surface-900 dark:text-surface-50">Upcoming Shifts</h3>
+                <p className="text-[11px] text-surface-500 dark:text-surface-400 dark:text-surface-500 mt-0.5">Your next 2 weeks of pre-assigned shifts.</p>
               </div>
             </div>
           </div>
-          <ul className="divide-y divide-surface-100">
+          <ul className="divide-y divide-surface-100 dark:divide-surface-800">
             {upcomingShifts.slice(0, 14).map((s) => (
               <li key={s.id} className="flex items-center gap-3 px-4 py-2.5">
                 <div className="w-9 h-9 rounded-lg bg-brand-50 border border-brand-100 text-brand-700 flex flex-col items-center justify-center shrink-0">
@@ -463,12 +463,12 @@ export default function EmployeeDashboard() {
                   </span>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-surface-900 truncate">{s.shiftName}</p>
-                  <p className="text-[11px] text-surface-500 truncate">{s.clientName}</p>
+                  <p className="text-sm font-semibold text-surface-900 dark:text-surface-50 truncate">{s.shiftName}</p>
+                  <p className="text-[11px] text-surface-500 dark:text-surface-400 dark:text-surface-500 truncate">{s.clientName}</p>
                 </div>
                 <div className="text-right shrink-0">
-                  <p className="text-xs font-mono tabular-nums text-surface-800">{String(s.startTime).slice(0, 5)}–{String(s.endTime).slice(0, 5)}</p>
-                  <p className="text-[10px] text-surface-400">{s.date ? format(new Date(s.date), 'EEE') : ''}</p>
+                  <p className="text-xs font-mono tabular-nums text-surface-800 dark:text-surface-100">{String(s.startTime).slice(0, 5)}–{String(s.endTime).slice(0, 5)}</p>
+                  <p className="text-[10px] text-surface-400 dark:text-surface-500">{s.date ? format(new Date(s.date), 'EEE') : ''}</p>
                 </div>
               </li>
             ))}
@@ -481,8 +481,8 @@ export default function EmployeeDashboard() {
       {/* ============================================================ */}
       <div>
         <div className="flex items-center gap-2 mb-3">
-          <Calendar className="w-3.5 h-3.5 text-surface-500 shrink-0" />
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-surface-500">
+          <Calendar className="w-3.5 h-3.5 text-surface-500 dark:text-surface-400 dark:text-surface-500 shrink-0" />
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-surface-500 dark:text-surface-400 dark:text-surface-500">
             {currentPeriod
               ? `Cycle ${currentPeriod.cycleCode}  |  ${currentPeriod.periodFrom} to ${currentPeriod.periodTo}`
               : 'Current cycle'}
@@ -496,7 +496,7 @@ export default function EmployeeDashboard() {
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-brand-600">Total payable hours this cycle</p>
-            <p className="text-2xl font-bold tabular-nums text-surface-900 mt-0.5">{totalPayable.toFixed(2)}<span className="text-sm font-medium text-surface-500 ml-1">hrs</span></p>
+            <p className="text-2xl font-bold tabular-nums text-surface-900 dark:text-surface-50 mt-0.5">{totalPayable.toFixed(2)}<span className="text-sm font-medium text-surface-500 dark:text-surface-400 dark:text-surface-500 ml-1">hrs</span></p>
           </div>
         </div>
 
@@ -508,16 +508,16 @@ export default function EmployeeDashboard() {
             { label: 'P-X35%', val: payable.pX35, bgClass: 'bg-amber-50 border-amber-200', textClass: 'text-amber-700', labelClass: 'text-amber-500' },
             { label: 'P-X100%', val: payable.pX100, bgClass: 'bg-red-50 border-red-200', textClass: 'text-red-700', labelClass: 'text-red-500' },
             { label: 'P-HDY', val: payable.pHdy, bgClass: 'bg-emerald-50 border-emerald-200', textClass: 'text-emerald-700', labelClass: 'text-emerald-500' },
-            { label: 'P-DNP', val: payable.pDnp, bgClass: 'bg-surface-50 border-surface-200', textClass: 'text-surface-700', labelClass: 'text-surface-400' },
+            { label: 'P-DNP', val: payable.pDnp, bgClass: 'bg-surface-50 dark:bg-surface-900 border-surface-200 dark:border-surface-700', textClass: 'text-surface-700 dark:text-surface-200', labelClass: 'text-surface-400 dark:text-surface-500' },
             { label: 'P-RVW', val: payable.pRvw, bgClass: 'bg-rose-50 border-rose-200', textClass: 'text-rose-700', labelClass: 'text-rose-500' },
           ] as const).map((item) => {
             const isNonZero = item.val > 0
             return (
               <div
                 key={item.label}
-                className={`text-center rounded-xl border py-3 px-2 transition-shadow hover:shadow-sm ${isNonZero ? item.bgClass : 'bg-white border-surface-100'}`}
+                className={`text-center rounded-xl border py-3 px-2 transition-shadow hover:shadow-sm ${isNonZero ? item.bgClass : 'bg-white dark:bg-surface-900 border-surface-100 dark:border-surface-800'}`}
               >
-                <p className={`text-[10px] font-semibold uppercase tracking-wider ${isNonZero ? item.labelClass : 'text-surface-400'}`}>{item.label}</p>
+                <p className={`text-[10px] font-semibold uppercase tracking-wider ${isNonZero ? item.labelClass : 'text-surface-400 dark:text-surface-500'}`}>{item.label}</p>
                 <p className={`text-lg font-bold tabular-nums mt-1 ${isNonZero ? item.textClass : 'text-surface-300'}`}>{fmtHours(item.val)}</p>
               </div>
             )
@@ -535,8 +535,8 @@ export default function EmployeeDashboard() {
               <BarChart3 className="w-4 h-4" />
             </div>
             <div className="min-w-0">
-              <h3 className="text-sm font-semibold text-surface-900">Payable hours breakdown</h3>
-              <p className="text-[11px] text-surface-500 mt-0.5">
+              <h3 className="text-sm font-semibold text-surface-900 dark:text-surface-50">Payable hours breakdown</h3>
+              <p className="text-[11px] text-surface-500 dark:text-surface-400 dark:text-surface-500 mt-0.5">
                 {currentPeriod ? `${currentPeriod.periodFrom} to ${currentPeriod.periodTo}` : 'Current cycle'}
               </p>
             </div>
@@ -546,7 +546,7 @@ export default function EmployeeDashboard() {
           {chartData.some(d => d.value > 0) ? (
             <HoursChart data={chartData} />
           ) : (
-            <div className="flex flex-col items-center justify-center py-8 text-surface-400">
+            <div className="flex flex-col items-center justify-center py-8 text-surface-400 dark:text-surface-500">
               <BarChart3 className="w-8 h-8 mb-2 opacity-40" />
               <p className="text-sm">No payable hours recorded yet this cycle</p>
             </div>
@@ -565,8 +565,8 @@ export default function EmployeeDashboard() {
                 <FileDown className="w-4 h-4" />
               </div>
               <div className="min-w-0">
-                <h3 className="text-sm font-semibold text-surface-900">Pay slip</h3>
-                <p className="text-[11px] text-surface-500 mt-0.5">Preview or download your payroll slip for any period</p>
+                <h3 className="text-sm font-semibold text-surface-900 dark:text-surface-50">Pay slip</h3>
+                <p className="text-[11px] text-surface-500 dark:text-surface-400 dark:text-surface-500 mt-0.5">Preview or download your payroll slip for any period</p>
               </div>
             </div>
           </div>
@@ -608,13 +608,13 @@ export default function EmployeeDashboard() {
               </button>
             </div>
             {slipPreviewUrl && (
-              <div className="rounded-xl border border-surface-200 bg-surface-50 overflow-hidden">
-                <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-surface-200 bg-white">
-                  <p className="text-[11px] font-semibold text-surface-500 uppercase tracking-wider">Preview</p>
+              <div className="rounded-xl border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900 overflow-hidden">
+                <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-900">
+                  <p className="text-[11px] font-semibold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider">Preview</p>
                   <button
                     type="button"
                     onClick={() => setSlipPreviewUrl(null)}
-                    className="btn-icon text-surface-500 hover:text-surface-900 hover:bg-surface-100"
+                    className="btn-icon text-surface-500 dark:text-surface-400 dark:text-surface-500 hover:text-surface-900 dark:text-surface-50 hover:bg-surface-100 dark:hover:bg-surface-700 dark:bg-surface-800"
                     aria-label="Close preview"
                   >
                     <X className="w-4 h-4" />
@@ -623,7 +623,7 @@ export default function EmployeeDashboard() {
                 <iframe
                   title="Payroll slip preview"
                   src={slipPreviewUrl}
-                  className="w-full min-h-[20rem] h-[min(70vh,40rem)] bg-white"
+                  className="w-full min-h-[20rem] h-[min(70vh,40rem)] bg-white dark:bg-surface-900"
                 />
               </div>
             )}
@@ -631,18 +631,18 @@ export default function EmployeeDashboard() {
               <div className="alert-error"><span>{slipError}</span></div>
             )}
 
-            <div className="pt-4 border-t border-surface-100">
+            <div className="pt-4 border-t border-surface-100 dark:border-surface-800">
               <div className="flex items-center gap-2 mb-3">
-                <History className="w-3.5 h-3.5 text-surface-500 shrink-0" />
-                <h4 className="text-[11px] font-semibold uppercase tracking-wider text-surface-700">Saved payslips</h4>
+                <History className="w-3.5 h-3.5 text-surface-500 dark:text-surface-400 dark:text-surface-500 shrink-0" />
+                <h4 className="text-[11px] font-semibold uppercase tracking-wider text-surface-700 dark:text-surface-200">Saved payslips</h4>
               </div>
               {savedSlipsLoading ? (
-                <div className="flex items-center gap-2 text-xs text-surface-500">
+                <div className="flex items-center gap-2 text-xs text-surface-500 dark:text-surface-400 dark:text-surface-500">
                   <span className="spinner w-4 h-4" />
                   Loading...
                 </div>
               ) : savedSlips.length === 0 ? (
-                <p className="text-xs text-surface-500">No saved payslips yet -- download a PDF above to save one.</p>
+                <p className="text-xs text-surface-500 dark:text-surface-400 dark:text-surface-500">No saved payslips yet -- download a PDF above to save one.</p>
               ) : (
                 <ul className="space-y-2">
                   {savedSlips.map((s) => (
@@ -651,10 +651,10 @@ export default function EmployeeDashboard() {
                       className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded-xl border border-surface-200/70 bg-surface-50/50 px-3 py-2.5"
                     >
                       <div className="min-w-0">
-                        <p className="text-sm font-semibold text-surface-900 tabular-nums">
+                        <p className="text-sm font-semibold text-surface-900 dark:text-surface-50 tabular-nums">
                           {s.periodFrom} → {s.periodTo}
                         </p>
-                        <p className="text-[11px] text-surface-500 mt-0.5">
+                        <p className="text-[11px] text-surface-500 dark:text-surface-400 dark:text-surface-500 mt-0.5">
                           Saved {format(new Date(s.savedAt), 'MMM d, yyyy h:mm a')}
                         </p>
                       </div>
@@ -685,8 +685,8 @@ export default function EmployeeDashboard() {
               <History className="w-4 h-4" />
             </div>
             <div className="min-w-0">
-              <h2 className="text-sm font-semibold text-surface-900">Recent sessions</h2>
-              <p className="text-[11px] text-surface-500 mt-0.5">Your latest clock-in activity</p>
+              <h2 className="text-sm font-semibold text-surface-900 dark:text-surface-50">Recent sessions</h2>
+              <p className="text-[11px] text-surface-500 dark:text-surface-400 dark:text-surface-500 mt-0.5">Your latest clock-in activity</p>
             </div>
           </div>
           {sessions.length > 0 && (
@@ -721,14 +721,14 @@ export default function EmployeeDashboard() {
             {sessions.slice(0, 5).map((s) => (
               <li
                 key={s.id}
-                className="flex items-center gap-3 py-2.5 px-3 rounded-xl bg-white ring-1 ring-surface-200/70 hover:ring-brand-200/80 hover:bg-brand-50/20 transition-all"
+                className="flex items-center gap-3 py-2.5 px-3 rounded-xl bg-white dark:bg-surface-900 ring-1 ring-surface-200/70 hover:ring-brand-200/80 hover:bg-brand-50/20 transition-all"
               >
-                <div className="w-9 h-9 rounded-lg bg-surface-100 flex items-center justify-center text-surface-500 shrink-0">
+                <div className="w-9 h-9 rounded-lg bg-surface-100 dark:bg-surface-800 flex items-center justify-center text-surface-500 dark:text-surface-400 dark:text-surface-500 shrink-0">
                   <Clock className="w-4 h-4" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-surface-900">{format(new Date(s.clockIn), 'MMM d, yyyy')}</p>
-                  <p className="text-[11px] text-surface-500 mt-0.5 tabular-nums">
+                  <p className="text-sm font-medium text-surface-900 dark:text-surface-50">{format(new Date(s.clockIn), 'MMM d, yyyy')}</p>
+                  <p className="text-[11px] text-surface-500 dark:text-surface-400 dark:text-surface-500 mt-0.5 tabular-nums">
                     {format(new Date(s.clockIn), 'HH:mm:ss')} – {s.clockOut ? format(new Date(s.clockOut), 'HH:mm:ss') : '--'}
                   </p>
                 </div>
@@ -743,22 +743,22 @@ export default function EmployeeDashboard() {
             <table className="w-full text-left border-collapse">
               <thead className="sticky top-0 bg-surface-50/95 backdrop-blur-sm shadow-[0_1px_0_0_theme(colors.surface.200)] z-10">
                 <tr>
-                  <th className="px-3 py-2.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap">Date</th>
-                  <th className="px-3 py-2.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap">Clock In</th>
-                  <th className="px-3 py-2.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap">Clock Out</th>
-                  <th className="px-3 py-2.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap">Status</th>
+                  <th className="px-3 py-2.5 text-[10px] font-semibold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider whitespace-nowrap">Date</th>
+                  <th className="px-3 py-2.5 text-[10px] font-semibold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider whitespace-nowrap">Clock In</th>
+                  <th className="px-3 py-2.5 text-[10px] font-semibold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider whitespace-nowrap">Clock Out</th>
+                  <th className="px-3 py-2.5 text-[10px] font-semibold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider whitespace-nowrap">Status</th>
                 </tr>
               </thead>
               <tbody>
                 {sessions.slice(0, 5).map((s) => (
-                  <tr key={s.id} className="border-b border-surface-100 hover:bg-brand-50/30 transition-colors">
-                    <td className="px-3 py-2.5 text-xs font-medium text-surface-900 whitespace-nowrap">
+                  <tr key={s.id} className="border-b border-surface-100 dark:border-surface-800 hover:bg-brand-50/30 transition-colors">
+                    <td className="px-3 py-2.5 text-xs font-medium text-surface-900 dark:text-surface-50 whitespace-nowrap">
                       {format(new Date(s.clockIn), 'MMM d, yyyy')}
                     </td>
-                    <td className="px-3 py-2.5 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">
+                    <td className="px-3 py-2.5 text-xs font-mono text-surface-700 dark:text-surface-200 tabular-nums whitespace-nowrap">
                       {format(new Date(s.clockIn), 'HH:mm:ss')}
                     </td>
-                    <td className="px-3 py-2.5 text-xs font-mono text-surface-700 tabular-nums whitespace-nowrap">
+                    <td className="px-3 py-2.5 text-xs font-mono text-surface-700 dark:text-surface-200 tabular-nums whitespace-nowrap">
                       {s.clockOut ? format(new Date(s.clockOut), 'HH:mm:ss') : '--'}
                     </td>
                     <td className="px-3 py-2.5 whitespace-nowrap">

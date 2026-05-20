@@ -95,16 +95,16 @@ export function KeyboardShortcuts() {
         onClick={() => setShowHelp(false)}
         aria-label="Close shortcuts"
       />
-      <div className="relative z-10 w-full max-w-md rounded-2xl border border-surface-200 bg-white shadow-xl">
-        <div className="flex items-center justify-between px-5 py-3 border-b border-surface-100">
+      <div className="relative z-10 w-full max-w-md rounded-2xl border border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-900 shadow-xl">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-surface-100 dark:border-surface-800">
           <div className="flex items-center gap-2">
             <Command className="w-4 h-4 text-brand-600" />
-            <h2 className="text-sm font-semibold text-surface-900">Keyboard shortcuts</h2>
+            <h2 className="text-sm font-semibold text-surface-900 dark:text-surface-50">Keyboard shortcuts</h2>
           </div>
           <button
             type="button"
             onClick={() => setShowHelp(false)}
-            className="btn-icon text-surface-400 hover:text-surface-700 hover:bg-surface-100"
+            className="btn-icon text-surface-400 dark:text-surface-500 hover:text-surface-700 dark:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-700 dark:bg-surface-800"
             aria-label="Close"
           >
             <X className="w-4 h-4" />
@@ -116,7 +116,7 @@ export function KeyboardShortcuts() {
           <ShortcutRow keys={['?']} description="Show this help" />
           <ShortcutRow keys={['Esc']} description="Close modals / overlays" />
         </ul>
-        <p className="px-5 pb-4 text-[11px] text-surface-400">
+        <p className="px-5 pb-4 text-[11px] text-surface-400 dark:text-surface-500">
           Shortcuts are ignored while you're typing in a field.
         </p>
       </div>
@@ -127,12 +127,12 @@ export function KeyboardShortcuts() {
 function ShortcutRow({ keys, description }: { keys: string[]; description: string }) {
   return (
     <li className="flex items-center justify-between gap-4">
-      <span className="text-sm text-surface-700">{description}</span>
+      <span className="text-sm text-surface-700 dark:text-surface-200">{description}</span>
       <span className="flex items-center gap-1 shrink-0">
         {keys.map((k) => (
           <kbd
             key={k}
-            className="inline-flex items-center justify-center min-w-[1.75rem] h-7 px-2 rounded-md border border-surface-200 bg-surface-50 text-[11px] font-mono font-medium text-surface-700 shadow-[0_1px_0_rgb(0_0_0_/_0.04)]"
+            className="inline-flex items-center justify-center min-w-[1.75rem] h-7 px-2 rounded-md border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900 text-[11px] font-mono font-medium text-surface-700 dark:text-surface-200 shadow-[0_1px_0_rgb(0_0_0_/_0.04)]"
           >
             {k}
           </kbd>

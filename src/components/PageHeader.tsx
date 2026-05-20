@@ -12,7 +12,7 @@ export function PageHeader({ title, subtitle, actions, icon }: PageHeaderProps) 
     <div className="page-header">
       <div className="flex items-start gap-3 min-w-0">
         {icon && (
-          <div className="w-10 h-10 rounded-xl bg-brand-50 border border-brand-100 flex items-center justify-center text-brand-600 shrink-0">
+          <div className="w-10 h-10 rounded-xl bg-brand-50 border border-brand-100 flex items-center justify-center text-brand-600 shrink-0 dark:bg-brand-900/30 dark:border-brand-800 dark:text-brand-300">
             {icon}
           </div>
         )}

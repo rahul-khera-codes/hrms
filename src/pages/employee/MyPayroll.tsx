@@ -52,8 +52,8 @@ const GROUPS: Group[] = [
   },
   {
     name: 'Leaves (VPL)',
-    bg: 'bg-surface-50',
-    headerText: 'text-surface-700',
+    bg: 'bg-surface-50 dark:bg-surface-900',
+    headerText: 'text-surface-700 dark:text-surface-200',
     cols: [
       { key: 'vacation', label: 'Vacation', type: 'money', accessor: (r) => r.vacation },
       { key: 'matrimony', label: 'Matrimony', type: 'money', accessor: (r) => r.matrimony },
@@ -74,8 +74,8 @@ const GROUPS: Group[] = [
   },
   {
     name: 'Overtime',
-    bg: 'bg-surface-50',
-    headerText: 'text-surface-700',
+    bg: 'bg-surface-50 dark:bg-surface-900',
+    headerText: 'text-surface-700 dark:text-surface-200',
     cols: [
       { key: 'hn15Hours', label: 'N15% Hrs', type: 'hours', accessor: (r) => r.hn15Hours },
       { key: 'hn15Amount', label: 'N15% $', type: 'money', accessor: (r) => r.hn15Amount },
@@ -101,8 +101,8 @@ const GROUPS: Group[] = [
   },
   {
     name: 'Incentives',
-    bg: 'bg-surface-50',
-    headerText: 'text-surface-700',
+    bg: 'bg-surface-50 dark:bg-surface-900',
+    headerText: 'text-surface-700 dark:text-surface-200',
     cols: [
       { key: 'attendanceIncentive', label: 'Attendance', type: 'money', accessor: (r) => r.attendanceIncentive },
       { key: 'kpiIncentive', label: 'KPI', type: 'money', accessor: (r) => r.kpiIncentive },
@@ -302,8 +302,8 @@ export default function EmployeeMyPayroll() {
               <CalendarDays className="w-4 h-4" />
             </div>
             <div className="min-w-0">
-              <h2 className="text-sm font-semibold text-surface-900">Payroll period</h2>
-              <p className="text-[11px] text-surface-500 mt-0.5">Select a cycle to view your payroll details</p>
+              <h2 className="text-sm font-semibold text-surface-900 dark:text-surface-50">Payroll period</h2>
+              <p className="text-[11px] text-surface-500 dark:text-surface-400 dark:text-surface-500 mt-0.5">Select a cycle to view your payroll details</p>
             </div>
           </div>
         </div>
@@ -337,8 +337,8 @@ export default function EmployeeMyPayroll() {
             />
           </div>
           {selectedPeriod && (
-            <div className="text-xs text-surface-500 pb-1">
-              Pay date: <span className="font-semibold text-surface-700">{selectedPeriod.payDate}</span>
+            <div className="text-xs text-surface-500 dark:text-surface-400 dark:text-surface-500 pb-1">
+              Pay date: <span className="font-semibold text-surface-700 dark:text-surface-200">{selectedPeriod.payDate}</span>
             </div>
           )}
         </div>
@@ -378,39 +378,39 @@ export default function EmployeeMyPayroll() {
                 {/* Group header row */}
                 <tr>
                   {/* Empty group cell over the checkbox column */}
-                  <th className="border-b border-surface-200 bg-surface-50"></th>
+                  <th className="border-b border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900"></th>
                   {GROUPS.map((g) => (
                     <th
                       key={g.name}
                       colSpan={g.cols.length}
-                      className={`px-3 py-2 text-center text-[11px] font-semibold uppercase tracking-wider border-b border-surface-200 ${g.bg} ${g.headerText}`}
+                      className={`px-3 py-2 text-center text-[11px] font-semibold uppercase tracking-wider border-b border-surface-200 dark:border-surface-700 ${g.bg} ${g.headerText}`}
                     >
                       {g.name}
                     </th>
                   ))}
                   {/* Empty group cell over the Pay Stub action column */}
-                  <th className="border-b border-surface-200 bg-surface-50"></th>
+                  <th className="border-b border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900"></th>
                 </tr>
                 {/* Column label row */}
                 <tr>
-                  <th className="px-2 py-1 w-8 border-b border-surface-200 bg-surface-50">
+                  <th className="px-2 py-1 w-8 border-b border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900">
                     <input type="checkbox" disabled aria-label="Select payroll" />
                   </th>
                   {GROUPS.flatMap((g) =>
                     g.cols.map((c) => (
                       <th
                         key={c.key}
-                        className="px-3 py-1.5 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 bg-surface-50"
+                        className="px-3 py-1.5 text-[10px] font-semibold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900"
                       >
                         {c.label}
                       </th>
                     ))
                   )}
-                  <th className="px-2 py-1 text-[10px] font-semibold text-surface-500 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 bg-surface-50 text-right">PayStub</th>
+                  <th className="px-2 py-1 text-[10px] font-semibold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900 text-right">PayStub</th>
                 </tr>
               </thead>
               <tbody>
-                <tr className="border-b border-surface-100">
+                <tr className="border-b border-surface-100 dark:border-surface-800">
                   <td className="px-2 py-1.5 w-8" onClick={(e) => e.stopPropagation()}>
                     <input type="checkbox" aria-label="Select this payroll cycle" />
                   </td>
@@ -418,7 +418,7 @@ export default function EmployeeMyPayroll() {
                     g.cols.map((c) => (
                       <td
                         key={c.key}
-                        className="px-3 py-2.5 text-xs text-surface-700 tabular-nums whitespace-nowrap text-right font-medium"
+                        className="px-3 py-2.5 text-xs text-surface-700 dark:text-surface-200 tabular-nums whitespace-nowrap text-right font-medium"
                       >
                         {formatCell(c, result)}
                       </td>
@@ -446,9 +446,9 @@ export default function EmployeeMyPayroll() {
       {payslipPreviewUrl && (
         <div className="modal-backdrop" role="dialog" aria-modal="true">
           <button type="button" className="absolute inset-0" onClick={() => setPayslipPreviewUrl(null)} aria-label="Close" />
-          <div className="relative z-10 w-[95vw] max-w-5xl h-[90vh] rounded-2xl bg-white shadow-2xl overflow-hidden flex flex-col">
+          <div className="relative z-10 w-[95vw] max-w-5xl h-[90vh] rounded-2xl bg-white dark:bg-surface-900 shadow-2xl overflow-hidden flex flex-col">
             <div className="modal-header">
-              <h2 className="text-base font-semibold text-surface-900">Pay Stub Preview</h2>
+              <h2 className="text-base font-semibold text-surface-900 dark:text-surface-50">Pay Stub Preview</h2>
               <div className="flex items-center gap-2">
                 <button type="button" onClick={() => void handleDownloadPayslip()} className="btn-secondary rounded-xl text-sm">
                   <Download className="w-4 h-4" /> Download PDF
