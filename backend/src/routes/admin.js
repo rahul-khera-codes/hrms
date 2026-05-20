@@ -1978,7 +1978,8 @@ router.patch('/employees/:id', async (req, res) => {
             cmid, contractType, hireDate, location, department,
             primaryClientId, jobTitle, reportsTo, contractStatus, terminationDate,
             bank, bankAccount, payMethod,
-            governmentId, gender, dateOfBirth, personalEmail, companyEmail, homePhone, mobilePhone, terminationReason } = req.body
+            governmentId, gender, dateOfBirth, personalEmail, companyEmail, homePhone, mobilePhone, terminationReason,
+            shiftGroup } = req.body
     const emp = await query(
       "SELECT id FROM users WHERE id = $1 AND role = 'employee'",
       [id]
@@ -2055,6 +2056,7 @@ router.patch('/employees/:id', async (req, res) => {
       home_phone: homePhone !== undefined ? (homePhone || null) : undefined,
       mobile_phone: mobilePhone !== undefined ? (mobilePhone || null) : undefined,
       termination_reason: terminationReason !== undefined ? (terminationReason || null) : undefined,
+      shift_group: shiftGroup !== undefined ? (shiftGroup || null) : undefined,
     }
 
     // Filter only defined fields
@@ -2096,7 +2098,7 @@ router.patch('/employees/:id', async (req, res) => {
               e.bank, e.bank_account, e.pay_method,
               e.government_id, e.gender, e.date_of_birth::text AS date_of_birth,
               e.personal_email, e.company_email, e.home_phone, e.mobile_phone, e.termination_reason,
-              e.is_locked,
+              e.is_locked, e.shift_group,
               c.name AS primary_client_name,
               mgr.name AS reports_to_name
        FROM users u
@@ -2138,6 +2140,7 @@ router.patch('/employees/:id', async (req, res) => {
       mobilePhone: row.mobile_phone || null,
       terminationReason: row.termination_reason || null,
       isLocked: row.is_locked === true,
+      shiftGroup: row.shift_group || null,
     })
   } catch (err) {
     console.error('Update employee error:', err)
@@ -2197,7 +2200,7 @@ router.get('/employees', async (req, res) => {
               e.bank, e.bank_account, e.pay_method,
               e.government_id, e.gender, e.date_of_birth::text AS date_of_birth,
               e.personal_email, e.company_email, e.home_phone, e.mobile_phone, e.termination_reason,
-              e.is_locked,
+              e.is_locked, e.shift_group,
               c.name AS primary_client_name,
               mgr.name AS reports_to_name
        FROM users u
@@ -2238,6 +2241,7 @@ router.get('/employees', async (req, res) => {
       mobilePhone: r.mobile_phone || null,
       terminationReason: r.termination_reason || null,
       isLocked: r.is_locked === true,
+      shiftGroup: r.shift_group || null,
     })))
   } catch (err) {
     console.error('Admin list employees error:', err)
@@ -2250,7 +2254,8 @@ router.post('/employees', requireAdmin, async (req, res) => {
   try {
     const { name, email, password, salaryType, baseSalary,
             cmid, contractType, hireDate, location, department,
-            primaryClientId, jobTitle, reportsTo, contractStatus, terminationDate } = req.body
+            primaryClientId, jobTitle, reportsTo, contractStatus, terminationDate,
+            shiftGroup } = req.body
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     if (!name || String(name).trim() === '') {
       return res.status(400).json({ error: 'Validation failed', message: 'Name is required' })
@@ -2281,17 +2286,17 @@ router.post('/employees', requireAdmin, async (req, res) => {
     const harmonyIdVal = cmidVal != null ? `HRM-${String(cmidVal).padStart(5, '0')}` : null
     const termDateVal = contractStatusVal === 'terminated' && terminationDate ? terminationDate : null
     await query(
-      `INSERT INTO employees (user_id, salary_type, base_salary, cmid, harmony_id, contract_type, hire_date, location, department, primary_client_id, job_title, reports_to, contract_status, termination_date)
-       VALUES ($1, $2, $3, $4, $5, $6, $7::date, $8, $9, $10::uuid, $11, $12::uuid, $13, $14::date)
-       ON CONFLICT (user_id) DO UPDATE SET salary_type = $2, base_salary = $3, cmid = $4, harmony_id = $5, contract_type = $6, hire_date = $7::date, location = $8, department = $9, primary_client_id = $10::uuid, job_title = $11, reports_to = $12::uuid, contract_status = $13, termination_date = $14::date, updated_at = NOW()`,
-      [u.id, st, sal, cmidVal, harmonyIdVal, contractTypeVal, hireDate || null, location || null, department || null, primaryClientId || null, jobTitle || null, reportsTo || null, contractStatusVal, termDateVal]
+      `INSERT INTO employees (user_id, salary_type, base_salary, cmid, harmony_id, contract_type, hire_date, location, department, primary_client_id, job_title, reports_to, contract_status, termination_date, shift_group)
+       VALUES ($1, $2, $3, $4, $5, $6, $7::date, $8, $9, $10::uuid, $11, $12::uuid, $13, $14::date, $15)
+       ON CONFLICT (user_id) DO UPDATE SET salary_type = $2, base_salary = $3, cmid = $4, harmony_id = $5, contract_type = $6, hire_date = $7::date, location = $8, department = $9, primary_client_id = $10::uuid, job_title = $11, reports_to = $12::uuid, contract_status = $13, termination_date = $14::date, shift_group = $15, updated_at = NOW()`,
+      [u.id, st, sal, cmidVal, harmonyIdVal, contractTypeVal, hireDate || null, location || null, department || null, primaryClientId || null, jobTitle || null, reportsTo || null, contractStatusVal, termDateVal, shiftGroup || null]
     )
     const created = await query(
       `SELECT u.id, u.name, u.email,
               COALESCE(e.salary_type, u.salary_type) AS salary_type,
               COALESCE(e.base_salary, u.base_salary) AS base_salary,
               e.cmid, e.harmony_id, e.contract_type, e.hire_date::text AS hire_date,
-              e.location, e.department, e.primary_client_id, e.job_title,
+              e.location, e.department, e.shift_group, e.primary_client_id, e.job_title,
               e.reports_to, e.contract_status, e.termination_date::text AS termination_date,
               c.name AS primary_client_name,
               mgr.name AS reports_to_name
@@ -2315,6 +2320,7 @@ router.post('/employees', requireAdmin, async (req, res) => {
       hireDate: row.hire_date?.slice(0, 10) ?? null,
       location: row.location || null,
       department: row.department || null,
+      shiftGroup: row.shift_group || null,
       primaryClientId: row.primary_client_id || null,
       primaryClientName: row.primary_client_name || null,
       jobTitle: row.job_title || null,
@@ -2827,6 +2833,262 @@ router.delete('/schedule/:id', async (req, res) => {
     res.status(204).send()
   } catch (err) {
     console.error('Admin delete schedule error:', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// POST /api/admin/schedule/bulk-assign — Scheduler Module Part 1 (19MAY2026 video).
+// Body: {
+//   clientId, shiftId?, overrideStartTime?, overrideEndTime?,
+//   userIds?: string[], shiftGroup?: string, allInAccount?: boolean,
+//   dateFrom, dateTo, daysOff?: number[]   // 0=Sun … 6=Sat
+// }
+// Resolves the target employee set, iterates each day in [dateFrom..dateTo],
+// skips dates whose weekday is in daysOff, and upserts schedule_assignments.
+router.post('/schedule/bulk-assign', async (req, res) => {
+  try {
+    const {
+      clientId,
+      shiftId,
+      overrideStartTime,
+      overrideEndTime,
+      userIds,
+      shiftGroup,
+      allInAccount,
+      dateFrom,
+      dateTo,
+      daysOff,
+    } = req.body || {}
+
+    if (!clientId) return res.status(400).json({ error: 'Bad request', message: 'clientId is required' })
+    if (!dateFrom || !dateTo) return res.status(400).json({ error: 'Bad request', message: 'dateFrom and dateTo are required' })
+
+    const hasStartOverride = overrideStartTime != null && String(overrideStartTime).trim() !== ''
+    const hasEndOverride = overrideEndTime != null && String(overrideEndTime).trim() !== ''
+    if (hasStartOverride !== hasEndOverride) {
+      return res.status(400).json({ error: 'Bad request', message: 'Provide both overrideStartTime and overrideEndTime or leave both empty' })
+    }
+    if (!shiftId && !hasStartOverride) {
+      return res.status(400).json({ error: 'Bad request', message: 'Either shiftId or overrideStartTime/overrideEndTime is required' })
+    }
+    const startOverride = hasStartOverride ? String(overrideStartTime).slice(0, 5) : null
+    const endOverride = hasEndOverride ? String(overrideEndTime).slice(0, 5) : null
+
+    // Resolve the shift_id we'll write. If the user only supplied override times,
+    // synthesize a one-off "Custom" shift row for this client so the existing
+    // schedule_assignments FK is satisfied. Reuse one if it exists for this client+times.
+    let resolvedShiftId = shiftId || null
+    if (!resolvedShiftId) {
+      const customName = `Custom ${startOverride}-${endOverride}`
+      const existing = await query(
+        `SELECT id FROM shifts WHERE client_id = $1 AND start_time = $2::time AND end_time = $3::time AND name = $4 LIMIT 1`,
+        [clientId, startOverride, endOverride, customName],
+      )
+      if (existing.rows.length > 0) {
+        resolvedShiftId = existing.rows[0].id
+      } else {
+        const created = await query(
+          `INSERT INTO shifts (name, start_time, end_time, client_id) VALUES ($1, $2::time, $3::time, $4) RETURNING id`,
+          [customName, startOverride, endOverride, clientId],
+        )
+        resolvedShiftId = created.rows[0].id
+      }
+    }
+
+    // Resolve employee set
+    let employeeIds = []
+    if (Array.isArray(userIds) && userIds.length > 0) {
+      const r = await query(
+        `SELECT id FROM users WHERE id = ANY($1::uuid[]) AND role = 'employee'`,
+        [userIds],
+      )
+      employeeIds.push(...r.rows.map((row) => row.id))
+    }
+    if (shiftGroup) {
+      // Employees whose shift_group matches.
+      const r = await query(
+        `SELECT u.id FROM users u
+         JOIN employees e ON e.user_id = u.id
+         WHERE e.shift_group = $1 AND u.role = 'employee'`,
+        [shiftGroup],
+      )
+      employeeIds.push(...r.rows.map((row) => row.id))
+    }
+    if (allInAccount) {
+      // Employees whose primary_client_id is this account.
+      const r = await query(
+        `SELECT u.id FROM users u
+         JOIN employees e ON e.user_id = u.id
+         WHERE e.primary_client_id = $1 AND u.role = 'employee'`,
+        [clientId],
+      )
+      employeeIds.push(...r.rows.map((row) => row.id))
+    }
+
+    // Dedup
+    employeeIds = Array.from(new Set(employeeIds))
+    if (employeeIds.length === 0) {
+      return res.status(400).json({ error: 'Bad request', message: 'No employees matched the selection (userIds/shiftGroup/allInAccount)' })
+    }
+
+    // Build date list
+    const offSet = new Set(Array.isArray(daysOff) ? daysOff.map((d) => Number(d)) : [])
+    const start = new Date(`${dateFrom}T00:00:00Z`)
+    const end = new Date(`${dateTo}T00:00:00Z`)
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start > end) {
+      return res.status(400).json({ error: 'Bad request', message: 'Invalid dateFrom/dateTo range' })
+    }
+    const dates = []
+    for (let d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
+      const weekday = d.getUTCDay() // 0=Sun … 6=Sat
+      if (offSet.has(weekday)) continue
+      dates.push(d.toISOString().slice(0, 10))
+    }
+    if (dates.length === 0) {
+      return res.status(400).json({ error: 'Bad request', message: 'All days in the range are marked as days off' })
+    }
+
+    let created = 0
+    let updated = 0
+    for (const userId of employeeIds) {
+      for (const date of dates) {
+        const existing = await query(
+          `SELECT id FROM schedule_assignments WHERE client_id = $1 AND user_id = $2 AND date = $3::date`,
+          [clientId, userId, date],
+        )
+        const isUpdate = existing.rows.length > 0
+        await query(
+          `INSERT INTO schedule_assignments (client_id, user_id, shift_id, date, override_start_time, override_end_time)
+           VALUES ($1, $2, $3, $4::date, $5::time, $6::time)
+           ON CONFLICT (client_id, user_id, date) DO UPDATE SET
+             shift_id = EXCLUDED.shift_id,
+             override_start_time = EXCLUDED.override_start_time,
+             override_end_time = EXCLUDED.override_end_time,
+             published = FALSE`,
+          [clientId, userId, resolvedShiftId, date, startOverride, endOverride],
+        )
+        if (isUpdate) updated++
+        else created++
+      }
+    }
+
+    res.status(201).json({
+      created,
+      updated,
+      totalRows: created + updated,
+      employees: employeeIds.length,
+      dates: dates.length,
+      shiftId: resolvedShiftId,
+    })
+  } catch (err) {
+    console.error('Admin bulk-assign schedule error:', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// GET /api/admin/schedule/stats?client_id=&from=&to=
+// Returns aggregate stats for the Scheduler footer cards.
+router.get('/schedule/stats', async (req, res) => {
+  try {
+    const { client_id, from, to } = req.query
+    if (!client_id || !from || !to) {
+      return res.status(400).json({ error: 'Bad request', message: 'client_id, from, to are required' })
+    }
+    // Filled = scheduled (existing rows). Total = employees-in-account × days-in-range.
+    // Open = Total − Filled. Total hours = sum of (end−start) across filled rows.
+    const employeesRes = await query(
+      `SELECT u.id FROM users u
+       JOIN employees e ON e.user_id = u.id
+       WHERE e.primary_client_id = $1 AND u.role = 'employee'`,
+      [client_id],
+    )
+    const accountEmployees = employeesRes.rows.length
+
+    const startD = new Date(`${from}T00:00:00Z`)
+    const endD = new Date(`${to}T00:00:00Z`)
+    const days = Math.floor((endD - startD) / 86400000) + 1
+    const totalShifts = accountEmployees * days
+
+    const filledRes = await query(
+      `SELECT
+         COUNT(*)::int AS filled,
+         COALESCE(SUM(EXTRACT(EPOCH FROM (
+           COALESCE(a.override_end_time, s.end_time) - COALESCE(a.override_start_time, s.start_time)
+         )) / 3600.0), 0)::float AS total_hours,
+         SUM(CASE WHEN a.published = TRUE THEN 1 ELSE 0 END)::int AS published_count
+       FROM schedule_assignments a
+       JOIN shifts s ON s.id = a.shift_id
+       WHERE a.client_id = $1 AND a.date >= $2::date AND a.date <= $3::date`,
+      [client_id, from, to],
+    )
+    const row = filledRes.rows[0] || {}
+    const filled = Number(row.filled || 0)
+    const totalHours = Number(row.total_hours || 0)
+    const publishedCount = Number(row.published_count || 0)
+    const open = Math.max(0, totalShifts - filled)
+    res.json({
+      totalShifts,
+      filledShifts: filled,
+      openShifts: open,
+      totalHours: Math.round(totalHours * 100) / 100,
+      publishedCount,
+    })
+  } catch (err) {
+    console.error('Admin schedule stats error:', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// POST /api/admin/schedule/publish — flip published=true on a range.
+router.post('/schedule/publish', async (req, res) => {
+  try {
+    const { clientId, from, to } = req.body || {}
+    if (!clientId || !from || !to) {
+      return res.status(400).json({ error: 'Bad request', message: 'clientId, from, to are required' })
+    }
+    const r = await query(
+      `UPDATE schedule_assignments SET published = TRUE
+       WHERE client_id = $1 AND date >= $2::date AND date <= $3::date AND published = FALSE
+       RETURNING id, user_id, date::text AS date_str`,
+      [clientId, from, to],
+    )
+    // Notify each affected employee that their shifts were published.
+    const byUser = new Map()
+    for (const row of r.rows) {
+      if (!byUser.has(row.user_id)) byUser.set(row.user_id, [])
+      byUser.get(row.user_id).push(row.date_str.slice(0, 10))
+    }
+    for (const [userId, dates] of byUser.entries()) {
+      try {
+        await createNotification(
+          userId,
+          'schedule_published',
+          'Your schedule is published',
+          `${dates.length} shift${dates.length === 1 ? '' : 's'} are now confirmed (${dates[0]} to ${dates[dates.length - 1]})`,
+          { clientId, from, to },
+        )
+      } catch (e) {
+        console.error('publish notification error', e)
+      }
+    }
+    res.json({ published: r.rows.length })
+  } catch (err) {
+    console.error('Admin schedule publish error:', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// GET /api/admin/schedule/shift-groups — distinct shift_group values for the picker.
+router.get('/schedule/shift-groups', async (_req, res) => {
+  try {
+    const r = await query(
+      `SELECT DISTINCT shift_group FROM employees
+       WHERE shift_group IS NOT NULL AND shift_group <> ''
+       ORDER BY shift_group`,
+    )
+    res.json(r.rows.map((row) => row.shift_group))
+  } catch (err) {
+    console.error('Admin shift-groups error:', err)
     res.status(500).json({ error: 'Internal server error' })
   }
 })

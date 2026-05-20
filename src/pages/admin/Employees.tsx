@@ -105,6 +105,8 @@ export default function AdminEmployees() {
   const [hireDate, setHireDate] = useState('')
   const [location, setLocation] = useState('')
   const [department, setDepartment] = useState('')
+  // Shift group for bulk scheduling (e.g. "Business Hours", "Night Shift", "Group A")
+  const [shiftGroup, setShiftGroup] = useState('')
   const [primaryClientId, setPrimaryClientId] = useState('')
   const [jobTitle, setJobTitle] = useState('')
   const [reportsTo, setReportsTo] = useState('')
@@ -528,6 +530,7 @@ export default function AdminEmployees() {
     setHireDate('')
     setLocation('')
     setDepartment('')
+    setShiftGroup('')
     setPrimaryClientId('')
     setJobTitle('')
     setReportsTo('')
@@ -564,6 +567,7 @@ export default function AdminEmployees() {
     setHireDate(emp.hireDate || '')
     setLocation(emp.location || '')
     setDepartment(emp.department || '')
+    setShiftGroup(emp.shiftGroup || '')
     setPrimaryClientId(emp.primaryClientId || '')
     setJobTitle(emp.jobTitle || '')
     setReportsTo(emp.reportsTo || '')
@@ -716,6 +720,7 @@ export default function AdminEmployees() {
           hireDate: hireDate || undefined,
           location: location || undefined,
           department: department || undefined,
+          shiftGroup: shiftGroup || undefined,
           primaryClientId: primaryClientId || undefined,
           jobTitle: jobTitle || undefined,
           reportsTo: reportsTo || undefined,
@@ -762,6 +767,7 @@ export default function AdminEmployees() {
           hireDate: hireDate || undefined,
           location: location || undefined,
           department: department || undefined,
+          shiftGroup: shiftGroup || undefined,
           primaryClientId: primaryClientId || undefined,
           jobTitle: jobTitle || undefined,
           reportsTo: reportsTo || undefined,
@@ -1442,6 +1448,16 @@ export default function AdminEmployees() {
                       options={departmentOptions}
                     />
                   </div>
+                </div>
+                <div>
+                  <label className="label">Shift Group</label>
+                  <input
+                    className="input"
+                    value={shiftGroup}
+                    onChange={(e) => setShiftGroup(e.target.value)}
+                    placeholder="e.g. Business Hours, Night Shift, Group A"
+                  />
+                  <p className="mt-1 text-xs text-surface-500">Used for bulk shift assignment in the Scheduler.</p>
                 </div>
                 <div>
                   <label className="label">Primary Account</label>

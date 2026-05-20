@@ -409,6 +409,7 @@ export interface EmployeeRecord {
   mobilePhone?: string | null
   terminationReason?: string | null
   isLocked?: boolean
+  shiftGroup?: string | null
 }
 
 export async function getEmployees(): Promise<EmployeeRecord[]> {
@@ -426,6 +427,7 @@ export async function createEmployee(data: {
   hireDate?: string
   location?: string
   department?: string
+  shiftGroup?: string
   primaryClientId?: string
   jobTitle?: string
   reportsTo?: string
@@ -462,6 +464,7 @@ export async function updateEmployee(
     hireDate?: string
     location?: string
     department?: string
+    shiftGroup?: string
     primaryClientId?: string
     jobTitle?: string
     reportsTo?: string
@@ -593,6 +596,50 @@ export async function createScheduleAssignment(data: {
 
 export async function deleteScheduleAssignment(id: string): Promise<void> {
   return api(`/api/admin/schedule/${id}`, { method: 'DELETE' })
+}
+
+export interface BulkAssignRequest {
+  clientId: string
+  shiftId?: string
+  overrideStartTime?: string
+  overrideEndTime?: string
+  userIds?: string[]
+  shiftGroup?: string
+  allInAccount?: boolean
+  dateFrom: string
+  dateTo: string
+  daysOff?: number[]
+}
+export interface BulkAssignResponse {
+  created: number
+  updated: number
+  totalRows: number
+  employees: number
+  dates: number
+  shiftId: string
+}
+export async function bulkAssignSchedule(data: BulkAssignRequest): Promise<BulkAssignResponse> {
+  return api<BulkAssignResponse>('/api/admin/schedule/bulk-assign', { method: 'POST', body: JSON.stringify(data) })
+}
+
+export interface ScheduleStats {
+  totalShifts: number
+  filledShifts: number
+  openShifts: number
+  totalHours: number
+  publishedCount: number
+}
+export async function getScheduleStats(params: { clientId: string; from: string; to: string }): Promise<ScheduleStats> {
+  const search = new URLSearchParams({ client_id: params.clientId, from: params.from, to: params.to })
+  return api<ScheduleStats>(`/api/admin/schedule/stats?${search}`)
+}
+
+export async function publishSchedule(data: { clientId: string; from: string; to: string }): Promise<{ published: number }> {
+  return api<{ published: number }>('/api/admin/schedule/publish', { method: 'POST', body: JSON.stringify(data) })
+}
+
+export async function getShiftGroups(): Promise<string[]> {
+  return api<string[]>('/api/admin/schedule/shift-groups')
 }
 
 export interface AdminLeaveRequest {

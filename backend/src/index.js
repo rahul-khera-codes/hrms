@@ -211,6 +211,8 @@ try {
   await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS mobile_phone VARCHAR(30)`)
   await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS termination_reason VARCHAR(100)`)
   await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS is_locked BOOLEAN DEFAULT FALSE`)
+  // Shift group — per 19MAY2026 Scheduler Module Part 1 video: bulk-assign by group
+  await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS shift_group VARCHAR(50)`)
   await pool.query(`
     CREATE TABLE IF NOT EXISTS shifts (
       id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -242,6 +244,8 @@ try {
   try {
     await pool.query('ALTER TABLE schedule_assignments ADD COLUMN IF NOT EXISTS override_start_time TIME')
     await pool.query('ALTER TABLE schedule_assignments ADD COLUMN IF NOT EXISTS override_end_time TIME')
+    // Published state (manager presses Publish to release the week)
+    await pool.query('ALTER TABLE schedule_assignments ADD COLUMN IF NOT EXISTS published BOOLEAN DEFAULT FALSE')
   } catch (e) {
     if (e.code !== '42701') throw e
   }
