@@ -614,6 +614,13 @@ export async function deleteScheduleAssignment(id: string): Promise<void> {
   return api(`/api/admin/schedule/${id}`, { method: 'DELETE' })
 }
 
+// Per-weekday "Master Week" entry — exactly one of `off`, `shiftId`, or
+// `startTime/endTime` should be set (per the 19MAY2026 SCHEDULER DEMOs meeting).
+export type WeeklyPatternEntry =
+  | { off: true }
+  | { shiftId: string }
+  | { startTime: string; endTime: string }
+
 export interface BulkAssignRequest {
   clientId: string
   shiftId?: string
@@ -625,6 +632,9 @@ export interface BulkAssignRequest {
   dateFrom: string
   dateTo: string
   daysOff?: number[]
+  // 7-entry array indexed 0=Sun … 6=Sat. When provided, the endpoint runs in
+  // per-weekday mode and ignores `shiftId`, `overrideStart/EndTime`, `daysOff`.
+  weeklyPattern?: WeeklyPatternEntry[]
 }
 export interface BulkAssignResponse {
   created: number
@@ -632,7 +642,10 @@ export interface BulkAssignResponse {
   totalRows: number
   employees: number
   dates: number
-  shiftId: string
+  shiftId: string | null
+  shiftIds: string[]
+  mode: 'same-shift' | 'per-weekday'
+  attendanceCreated?: number
 }
 export async function bulkAssignSchedule(data: BulkAssignRequest): Promise<BulkAssignResponse> {
   return api<BulkAssignResponse>('/api/admin/schedule/bulk-assign', { method: 'POST', body: JSON.stringify(data) })

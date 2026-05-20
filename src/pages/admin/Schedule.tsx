@@ -14,6 +14,8 @@ import {
   type Shift,
   type ScheduleAssignment,
   type ScheduleStats,
+  type BulkAssignRequest,
+  type WeeklyPatternEntry,
 } from '@/lib/apiAdmin'
 import { addDays, startOfWeek, format, parseISO } from 'date-fns'
 import AdminSelect from '@/components/AdminSelect'
@@ -30,6 +32,16 @@ const DAYS_PILLS: { value: number; short: string; long: string }[] = [
   { value: 6, short: 'Sat', long: 'Saturday' },
   { value: 0, short: 'Sun', long: 'Sunday' },
 ]
+// Indexed by JS getDay() — used for per-weekday "Master Week" mode error messages.
+const WEEKDAY_LONG = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+
+// One row in the per-weekday "Master Week" matrix.
+type PerDayEntry = {
+  enabled: boolean
+  shiftId: string  // '' = use custom times
+  startTime: string
+  endTime: string
+}
 
 // Color palette for shift badges keyed by shift id.
 const SHIFT_COLORS = [
@@ -78,6 +90,21 @@ export default function AdminSchedule() {
   const [paneDaysOff, setPaneDaysOff] = useState<number[]>([0, 6]) // default: Sat/Sun off
   const [paneSubmitting, setPaneSubmitting] = useState(false)
   const [publishing, setPublishing] = useState(false)
+
+  // "Master Week" per-weekday mode — added 19MAY2026 SCHEDULER DEMOs meeting.
+  // Mode is `'same'` (one shift across all working days, old behavior) or
+  // `'perDay'` (each weekday independently configured, HHAX-style).
+  const [paneMode, setPaneMode] = useState<'same' | 'perDay'>('same')
+  // Default: weekdays Mon-Fri enabled with "use default shift template" empty,
+  // Sat/Sun off.
+  const [paneWeekly, setPaneWeekly] = useState<PerDayEntry[]>(() => {
+    return [0, 1, 2, 3, 4, 5, 6].map((w) => ({
+      enabled: w >= 1 && w <= 5,
+      shiftId: '',
+      startTime: '',
+      endTime: '',
+    }))
+  })
 
   const filteredEmployees = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -179,7 +206,17 @@ export default function AdminSchedule() {
     setPaneShiftGroup('')
     setPaneAllInAccount(false)
     setPaneDaysOff([0, 6])
+    setPaneMode('same')
+    setPaneWeekly([0, 1, 2, 3, 4, 5, 6].map((w) => ({
+      enabled: w >= 1 && w <= 5,
+      shiftId: '',
+      startTime: '',
+      endTime: '',
+    })))
     setError(null)
+  }
+  function updateWeekly(weekday: number, patch: Partial<PerDayEntry>) {
+    setPaneWeekly((prev) => prev.map((row, i) => i === weekday ? { ...row, ...patch } : row))
   }
   function togglePaneEmp(id: string) {
     setPaneEmployeeIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
@@ -193,8 +230,11 @@ export default function AdminSchedule() {
     const start = parseISO(paneFrom)
     const end = parseISO(paneTo)
     if (start > end) return null
+    // Build the off-set differently depending on mode.
+    const offSet = paneMode === 'perDay'
+      ? new Set(paneWeekly.map((row, w) => row.enabled ? -1 : w).filter((w) => w >= 0))
+      : new Set(paneDaysOff)
     let totalDays = 0
-    const offSet = new Set(paneDaysOff)
     for (let d = new Date(start); d <= end; d = addDays(d, 1)) {
       if (!offSet.has(d.getDay())) totalDays++
     }
@@ -206,7 +246,14 @@ export default function AdminSchedule() {
     else employeeLabel = `${paneEmployeeIds.length}`
 
     let shiftLabel = ''
-    if (paneShiftId) {
+    if (paneMode === 'perDay') {
+      const activeDays = paneWeekly
+        .map((row, w) => ({ row, w }))
+        .filter(({ row }) => row.enabled)
+      shiftLabel = activeDays.length === 0
+        ? '—'
+        : `${activeDays.length} of 7 weekdays`
+    } else if (paneShiftId) {
       const s = shifts.find((x) => x.id === paneShiftId)
       if (s) shiftLabel = `${s.name} (${String(s.startTime).slice(0, 5)}–${String(s.endTime).slice(0, 5)})`
     } else if (paneStart && paneEnd) {
@@ -218,18 +265,13 @@ export default function AdminSchedule() {
     const explicitCount = paneEmployeeIds.length
     const totalShifts = explicitCount > 0 && !paneShiftGroup && !paneAllInAccount ? explicitCount * totalDays : null
     return { totalDays, employeeLabel, shiftLabel, rangeLabel, totalShifts }
-  }, [paneFrom, paneTo, paneDaysOff, paneEmployeeIds, paneShiftGroup, paneAllInAccount, paneShiftId, paneStart, paneEnd, shifts])
+  }, [paneFrom, paneTo, paneDaysOff, paneEmployeeIds, paneShiftGroup, paneAllInAccount, paneShiftId, paneStart, paneEnd, shifts, paneMode, paneWeekly])
 
   async function submitAssign() {
     setError(null)
     setInfo(null)
     if (!clientId) {
       setError('Select an account first.')
-      return
-    }
-    const usingTemplate = !!paneShiftId
-    if (!usingTemplate && (!paneStart || !paneEnd)) {
-      setError('Pick a shift template or enter both start and end times.')
       return
     }
     const hasEmpSelection = paneEmployeeIds.length > 0 || !!paneShiftGroup || paneAllInAccount
@@ -241,19 +283,59 @@ export default function AdminSchedule() {
       setError('Pick a date range.')
       return
     }
+
+    // Build the request body. Per-weekday mode (Master Week) sends a 7-entry
+    // pattern indexed 0=Sun..6=Sat. Same-shift mode uses the single shift +
+    // daysOff pills.
+    let body: BulkAssignRequest = {
+      clientId,
+      ...(paneEmployeeIds.length > 0 ? { userIds: paneEmployeeIds } : {}),
+      ...(paneShiftGroup ? { shiftGroup: paneShiftGroup } : {}),
+      ...(paneAllInAccount ? { allInAccount: true } : {}),
+      dateFrom: paneFrom,
+      dateTo: paneTo,
+    }
+
+    if (paneMode === 'perDay') {
+      const pattern: WeeklyPatternEntry[] = paneWeekly.map((row) => {
+        if (!row.enabled) return { off: true }
+        if (row.shiftId) return { shiftId: row.shiftId }
+        if (row.startTime && row.endTime) return { startTime: row.startTime, endTime: row.endTime }
+        return { off: true } // enabled but nothing chosen → treat as off
+      })
+      const anyWorking = pattern.some((p) => !('off' in p))
+      if (!anyWorking) {
+        setError('Pick a shift (template or custom times) for at least one weekday.')
+        return
+      }
+      // Validate: enabled rows must have either a template or both times.
+      for (let w = 0; w < 7; w++) {
+        const row = paneWeekly[w]
+        if (!row.enabled) continue
+        if (row.shiftId) continue
+        if (row.startTime && row.endTime) continue
+        setError(`${WEEKDAY_LONG[w]} is enabled but has no shift template or custom times.`)
+        return
+      }
+      body = { ...body, weeklyPattern: pattern }
+    } else {
+      const usingTemplate = !!paneShiftId
+      if (!usingTemplate && (!paneStart || !paneEnd)) {
+        setError('Pick a shift template or enter both start and end times.')
+        return
+      }
+      body = {
+        ...body,
+        ...(usingTemplate ? { shiftId: paneShiftId } : { overrideStartTime: paneStart, overrideEndTime: paneEnd }),
+        daysOff: paneDaysOff,
+      }
+    }
+
     setPaneSubmitting(true)
     try {
-      const res = await bulkAssignSchedule({
-        clientId,
-        ...(usingTemplate ? { shiftId: paneShiftId } : { overrideStartTime: paneStart, overrideEndTime: paneEnd }),
-        ...(paneEmployeeIds.length > 0 ? { userIds: paneEmployeeIds } : {}),
-        ...(paneShiftGroup ? { shiftGroup: paneShiftGroup } : {}),
-        ...(paneAllInAccount ? { allInAccount: true } : {}),
-        dateFrom: paneFrom,
-        dateTo: paneTo,
-        daysOff: paneDaysOff,
-      })
-      setInfo(`Assigned ${res.totalRows} shift${res.totalRows === 1 ? '' : 's'} (${res.created} new, ${res.updated} updated) across ${res.employees} employee${res.employees === 1 ? '' : 's'} × ${res.dates} day${res.dates === 1 ? '' : 's'}.`)
+      const res = await bulkAssignSchedule(body)
+      const modeNote = res.mode === 'per-weekday' ? ' (Master Week)' : ''
+      setInfo(`Assigned ${res.totalRows} shift${res.totalRows === 1 ? '' : 's'}${modeNote} (${res.created} new, ${res.updated} updated) across ${res.employees} employee${res.employees === 1 ? '' : 's'} × ${res.dates} day${res.dates === 1 ? '' : 's'}.`)
       await reload()
       resetPane()
     } catch (e: unknown) {
@@ -477,30 +559,124 @@ export default function AdminSchedule() {
             </div>
 
             <div className="p-5 space-y-5">
+              {/* Mode toggle — added 19MAY2026 SCHEDULER DEMOs meeting. */}
               <section>
-                <h3 className="text-xs font-semibold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider mb-2">Shift</h3>
-                <label className="label">Shift Template</label>
-                <AdminSelect
-                  value={paneShiftId}
-                  onChange={(v) => { setPaneShiftId(v); if (v) { setPaneStart(''); setPaneEnd('') } }}
-                  options={[
-                    { value: '', label: 'Custom times (no template)' },
-                    ...shifts.map((s) => ({ value: s.id, label: `${s.name} · ${String(s.startTime).slice(0, 5)}–${String(s.endTime).slice(0, 5)}` })),
-                  ]}
-                />
-                {!paneShiftId && (
-                  <div className="mt-2 grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="label">Start</label>
-                      <input type="time" className="input" value={paneStart} onChange={(e) => setPaneStart(e.target.value)} />
-                    </div>
-                    <div>
-                      <label className="label">End</label>
-                      <input type="time" className="input" value={paneEnd} onChange={(e) => setPaneEnd(e.target.value)} />
-                    </div>
-                  </div>
-                )}
+                <h3 className="text-xs font-semibold text-surface-500 dark:text-surface-400 uppercase tracking-wider mb-2">Mode</h3>
+                <div className="segmented">
+                  <button
+                    type="button"
+                    onClick={() => setPaneMode('same')}
+                    className={`segmented-item flex-1 justify-center ${paneMode === 'same' ? 'segmented-item-active' : ''}`}
+                  >
+                    Same shift every day
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPaneMode('perDay')}
+                    className={`segmented-item flex-1 justify-center ${paneMode === 'perDay' ? 'segmented-item-active' : ''}`}
+                  >
+                    Master Week
+                  </button>
+                </div>
+                <p className="mt-1.5 text-[11px] text-surface-500 dark:text-surface-400">
+                  {paneMode === 'same'
+                    ? 'Apply one shift template (or custom times) across the date range — use the day-off pills to skip weekends/etc.'
+                    : 'Pick a different shift for each weekday — Mon morning, Tue night, etc. Days you leave off are skipped.'}
+                </p>
               </section>
+
+              {paneMode === 'same' && (
+                <section>
+                  <h3 className="text-xs font-semibold text-surface-500 dark:text-surface-400 uppercase tracking-wider mb-2">Shift</h3>
+                  <label className="label">Shift Template</label>
+                  <AdminSelect
+                    value={paneShiftId}
+                    onChange={(v) => { setPaneShiftId(v); if (v) { setPaneStart(''); setPaneEnd('') } }}
+                    options={[
+                      { value: '', label: 'Custom times (no template)' },
+                      ...shifts.map((s) => ({ value: s.id, label: `${s.name} · ${String(s.startTime).slice(0, 5)}–${String(s.endTime).slice(0, 5)}` })),
+                    ]}
+                  />
+                  {!paneShiftId && (
+                    <div className="mt-2 grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="label">Start</label>
+                        <input type="time" className="input" value={paneStart} onChange={(e) => setPaneStart(e.target.value)} />
+                      </div>
+                      <div>
+                        <label className="label">End</label>
+                        <input type="time" className="input" value={paneEnd} onChange={(e) => setPaneEnd(e.target.value)} />
+                      </div>
+                    </div>
+                  )}
+                </section>
+              )}
+
+              {paneMode === 'perDay' && (
+                <section>
+                  <h3 className="text-xs font-semibold text-surface-500 dark:text-surface-400 uppercase tracking-wider mb-2">Weekly Pattern</h3>
+                  <p className="text-[11px] text-surface-500 dark:text-surface-400 mb-2">Configure each weekday. Unchecked days are skipped.</p>
+                  <div className="space-y-1.5">
+                    {/* Render Mon → Sun (DAYS_PILLS order). Each row's `value` is the JS getDay() index. */}
+                    {DAYS_PILLS.map((day) => {
+                      const row = paneWeekly[day.value]
+                      return (
+                        <div
+                          key={day.value}
+                          className={`rounded-xl border p-2.5 ${row.enabled
+                            ? 'border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-900'
+                            : 'border-surface-100 dark:border-surface-800 bg-surface-50/60 dark:bg-surface-950'}`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <label className="flex items-center gap-1.5 min-w-[88px] cursor-pointer text-xs font-semibold">
+                              <input
+                                type="checkbox"
+                                checked={row.enabled}
+                                onChange={(e) => updateWeekly(day.value, { enabled: e.target.checked })}
+                                className="rounded text-brand-600 focus:ring-brand-500"
+                              />
+                              <span className={row.enabled ? 'text-surface-900 dark:text-surface-50' : 'text-surface-400 dark:text-surface-500'}>
+                                {day.short}
+                              </span>
+                            </label>
+                            <div className="flex-1 min-w-0">
+                              <AdminSelect
+                                value={row.shiftId}
+                                onChange={(v) => {
+                                  updateWeekly(day.value, { shiftId: v, ...(v ? { startTime: '', endTime: '' } : {}) })
+                                }}
+                                disabled={!row.enabled}
+                                options={[
+                                  { value: '', label: 'Custom times' },
+                                  ...shifts.map((s) => ({ value: s.id, label: `${s.name} · ${String(s.startTime).slice(0, 5)}–${String(s.endTime).slice(0, 5)}` })),
+                                ]}
+                              />
+                            </div>
+                          </div>
+                          {row.enabled && !row.shiftId && (
+                            <div className="mt-2 grid grid-cols-2 gap-2 pl-[88px]">
+                              <input
+                                type="time"
+                                className="input text-xs"
+                                value={row.startTime}
+                                onChange={(e) => updateWeekly(day.value, { startTime: e.target.value })}
+                                placeholder="Start"
+                              />
+                              <input
+                                type="time"
+                                className="input text-xs"
+                                value={row.endTime}
+                                onChange={(e) => updateWeekly(day.value, { endTime: e.target.value })}
+                                placeholder="End"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </section>
+              )}
 
               <section>
                 <h3 className="text-xs font-semibold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider mb-2">Who</h3>
@@ -557,28 +733,32 @@ export default function AdminSchedule() {
                   </div>
                 </div>
 
-                <label className="label mt-3">Days Off</label>
-                <div className="flex flex-wrap gap-1.5">
-                  {DAYS_PILLS.map((d) => {
-                    const active = paneDaysOff.includes(d.value)
-                    return (
-                      <button
-                        key={d.value}
-                        type="button"
-                        onClick={() => togglePaneDayOff(d.value)}
-                        className={`px-2.5 py-1 rounded-full text-[11px] font-medium border ${
-                          active
-                            ? 'bg-brand-600 text-white border-brand-600'
-                            : 'bg-white dark:bg-surface-900 text-surface-700 dark:text-surface-200 border-surface-200 dark:border-surface-700 hover:bg-surface-50 dark:hover:bg-surface-800'
-                        }`}
-                        title={`${d.long}${active ? ' — off' : ''}`}
-                      >
-                        {d.short}
-                      </button>
-                    )
-                  })}
-                </div>
-                <p className="mt-1 text-[11px] text-surface-500 dark:text-surface-400 dark:text-surface-500">Selected days will be skipped when assigning.</p>
+                {paneMode === 'same' && (
+                  <>
+                    <label className="label mt-3">Days Off</label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {DAYS_PILLS.map((d) => {
+                        const active = paneDaysOff.includes(d.value)
+                        return (
+                          <button
+                            key={d.value}
+                            type="button"
+                            onClick={() => togglePaneDayOff(d.value)}
+                            className={`px-2.5 py-1 rounded-full text-[11px] font-medium border ${
+                              active
+                                ? 'bg-brand-600 text-white border-brand-600'
+                                : 'bg-white dark:bg-surface-900 text-surface-700 dark:text-surface-200 border-surface-200 dark:border-surface-700 hover:bg-surface-50 dark:hover:bg-surface-800'
+                            }`}
+                            title={`${d.long}${active ? ' — off' : ''}`}
+                          >
+                            {d.short}
+                          </button>
+                        )
+                      })}
+                    </div>
+                    <p className="mt-1 text-[11px] text-surface-500 dark:text-surface-400">Selected days will be skipped when assigning.</p>
+                  </>
+                )}
               </section>
 
               {paneSummary && (

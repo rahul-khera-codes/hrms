@@ -61,26 +61,49 @@ export default function EmployeeLeave() {
   const [createOpen, setCreateOpen] = useState(false)
   const [createCategory, setCreateCategory] = useState('time_off')
   const [createStartDate, setCreateStartDate] = useState('')
+  // End date — visible only for self-service categories (vacation, time_off,
+  // sick). HR-controlled categories (maternity, paternity, marriage, bereavement,
+  // medical_license) leave this empty so the HR person sets it during review.
+  // Per 19MAY2026 video at 09:30, only HR-controlled types should hide the field.
+  const [createEndDate, setCreateEndDate] = useState('')
   const [createNotes, setCreateNotes] = useState('')
   const [createSaving, setCreateSaving] = useState(false)
   const toast = useToast()
 
+  // Categories where the duration is fixed by HR / labor law — employee picks
+  // start date only, HR sets end date during review.
+  const HR_CONTROLLED_CATEGORIES = new Set(['maternity', 'paternity', 'marriage', 'bereavement', 'medical_license'])
+  const showEndDate = !HR_CONTROLLED_CATEGORIES.has(createCategory)
+
   async function handleCreateLeave() {
     if (!createStartDate) { toast.error('Please pick a start date.'); return }
+    // For HR-controlled categories, end_date defaults to start_date — HR sets the
+    // real end date during review. For self-service categories the employee
+    // provides their own end date; if they leave it blank we fall back to start.
+    let effectiveEnd = createStartDate
+    if (showEndDate) {
+      if (createEndDate) {
+        if (createEndDate < createStartDate) {
+          toast.error('End date must be on or after the start date.')
+          return
+        }
+        effectiveEnd = createEndDate
+      }
+    }
     setCreateSaving(true)
     try {
-      // End date defaults to start date — admin will adjust during review per client video
       await createLeaveRequest({
         leaveType: 'paid',
         leaveCategory: createCategory,
         startDate: createStartDate,
-        endDate: createStartDate,
+        endDate: effectiveEnd,
         reason: createNotes.trim() || undefined,
       })
       toast.success('Leave request submitted.')
       setCreateOpen(false)
       setCreateCategory('time_off')
       setCreateStartDate('')
+      setCreateEndDate('')
       setCreateNotes('')
       // Reload
       const list = await getMyLeaveRequests()
@@ -595,18 +618,34 @@ export default function EmployeeLeave() {
                   options={leaveCategoryOptions}
                 />
               </div>
-              <div>
-                <label className="label">Start Date</label>
-                <input
-                  type="date"
-                  className="input w-full rounded-xl"
-                  value={createStartDate}
-                  onChange={(e) => setCreateStartDate(e.target.value)}
-                />
-                <p className="text-[11px] text-surface-500 dark:text-surface-400 dark:text-surface-500 mt-1">
-                  Your supervisor will confirm end date, return date, and payment details.
-                </p>
+              <div className={showEndDate ? 'grid grid-cols-1 sm:grid-cols-2 gap-3' : ''}>
+                <div>
+                  <label className="label">Start Date</label>
+                  <input
+                    type="date"
+                    className="input w-full rounded-xl"
+                    value={createStartDate}
+                    onChange={(e) => setCreateStartDate(e.target.value)}
+                  />
+                </div>
+                {showEndDate && (
+                  <div>
+                    <label className="label">End Date</label>
+                    <input
+                      type="date"
+                      className="input w-full rounded-xl"
+                      min={createStartDate || undefined}
+                      value={createEndDate}
+                      onChange={(e) => setCreateEndDate(e.target.value)}
+                    />
+                  </div>
+                )}
               </div>
+              <p className="text-[11px] text-surface-500 dark:text-surface-400 -mt-1">
+                {showEndDate
+                  ? 'Leave the end date blank if it\'s a single day. Your supervisor will confirm payment details and return date.'
+                  : 'For this leave type, your HR person will set the end date and return date during review. Just pick when you want to start.'}
+              </p>
               <div>
                 <label className="label">Notes (optional)</label>
                 <textarea

@@ -125,38 +125,45 @@ function toAttendanceRecord(row) {
   }
 
   // --- N15%: Night differential ---
+  //
+  // Per Dominican Labor Code Art. 204: night work is the period between 9:00 PM
+  // and 7:00 AM, and earns at least a 15% premium. Only the hours actually
+  // worked inside that window count — NOT the whole shift if it merely overlaps
+  // the window (this was the bug Orlando flagged on 19MAY2026 at 08:24).
+  //
+  // The previous implementation:
+  //   1. Used a hand-rolled case-analysis that mis-computed the overlap when
+  //      both clock-in and clock-out fell outside the night window but the
+  //      shift crossed the 9 PM boundary.
+  //   2. Added a "if nightRawHours ≥ 3 then the whole shift becomes N15" rule
+  //      that doesn't match the labor code or the Excel reference.
+  //
+  // Replaced with an explicit hour-aligned scan: walk from clock-in to clock-out
+  // one hour-boundary at a time, summing minutes whose hour is in [21,24)∪[0,7).
+  // Worst case ~24 iterations per session — exact for crossing-midnight shifts.
   let n15Hours = 0
   if (payType !== 'DNP' && clockIn && clockOut) {
-    const ciDate = new Date(clockIn)
-    const coDate = new Date(clockOut)
-    // Time-of-day as fraction of a day (0..1)
-    const clockInTime = (ciDate.getUTCHours() * 3600 + ciDate.getUTCMinutes() * 60 + ciDate.getUTCSeconds()) / 86400
-    const clockOutTime = (coDate.getUTCHours() * 3600 + coDate.getUTCMinutes() * 60 + coDate.getUTCSeconds()) / 86400
-
-    const NINE_PM = 21 / 24   // 0.875
-    const SEVEN_AM = 7 / 24   // ~0.291667
-
-    let nightRawHours = 0
-    if (clockOutTime >= NINE_PM && clockOutTime < 1) {
-      // ClockOut between 9PM and midnight
-      nightRawHours = (clockOutTime - NINE_PM) * 24
-    } else if (clockInTime >= NINE_PM && clockInTime < 1) {
-      // ClockIn between 9PM and midnight (ClockOut past midnight)
-      nightRawHours = (coDate.getTime() - ciDate.getTime()) / 3600000
-    } else if (clockOutTime >= 0 && clockOutTime <= SEVEN_AM) {
-      // ClockOut between midnight and 7AM
-      nightRawHours = (coDate.getTime() - ciDate.getTime()) / 3600000
-    } else if (clockInTime >= 0 && clockInTime <= SEVEN_AM) {
-      // ClockIn between midnight and 7AM
-      nightRawHours = (SEVEN_AM - clockInTime) * 24
-    }
-    // else nightRawHours = 0
-
-    if (nightRawHours >= 3) {
-      // Entire shift becomes night differential
-      n15Hours = Math.max(0, actualHours - adbtHours)
-    } else {
-      n15Hours = Math.max(0, nightRawHours)
+    const startMs = new Date(clockIn).getTime()
+    const endMs = new Date(clockOut).getTime()
+    if (endMs > startMs) {
+      let nightMs = 0
+      let t = startMs
+      while (t < endMs) {
+        const d = new Date(t)
+        const hour = d.getUTCHours()
+        const isNight = hour >= 21 || hour < 7
+        // Step to the next hour boundary, clamped to endMs.
+        const nextHour = new Date(d)
+        nextHour.setUTCMinutes(0, 0, 0)
+        nextHour.setUTCHours(d.getUTCHours() + 1)
+        const segmentEnd = Math.min(nextHour.getTime(), endMs)
+        if (isNight) nightMs += segmentEnd - t
+        t = segmentEnd
+      }
+      // Subtract any deducted break (ADBT) that overlaps the night window — but
+      // we only have the total ADBT here, not its timing. To stay conservative
+      // and consistent with the Excel reference, we cap n15 at (actual - adbt).
+      n15Hours = Math.max(0, Math.min(nightMs / 3600000, actualHours - adbtHours))
     }
   }
 
@@ -2936,13 +2943,40 @@ router.delete('/schedule/:id', async (req, res) => {
 })
 
 // POST /api/admin/schedule/bulk-assign — Scheduler Module Part 1 (19MAY2026 video).
-// Body: {
-//   clientId, shiftId?, overrideStartTime?, overrideEndTime?,
-//   userIds?: string[], shiftGroup?: string, allInAccount?: boolean,
-//   dateFrom, dateTo, daysOff?: number[]   // 0=Sun … 6=Sat
-// }
-// Resolves the target employee set, iterates each day in [dateFrom..dateTo],
-// skips dates whose weekday is in daysOff, and upserts schedule_assignments.
+//
+// Two modes are supported:
+//
+// (a) Same shift every day (original):
+//     { clientId, shiftId?, overrideStartTime?, overrideEndTime?,
+//       userIds?, shiftGroup?, allInAccount?, dateFrom, dateTo, daysOff?: number[] }
+//
+// (b) Per-weekday "Master Week" (added per 19MAY2026 SCHEDULER DEMOs meeting —
+//     mirrors HHAX's master-week and lets supervisors give Monday a different
+//     shift than Wednesday in one shot):
+//     { clientId, userIds?, shiftGroup?, allInAccount?,
+//       dateFrom, dateTo,
+//       weeklyPattern: WeekdayEntry[7]  // index 0=Sun … 6=Sat
+//     }
+//     WeekdayEntry := { off: true }
+//                   | { shiftId: "uuid" }
+//                   | { startTime: "HH:MM", endTime: "HH:MM" }
+//
+// In mode (b), `daysOff` is ignored — the pattern itself encodes which days are
+// off (`{ off: true }`).
+async function resolveShiftForTimes(clientId, startHHMM, endHHMM) {
+  const customName = `Custom ${startHHMM}-${endHHMM}`
+  const existing = await query(
+    `SELECT id FROM shifts WHERE client_id = $1 AND start_time = $2::time AND end_time = $3::time AND name = $4 LIMIT 1`,
+    [clientId, startHHMM, endHHMM, customName],
+  )
+  if (existing.rows.length > 0) return existing.rows[0].id
+  const created = await query(
+    `INSERT INTO shifts (name, start_time, end_time, client_id) VALUES ($1, $2::time, $3::time, $4) RETURNING id`,
+    [customName, startHHMM, endHHMM, clientId],
+  )
+  return created.rows[0].id
+}
+
 router.post('/schedule/bulk-assign', async (req, res) => {
   try {
     const {
@@ -2956,27 +2990,59 @@ router.post('/schedule/bulk-assign', async (req, res) => {
       dateFrom,
       dateTo,
       daysOff,
+      weeklyPattern,
     } = req.body || {}
 
     if (!clientId) return res.status(400).json({ error: 'Bad request', message: 'clientId is required' })
     if (!dateFrom || !dateTo) return res.status(400).json({ error: 'Bad request', message: 'dateFrom and dateTo are required' })
 
+    // Per-weekday mode is opt-in via `weeklyPattern`. Validate up front and resolve
+    // each weekday's shift id (auto-create custom rows) once.
+    const isPerWeekday = Array.isArray(weeklyPattern) && weeklyPattern.length === 7
+    let weekdayShiftIds = null
+    let weekdayMeta = null
+    if (isPerWeekday) {
+      weekdayShiftIds = new Array(7).fill(null)
+      weekdayMeta = new Array(7).fill(null) // { shiftId, startOverride, endOverride }
+      let hasAnyWorkingDay = false
+      for (let w = 0; w < 7; w++) {
+        const entry = weeklyPattern[w]
+        if (!entry || entry.off === true) continue
+        if (entry.shiftId) {
+          weekdayShiftIds[w] = entry.shiftId
+          weekdayMeta[w] = { shiftId: entry.shiftId, startOverride: null, endOverride: null }
+        } else if (entry.startTime && entry.endTime) {
+          const s = String(entry.startTime).slice(0, 5)
+          const e = String(entry.endTime).slice(0, 5)
+          const id = await resolveShiftForTimes(clientId, s, e)
+          weekdayShiftIds[w] = id
+          weekdayMeta[w] = { shiftId: id, startOverride: s, endOverride: e }
+        } else {
+          return res.status(400).json({ error: 'Bad request', message: `weeklyPattern[${w}] must be { off:true }, { shiftId }, or { startTime, endTime }` })
+        }
+        hasAnyWorkingDay = true
+      }
+      if (!hasAnyWorkingDay) {
+        return res.status(400).json({ error: 'Bad request', message: 'weeklyPattern has no working days — at least one weekday must be assigned a shift' })
+      }
+    }
+
     const hasStartOverride = overrideStartTime != null && String(overrideStartTime).trim() !== ''
     const hasEndOverride = overrideEndTime != null && String(overrideEndTime).trim() !== ''
-    if (hasStartOverride !== hasEndOverride) {
-      return res.status(400).json({ error: 'Bad request', message: 'Provide both overrideStartTime and overrideEndTime or leave both empty' })
-    }
-    if (!shiftId && !hasStartOverride) {
-      return res.status(400).json({ error: 'Bad request', message: 'Either shiftId or overrideStartTime/overrideEndTime is required' })
+    if (!isPerWeekday) {
+      if (hasStartOverride !== hasEndOverride) {
+        return res.status(400).json({ error: 'Bad request', message: 'Provide both overrideStartTime and overrideEndTime or leave both empty' })
+      }
+      if (!shiftId && !hasStartOverride) {
+        return res.status(400).json({ error: 'Bad request', message: 'Either shiftId or overrideStartTime/overrideEndTime is required (or use weeklyPattern)' })
+      }
     }
     const startOverride = hasStartOverride ? String(overrideStartTime).slice(0, 5) : null
     const endOverride = hasEndOverride ? String(overrideEndTime).slice(0, 5) : null
 
-    // Resolve the shift_id we'll write. If the user only supplied override times,
-    // synthesize a one-off "Custom" shift row for this client so the existing
-    // schedule_assignments FK is satisfied. Reuse one if it exists for this client+times.
+    // Same-shift mode: resolve a single shift_id for the entire range.
     let resolvedShiftId = shiftId || null
-    if (!resolvedShiftId) {
+    if (!isPerWeekday && !resolvedShiftId) {
       const customName = `Custom ${startOverride}-${endOverride}`
       const existing = await query(
         `SELECT id FROM shifts WHERE client_id = $1 AND start_time = $2::time AND end_time = $3::time AND name = $4 LIMIT 1`,
@@ -3029,36 +3095,63 @@ router.post('/schedule/bulk-assign', async (req, res) => {
       return res.status(400).json({ error: 'Bad request', message: 'No employees matched the selection (userIds/shiftGroup/allInAccount)' })
     }
 
-    // Build date list
-    const offSet = new Set(Array.isArray(daysOff) ? daysOff.map((d) => Number(d)) : [])
+    // Build date list. In per-weekday mode `daysOff` is ignored — the pattern
+    // itself encodes off days. In same-shift mode we honor `daysOff`.
+    const offSet = new Set(
+      isPerWeekday
+        ? weeklyPattern.map((e, w) => (!e || e.off ? w : -1)).filter((w) => w >= 0)
+        : Array.isArray(daysOff) ? daysOff.map((d) => Number(d)) : [],
+    )
     const start = new Date(`${dateFrom}T00:00:00Z`)
     const end = new Date(`${dateTo}T00:00:00Z`)
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start > end) {
       return res.status(400).json({ error: 'Bad request', message: 'Invalid dateFrom/dateTo range' })
     }
-    const dates = []
+    // Build [{ date, weekday }] for each working day.
+    const days = []
     for (let d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
       const weekday = d.getUTCDay() // 0=Sun … 6=Sat
       if (offSet.has(weekday)) continue
-      dates.push(d.toISOString().slice(0, 10))
+      days.push({ date: d.toISOString().slice(0, 10), weekday })
     }
-    if (dates.length === 0) {
+    if (days.length === 0) {
       return res.status(400).json({ error: 'Bad request', message: 'All days in the range are marked as days off' })
     }
 
-    // Look up the resolved shift's actual times so we can stamp sessions.shift_start/end.
-    const shiftRow = await query(
-      `SELECT start_time, end_time FROM shifts WHERE id = $1`,
-      [resolvedShiftId],
-    )
-    const shiftStartTime = startOverride || (shiftRow.rows[0]?.start_time ? String(shiftRow.rows[0].start_time).slice(0, 5) : null)
-    const shiftEndTime = endOverride || (shiftRow.rows[0]?.end_time ? String(shiftRow.rows[0].end_time).slice(0, 5) : null)
+    // Cache start/end times per shift id (we may reference 1..7 different shifts in
+    // per-weekday mode).
+    const shiftTimesById = new Map()
+    async function getShiftTimes(shiftIdToLookUp) {
+      if (shiftTimesById.has(shiftIdToLookUp)) return shiftTimesById.get(shiftIdToLookUp)
+      const row = await query(`SELECT start_time, end_time FROM shifts WHERE id = $1`, [shiftIdToLookUp])
+      const t = {
+        start: row.rows[0]?.start_time ? String(row.rows[0].start_time).slice(0, 5) : null,
+        end: row.rows[0]?.end_time ? String(row.rows[0].end_time).slice(0, 5) : null,
+      }
+      shiftTimesById.set(shiftIdToLookUp, t)
+      return t
+    }
 
     let created = 0
     let updated = 0
     let attendanceCreated = 0
+    const usedShiftIds = new Set()
     for (const userId of employeeIds) {
-      for (const date of dates) {
+      for (const { date, weekday } of days) {
+        // Pick the shift + override times for this calendar date.
+        let dayShiftId, dayStartOverride, dayEndOverride
+        if (isPerWeekday) {
+          const meta = weekdayMeta[weekday]
+          dayShiftId = meta.shiftId
+          dayStartOverride = meta.startOverride
+          dayEndOverride = meta.endOverride
+        } else {
+          dayShiftId = resolvedShiftId
+          dayStartOverride = startOverride
+          dayEndOverride = endOverride
+        }
+        usedShiftIds.add(dayShiftId)
+
         const existing = await query(
           `SELECT id FROM schedule_assignments WHERE client_id = $1 AND user_id = $2 AND date = $3::date`,
           [clientId, userId, date],
@@ -3072,19 +3165,16 @@ router.post('/schedule/bulk-assign', async (req, res) => {
              override_start_time = EXCLUDED.override_start_time,
              override_end_time = EXCLUDED.override_end_time,
              published = FALSE`,
-          [clientId, userId, resolvedShiftId, date, startOverride, endOverride],
+          [clientId, userId, dayShiftId, date, dayStartOverride, dayEndOverride],
         )
         if (isUpdate) updated++
         else created++
 
-        // 19MAY2026 Scheduler Demos meeting: pre-populate an attendance record for each
-        // assigned shift (no clock in/out yet) so it surfaces in the Attendance module
-        // ahead of time and the supervisor can normalize once the day arrives.
-        // We use the shift_start moment as the placeholder clock_in to anchor the date,
-        // and leave clock_out NULL — but we mark is_scheduled = TRUE and zero out the
-        // hours so it doesn't pollute payroll until the supervisor edits it.
-        if (shiftStartTime && shiftEndTime) {
-          // Skip if any session already exists for this user × date (avoid duplicates).
+        // Pre-populate the attendance record — see 19MAY2026 Scheduler Demos meeting.
+        const t = await getShiftTimes(dayShiftId)
+        const sStart = dayStartOverride || t.start
+        const sEnd = dayEndOverride || t.end
+        if (sStart && sEnd) {
           const dupe = await query(
             `SELECT id FROM sessions
              WHERE user_id = $1
@@ -3104,7 +3194,7 @@ router.post('/schedule/bulk-assign', async (req, res) => {
                           ($2::date || ' ' || $3::text)::timestamptz,
                           ($2::date || ' ' || $4::text)::timestamptz,
                           $5, TRUE, TRUE, $6, NOW())`,
-              [userId, date, shiftStartTime, shiftEndTime, clientId, req.user?.id || null],
+              [userId, date, sStart, sEnd, clientId, req.user?.id || null],
             )
             attendanceCreated++
           }
@@ -3117,8 +3207,10 @@ router.post('/schedule/bulk-assign', async (req, res) => {
       updated,
       totalRows: created + updated,
       employees: employeeIds.length,
-      dates: dates.length,
-      shiftId: resolvedShiftId,
+      dates: days.length,
+      shiftId: isPerWeekday ? null : resolvedShiftId,
+      shiftIds: Array.from(usedShiftIds),
+      mode: isPerWeekday ? 'per-weekday' : 'same-shift',
       attendanceCreated,
     })
   } catch (err) {

@@ -22,38 +22,35 @@ async function getNightWindow() {
 }
 
 /**
- * Minutes between start and end that fall in night window: configurable (default 9:00 PM - 7:00 AM).
- * Midnight rule (DR labor law): if the shift extends to or past midnight (i.e., clock-out is on a
- * different calendar day than clock-in), the ENTIRE shift is paid at the night differential rate.
- * If night hours fall only between 9PM and 11:59PM (same day), only those hours get the differential.
+ * Minutes between `start` and `end` that fall inside the night window
+ * (default 21:00–07:00). Only the actual overlap counts — per Dominican Labor
+ * Code Art. 204, only night-window hours get the 15% premium, not the whole
+ * shift just because it crossed midnight (the previous "entire shift" rule was
+ * the bug Orlando flagged on 19MAY2026 at 08:24).
+ *
+ * Hour-aligned scan — worst case ~24 iterations, exact for crossing-midnight
+ * shifts. Returns minutes (not seconds, not "the whole shift").
  */
 function getNightMinutesBetween(start, end, nightStartHour, nightEndHour) {
-  const totalMinutes = (end.getTime() - start.getTime()) / 60000
-
-  // Check if shift crosses midnight: clock-out date differs from clock-in date
-  const startDay = start.getFullYear() * 10000 + start.getMonth() * 100 + start.getDate()
-  const endDay = end.getFullYear() * 10000 + end.getMonth() * 100 + end.getDate()
-  const shiftCrossesMidnight = endDay > startDay
-
-  // Count actual night seconds within the night window
-  let nightSeconds = 0
+  const startMs = start.getTime()
   const endMs = end.getTime()
-  let t = start.getTime()
-  const oneSecMs = 1000
+  if (endMs <= startMs) return 0
+  let nightMs = 0
+  let t = startMs
   while (t < endMs) {
     const d = new Date(t)
     const hour = d.getHours()
-    if (hour >= nightStartHour || hour < nightEndHour) {
-      nightSeconds += 1
-    }
-    t += oneSecMs
+    const isNight = nightStartHour <= nightEndHour
+      ? hour >= nightStartHour && hour < nightEndHour
+      : hour >= nightStartHour || hour < nightEndHour
+    const nextHour = new Date(d)
+    nextHour.setMinutes(0, 0, 0)
+    nextHour.setHours(d.getHours() + 1)
+    const segmentEnd = Math.min(nextHour.getTime(), endMs)
+    if (isNight) nightMs += segmentEnd - t
+    t = segmentEnd
   }
-
-  // If shift crosses midnight AND has any night hours, entire shift gets night differential
-  if (shiftCrossesMidnight && nightSeconds > 0) {
-    return totalMinutes
-  }
-  return nightSeconds / 60
+  return nightMs / 60000
 }
 
 function toSession(row) {
