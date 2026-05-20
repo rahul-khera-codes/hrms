@@ -198,8 +198,27 @@ export default function AdminSchedule() {
     for (let d = new Date(start); d <= end; d = addDays(d, 1)) {
       if (!offSet.has(d.getDay())) totalDays++
     }
-    return { totalDays }
-  }, [paneFrom, paneTo, paneDaysOff])
+    // Employee count we can show client-side. Shift group + allInAccount resolve
+    // server-side, so report "TBD" for those.
+    let employeeLabel: string
+    if (paneAllInAccount) employeeLabel = 'All in account'
+    else if (paneShiftGroup) employeeLabel = paneEmployeeIds.length > 0 ? `${paneEmployeeIds.length} + group "${paneShiftGroup}"` : `Group "${paneShiftGroup}"`
+    else employeeLabel = `${paneEmployeeIds.length}`
+
+    let shiftLabel = ''
+    if (paneShiftId) {
+      const s = shifts.find((x) => x.id === paneShiftId)
+      if (s) shiftLabel = `${s.name} (${String(s.startTime).slice(0, 5)}–${String(s.endTime).slice(0, 5)})`
+    } else if (paneStart && paneEnd) {
+      shiftLabel = `Custom ${paneStart}–${paneEnd}`
+    }
+
+    const rangeLabel = `${format(parseISO(paneFrom), 'd MMM')} – ${format(parseISO(paneTo), 'd MMM yyyy')}`
+    // totalShifts is meaningful only for explicit user lists (we can compute it).
+    const explicitCount = paneEmployeeIds.length
+    const totalShifts = explicitCount > 0 && !paneShiftGroup && !paneAllInAccount ? explicitCount * totalDays : null
+    return { totalDays, employeeLabel, shiftLabel, rangeLabel, totalShifts }
+  }, [paneFrom, paneTo, paneDaysOff, paneEmployeeIds, paneShiftGroup, paneAllInAccount, paneShiftId, paneStart, paneEnd, shifts])
 
   async function submitAssign() {
     setError(null)
@@ -404,13 +423,18 @@ export default function AdminSchedule() {
                               <button
                                 type="button"
                                 onClick={() => handleClearCell(a.id)}
-                                title="Click to clear this shift"
-                                className={`group w-full inline-flex flex-col items-stretch rounded-lg px-2 py-1.5 text-[11px] font-medium ring-1 ring-inset ${shiftColor(a.shiftId)} hover:opacity-90`}
+                                title={a.published ? 'Published — click to clear' : 'Draft (not yet published) — click to clear'}
+                                className={`group relative w-full inline-flex flex-col items-stretch rounded-lg px-2 py-1.5 text-[11px] font-medium ring-1 ring-inset ${shiftColor(a.shiftId)} ${a.published ? '' : 'opacity-70'} hover:opacity-90`}
                               >
                                 <span className="truncate">{a.shiftName}</span>
                                 <span className="text-[10px] opacity-80 tabular-nums">
                                   {String(a.shiftStart).slice(0, 5)}–{String(a.shiftEnd).slice(0, 5)}
                                 </span>
+                                {!a.published && (
+                                  <span className="absolute top-0.5 right-0.5 px-1 rounded-sm bg-white/80 text-[8px] font-bold uppercase tracking-wider text-surface-600 leading-tight">
+                                    Draft
+                                  </span>
+                                )}
                               </button>
                             ) : (
                               <div className="w-full h-9 rounded-lg border border-dashed border-surface-200 bg-surface-50/40 text-[10px] text-surface-400 inline-flex items-center justify-center">
@@ -558,8 +582,16 @@ export default function AdminSchedule() {
               </section>
 
               {paneSummary && (
-                <div className="rounded-xl bg-surface-50 border border-surface-200 px-3 py-2.5 text-xs text-surface-700">
-                  <span className="font-semibold">Summary:</span> {paneSummary.totalDays} working day{paneSummary.totalDays === 1 ? '' : 's'} in range.
+                <div className="rounded-xl bg-surface-50 border border-surface-200 px-3 py-2.5 text-xs text-surface-700 space-y-1.5">
+                  <div className="text-[11px] font-semibold uppercase tracking-wider text-surface-500">Summary</div>
+                  <div className="flex items-center justify-between"><span className="text-surface-500">Employees</span><span className="font-medium text-surface-900">{paneSummary.employeeLabel || '—'}</span></div>
+                  <div className="flex items-center justify-between"><span className="text-surface-500">Shift</span><span className="font-medium text-surface-900 text-right">{paneSummary.shiftLabel || '—'}</span></div>
+                  <div className="flex items-center justify-between"><span className="text-surface-500">Date Range</span><span className="font-medium text-surface-900">{paneSummary.rangeLabel}</span></div>
+                  <div className="flex items-center justify-between"><span className="text-surface-500">Working Days</span><span className="font-medium text-surface-900 tabular-nums">{paneSummary.totalDays}</span></div>
+                  <div className="flex items-center justify-between border-t border-surface-200 pt-1.5 mt-1.5">
+                    <span className="text-surface-500">Total Shifts</span>
+                    <span className="font-semibold text-surface-900 tabular-nums">{paneSummary.totalShifts != null ? paneSummary.totalShifts : 'Resolved on assign'}</span>
+                  </div>
                 </div>
               )}
             </div>

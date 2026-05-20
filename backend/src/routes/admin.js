@@ -2713,7 +2713,7 @@ router.get('/schedule', async (req, res) => {
     const toDate = to || fromDate
     const result = await query(
       `SELECT a.id, a.client_id, a.user_id, a.shift_id, a.date::text AS date_str,
-              a.override_start_time, a.override_end_time,
+              a.override_start_time, a.override_end_time, a.published,
               u.name AS user_name, s.name AS shift_name,
               COALESCE(a.override_start_time, s.start_time) AS shift_start,
               COALESCE(a.override_end_time, s.end_time) AS shift_end
@@ -2735,6 +2735,7 @@ router.get('/schedule', async (req, res) => {
       shiftEnd: r.shift_end,
       overrideStart: r.override_start_time,
       overrideEnd: r.override_end_time,
+      published: r.published === true,
       date: r.date_str ? r.date_str.slice(0, 10) : null,
     })))
   } catch (err) {

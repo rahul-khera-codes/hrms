@@ -130,6 +130,53 @@ test('Bulk-assign endpoint creates schedule rows skipping days off', async () =>
   await ctx.dispose()
 })
 
+test('Employee /my-schedule hides drafts and returns published shifts only', async () => {
+  // Per video at 04:55 — drafts shouldn't leak to employees.
+  const admin = await ensureAdmin()
+  const adminCtx = await pwRequest.newContext({ extraHTTPHeaders: { Authorization: `Bearer ${admin.token}` } })
+
+  const clientId = await createClient(admin.token)
+  const shift = await createShift(admin.token, clientId)
+  const emp = await ensureEmployee(admin.token, 'pub')
+
+  const dateFrom = '2026-06-01'
+  const dateTo = '2026-06-05'
+
+  // Bulk-assign creates rows as draft (published=false).
+  const bulk = await adminCtx.post(`${API}/api/admin/schedule/bulk-assign`, {
+    data: { clientId, shiftId: shift.id, userIds: [emp.id], dateFrom, dateTo, daysOff: [] },
+  })
+  expect(bulk.ok(), `bulk-assign ${bulk.status()} ${await bulk.text()}`).toBeTruthy()
+  expect((await bulk.json()).totalRows).toBe(5)
+
+  // Login as the employee.
+  const empCtx = await pwRequest.newContext()
+  const empLogin = await empCtx.post(`${API}/api/auth/login`, { data: { email: emp.email, password: 'test1234' } })
+  expect(empLogin.ok()).toBeTruthy()
+  const empToken = (await empLogin.json()).token
+  await empCtx.dispose()
+
+  const empAuthCtx = await pwRequest.newContext({ extraHTTPHeaders: { Authorization: `Bearer ${empToken}` } })
+
+  // BEFORE publish: employee should see 0 rows (drafts are hidden).
+  const before = await empAuthCtx.get(`${API}/api/sessions/my-schedule?from=${dateFrom}&to=${dateTo}`)
+  expect(before.ok()).toBeTruthy()
+  expect((await before.json()).length).toBe(0)
+
+  // Publish the range.
+  const pub = await adminCtx.post(`${API}/api/admin/schedule/publish`, { data: { clientId, from: dateFrom, to: dateTo } })
+  expect(pub.ok()).toBeTruthy()
+  expect((await pub.json()).published).toBe(5)
+
+  // AFTER publish: employee should now see all 5 rows.
+  const after = await empAuthCtx.get(`${API}/api/sessions/my-schedule?from=${dateFrom}&to=${dateTo}`)
+  expect(after.ok()).toBeTruthy()
+  expect((await after.json()).length).toBe(5)
+
+  await adminCtx.dispose()
+  await empAuthCtx.dispose()
+})
+
 test('Scheduler UI renders Assign Shifts button and bulk pane', async ({ page }: { page: Page }) => {
   test.setTimeout(120000)
   const admin = await ensureAdmin()

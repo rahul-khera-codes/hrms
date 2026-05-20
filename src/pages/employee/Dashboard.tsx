@@ -108,6 +108,8 @@ export default function EmployeeDashboard() {
 
   // New state for shift info, payroll period and attendance
   const [todaySchedule, setTodaySchedule] = useState<MyScheduleEntry | null>(null)
+  // Per 19MAY2026 Scheduler video: pre-population of next 2 weeks of published shifts.
+  const [upcomingShifts, setUpcomingShifts] = useState<MyScheduleEntry[]>([])
   const [currentPeriod, setCurrentPeriod] = useState<PayrollPeriod | null>(null)
   const [cycleAttendance, setCycleAttendance] = useState<AttendanceRecord[]>([])
   const [todayAttendance, setTodayAttendance] = useState<AttendanceRecord | null>(null)
@@ -134,10 +136,12 @@ export default function EmployeeDashboard() {
   // Fetch today's schedule and current payroll cycle attendance
   const fetchEnhancedData = useCallback(async () => {
     const today = format(new Date(), 'yyyy-MM-dd')
+    const twoWeeksOut = format(new Date(Date.now() + 13 * 86_400_000), 'yyyy-MM-dd')
     try {
-      // Fetch schedule and payroll periods in parallel
-      const [scheduleEntries, periods] = await Promise.all([
+      // Fetch today + next-2-weeks schedule and payroll periods in parallel.
+      const [scheduleEntries, upcoming, periods] = await Promise.all([
         getMySchedule({ from: today, to: today }).catch(() => [] as MyScheduleEntry[]),
+        getMySchedule({ from: today, to: twoWeeksOut }).catch(() => [] as MyScheduleEntry[]),
         getPayrollPeriods().catch(() => [] as PayrollPeriod[]),
       ])
 
@@ -145,6 +149,8 @@ export default function EmployeeDashboard() {
       if (scheduleEntries.length > 0) {
         setTodaySchedule(scheduleEntries[0])
       }
+      // Drop today and rely on date-then-start ordering from the API.
+      setUpcomingShifts(upcoming.filter((e) => e.date && e.date > today))
 
       // Current payroll period
       const period = findCurrentPeriod(periods)
@@ -427,6 +433,48 @@ export default function EmployeeDashboard() {
           <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2 blur-2xl" />
         </div>
       </div>
+
+      {/* ============================================================ */}
+      {/* UPCOMING SHIFTS — next 2 weeks of published, pre-assigned    */}
+      {/* shifts per 19MAY2026 Scheduler video.                        */}
+      {/* ============================================================ */}
+      {upcomingShifts.length > 0 && (
+        <div className="card overflow-hidden">
+          <div className="card-header">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-lg bg-brand-50 border border-brand-100 text-brand-600 flex items-center justify-center shrink-0">
+                <Calendar className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <h3 className="text-sm font-semibold text-surface-900">Upcoming Shifts</h3>
+                <p className="text-[11px] text-surface-500 mt-0.5">Your next 2 weeks of pre-assigned shifts.</p>
+              </div>
+            </div>
+          </div>
+          <ul className="divide-y divide-surface-100">
+            {upcomingShifts.slice(0, 14).map((s) => (
+              <li key={s.id} className="flex items-center gap-3 px-4 py-2.5">
+                <div className="w-9 h-9 rounded-lg bg-brand-50 border border-brand-100 text-brand-700 flex flex-col items-center justify-center shrink-0">
+                  <span className="text-[9px] font-semibold uppercase tracking-wide leading-none">
+                    {s.date ? format(new Date(s.date), 'MMM') : '—'}
+                  </span>
+                  <span className="text-sm font-bold tabular-nums leading-tight">
+                    {s.date ? format(new Date(s.date), 'd') : '—'}
+                  </span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-surface-900 truncate">{s.shiftName}</p>
+                  <p className="text-[11px] text-surface-500 truncate">{s.clientName}</p>
+                </div>
+                <div className="text-right shrink-0">
+                  <p className="text-xs font-mono tabular-nums text-surface-800">{String(s.startTime).slice(0, 5)}–{String(s.endTime).slice(0, 5)}</p>
+                  <p className="text-[10px] text-surface-400">{s.date ? format(new Date(s.date), 'EEE') : ''}</p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* ============================================================ */}
       {/* MIDDLE SECTION: Payable hours stat cards for current cycle   */}

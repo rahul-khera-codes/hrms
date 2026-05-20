@@ -523,7 +523,9 @@ router.get('/summary', async (req, res) => {
 })
 
 // GET /api/sessions/my-schedule?from=YYYY-MM-DD&to=YYYY-MM-DD
-// Returns the logged-in employee's shift assignments (for My Schedule page).
+// Returns the logged-in employee's PUBLISHED shift assignments.
+// Per 19MAY2026 Scheduler Module Part 1 video: drafts (unpublished) stay invisible
+// to employees until the admin presses Publish.
 router.get('/my-schedule', async (req, res) => {
   try {
     const userId = req.user.id
@@ -539,6 +541,7 @@ router.get('/my-schedule', async (req, res) => {
        JOIN clients c ON c.id = a.client_id
        JOIN shifts s ON s.id = a.shift_id
        WHERE a.user_id = $1 AND a.date >= $2::date AND a.date <= $3::date
+         AND a.published = TRUE
        ORDER BY a.date, s.start_time`,
       [userId, fromDate, toDate]
     )

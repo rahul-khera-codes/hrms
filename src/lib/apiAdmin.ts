@@ -370,6 +370,7 @@ export interface ScheduleAssignment {
   shiftEnd: string
   overrideStart?: string | null
   overrideEnd?: string | null
+  published?: boolean
   date: string
 }
 
