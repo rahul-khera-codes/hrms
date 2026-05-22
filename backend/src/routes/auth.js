@@ -112,7 +112,7 @@ router.post('/login', async (req, res) => {
     }
 
     const result = await query(
-      'SELECT id, email, name, role, password_hash FROM users WHERE email = $1',
+      'SELECT id, email, name, role, password_hash, COALESCE(access_enabled, TRUE) AS access_enabled FROM users WHERE email = $1',
       [email.trim().toLowerCase()]
     )
     const row = result.rows[0]
@@ -123,6 +123,12 @@ router.post('/login', async (req, res) => {
     const valid = await bcrypt.compare(passwordStr, row.password_hash)
     if (!valid) {
       return res.status(401).json({ error: 'Unauthorized', message: 'Invalid email or password' })
+    }
+
+    // 21MAY2026 client video: per-user access on/off toggle. Disabled users can
+    // still exist (so HR can re-enable later) but cannot authenticate.
+    if (row.access_enabled === false) {
+      return res.status(403).json({ error: 'Forbidden', message: 'Access has been disabled for this account. Contact your administrator.' })
     }
 
     const user = toUser(row)

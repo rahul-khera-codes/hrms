@@ -372,31 +372,33 @@ export default function AdminPayrollInputs() {
         }
       />
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+      {/* 21MAY2026 client video: tighten the summary row so single-digit count
+          cards don't waste space and labels stay on one line. 6 cards across on
+          large screens with shorter labels. */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3">
         <div className="stat-card">
-          <p className="stat-label">Total</p>
-          <p className="stat-value">{summary.total}</p>
+          <p className="stat-label text-[10px]">Total</p>
+          <p className="stat-value text-base">{summary.total}</p>
         </div>
         <div className="stat-card border-amber-200/70 bg-amber-50/40">
-          <p className="stat-label text-amber-700">Pending</p>
-          <p className="stat-value">{summary.pending}</p>
+          <p className="stat-label text-amber-700 text-[10px]">Pending</p>
+          <p className="stat-value text-base">{summary.pending}</p>
         </div>
         <div className="stat-card border-emerald-200/70 bg-emerald-50/40">
-          <p className="stat-label text-emerald-700">Approved</p>
-          <p className="stat-value">{summary.approved}</p>
+          <p className="stat-label text-emerald-700 text-[10px]">Approved</p>
+          <p className="stat-value text-base">{summary.approved}</p>
         </div>
         <div className="stat-card border-rose-200/70 bg-rose-50/40">
-          <p className="stat-label text-rose-700">Rejected</p>
-          <p className="stat-value">{summary.rejected}</p>
+          <p className="stat-label text-rose-700 text-[10px]">Rejected</p>
+          <p className="stat-value text-base">{summary.rejected}</p>
         </div>
         <div className="stat-card border-brand-200/70 bg-brand-50/40">
-          <p className="stat-label text-brand-700">Income (approved)</p>
-          <p className="stat-value">${summary.income.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+          <p className="stat-label text-brand-700 text-[10px]">Income</p>
+          <p className="stat-value text-base">${summary.income.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
         </div>
         <div className="stat-card border-red-200/70 bg-red-50/40">
-          <p className="stat-label text-red-700">Deductions (approved)</p>
-          <p className="stat-value">${summary.deductions.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+          <p className="stat-label text-red-700 text-[10px]">Deductions</p>
+          <p className="stat-value text-base">${summary.deductions.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
         </div>
       </div>
 
@@ -519,7 +521,7 @@ export default function AdminPayrollInputs() {
                       }}
                     />
                   </th>
-                  {['CMID', 'Employee Name', 'Account', 'Input Type', 'Calculation', 'Input Amount', 'Payroll Cycle', 'Approver', 'Approver Status', 'Actions'].map((col) => (
+                  {['CMID', 'Employee Name', 'Account', 'Input Type', 'Calculation', 'Input Amount', 'Payroll Cycle', 'Approver', 'Approval Status', 'Actions'].map((col) => (
                     <th key={col} className={`px-2 py-1 text-[10px] font-semibold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 dark:border-surface-700 ${col === 'Actions' ? 'text-right' : col === 'Input Amount' ? 'text-right' : ''}`}>
                       {col === 'Actions' ? col : (
                         <>
@@ -949,7 +951,7 @@ function PayrollInputModal({
           </div>
 
           <div>
-            <label className="label">Approver Status</label>
+            <label className="label">Approval Status</label>
             <div className="flex gap-0 rounded-xl overflow-hidden border border-surface-200 dark:border-surface-700">
               {([
                 { value: 'pending' as const, label: 'Pending' },
@@ -1025,6 +1027,29 @@ function PayrollInputModal({
               >
                 {locked ? <><Unlock className="w-3.5 h-3.5" /> Unlock</> : <><Lock className="w-3.5 h-3.5" /> Lock</>}
               </button>
+            </div>
+          )}
+
+          {/* 21MAY2026 client video: audit trail on every form — same layout as
+              attendance + leaves modals. */}
+          {isEdit && existing && (
+            <div className="rounded-xl border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900 p-4 grid grid-cols-1 sm:grid-cols-2 gap-3 text-[11px] text-surface-600 dark:text-surface-300">
+              <div>
+                <p className="font-semibold uppercase tracking-wider text-surface-400 dark:text-surface-500 mb-0.5">Created By</p>
+                <p className="text-surface-800 dark:text-surface-100">{existing.createdByName || '—'}</p>
+              </div>
+              <div>
+                <p className="font-semibold uppercase tracking-wider text-surface-400 dark:text-surface-500 mb-0.5">Created On</p>
+                <p className="text-surface-800 dark:text-surface-100 tabular-nums">{existing.createdOn ? new Date(existing.createdOn).toLocaleString() : existing.createdAt ? new Date(existing.createdAt).toLocaleString() : '—'}</p>
+              </div>
+              <div>
+                <p className="font-semibold uppercase tracking-wider text-surface-400 dark:text-surface-500 mb-0.5">Modified By</p>
+                <p className="text-surface-800 dark:text-surface-100">{existing.modifiedByName || '—'}</p>
+              </div>
+              <div>
+                <p className="font-semibold uppercase tracking-wider text-surface-400 dark:text-surface-500 mb-0.5">Modified On</p>
+                <p className="text-surface-800 dark:text-surface-100 tabular-nums">{existing.modifiedOn ? new Date(existing.modifiedOn).toLocaleString() : '—'}</p>
+              </div>
             </div>
           )}
         </div>

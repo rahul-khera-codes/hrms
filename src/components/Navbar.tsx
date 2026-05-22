@@ -114,10 +114,12 @@ export function Navbar() {
   return (
     <div className="flex items-center justify-between gap-3 bg-white/80 backdrop-blur-sm border-b border-surface-200/70 px-4 sm:px-6 py-3 sticky top-0 z-30 dark:bg-surface-900/80 dark:border-surface-800">
       <div className="flex items-center gap-2">
-        <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center shadow-sm group transition-transform hover:scale-105">
-          <span className="text-white text-xs font-bold tracking-tight">H</span>
-        </div>
-        <div className="text-sm sm:text-base font-semibold text-surface-900 dark:text-surface-50 tracking-tight font-display">HARMONY</div>
+        <img
+          src="/callmax-logo.png"
+          alt="CALLMAX"
+          className="h-7 sm:h-8 w-auto object-contain"
+          loading="eager"
+        />
       </div>
 
       <div className="flex items-center gap-1">

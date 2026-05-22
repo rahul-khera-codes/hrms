@@ -40,6 +40,7 @@ export default function AdminSettings() {
   const [workingDaysPerMonth, setWorkingDaysPerMonth] = useState('23.83')
   const [hoursPerDay, setHoursPerDay] = useState('8')
   const [otMultiplier, setOtMultiplier] = useState('1.35')
+  const [doubleOtMultiplier, setDoubleOtMultiplier] = useState('2.00')
   const [nightMultiplier, setNightMultiplier] = useState('1.15')
   const [nightShiftStartHour, setNightShiftStartHour] = useState(21)
   const [nightShiftEndHour, setNightShiftEndHour] = useState(7)
@@ -60,6 +61,7 @@ export default function AdminSettings() {
         setWorkingDaysPerMonth(String(data.workingDaysPerMonth))
         setHoursPerDay(String(data.hoursPerDay))
         setOtMultiplier(String(data.otMultiplier))
+        setDoubleOtMultiplier(String(data.doubleOtMultiplier ?? 2.0))
         setNightMultiplier(String(data.nightMultiplier))
         setNightShiftStartHour(data.nightShiftStartHour)
         setNightShiftEndHour(data.nightShiftEndHour)
@@ -124,10 +126,11 @@ export default function AdminSettings() {
     const wd = parseFloat(workingDaysPerMonth)
     const hd = parseFloat(hoursPerDay)
     const ot = parseFloat(otMultiplier)
+    const dot = parseFloat(doubleOtMultiplier)
     const night = parseFloat(nightMultiplier)
     const dbs = parseFloat(defaultBaseSalary)
-    if (Number.isNaN(wd) || wd <= 0 || Number.isNaN(hd) || hd <= 0 || Number.isNaN(ot) || ot < 1 || Number.isNaN(night) || night < 1) {
-      setError('Please enter valid numbers (working days & hours > 0, multipliers ≥ 1).')
+    if (Number.isNaN(wd) || wd <= 0 || Number.isNaN(hd) || hd <= 0 || Number.isNaN(ot) || ot < 1 || Number.isNaN(dot) || dot < 1 || Number.isNaN(night) || night < 1) {
+      setError('Please enter valid numbers (vacation factor & hours > 0, multipliers ≥ 1).')
       return
     }
     if (Number.isNaN(dbs) || dbs < 0) {
@@ -140,6 +143,7 @@ export default function AdminSettings() {
         workingDaysPerMonth: wd,
         hoursPerDay: hd,
         otMultiplier: ot,
+        doubleOtMultiplier: dot,
         nightMultiplier: night,
         nightShiftStartHour,
         nightShiftEndHour,
@@ -311,8 +315,8 @@ export default function AdminSettings() {
               <Calendar className="w-5 h-5 text-surface-600 dark:text-surface-300" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-medium text-surface-900 dark:text-surface-50 text-sm sm:text-base">Working days per month</p>
-              <p className="text-xs sm:text-sm text-surface-500 dark:text-surface-400 dark:text-surface-500">Used for monthly → hourly rate (e.g. 23.83)</p>
+              <p className="font-medium text-surface-900 dark:text-surface-50 text-sm sm:text-base">Vacation factor</p>
+              <p className="text-xs sm:text-sm text-surface-500 dark:text-surface-400 dark:text-surface-500">Vacation/divider used for monthly → hourly conversion (e.g. 23.83)</p>
             </div>
             <input
               type="number"
@@ -347,7 +351,7 @@ export default function AdminSettings() {
             <div className="flex-1 min-w-0">
               <p className="font-medium text-surface-900 dark:text-surface-50 text-sm sm:text-base">Regular overtime multiplier (X35%)</p>
               <p className="text-xs sm:text-sm text-surface-500 dark:text-surface-400 dark:text-surface-500">
-                Pay rate for regular OT hours (1.35 = 35% extra). Holiday OT is fixed at 2.00 (100% extra) — see Tax &amp; Deduction Rates below.
+                Pay rate for regular OT hours (1.35 = 35% extra).
               </p>
             </div>
             <input
@@ -357,6 +361,26 @@ export default function AdminSettings() {
               className="input w-full sm:w-24 text-center rounded-xl min-h-[2.75rem]"
               value={otMultiplier}
               onChange={(e) => setOtMultiplier(e.target.value)}
+            />
+          </div>
+          {/* 21MAY2026 client video: explicit X100% / double-overtime multiplier */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-lg sm:rounded-xl border border-surface-200/80">
+            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-red-50 dark:bg-red-900/30 flex items-center justify-center shrink-0">
+              <TrendingUp className="w-5 h-5 text-red-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-medium text-surface-900 dark:text-surface-50 text-sm sm:text-base">Double overtime multiplier (X100%)</p>
+              <p className="text-xs sm:text-sm text-surface-500 dark:text-surface-400 dark:text-surface-500">
+                Pay rate for X100% hours such as holiday-worked or premium OT (2.00 = 100% extra).
+              </p>
+            </div>
+            <input
+              type="number"
+              min={1}
+              step={0.05}
+              className="input w-full sm:w-24 text-center rounded-xl min-h-[2.75rem]"
+              value={doubleOtMultiplier}
+              onChange={(e) => setDoubleOtMultiplier(e.target.value)}
             />
           </div>
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-lg sm:rounded-xl border border-surface-200/80">

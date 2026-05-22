@@ -99,27 +99,41 @@ export default function AdminPayrollCalendar() {
               </div>
             ) : (
               <div className="overflow-auto max-h-[420px]">
-                <table className="w-full min-w-[520px] text-left border-collapse">
+                <table className="w-full min-w-[600px] text-left border-collapse">
                   <thead className="sticky top-0 bg-surface-50/95 backdrop-blur-sm shadow-[0_1px_0_0_theme(colors.surface.200)] z-10">
                     <tr>
                       <th className="px-4 py-2.5 text-[10px] font-semibold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider">Cycle</th>
                       <th className="px-4 py-2.5 text-[10px] font-semibold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider">Period</th>
                       <th className="px-4 py-2.5 text-[10px] font-semibold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider">Pay date</th>
                       <th className="px-4 py-2.5 text-[10px] font-semibold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider text-center">Payment #</th>
+                      <th className="px-4 py-2.5 text-[10px] font-semibold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider">Status</th>
                       <th className="px-4 py-2.5 w-28" />
                     </tr>
                   </thead>
                   <tbody>
                     {periods.map((p) => {
+                      // 21MAY2026 client video: explicit cycle status derived from
+                      // pay date + period boundaries (closed / current / upcoming).
+                      // The backend column may lag if today's date moved past pay
+                      // date since last server boot, so we recompute client-side
+                      // for accuracy.
                       const fromD = new Date(p.periodFrom)
                       const toD = new Date(p.periodTo)
+                      const payD = new Date(p.payDate)
                       const isCurrent = today >= fromD && today <= toD
+                      const isClosed = today > payD
+                      const cycleStatus: 'closed' | 'current' | 'upcoming' = isClosed ? 'closed' : isCurrent ? 'current' : 'upcoming'
+                      const statusBadge = cycleStatus === 'closed'
+                        ? 'bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-300 border-surface-200 dark:border-surface-700'
+                        : cycleStatus === 'current'
+                          ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                          : 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800'
+                      const statusLabel = cycleStatus === 'closed' ? 'Closed' : cycleStatus === 'current' ? 'Current' : 'Upcoming'
                       return (
-                        <tr key={p.cycleCode} className={`border-t border-surface-100 dark:border-surface-800 transition-colors ${p.isSpecial ? 'bg-red-50/60 hover:bg-red-50' : 'hover:bg-brand-50/30'}`}>
+                        <tr key={p.cycleCode} className={`border-t border-surface-100 dark:border-surface-800 transition-colors ${p.isSpecial ? 'bg-red-50/60 hover:bg-red-50' : isCurrent ? 'bg-emerald-50/30 dark:bg-emerald-900/10' : 'hover:bg-brand-50/30'}`}>
                           <td className="px-4 py-3 whitespace-nowrap">
                             <div className="flex items-center gap-2">
                               <span className={`text-xs font-mono font-semibold ${p.isSpecial ? 'text-red-700' : 'text-surface-900 dark:text-surface-50'}`}>{p.cycleCode}</span>
-                              {isCurrent && <span className="badge-brand">Current</span>}
                               {p.isSpecial && <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-100 text-red-700 border border-red-200">27th cycle</span>}
                             </div>
                           </td>
@@ -135,11 +149,18 @@ export default function AdminPayrollCalendar() {
                               {p.bs ?? '-'}
                             </span>
                           </td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border ${statusBadge}`}>
+                              {statusLabel}
+                            </span>
+                          </td>
                           <td className="px-3 py-2 text-right">
                             <button
                               type="button"
                               onClick={() => runPayrollForPeriod(p.periodFrom, p.periodTo)}
-                              className="btn-primary btn-sm"
+                              disabled={cycleStatus === 'closed'}
+                              title={cycleStatus === 'closed' ? 'Cycle is closed — calculation locked' : 'Run payroll calculator for this cycle'}
+                              className="btn-primary btn-sm disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                               <Calculator className="w-3.5 h-3.5" />
                               Run

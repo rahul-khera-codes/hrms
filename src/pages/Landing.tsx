@@ -96,10 +96,7 @@ export default function Landing() {
       <header className="fixed top-0 left-0 right-0 z-50 border-b border-surface-200/80 bg-white/80 backdrop-blur-md">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-14 sm:h-16 flex items-center justify-between gap-2">
           <a href="/" className="flex items-center gap-2 sm:gap-2.5 shrink-0 min-w-0">
-            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-brand-500 flex items-center justify-center shrink-0">
-              <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
-            </div>
-            <span className="text-base sm:text-lg font-semibold text-surface-900 dark:text-surface-50 truncate font-display">HARMONY</span>
+            <img src="/callmax-logo.png" alt="CALLMAX" className="h-8 sm:h-9 w-auto object-contain" />
           </a>
           <nav className="hidden md:flex items-center gap-6 lg:gap-8">
             <a href="#features" className="text-sm font-medium text-surface-600 dark:text-surface-300 hover:text-surface-900 dark:text-surface-50 transition-colors whitespace-nowrap">
@@ -477,13 +474,10 @@ export default function Landing() {
       <footer className="border-t border-surface-200 dark:border-surface-700 py-6 sm:py-8 px-4 sm:px-6 lg:px-8">
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4 text-center sm:text-left">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-brand-500 flex items-center justify-center shrink-0">
-              <Clock className="w-4 h-4 text-white" />
-            </div>
-            <span className="font-semibold text-surface-900 dark:text-surface-50 text-sm sm:text-base font-display">HARMONY</span>
+            <img src="/callmax-logo.png" alt="CALLMAX" className="h-7 sm:h-8 w-auto object-contain" />
           </div>
           <p className="text-xs sm:text-sm text-surface-500 dark:text-surface-400 dark:text-surface-500">
-            © {new Date().getFullYear()} HARMONY. Time tracking & payroll.
+            © {new Date().getFullYear()} CALLMAX. Time tracking & payroll.
           </p>
         </div>
       </footer>

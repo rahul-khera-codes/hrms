@@ -535,19 +535,29 @@ export default function AdminPayroll() {
               <Download className="w-4 h-4 shrink-0" />
               Export CSV
             </button>
-            <button
-              type="button"
-              onClick={handleCalculate}
-              disabled={!selectedCycle || calculating}
-              className="btn-primary"
-            >
-              {calculating ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Calculator className="w-4 h-4" />
-              )}
-              {calculating ? 'Calculating...' : 'Calculate Payroll'}
-            </button>
+            {(() => {
+              // 21MAY2026 client video: disable the Calculate button on closed cycles.
+              // Cycle is closed once today is past pay_date.
+              const cycle = payrollPeriods.find((p) => p.cycleCode === selectedCycle)
+              const todayStr = new Date().toISOString().slice(0, 10)
+              const closed = cycle ? cycle.payDate < todayStr : false
+              return (
+                <button
+                  type="button"
+                  onClick={handleCalculate}
+                  disabled={!selectedCycle || calculating || closed}
+                  title={closed ? 'This cycle is closed — calculation is locked.' : undefined}
+                  className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {calculating ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Calculator className="w-4 h-4" />
+                  )}
+                  {calculating ? 'Calculating...' : closed ? 'Cycle closed' : 'Calculate Payroll'}
+                </button>
+              )
+            })()}
           </>
         }
       />

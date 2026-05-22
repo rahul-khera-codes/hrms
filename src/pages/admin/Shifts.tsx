@@ -13,21 +13,23 @@ function formatTime(t: string) {
   return s
 }
 
-const TIMEZONES = [
-  'UTC',
-  'Asia/Kolkata',
-  'Asia/Dubai',
-  'Asia/Singapore',
-  'Asia/Tokyo',
-  'Europe/London',
-  'Europe/Paris',
-  'America/New_York',
-  'America/Chicago',
-  'America/Denver',
-  'America/Los_Angeles',
-  'Australia/Sydney',
-  'Pacific/Auckland',
+// 21MAY2026 client video: scope timezone options to US-only zones.
+// Labels are the short business names the client uses; values are the IANA
+// canonical zones we store/use for math.
+const TIMEZONES: Array<{ value: string; label: string }> = [
+  { value: 'America/New_York', label: 'Eastern Time' },
+  { value: 'America/Chicago', label: 'Central Time' },
+  { value: 'America/Denver', label: 'Mountain Time' },
+  { value: 'America/Los_Angeles', label: 'Pacific Time' },
+  { value: 'America/Anchorage', label: 'Alaska Time' },
+  { value: 'Pacific/Honolulu', label: 'Hawaii Time' },
+  { value: 'America/Puerto_Rico', label: 'Atlantic Time' },
 ]
+
+function timezoneLabel(tz: string | null | undefined): string {
+  if (!tz) return '—'
+  return TIMEZONES.find((z) => z.value === tz)?.label || tz
+}
 
 export default function AdminShifts() {
   const [shifts, setShifts] = useState<Shift[]>([])
@@ -40,7 +42,7 @@ export default function AdminShifts() {
   const [name, setName] = useState('')
   const [startTime, setStartTime] = useState('09:00')
   const [endTime, setEndTime] = useState('17:00')
-  const [timezone, setTimezone] = useState('UTC')
+  const [timezone, setTimezone] = useState('America/New_York')
   const [clientId, setClientId] = useState<string>('')
   const [saving, setSaving] = useState(false)
   const [viewMode, setViewMode] = useState<'card' | 'table'>('table')
@@ -112,7 +114,7 @@ export default function AdminShifts() {
     setName('')
     setStartTime('09:00')
     setEndTime('17:00')
-    setTimezone('UTC')
+    setTimezone('America/New_York')
     setClientId(clientFilter || '')
     setModal('add')
   }
@@ -122,7 +124,7 @@ export default function AdminShifts() {
     setName(s.name)
     setStartTime(formatTime(s.startTime))
     setEndTime(formatTime(s.endTime))
-    setTimezone(s.timezone || 'UTC')
+    setTimezone(s.timezone || 'America/New_York')
     setClientId(s.clientId || '')
     setModal('edit')
   }
@@ -343,7 +345,7 @@ export default function AdminShifts() {
                     <td className="px-3 py-2.5 text-xs font-medium text-surface-900 dark:text-surface-50 whitespace-nowrap">{s.name}</td>
                     <td className="px-3 py-2.5 text-xs font-mono text-surface-700 dark:text-surface-200 tabular-nums whitespace-nowrap">{formatTime(s.startTime)}</td>
                     <td className="px-3 py-2.5 text-xs font-mono text-surface-700 dark:text-surface-200 tabular-nums whitespace-nowrap">{formatTime(s.endTime)}</td>
-                    <td className="px-3 py-2.5 text-xs text-surface-600 dark:text-surface-300 whitespace-nowrap">{s.timezone || '-'}</td>
+                    <td className="px-3 py-2.5 text-xs text-surface-600 dark:text-surface-300 whitespace-nowrap">{timezoneLabel(s.timezone)}</td>
                     <td className="px-3 py-2.5 text-xs text-surface-600 dark:text-surface-300 whitespace-nowrap">{s.clientId ? (clientMap.get(s.clientId) || '-') : '-'}</td>
                     <td className="px-3 py-2.5 whitespace-nowrap text-right">
                       <div className="flex items-center gap-1 justify-end">
@@ -385,24 +387,28 @@ export default function AdminShifts() {
                   <input type="time" className="input" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
                 </div>
               </div>
-              <div>
-                <label className="label">Timezone</label>
-                <AdminSelect
-                  value={timezone}
-                  onChange={(val) => setTimezone(val)}
-                  options={TIMEZONES.map((tz) => ({ value: tz, label: tz }))}
-                />
-              </div>
-              <div>
-                <label className="label">Client (optional)</label>
-                <AdminSelect
-                  value={clientId}
-                  onChange={(val) => setClientId(val)}
-                  options={[
-                    { value: '', label: '— None —' },
-                    ...clients.map((c) => ({ value: c.id, label: c.name })),
-                  ]}
-                />
+              {/* 21MAY2026 client video: timezone + client share a single row to
+                  shorten the form (was two stacked fields). */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="label">Timezone</label>
+                  <AdminSelect
+                    value={timezone}
+                    onChange={(val) => setTimezone(val)}
+                    options={TIMEZONES.map((tz) => ({ value: tz.value, label: tz.label }))}
+                  />
+                </div>
+                <div>
+                  <label className="label">Client (optional)</label>
+                  <AdminSelect
+                    value={clientId}
+                    onChange={(val) => setClientId(val)}
+                    options={[
+                      { value: '', label: '— None —' },
+                      ...clients.map((c) => ({ value: c.id, label: c.name })),
+                    ]}
+                  />
+                </div>
               </div>
             </div>
             <div className="modal-footer">

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { CalendarCheck2, Lock, Unlock, Plus, Calendar, Clock3, Download, LayoutGrid, Table2, Search, ArrowUp, ArrowDown, Filter, Pencil, XCircle, Upload, CheckCircle2 } from 'lucide-react'
+import { CalendarCheck2, Lock, Unlock, Plus, Calendar, Clock3, Download, LayoutGrid, Table2, Search, ArrowUp, ArrowDown, Filter, Pencil, XCircle, Upload, CheckCircle2, Trash2 } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
 import {
   getAdminLeaveRequests,
@@ -7,6 +7,7 @@ import {
   reviewAdminLeaveRequest,
   createAdminLeaveRequest,
   setLeaveRequestLocked,
+  deleteAdminLeaveRequest,
   getEmployees,
   getPayrollPeriods,
   type AdminLeaveRequest,
@@ -417,7 +418,7 @@ export default function AdminLeaveRequests() {
         payrollCycleCode: createCalcType !== 'non_payable' && createPayrollCycleCode ? createPayrollCycleCode : undefined,
         reason: createReason.trim() || undefined,
         approverName: createApproverName || undefined,
-        payrollStatus: createCalcType === 'non_payable' ? 'N/A' : (createPayrollStatus || 'Pending'),
+        payrollStatus: createPayrollStatus === 'N/A' ? 'Pending' : (createPayrollStatus || 'Pending'),
       })
       setNotice('Leave created successfully.')
       setShowCreateModal(false)
@@ -599,6 +600,24 @@ export default function AdminLeaveRequests() {
       : `${ok} rejected, ${failed} failed.`)
     clearSelection()
     await load(false)
+  }
+
+  // 21MAY2026 client video: leave form deletion (modal footer).
+  async function handleDeleteReview(id: string) {
+    if (!window.confirm('Permanently delete this leave request? This cannot be undone.')) return
+    setSaving(true)
+    try {
+      await deleteAdminLeaveRequest(id)
+      setNotice('Leave request deleted.')
+      setReviewingId(null)
+      setReviewContext(null)
+      await load(false)
+    } catch (err: unknown) {
+      const msg = err && typeof err === 'object' && 'message' in err ? String((err as Error).message) : 'Failed to delete leave request.'
+      setNotice(msg)
+    } finally {
+      setSaving(false)
+    }
   }
 
   async function handleToggleLock(id: string, currentlyLocked: boolean) {
@@ -1103,7 +1122,7 @@ export default function AdminLeaveRequests() {
                     <button
                       key={opt.value}
                       type="button"
-                      onClick={() => { setCreateCalcType(opt.value); if (opt.value === 'non_payable') setCreatePayrollStatus('N/A'); else if (createPayrollStatus === 'N/A') setCreatePayrollStatus('Pending'); }}
+                      onClick={() => { setCreateCalcType(opt.value); if (createPayrollStatus === 'N/A') setCreatePayrollStatus('Pending') }}
                       className={`flex-1 px-3 py-2.5 text-xs sm:text-sm font-medium transition-colors ${
                         createCalcType === opt.value
                           ? 'bg-brand-600 text-white'
@@ -1301,17 +1320,29 @@ export default function AdminLeaveRequests() {
                       />
                     </div>
                     <div>
-                      <label className="label">Payroll Status</label>
-                      <AdminSelect
-                        value={createPayrollStatus}
-                        onChange={(val) => setCreatePayrollStatus(val)}
-                        options={[
-                          { value: 'Pending', label: 'Pending' },
-                          { value: 'Approved', label: 'Approved' },
-                          { value: 'Rejected', label: 'Rejected' },
-                          { value: 'N/A', label: 'N/A' },
-                        ]}
-                      />
+                      <label className="label">Approval Status</label>
+                      <div className="flex gap-0 rounded-xl overflow-hidden border border-surface-200 dark:border-surface-700">
+                        {([
+                          { value: 'Pending' as const, label: 'Pending' },
+                          { value: 'Approved' as const, label: 'Approved' },
+                          { value: 'Rejected' as const, label: 'Rejected' },
+                        ]).map((opt) => {
+                          const current = createPayrollStatus === 'N/A' ? 'Pending' : createPayrollStatus
+                          const isActive = current === opt.value
+                          return (
+                            <button
+                              key={opt.value}
+                              type="button"
+                              onClick={() => setCreatePayrollStatus(opt.value)}
+                              className={`flex-1 px-3 py-2.5 text-xs font-medium transition-colors ${
+                                isActive ? 'bg-brand-600 text-white' : 'bg-surface-50 dark:bg-surface-900 text-surface-600 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-800'
+                              }`}
+                            >
+                              {opt.label}
+                            </button>
+                          )
+                        })}
+                      </div>
                     </div>
                   </div>
                 </>
@@ -1359,7 +1390,7 @@ export default function AdminLeaveRequests() {
             }}
             aria-label="Close"
           />
-          <div className="relative z-10 w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl border border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-900 shadow-xl">
+          <div className="relative z-10 w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl border border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-900 shadow-xl">
             {/* Employee header — matches attendance modal layout */}
             {(() => {
               const reviewRow = rows.find((r) => r.id === reviewingId)
@@ -1538,20 +1569,39 @@ export default function AdminLeaveRequests() {
                         ]}
                       />
                     </div>
-                    {/* Payroll Status (parity with new-leave form) */}
+                    {/* 21MAY2026 client video: renamed to Approval Status, with a
+                        3-button segmented control to mirror Payroll Inputs.
+                        Pending/Approved/Rejected only (N/A removed). The
+                        Decision dropdown below was removed as duplicate. */}
                     <div>
-                      <label className="label">Payroll Status</label>
-                      <AdminSelect
-                        value={reviewPayrollStatus}
-                        onChange={(val) => setReviewPayrollStatus(val)}
-                        disabled={reviewLocked}
-                        options={[
-                          { value: 'Pending', label: 'Pending' },
-                          { value: 'Approved', label: 'Approved' },
-                          { value: 'Rejected', label: 'Rejected' },
-                          { value: 'N/A', label: 'N/A' },
-                        ]}
-                      />
+                      <label className="label">Approval Status</label>
+                      <div className="flex gap-0 rounded-xl overflow-hidden border border-surface-200 dark:border-surface-700">
+                        {([
+                          { value: 'Pending' as const, label: 'Pending' },
+                          { value: 'Approved' as const, label: 'Approved' },
+                          { value: 'Rejected' as const, label: 'Rejected' },
+                        ]).map((opt) => {
+                          const current = reviewPayrollStatus === 'N/A' ? 'Pending' : reviewPayrollStatus
+                          const isActive = current === opt.value
+                          return (
+                            <button
+                              key={opt.value}
+                              type="button"
+                              disabled={reviewLocked}
+                              onClick={() => {
+                                setReviewPayrollStatus(opt.value)
+                                if (opt.value === 'Approved') setReviewStatus('approved')
+                                else if (opt.value === 'Rejected') setReviewStatus('rejected')
+                              }}
+                              className={`flex-1 px-3 py-2.5 text-xs font-medium transition-colors ${
+                                isActive ? 'bg-brand-600 text-white' : 'bg-surface-50 dark:bg-surface-900 text-surface-600 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-800'
+                              } disabled:opacity-60`}
+                            >
+                              {opt.label}
+                            </button>
+                          )
+                        })}
+                      </div>
                     </div>
                   </div>
                   {reviewContext.leave.reason ? (
@@ -1560,18 +1610,9 @@ export default function AdminLeaveRequests() {
                 </div>
 
                 <div className={`mx-5 mt-4 space-y-3 ${reviewLocked ? 'opacity-50 pointer-events-none' : ''}`}>
-                  <div>
-                    <label className="label">Decision</label>
-                    <AdminSelect
-                      value={reviewStatus}
-                      onChange={(val) => setReviewStatus(val as 'approved' | 'rejected')}
-                      disabled={reviewLocked}
-                      options={[
-                        { value: 'approved', label: 'Approve' },
-                        { value: 'rejected', label: 'Reject' },
-                      ]}
-                    />
-                  </div>
+                  {/* 21MAY2026 client video: Decision dropdown removed — it duplicated
+                      the new Approval Status field above. Approval Status drives
+                      reviewStatus on change. */}
 
                   {reviewStatus === 'approved' && (
                     <>
@@ -1708,26 +1749,67 @@ export default function AdminLeaveRequests() {
               </div>
             )}
 
-            <div className="mx-5 mt-4 mb-5 flex flex-col-reverse sm:flex-row justify-end gap-2">
+            {/* 21MAY2026 client video: audit trail on every form — mirror the
+                attendance modal layout. */}
+            {(() => {
+              const reviewRow = rows.find((r) => r.id === reviewingId)
+              if (!reviewRow) return null
+              return (
+                <div className="mx-5 mt-3 rounded-xl border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900 p-4 grid grid-cols-1 sm:grid-cols-2 gap-3 text-[11px] text-surface-600 dark:text-surface-300">
+                  <div>
+                    <p className="font-semibold uppercase tracking-wider text-surface-400 dark:text-surface-500 mb-0.5">Created By</p>
+                    <p className="text-surface-800 dark:text-surface-100">{reviewRow.createdByName || '—'}</p>
+                  </div>
+                  <div>
+                    <p className="font-semibold uppercase tracking-wider text-surface-400 dark:text-surface-500 mb-0.5">Created On</p>
+                    <p className="text-surface-800 dark:text-surface-100 tabular-nums">{reviewRow.createdOn ? new Date(reviewRow.createdOn).toLocaleString() : reviewRow.createdAt ? new Date(reviewRow.createdAt).toLocaleString() : '—'}</p>
+                  </div>
+                  <div>
+                    <p className="font-semibold uppercase tracking-wider text-surface-400 dark:text-surface-500 mb-0.5">Modified By</p>
+                    <p className="text-surface-800 dark:text-surface-100">{reviewRow.modifiedByName || '—'}</p>
+                  </div>
+                  <div>
+                    <p className="font-semibold uppercase tracking-wider text-surface-400 dark:text-surface-500 mb-0.5">Modified On</p>
+                    <p className="text-surface-800 dark:text-surface-100 tabular-nums">{reviewRow.modifiedOn ? new Date(reviewRow.modifiedOn).toLocaleString() : '—'}</p>
+                  </div>
+                </div>
+              )
+            })()}
+
+            {/* 21MAY2026 client video: Save + Lock + Delete on the leave form
+                (parity with payroll inputs). Lock lives in its own row above —
+                Delete sits on the left of the footer so it doesn't crowd Save. */}
+            <div className="mx-5 mt-4 mb-5 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-2">
               <button
                 type="button"
-                onClick={() => {
-                  setReviewingId(null)
-                  setReviewContext(null)
-                }}
-                className="btn-secondary rounded-xl px-4 py-2"
-                disabled={saving}
+                onClick={() => reviewingId && void handleDeleteReview(reviewingId)}
+                className="btn-danger rounded-xl px-4 py-2 sm:mr-auto"
+                disabled={saving || reviewLocked}
+                title={reviewLocked ? 'Unlock the record before deleting.' : 'Permanently delete this leave request'}
               >
-                Cancel
+                <Trash2 className="w-3.5 h-3.5" /> Delete
               </button>
-              <button
-                type="button"
-                onClick={() => void submitReview()}
-                className="btn-primary rounded-xl px-4 py-2"
-                disabled={saving || contextLoading || !reviewContext || reviewLocked}
-              >
-                {saving ? 'Saving…' : 'Save'}
-              </button>
+              <div className="flex flex-col-reverse sm:flex-row gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setReviewingId(null)
+                    setReviewContext(null)
+                  }}
+                  className="btn-secondary rounded-xl px-4 py-2"
+                  disabled={saving}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void submitReview()}
+                  className="btn-primary rounded-xl px-4 py-2"
+                  disabled={saving || contextLoading || !reviewContext || reviewLocked}
+                >
+                  {saving ? 'Saving…' : 'Save'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

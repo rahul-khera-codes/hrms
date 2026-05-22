@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { Users, Plus, Pencil, LayoutGrid, Table2, Search, Download, ArrowUp, ArrowDown, Filter, AlertCircle, CheckCircle2, Ban, Trash2, X, Upload, Lock, Unlock } from 'lucide-react'
+import { Users, Plus, Pencil, LayoutGrid, Table2, Search, Download, ArrowUp, ArrowDown, Filter, AlertCircle, CheckCircle2, Ban, Trash2, X, Upload, Lock, Unlock, Eye, EyeOff, ShieldCheck } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
 import DocumentUpload from '@/components/DocumentUpload'
 import { DetailModalHeader } from '@/components/DetailModalHeader'
@@ -23,7 +23,6 @@ import {
   type Shift,
 } from '@/lib/apiAdmin'
 import AdminSelect from '@/components/AdminSelect'
-import AdminDatePicker from '@/components/AdminDatePicker'
 import { addDays, format } from 'date-fns'
 
 const EMPLOYEES_PER_PAGE = 10
@@ -63,11 +62,14 @@ export default function AdminEmployees() {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [accessLevel, setAccessLevel] = useState<'admin' | 'supervisor' | 'agent'>('agent')
+  const [accessEnabled, setAccessEnabled] = useState(true)
   const [salaryType, setSalaryType] = useState<'hourly' | 'monthly'>('hourly')
   const [baseSalary, setBaseSalary] = useState('')
   const [clients, setClients] = useState<Client[]>([])
   const [allShifts, setAllShifts] = useState<Shift[]>([])
-  const [shifts, setShifts] = useState<Shift[]>([])
+  const [, setShifts] = useState<Shift[]>([])
   const [assignedClientId, setAssignedClientId] = useState('')
   const [assignedShiftId, setAssignedShiftId] = useState('')
   const [assignmentStartTime, setAssignmentStartTime] = useState('')
@@ -490,18 +492,6 @@ export default function AdminEmployees() {
       })
   }, [assignedClientId])
 
-  function handleAssignedShiftChange(shiftId: string) {
-    setAssignedShiftId(shiftId)
-    if (!shiftId) {
-      setAssignmentStartTime('')
-      setAssignmentEndTime('')
-      return
-    }
-    const selected = shifts.find((shift) => shift.id === shiftId)
-    if (!selected) return
-    setAssignmentStartTime(String(selected.startTime).slice(0, 5))
-    setAssignmentEndTime(String(selected.endTime).slice(0, 5))
-  }
 
   useEffect(() => {
     setCurrentPage(1)
@@ -518,6 +508,9 @@ export default function AdminEmployees() {
     setName('')
     setEmail('')
     setPassword('')
+    setShowPassword(false)
+    setAccessLevel('agent')
+    setAccessEnabled(true)
     setSalaryType('hourly')
     setBaseSalary('')
     setAssignedClientId('')
@@ -554,6 +547,9 @@ export default function AdminEmployees() {
     setName(emp.name)
     setEmail(emp.email)
     setPassword('')
+    setShowPassword(false)
+    setAccessLevel((emp.accessLevel as 'admin' | 'supervisor' | 'agent') || (emp.role === 'admin' ? 'admin' : 'agent'))
+    setAccessEnabled(emp.accessEnabled !== false)
     setSalaryType((emp.salaryType === 'monthly' ? 'monthly' : 'hourly') as 'hourly' | 'monthly')
     setBaseSalary(emp.baseSalary > 0 ? String(emp.baseSalary) : '')
     const assignment = assignmentByEmployee[emp.id]
@@ -713,6 +709,8 @@ export default function AdminEmployees() {
           name: trimmedName,
           email: trimmedEmail,
           password,
+          accessLevel,
+          accessEnabled,
           salaryType,
           baseSalary: baseSalary ? parseFloat(baseSalary) : 0,
           cmid: cmid ? parseInt(cmid, 10) : null,
@@ -760,6 +758,8 @@ export default function AdminEmployees() {
           name: trimmedName,
           email: trimmedEmail,
           ...(password ? { password } : {}),
+          accessLevel,
+          accessEnabled,
           salaryType,
           baseSalary: baseSalary ? parseFloat(baseSalary) : 0,
           cmid: cmid ? parseInt(cmid, 10) : null,
@@ -1360,29 +1360,85 @@ export default function AdminEmployees() {
               {modal === 'add' && (
                 <div>
                   <label className="label">Password <span className="text-red-500" aria-hidden>*</span></label>
-                  <input
-                    type="password"
-                    className="input w-full"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Min 6 characters"
-                    required
-                    minLength={6}
-                  />
+                  <div className="relative">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      className="input w-full pr-10"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Min 6 characters"
+                      required
+                      minLength={6}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((v) => !v)}
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                      title={showPassword ? 'Hide password' : 'Show password'}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-md text-surface-400 dark:text-surface-500 hover:text-surface-700 dark:hover:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors"
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
                 </div>
               )}
               {modal === 'edit' && (
                 <div>
                   <label className="label">New password (leave blank to keep)</label>
-                  <input
-                    type="password"
-                    className="input w-full"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Min 6 characters"
-                  />
+                  <div className="relative">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      className="input w-full pr-10"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Min 6 characters"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((v) => !v)}
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                      title={showPassword ? 'Hide password' : 'Show password'}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-md text-surface-400 dark:text-surface-500 hover:text-surface-700 dark:hover:text-surface-200 hover:bg-surface-100 dark:hover:bg-surface-800 transition-colors"
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
                 </div>
               )}
+
+              {/* ── ACCESS LEVEL & TOGGLE ──
+                21MAY2026 client video: three-tier access on the employee form.
+                Disabling access blocks the user from logging in without
+                terminating the contract. */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="label">Access Level</label>
+                  <AdminSelect
+                    value={accessLevel}
+                    onChange={(val) => setAccessLevel((val as 'admin' | 'supervisor' | 'agent') || 'agent')}
+                    options={[
+                      { value: 'agent', label: 'Agent (frontline)' },
+                      { value: 'supervisor', label: 'Supervisor' },
+                      { value: 'admin', label: 'Admin' },
+                    ]}
+                  />
+                  <p className="hint mt-1 flex items-center gap-1"><ShieldCheck className="w-3 h-3" /> Controls what the user can do in the platform.</p>
+                </div>
+                <div>
+                  <label className="label">Access</label>
+                  <label className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-900 w-full cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 accent-brand-600"
+                      checked={accessEnabled}
+                      onChange={(e) => setAccessEnabled(e.target.checked)}
+                    />
+                    <span className={`text-sm font-medium ${accessEnabled ? 'text-emerald-600 dark:text-emerald-400' : 'text-surface-500 dark:text-surface-400'}`}>
+                      {accessEnabled ? 'Enabled — user can sign in' : 'Disabled — sign-in blocked'}
+                    </span>
+                  </label>
+                </div>
+              </div>
 
               {/* ── ENGAGEMENT DETAILS ── */}
               <p className="text-xs font-semibold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider mt-4 mb-2 pt-3 border-t border-surface-100 dark:border-surface-800">Engagement Details</p>
@@ -1401,11 +1457,11 @@ export default function AdminEmployees() {
                     />
                   </div>
                   <div>
-                    <label className="label">Harmony ID</label>
+                    <label className="label">Callmax ID</label>
                     <input
                       type="text"
                       className="input w-full bg-surface-50 dark:bg-surface-900 text-surface-500 dark:text-surface-400 dark:text-surface-500"
-                      value={cmid ? `HRM-${cmid.padStart(5, '0')}` : ''}
+                      value={cmid ? `CMX-${cmid.padStart(5, '0')}` : ''}
                       readOnly
                       disabled
                       placeholder="Auto-calculated from CMID"
@@ -1652,61 +1708,10 @@ export default function AdminEmployees() {
                 </div>
               </div>
 
-              {/* ── SCHEDULE ASSIGNMENT ── */}
-              {(modal === 'add' || modal === 'edit') && (
-                <>
-                  <p className="text-xs font-semibold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider mt-4 mb-2 pt-3 border-t border-surface-100 dark:border-surface-800">Schedule Assignment</p>
-                  <div>
-                    <label className="label">Assign client</label>
-                    <AdminSelect
-                      value={assignedClientId}
-                      onChange={(val) => setAssignedClientId(val)}
-                      options={[
-                        { value: '', label: 'Select client' },
-                        ...clients.map((client) => ({ value: client.id, label: client.name })),
-                      ]}
-                    />
-                  </div>
-                  <div>
-                    <label className="label">Assign shift</label>
-                    <AdminSelect
-                      value={assignedShiftId}
-                      onChange={handleAssignedShiftChange}
-                      options={[
-                        { value: '', label: assignedClientId ? 'Select shift' : 'Select client first' },
-                        ...shifts.map((shift) => ({ value: shift.id, label: shift.name })),
-                      ]}
-                      disabled={!assignedClientId}
-                    />
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="label">Shift start time</label>
-                      <input
-                        type="time"
-                        className="input w-full"
-                        value={assignmentStartTime}
-                        onChange={(e) => setAssignmentStartTime(e.target.value)}
-                        disabled={!assignedShiftId}
-                      />
-                    </div>
-                    <div>
-                      <label className="label">Shift end time</label>
-                      <input
-                        type="time"
-                        className="input w-full"
-                        value={assignmentEndTime}
-                        onChange={(e) => setAssignmentEndTime(e.target.value)}
-                        disabled={!assignedShiftId}
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="label">Assignment date</label>
-                    <AdminDatePicker value={assignmentDate} onChange={setAssignmentDate} />
-                  </div>
-                </>
-              )}
+              {/* Schedule Assignment block removed per 21MAY2026 client video —
+                  bulk-assign via the Scheduler module handles all shift assignment.
+                  Keeping a per-employee single-date form here just confused users
+                  and let people skip the scheduler. */}
 
               {/* Documents — only shown when editing an existing employee */}
               {modal === 'edit' && editing ? (

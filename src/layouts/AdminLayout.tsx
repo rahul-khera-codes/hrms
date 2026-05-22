@@ -101,13 +101,13 @@ export default function AdminLayout() {
             ) : (
               <>
                 <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center shadow-sm">
-                    <Clock className="w-4 h-4 text-white" />
-                  </div>
-                  <div>
-                    <h1 className="text-sm font-semibold text-surface-900 dark:text-surface-50 tracking-tight leading-tight font-display">HARMONY</h1>
-                    <p className="text-[10px] text-brand-700 dark:text-brand-400 uppercase tracking-wider font-medium">Admin</p>
-                  </div>
+                  <img
+                    src="/callmax-logo.png"
+                    alt="CALLMAX"
+                    className="h-8 w-auto object-contain"
+                    loading="eager"
+                  />
+                  <p className="text-[10px] text-brand-700 dark:text-brand-400 uppercase tracking-wider font-medium">Admin</p>
                 </div>
                 <button
                   type="button"

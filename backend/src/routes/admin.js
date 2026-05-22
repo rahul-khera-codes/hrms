@@ -1033,7 +1033,8 @@ router.post('/leave-requests', async (req, res) => {
          hourly_rate_input, daily_hours_input, monthly_rate_input,
          asset_deactivation, payroll_cycle_code,
          reviewed_by, reviewed_at,
-         payroll_status, approver_name
+         payroll_status, approver_name,
+         created_by, created_on
        ) VALUES (
          $1, $2, $3::date, $4::date, $5, 'approved',
          $6, $7, $8,
@@ -1042,7 +1043,8 @@ router.post('/leave-requests', async (req, res) => {
          $18, $19, $20,
          $21, $22,
          $23, NOW(),
-         $24, $25
+         $24, $25,
+         $26, NOW()
        )
        RETURNING id, leave_type, start_date::text AS start_date_str, end_date::text AS end_date_str,
          reason, status, created_at, leave_category, leave_calculation_type, leave_associate_days_off,
@@ -1050,7 +1052,8 @@ router.post('/leave-requests', async (req, res) => {
          leave_payable_days, leave_payable_amount, leave_daily_salary,
          hourly_rate_input, daily_hours_input, monthly_rate_input,
          asset_deactivation, payroll_cycle_code,
-         payroll_status, approver_name`,
+         payroll_status, approver_name,
+         created_by, created_on, modified_by, modified_on`,
       [
         employeeId, type, startDate, endDate, reason ? String(reason).trim() : null,
         category, calcType, assocStr,
@@ -1060,7 +1063,8 @@ router.post('/leave-requests', async (req, res) => {
         assetStr, payrollCycleCode || null,
         req.user.id,
         payrollStatus ? String(payrollStatus).trim() : null,
-        approverName ? String(approverName).trim() : null
+        approverName ? String(approverName).trim() : null,
+        req.user.id
       ]
     )
     const r = result.rows[0]
@@ -1129,12 +1133,17 @@ router.get('/leave-requests', async (req, res) => {
               lr.leave_daily_salary,
               lr.is_locked,
               lr.payroll_status, lr.approver_name,
+              lr.created_by, lr.created_on, lr.modified_by, lr.modified_on,
+              created_by_user.name AS created_by_name,
+              modified_by_user.name AS modified_by_name,
               e.cmid AS employee_cmid,
               c.name AS account_name,
               mgr.name AS reports_to_name
        FROM leave_requests lr
        JOIN users u ON u.id = lr.user_id
        LEFT JOIN users reviewer ON reviewer.id = lr.reviewed_by
+       LEFT JOIN users created_by_user ON created_by_user.id = lr.created_by
+       LEFT JOIN users modified_by_user ON modified_by_user.id = lr.modified_by
        LEFT JOIN employees e ON e.user_id = lr.user_id
        LEFT JOIN users mgr ON mgr.id = e.reports_to
        LEFT JOIN clients c ON c.id = e.primary_client_id
@@ -1180,6 +1189,13 @@ router.get('/leave-requests', async (req, res) => {
       isLocked: r.is_locked === true,
       payrollStatus: r.payroll_status || 'Pending',
       approverName: r.approver_name || null,
+      // 21MAY2026 audit trail
+      createdBy: r.created_by || null,
+      createdByName: r.created_by_name || null,
+      createdOn: r.created_on || r.created_at || null,
+      modifiedBy: r.modified_by || null,
+      modifiedByName: r.modified_by_name || null,
+      modifiedOn: r.modified_on || null,
     })))
   } catch (err) {
     console.error('Admin list leave requests error:', err)
@@ -1345,13 +1361,17 @@ router.patch('/leave-requests/:id', async (req, res) => {
       }
       if (reason !== undefined) add('reason', reason || null)
       if (editSets.length === 0) return null
+      // 21MAY2026 audit trail rollout: stamp modifier on every edit
+      add('modified_by', req.user.id)
+      add('modified_on', new Date().toISOString())
       pi++; editVals.push(recordId)
       const sql = `UPDATE leave_requests SET ${editSets.join(', ')}, updated_at = NOW() WHERE id = $${pi}
          RETURNING id, user_id, leave_type, start_date::text AS start_date_str, end_date::text AS end_date_str,
                    reason, status, reviewed_note, reviewed_at, created_at,
                    leave_calculation_type, leave_associate_days_off, leave_payable_days, leave_payable_amount,
                    leave_category, return_date::text AS return_date_str, start_time::text, end_time::text, return_time::text,
-                   is_locked, payroll_status, approver_name`
+                   is_locked, payroll_status, approver_name,
+                   created_by, created_on, modified_by, modified_on`
       const res = await query(sql, editVals)
       return res.rows[0] || null
     }
@@ -1562,6 +1582,28 @@ async function sendLeaveDecisionNotification(r, reviewerId, status, reviewedNote
   }
 }
 
+// 21MAY2026 client video: leave-request deletion (parity with payroll inputs lock+delete).
+router.delete('/leave-requests/:id', async (req, res) => {
+  try {
+    const { id } = req.params
+    if (!UUID_RE.test(id)) {
+      return res.status(400).json({ error: 'Bad request', message: 'Leave request id must be a valid UUID.' })
+    }
+    const existing = await query('SELECT id, is_locked FROM leave_requests WHERE id = $1', [id])
+    if (!existing.rows.length) {
+      return res.status(404).json({ error: 'Not found', message: 'Leave request not found' })
+    }
+    if (existing.rows[0].is_locked && !req.body?.force) {
+      return res.status(409).json({ error: 'Locked', message: 'Unlock the leave request before deleting.' })
+    }
+    await query('DELETE FROM leave_requests WHERE id = $1', [id])
+    res.json({ ok: true })
+  } catch (err) {
+    console.error('Delete leave request error:', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
 function mapLeaveRowToJson(r) {
   return {
     id: r.id,
@@ -1586,6 +1628,13 @@ function mapLeaveRowToJson(r) {
     isLocked: r.is_locked === true,
     payrollStatus: r.payroll_status || 'Pending',
     approverName: r.approver_name || null,
+    // 21MAY2026 audit-trail rollout
+    createdBy: r.created_by || null,
+    createdByName: r.created_by_name || null,
+    createdOn: r.created_on || r.created_at || null,
+    modifiedBy: r.modified_by || null,
+    modifiedByName: r.modified_by_name || null,
+    modifiedOn: r.modified_on || null,
   }
 }
 
@@ -1668,6 +1717,7 @@ router.get('/settings', async (req, res) => {
       workingDaysPerMonth: s.workingDaysPerMonth,
       hoursPerDay: s.hoursPerDay,
       otMultiplier: s.otMultiplier,
+      doubleOtMultiplier: s.doubleOtMultiplier ?? 2.0,
       nightMultiplier: s.nightMultiplier,
       nightShiftStartHour: s.nightShiftStartHour,
       nightShiftEndHour: s.nightShiftEndHour,
@@ -1686,6 +1736,7 @@ router.patch('/settings', async (req, res) => {
       workingDaysPerMonth,
       hoursPerDay,
       otMultiplier,
+      doubleOtMultiplier,
       nightMultiplier,
       nightShiftStartHour,
       nightShiftEndHour,
@@ -1694,6 +1745,7 @@ router.patch('/settings', async (req, res) => {
     const wd = workingDaysPerMonth != null ? Math.max(0.1, Number(workingDaysPerMonth)) : null
     const hd = hoursPerDay != null ? Math.max(0.1, Number(hoursPerDay)) : null
     const ot = otMultiplier != null ? Math.max(1, Number(otMultiplier)) : null
+    const dot = doubleOtMultiplier != null ? Math.max(1, Number(doubleOtMultiplier)) : null
     const night = nightMultiplier != null ? Math.max(1, Number(nightMultiplier)) : null
     const startH = nightShiftStartHour != null ? Math.min(23, Math.max(0, parseInt(nightShiftStartHour, 10))) : null
     const endH = nightShiftEndHour != null ? Math.min(23, Math.max(0, parseInt(nightShiftEndHour, 10))) : null
@@ -1707,6 +1759,7 @@ router.patch('/settings', async (req, res) => {
     if (wd != null) { updates.push(`working_days_per_month = $${i++}`); params.push(wd) }
     if (hd != null) { updates.push(`hours_per_day = $${i++}`); params.push(hd) }
     if (ot != null) { updates.push(`ot_multiplier = $${i++}`); params.push(ot) }
+    if (dot != null) { updates.push(`double_ot_multiplier = $${i++}`); params.push(dot) }
     if (night != null) { updates.push(`night_multiplier = $${i++}`); params.push(night) }
     if (startH != null) { updates.push(`night_shift_start_hour = $${i++}`); params.push(startH) }
     if (endH != null) { updates.push(`night_shift_end_hour = $${i++}`); params.push(endH) }
@@ -1734,6 +1787,7 @@ router.patch('/settings', async (req, res) => {
       workingDaysPerMonth: s.workingDaysPerMonth,
       hoursPerDay: s.hoursPerDay,
       otMultiplier: s.otMultiplier,
+      doubleOtMultiplier: s.doubleOtMultiplier ?? 2.0,
       nightMultiplier: s.nightMultiplier,
       nightShiftStartHour: s.nightShiftStartHour,
       nightShiftEndHour: s.nightShiftEndHour,
@@ -2083,9 +2137,11 @@ router.patch('/employees/:id', async (req, res) => {
             primaryClientId, jobTitle, reportsTo, contractStatus, terminationDate,
             bank, bankAccount, payMethod,
             governmentId, gender, dateOfBirth, personalEmail, companyEmail, homePhone, mobilePhone, terminationReason,
-            shiftGroup } = req.body
+            shiftGroup, accessLevel, accessEnabled } = req.body
+    // 21MAY2026: admins may also appear in the employees module, so we accept
+    // role='admin' rows here too. The access_level field handles the tier.
     const emp = await query(
-      "SELECT id FROM users WHERE id = $1 AND role = 'employee'",
+      "SELECT id FROM users WHERE id = $1 AND role IN ('employee', 'admin')",
       [id]
     )
     if (emp.rows.length === 0) {
@@ -2121,6 +2177,19 @@ router.patch('/employees/:id', async (req, res) => {
       updates.push(`password_hash = $${i++}`)
       params.push(password_hash)
     }
+    // 21MAY2026 client video: three-tier access_level + access_enabled toggle.
+    // admin tier flips users.role so existing admin auth guards keep working.
+    if (accessLevel !== undefined) {
+      const lvl = ['admin', 'supervisor', 'agent'].includes(accessLevel) ? accessLevel : 'agent'
+      updates.push(`access_level = $${i++}`)
+      params.push(lvl)
+      updates.push(`role = $${i++}`)
+      params.push(lvl === 'admin' ? 'admin' : 'employee')
+    }
+    if (accessEnabled !== undefined) {
+      updates.push(`access_enabled = $${i++}`)
+      params.push(Boolean(accessEnabled))
+    }
     const st = salaryType !== undefined ? (salaryType === 'monthly' ? 'monthly' : 'hourly') : undefined
     const sal = baseSalary !== undefined ? Math.max(0, Number(baseSalary)) : undefined
     if (updates.length > 0) {
@@ -2129,7 +2198,7 @@ router.patch('/employees/:id', async (req, res) => {
     }
 
     const cmidVal = cmid !== undefined ? (cmid != null && Number.isInteger(Number(cmid)) ? Number(cmid) : null) : undefined
-    const harmonyIdVal = cmidVal !== undefined ? (cmidVal != null ? `HRM-${String(cmidVal).padStart(5, '0')}` : null) : undefined
+    const harmonyIdVal = cmidVal !== undefined ? (cmidVal != null ? `CMX-${String(cmidVal).padStart(5, '0')}` : null) : undefined
     const contractTypeVal = contractType !== undefined ? (contractType || 'Employee (I)') : undefined
     const contractStatusVal = contractStatus !== undefined ? (['active', 'onboarding', 'terminated', 'suspended', 'prenotice'].includes(contractStatus) ? contractStatus : 'active') : undefined
     const termDateVal = (contractStatusVal === 'terminated' || contractStatusVal === 'prenotice') && terminationDate ? terminationDate : (contractStatusVal && contractStatusVal !== 'terminated' && contractStatusVal !== 'prenotice' ? null : undefined)
@@ -2193,7 +2262,9 @@ router.patch('/employees/:id', async (req, res) => {
     }
 
     const updated = await query(
-      `SELECT u.id, u.name, u.email,
+      `SELECT u.id, u.name, u.email, u.role,
+              COALESCE(u.access_level, CASE WHEN u.role = 'admin' THEN 'admin' ELSE 'agent' END) AS access_level,
+              COALESCE(u.access_enabled, TRUE) AS access_enabled,
               COALESCE(e.salary_type, u.salary_type) AS salary_type,
               COALESCE(e.base_salary, u.base_salary) AS base_salary,
               e.cmid, e.harmony_id, e.contract_type, e.hire_date::text AS hire_date,
@@ -2217,6 +2288,9 @@ router.patch('/employees/:id', async (req, res) => {
       id: row.id,
       name: row.name,
       email: row.email || '',
+      role: row.role || 'employee',
+      accessLevel: row.access_level || 'agent',
+      accessEnabled: row.access_enabled !== false,
       salaryType: row.salary_type || 'hourly',
       baseSalary: row.base_salary != null ? Number(row.base_salary) : 0,
       cmid: row.cmid != null ? Number(row.cmid) : null,
@@ -2294,8 +2368,13 @@ router.get('/reports/summary', async (req, res) => {
 // GET /api/admin/employees - list employees (full for database page; schedule uses id, name)
 router.get('/employees', async (req, res) => {
   try {
+    // 21MAY2026 client video: admins live in the employees module too so HR can
+    // promote/demote via the form. We include role='admin' here too, and
+    // access_level/access_enabled drive the visible tier + on-off toggle.
     const result = await query(
-      `SELECT u.id, u.name, u.email,
+      `SELECT u.id, u.name, u.email, u.role,
+              COALESCE(u.access_level, CASE WHEN u.role = 'admin' THEN 'admin' ELSE 'agent' END) AS access_level,
+              COALESCE(u.access_enabled, TRUE) AS access_enabled,
               COALESCE(e.salary_type, u.salary_type) AS salary_type,
               COALESCE(e.base_salary, u.base_salary) AS base_salary,
               e.cmid, e.harmony_id, e.contract_type, e.hire_date::text AS hire_date,
@@ -2311,13 +2390,16 @@ router.get('/employees', async (req, res) => {
        LEFT JOIN employees e ON e.user_id = u.id
        LEFT JOIN clients c ON c.id = e.primary_client_id
        LEFT JOIN users mgr ON mgr.id = e.reports_to
-       WHERE u.role = 'employee'
+       WHERE u.role IN ('employee', 'admin')
        ORDER BY u.name`
     )
     res.json(result.rows.map((r) => ({
       id: r.id,
       name: r.name,
       email: r.email || '',
+      role: r.role || 'employee',
+      accessLevel: r.access_level || 'agent',
+      accessEnabled: r.access_enabled !== false,
       salaryType: r.salary_type || 'hourly',
       baseSalary: r.base_salary != null ? Number(r.base_salary) : 0,
       cmid: r.cmid != null ? Number(r.cmid) : null,
@@ -2359,7 +2441,7 @@ router.post('/employees', requireAdmin, async (req, res) => {
     const { name, email, password, salaryType, baseSalary,
             cmid, contractType, hireDate, location, department,
             primaryClientId, jobTitle, reportsTo, contractStatus, terminationDate,
-            shiftGroup } = req.body
+            shiftGroup, accessLevel, accessEnabled } = req.body
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     if (!name || String(name).trim() === '') {
       return res.status(400).json({ error: 'Validation failed', message: 'Name is required' })
@@ -2377,17 +2459,20 @@ router.post('/employees', requireAdmin, async (req, res) => {
     const password_hash = await bcrypt.hash(String(password), 10)
     const st = salaryType === 'monthly' ? 'monthly' : 'hourly'
     const sal = baseSalary != null ? Math.max(0, Number(baseSalary)) : 0
+    const accessLevelVal = ['admin', 'supervisor', 'agent'].includes(accessLevel) ? accessLevel : 'agent'
+    const accessEnabledVal = accessEnabled === false ? false : true
+    const roleVal = accessLevelVal === 'admin' ? 'admin' : 'employee'
     const createdUser = await query(
-      `INSERT INTO users (email, name, password_hash, role, salary_type, base_salary)
-       VALUES ($1, $2, $3, 'employee', $4, $5)
+      `INSERT INTO users (email, name, password_hash, role, salary_type, base_salary, access_level, access_enabled)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING id, name, email`,
-      [String(email).trim().toLowerCase(), String(name).trim(), password_hash, st, sal]
+      [String(email).trim().toLowerCase(), String(name).trim(), password_hash, roleVal, st, sal, accessLevelVal, accessEnabledVal]
     )
     const u = createdUser.rows[0]
     const contractTypeVal = contractType === 'contractor' ? 'contractor' : 'employee'
     const contractStatusVal = ['active', 'terminated', 'suspended'].includes(contractStatus) ? contractStatus : 'active'
     const cmidVal = cmid != null && Number.isInteger(Number(cmid)) ? Number(cmid) : null
-    const harmonyIdVal = cmidVal != null ? `HRM-${String(cmidVal).padStart(5, '0')}` : null
+    const harmonyIdVal = cmidVal != null ? `CMX-${String(cmidVal).padStart(5, '0')}` : null
     const termDateVal = contractStatusVal === 'terminated' && terminationDate ? terminationDate : null
     await query(
       `INSERT INTO employees (user_id, salary_type, base_salary, cmid, harmony_id, contract_type, hire_date, location, department, primary_client_id, job_title, reports_to, contract_status, termination_date, shift_group)
@@ -2396,7 +2481,9 @@ router.post('/employees', requireAdmin, async (req, res) => {
       [u.id, st, sal, cmidVal, harmonyIdVal, contractTypeVal, hireDate || null, location || null, department || null, primaryClientId || null, jobTitle || null, reportsTo || null, contractStatusVal, termDateVal, shiftGroup || null]
     )
     const created = await query(
-      `SELECT u.id, u.name, u.email,
+      `SELECT u.id, u.name, u.email, u.role,
+              COALESCE(u.access_level, 'agent') AS access_level,
+              COALESCE(u.access_enabled, TRUE) AS access_enabled,
               COALESCE(e.salary_type, u.salary_type) AS salary_type,
               COALESCE(e.base_salary, u.base_salary) AS base_salary,
               e.cmid, e.harmony_id, e.contract_type, e.hire_date::text AS hire_date,
@@ -2416,6 +2503,9 @@ router.post('/employees', requireAdmin, async (req, res) => {
       id: row.id,
       name: row.name,
       email: row.email || '',
+      role: row.role || 'employee',
+      accessLevel: row.access_level || 'agent',
+      accessEnabled: row.access_enabled !== false,
       salaryType: row.salary_type || 'hourly',
       baseSalary: row.base_salary != null ? Number(row.base_salary) : 0,
       cmid: row.cmid != null ? Number(row.cmid) : null,

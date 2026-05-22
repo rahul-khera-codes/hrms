@@ -1409,7 +1409,7 @@ function AddAttendanceRecordModal({
         <div className="modal-footer">
           <button type="button" onClick={onClose} className="btn-secondary" disabled={saving}>Cancel</button>
           <button type="button" onClick={handleSave} className="btn-primary" disabled={saving || !employeeId || !clockIn}>
-            {saving ? 'Saving…' : 'Create record'}
+            {saving ? 'Saving…' : 'Save'}
           </button>
         </div>
       </div>

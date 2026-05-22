@@ -317,6 +317,7 @@ export interface SettingsResponse {
   workingDaysPerMonth: number
   hoursPerDay: number
   otMultiplier: number
+  doubleOtMultiplier: number
   nightMultiplier: number
   nightShiftStartHour: number
   nightShiftEndHour: number
@@ -398,6 +399,9 @@ export interface EmployeeRecord {
   id: string
   name: string
   email: string
+  role?: string
+  accessLevel?: 'admin' | 'supervisor' | 'agent'
+  accessEnabled?: boolean
   salaryType: string
   baseSalary: number
   cmid?: number | null
@@ -436,6 +440,8 @@ export async function createEmployee(data: {
   name: string
   email: string
   password: string
+  accessLevel?: 'admin' | 'supervisor' | 'agent'
+  accessEnabled?: boolean
   salaryType?: 'hourly' | 'monthly'
   baseSalary?: number
   cmid?: number | null
@@ -473,6 +479,8 @@ export async function updateEmployee(
     name?: string
     email?: string
     password?: string
+    accessLevel?: 'admin' | 'supervisor' | 'agent'
+    accessEnabled?: boolean
     salaryType?: 'hourly' | 'monthly'
     baseSalary?: number
     cmid?: number | null
@@ -705,6 +713,13 @@ export interface AdminLeaveRequest {
   isLocked?: boolean
   payrollStatus?: string | null
   approverName?: string | null
+  // 21MAY2026 audit-trail rollout
+  createdBy?: string | null
+  createdByName?: string | null
+  createdOn?: string | null
+  modifiedBy?: string | null
+  modifiedByName?: string | null
+  modifiedOn?: string | null
 }
 
 export interface LeaveReviewContext {
@@ -783,6 +798,11 @@ export async function setLeaveRequestLocked(id: string, locked: boolean): Promis
     method: 'PATCH',
     body: JSON.stringify({ isLocked: locked }),
   })
+}
+
+/** 21MAY2026 client video: hard-delete a leave request (must be unlocked). */
+export async function deleteAdminLeaveRequest(id: string): Promise<void> {
+  return api<void>(`/api/admin/leave-requests/${id}`, { method: 'DELETE' })
 }
 
 export async function createAdminLeaveRequest(data: {
@@ -874,6 +894,13 @@ export interface PayrollInput {
   isLocked: boolean
   createdAt: string
   updatedAt: string
+  // 21MAY2026 audit trail rollout
+  createdBy?: string | null
+  createdByName?: string | null
+  createdOn?: string | null
+  modifiedBy?: string | null
+  modifiedByName?: string | null
+  modifiedOn?: string | null
 }
 
 export interface PayrollInputCreate {

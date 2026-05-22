@@ -110,6 +110,13 @@ try {
   try {
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS salary_type VARCHAR(10) DEFAULT 'hourly'`)
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS base_salary DECIMAL(12,2) DEFAULT 0`)
+    // 21MAY2026 client feedback: three-tier access level and an access on/off toggle
+    // shown on the employee form. role stays the auth-level discriminator
+    // (admin vs employee); access_level adds supervisor between agent and admin.
+    await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS access_level VARCHAR(16) DEFAULT 'agent'`)
+    await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS access_enabled BOOLEAN NOT NULL DEFAULT TRUE`)
+    // Backfill: admins → admin, everyone else → agent on first run
+    await pool.query(`UPDATE users SET access_level = 'admin' WHERE role = 'admin' AND (access_level IS NULL OR access_level = 'agent')`)
   } catch (_) { /* columns may already exist */ }
 
   // Employee database table (separate from auth users)
@@ -153,6 +160,11 @@ try {
   try {
     await pool.query(
       `ALTER TABLE settings ADD COLUMN IF NOT EXISTS default_base_salary DECIMAL(12,2) NOT NULL DEFAULT 0`
+    )
+    // 21MAY2026 client video: separate multiplier for X100% / double overtime
+    // (typically 2.00). Was previously implicit in the X100 path code.
+    await pool.query(
+      `ALTER TABLE settings ADD COLUMN IF NOT EXISTS double_ot_multiplier DECIMAL(4,2) NOT NULL DEFAULT 2.00`
     )
   } catch (e) {
     if (e.code !== '42701') console.warn('settings.default_base_salary migration:', e.message)
@@ -317,6 +329,11 @@ try {
     // 29APR2026 leaves punchlist: payroll status + approver
     await pool.query(`ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS payroll_status VARCHAR(20) DEFAULT 'Pending'`)
     await pool.query(`ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS approver_name VARCHAR(255)`)
+    // 21MAY2026 client feedback: audit trail on every form (mirrors sessions)
+    await pool.query(`ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS created_by UUID REFERENCES users(id)`)
+    await pool.query(`ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS created_on TIMESTAMPTZ DEFAULT NOW()`)
+    await pool.query(`ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS modified_by UUID REFERENCES users(id)`)
+    await pool.query(`ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS modified_on TIMESTAMPTZ`)
   } catch (e) {
     if (e.code !== '42701') console.warn('leave_requests admin create columns migration:', e.message)
   }
@@ -361,6 +378,15 @@ try {
   await pool.query('CREATE INDEX IF NOT EXISTS idx_payroll_inputs_user ON payroll_inputs (user_id)')
   await pool.query('CREATE INDEX IF NOT EXISTS idx_payroll_inputs_cycle ON payroll_inputs (payroll_cycle_code)')
   await pool.query('CREATE INDEX IF NOT EXISTS idx_payroll_inputs_status ON payroll_inputs (status)')
+  // 21MAY2026 client feedback: audit trail on payroll inputs (mirrors sessions/leaves)
+  try {
+    await pool.query(`ALTER TABLE payroll_inputs ADD COLUMN IF NOT EXISTS created_by UUID REFERENCES users(id)`)
+    await pool.query(`ALTER TABLE payroll_inputs ADD COLUMN IF NOT EXISTS created_on TIMESTAMPTZ DEFAULT NOW()`)
+    await pool.query(`ALTER TABLE payroll_inputs ADD COLUMN IF NOT EXISTS modified_by UUID REFERENCES users(id)`)
+    await pool.query(`ALTER TABLE payroll_inputs ADD COLUMN IF NOT EXISTS modified_on TIMESTAMPTZ`)
+  } catch (e) {
+    if (e.code !== '42701') console.warn('payroll_inputs audit columns migration:', e.message)
+  }
   console.log('Payroll inputs table ready')
   await pool.query(`
     CREATE TABLE IF NOT EXISTS payroll_line_items (
@@ -633,8 +659,12 @@ try {
     }
     await seedPayrollPeriods()
     await pool.query(`ALTER TABLE payroll_periods ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'upcoming'`)
+    // 21MAY2026 client video: three cycle states — closed (pay date passed),
+    // current (today is between period_from and period_to), upcoming (future).
+    // Recomputed on each server boot so the column stays in sync without a cron.
     await pool.query(`UPDATE payroll_periods SET status = 'closed' WHERE pay_date < CURRENT_DATE`)
-    await pool.query(`UPDATE payroll_periods SET status = 'upcoming' WHERE pay_date >= CURRENT_DATE`)
+    await pool.query(`UPDATE payroll_periods SET status = 'current' WHERE pay_date >= CURRENT_DATE AND period_from <= CURRENT_DATE AND period_to >= CURRENT_DATE`)
+    await pool.query(`UPDATE payroll_periods SET status = 'upcoming' WHERE pay_date >= CURRENT_DATE AND (period_from > CURRENT_DATE OR (period_from <= CURRENT_DATE AND period_to < CURRENT_DATE))`)
     // Compute BS (payment number within month) based on pay_date
     await pool.query(`
       WITH numbered AS (

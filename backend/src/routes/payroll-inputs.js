@@ -89,6 +89,13 @@ function mapRow(r) {
     isLocked: r.is_locked === true,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
+    // 21MAY2026 audit trail rollout
+    createdBy: r.created_by || null,
+    createdByName: r.created_by_name || null,
+    createdOn: r.created_on || r.created_at || null,
+    modifiedBy: r.modified_by || null,
+    modifiedByName: r.modified_by_name || null,
+    modifiedOn: r.modified_on || null,
   }
 }
 
@@ -107,7 +114,9 @@ router.get('/', async (req, res) => {
              c.name AS account_name,
              mgr.name AS reports_to_name,
              app.name AS approver_name,
-             rev.name AS reviewed_by_name
+             rev.name AS reviewed_by_name,
+             cu.name AS created_by_name,
+             mu.name AS modified_by_name
       FROM payroll_inputs pi
       JOIN users u ON u.id = pi.user_id
       LEFT JOIN employees e ON e.user_id = pi.user_id
@@ -115,6 +124,8 @@ router.get('/', async (req, res) => {
       LEFT JOIN clients c ON c.id = e.primary_client_id
       LEFT JOIN users app ON app.id = pi.approver_id
       LEFT JOIN users rev ON rev.id = pi.reviewed_by
+       LEFT JOIN users cu ON cu.id = pi.created_by
+       LEFT JOIN users mu ON mu.id = pi.modified_by
       WHERE 1=1
     `
     if (status && status !== 'all') {
@@ -310,7 +321,8 @@ router.get('/:id', async (req, res) => {
       `SELECT pi.*, u.name AS user_name,
               e.cmid AS employee_cmid, c.name AS account_name,
               mgr.name AS reports_to_name,
-              app.name AS approver_name, rev.name AS reviewed_by_name
+              app.name AS approver_name, rev.name AS reviewed_by_name,
+              cu.name AS created_by_name, mu.name AS modified_by_name
        FROM payroll_inputs pi
        JOIN users u ON u.id = pi.user_id
        LEFT JOIN employees e ON e.user_id = pi.user_id
@@ -318,6 +330,8 @@ router.get('/:id', async (req, res) => {
        LEFT JOIN clients c ON c.id = e.primary_client_id
        LEFT JOIN users app ON app.id = pi.approver_id
        LEFT JOIN users rev ON rev.id = pi.reviewed_by
+       LEFT JOIN users cu ON cu.id = pi.created_by
+       LEFT JOIN users mu ON mu.id = pi.modified_by
        WHERE pi.id = $1`,
       [id]
     )
@@ -376,15 +390,15 @@ router.post('/', async (req, res) => {
          payable_hours, hourly_rate, hourly_multiplier,
          currency, base_amount, exchange_rate,
          input_amount, payroll_cycle_code, approver_id,
-         status, notes
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+         status, notes, created_by, created_on
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,NOW())
        RETURNING id`,
       [
         userId, inputType, calculationType,
         payableHours ?? null, hourlyRate ?? null, hourlyMultiplier ?? null,
         currency || null, baseAmount ?? null, exchangeRate ?? null,
         inputAmount, payrollCycleCode || null, approverId || null,
-        status, notes || null,
+        status, notes || null, req.user?.id || null,
       ]
     )
     const newId = result.rows[0].id
@@ -392,7 +406,8 @@ router.post('/', async (req, res) => {
       `SELECT pi.*, u.name AS user_name,
               e.cmid AS employee_cmid, c.name AS account_name,
               mgr.name AS reports_to_name,
-              app.name AS approver_name, rev.name AS reviewed_by_name
+              app.name AS approver_name, rev.name AS reviewed_by_name,
+              cu.name AS created_by_name, mu.name AS modified_by_name
        FROM payroll_inputs pi
        JOIN users u ON u.id = pi.user_id
        LEFT JOIN employees e ON e.user_id = pi.user_id
@@ -400,6 +415,8 @@ router.post('/', async (req, res) => {
        LEFT JOIN clients c ON c.id = e.primary_client_id
        LEFT JOIN users app ON app.id = pi.approver_id
        LEFT JOIN users rev ON rev.id = pi.reviewed_by
+       LEFT JOIN users cu ON cu.id = pi.created_by
+       LEFT JOIN users mu ON mu.id = pi.modified_by
        WHERE pi.id = $1`,
       [newId]
     )
@@ -490,6 +507,10 @@ router.patch('/:id', async (req, res) => {
     if (updates.length === 0) {
       return res.status(400).json({ error: 'Bad request', message: 'No fields to update' })
     }
+    // 21MAY2026 audit trail: stamp modifier on every update
+    updates.push(`modified_by = $${i++}`)
+    params.push(req.user?.id || null)
+    updates.push(`modified_on = NOW()`)
     updates.push(`updated_at = NOW()`)
     params.push(id)
     await query(`UPDATE payroll_inputs SET ${updates.join(', ')} WHERE id = $${i}`, params)
@@ -498,7 +519,8 @@ router.patch('/:id', async (req, res) => {
       `SELECT pi.*, u.name AS user_name,
               e.cmid AS employee_cmid, c.name AS account_name,
               mgr.name AS reports_to_name,
-              app.name AS approver_name, rev.name AS reviewed_by_name
+              app.name AS approver_name, rev.name AS reviewed_by_name,
+              cu.name AS created_by_name, mu.name AS modified_by_name
        FROM payroll_inputs pi
        JOIN users u ON u.id = pi.user_id
        LEFT JOIN employees e ON e.user_id = pi.user_id
@@ -506,6 +528,8 @@ router.patch('/:id', async (req, res) => {
        LEFT JOIN clients c ON c.id = e.primary_client_id
        LEFT JOIN users app ON app.id = pi.approver_id
        LEFT JOIN users rev ON rev.id = pi.reviewed_by
+       LEFT JOIN users cu ON cu.id = pi.created_by
+       LEFT JOIN users mu ON mu.id = pi.modified_by
        WHERE pi.id = $1`,
       [id]
     )

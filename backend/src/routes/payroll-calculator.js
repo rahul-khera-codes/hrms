@@ -147,6 +147,20 @@ router.post('/calculate', async (req, res) => {
     const periodTo = period.period_to
     const payDate = period.pay_date
 
+    // 21MAY2026 client video: block re-calculation of closed cycles. A cycle is
+    // closed once today is past its pay date. The optional `force` flag lets a
+    // future "Re-open cycle" workflow override this.
+    if (!req.body.force) {
+      const todayRes = await query(`SELECT CURRENT_DATE > $1::date AS closed`, [payDate])
+      if (todayRes.rows[0]?.closed) {
+        return res.status(409).json({
+          error: 'Cycle closed',
+          message: `Payroll cycle ${cycleCode} is closed (pay date ${payDate}). Closed cycles cannot be calculated or re-calculated.`,
+          code: 'CYCLE_CLOSED',
+        })
+      }
+    }
+
     // 2. Determine bi_week (BS) from period record, and P number for previous cycle lookup
     const pMatch = cycleCode.match(/P(\d+)$/)
     const pNum = pMatch ? parseInt(pMatch[1], 10) : 1
