@@ -13,17 +13,18 @@ function formatTime(t: string) {
   return s
 }
 
-// 21MAY2026 client video: scope timezone options to US-only zones.
-// Labels are the short business names the client uses; values are the IANA
-// canonical zones we store/use for math.
+// 21MAY2026 client video + WhatsApp follow-up: exact 8-zone US list in the
+// order the client requested, with the abbreviation in the label. Labels are
+// what shows in the dropdown; values are the IANA canonical zones we store.
 const TIMEZONES: Array<{ value: string; label: string }> = [
-  { value: 'America/New_York', label: 'Eastern Time' },
-  { value: 'America/Chicago', label: 'Central Time' },
-  { value: 'America/Denver', label: 'Mountain Time' },
-  { value: 'America/Los_Angeles', label: 'Pacific Time' },
-  { value: 'America/Anchorage', label: 'Alaska Time' },
-  { value: 'Pacific/Honolulu', label: 'Hawaii Time' },
-  { value: 'America/Puerto_Rico', label: 'Atlantic Time' },
+  { value: 'America/New_York', label: 'Eastern Time (ET)' },
+  { value: 'America/Puerto_Rico', label: 'Atlantic Time (AST)' },
+  { value: 'America/Los_Angeles', label: 'Pacific Time (PT)' },
+  { value: 'America/Chicago', label: 'Central Time (CT)' },
+  { value: 'America/Denver', label: 'Mountain Time (MT)' },
+  { value: 'America/Anchorage', label: 'Alaska Time (AKT)' },
+  { value: 'Pacific/Honolulu', label: 'Hawaii-Aleutian Time (HAT)' },
+  { value: 'Pacific/Guam', label: 'Chamorro Time (ChST)' },
 ]
 
 function timezoneLabel(tz: string | null | undefined): string {

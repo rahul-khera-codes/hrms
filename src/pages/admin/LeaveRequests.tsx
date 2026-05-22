@@ -1296,7 +1296,11 @@ export default function AdminLeaveRequests() {
                     </p>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {/* 21MAY follow-up: same overlap fix as the edit form.
+                      Payroll Cycle on its own row; Approver + Approval Status
+                      get a 2-col sub-grid so the 3-button pill has breathing
+                      room and doesn't visually overlap the Approver dropdown. */}
+                  <div className="grid grid-cols-1 gap-3">
                     <div>
                       <label className="label">Payroll Cycle</label>
                       <AdminSelect
@@ -1308,40 +1312,42 @@ export default function AdminLeaveRequests() {
                         ]}
                       />
                     </div>
-                    <div>
-                      <label className="label">Approver</label>
-                      <AdminSelect
-                        value={createApproverName}
-                        onChange={(val) => setCreateApproverName(val)}
-                        options={[
-                          { value: '', label: 'Select approver' },
-                          ...['Orlando Santana', 'Jamel Rodriguez', 'Luis Peña', 'Other'].map((name) => ({ value: name, label: name })),
-                        ]}
-                      />
-                    </div>
-                    <div>
-                      <label className="label">Approval Status</label>
-                      <div className="flex gap-0 rounded-xl overflow-hidden border border-surface-200 dark:border-surface-700">
-                        {([
-                          { value: 'Pending' as const, label: 'Pending' },
-                          { value: 'Approved' as const, label: 'Approved' },
-                          { value: 'Rejected' as const, label: 'Rejected' },
-                        ]).map((opt) => {
-                          const current = createPayrollStatus === 'N/A' ? 'Pending' : createPayrollStatus
-                          const isActive = current === opt.value
-                          return (
-                            <button
-                              key={opt.value}
-                              type="button"
-                              onClick={() => setCreatePayrollStatus(opt.value)}
-                              className={`flex-1 px-3 py-2.5 text-xs font-medium transition-colors ${
-                                isActive ? 'bg-brand-600 text-white' : 'bg-surface-50 dark:bg-surface-900 text-surface-600 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-800'
-                              }`}
-                            >
-                              {opt.label}
-                            </button>
-                          )
-                        })}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="label">Approver</label>
+                        <AdminSelect
+                          value={createApproverName}
+                          onChange={(val) => setCreateApproverName(val)}
+                          options={[
+                            { value: '', label: 'Select approver' },
+                            ...['Orlando Santana', 'Jamel Rodriguez', 'Luis Peña', 'Other'].map((name) => ({ value: name, label: name })),
+                          ]}
+                        />
+                      </div>
+                      <div>
+                        <label className="label">Approval Status</label>
+                        <div className="flex gap-0 rounded-xl overflow-hidden border border-surface-200 dark:border-surface-700">
+                          {([
+                            { value: 'Pending' as const, label: 'Pending' },
+                            { value: 'Approved' as const, label: 'Approved' },
+                            { value: 'Rejected' as const, label: 'Rejected' },
+                          ]).map((opt) => {
+                            const current = createPayrollStatus === 'N/A' ? 'Pending' : createPayrollStatus
+                            const isActive = current === opt.value
+                            return (
+                              <button
+                                key={opt.value}
+                                type="button"
+                                onClick={() => setCreatePayrollStatus(opt.value)}
+                                className={`flex-1 px-3 py-2.5 text-xs font-medium transition-colors ${
+                                  isActive ? 'bg-brand-600 text-white' : 'bg-surface-50 dark:bg-surface-900 text-surface-600 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-800'
+                                }`}
+                              >
+                                {opt.label}
+                              </button>
+                            )
+                          })}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1556,51 +1562,53 @@ export default function AdminLeaveRequests() {
                         ))}
                       </div>
                     </div>
-                    {/* Approver (parity with new-leave form) */}
-                    <div>
-                      <label className="label">Approver</label>
-                      <AdminSelect
-                        value={reviewApproverName}
-                        onChange={(val) => setReviewApproverName(val)}
-                        disabled={reviewLocked}
-                        options={[
-                          { value: '', label: 'Select approver' },
-                          ...['Orlando Santana', 'Jamel Rodriguez', 'Luis Peña', 'Other'].map((name) => ({ value: name, label: name })),
-                        ]}
-                      />
-                    </div>
-                    {/* 21MAY2026 client video: renamed to Approval Status, with a
-                        3-button segmented control to mirror Payroll Inputs.
-                        Pending/Approved/Rejected only (N/A removed). The
-                        Decision dropdown below was removed as duplicate. */}
-                    <div>
-                      <label className="label">Approval Status</label>
-                      <div className="flex gap-0 rounded-xl overflow-hidden border border-surface-200 dark:border-surface-700">
-                        {([
-                          { value: 'Pending' as const, label: 'Pending' },
-                          { value: 'Approved' as const, label: 'Approved' },
-                          { value: 'Rejected' as const, label: 'Rejected' },
-                        ]).map((opt) => {
-                          const current = reviewPayrollStatus === 'N/A' ? 'Pending' : reviewPayrollStatus
-                          const isActive = current === opt.value
-                          return (
-                            <button
-                              key={opt.value}
-                              type="button"
-                              disabled={reviewLocked}
-                              onClick={() => {
-                                setReviewPayrollStatus(opt.value)
-                                if (opt.value === 'Approved') setReviewStatus('approved')
-                                else if (opt.value === 'Rejected') setReviewStatus('rejected')
-                              }}
-                              className={`flex-1 px-3 py-2.5 text-xs font-medium transition-colors ${
-                                isActive ? 'bg-brand-600 text-white' : 'bg-surface-50 dark:bg-surface-900 text-surface-600 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-800'
-                              } disabled:opacity-60`}
-                            >
-                              {opt.label}
-                            </button>
-                          )
-                        })}
+                    {/* 21MAY2026 + 21MAY WhatsApp follow-up:
+                        Approver + Approval Status share their own full-row
+                        2-column sub-grid so the segmented pill has room and
+                        doesn't visually overlap with the Approver dropdown.
+                        (Was previously two narrow 1/3 cells in the parent grid.) */}
+                    <div className="col-span-2 sm:col-span-3 grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
+                      <div>
+                        <label className="label">Approver</label>
+                        <AdminSelect
+                          value={reviewApproverName}
+                          onChange={(val) => setReviewApproverName(val)}
+                          disabled={reviewLocked}
+                          options={[
+                            { value: '', label: 'Select approver' },
+                            ...['Orlando Santana', 'Jamel Rodriguez', 'Luis Peña', 'Other'].map((name) => ({ value: name, label: name })),
+                          ]}
+                        />
+                      </div>
+                      <div>
+                        <label className="label">Approval Status</label>
+                        <div className="flex gap-0 rounded-xl overflow-hidden border border-surface-200 dark:border-surface-700">
+                          {([
+                            { value: 'Pending' as const, label: 'Pending' },
+                            { value: 'Approved' as const, label: 'Approved' },
+                            { value: 'Rejected' as const, label: 'Rejected' },
+                          ]).map((opt) => {
+                            const current = reviewPayrollStatus === 'N/A' ? 'Pending' : reviewPayrollStatus
+                            const isActive = current === opt.value
+                            return (
+                              <button
+                                key={opt.value}
+                                type="button"
+                                disabled={reviewLocked}
+                                onClick={() => {
+                                  setReviewPayrollStatus(opt.value)
+                                  if (opt.value === 'Approved') setReviewStatus('approved')
+                                  else if (opt.value === 'Rejected') setReviewStatus('rejected')
+                                }}
+                                className={`flex-1 px-3 py-2.5 text-xs font-medium transition-colors ${
+                                  isActive ? 'bg-brand-600 text-white' : 'bg-surface-50 dark:bg-surface-900 text-surface-600 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-800'
+                                } disabled:opacity-60`}
+                              >
+                                {opt.label}
+                              </button>
+                            )
+                          })}
+                        </div>
                       </div>
                     </div>
                   </div>
