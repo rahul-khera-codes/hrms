@@ -80,8 +80,9 @@ export default function AdminPayrollInputs() {
   const [filterType, setFilterType] = useState<string>('all')
   const [search, setSearch] = useState('')
   const [viewMode, setViewMode] = useState<'card' | 'table'>('table')
-  const [sortCol, setSortCol] = useState<string | null>(null)
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+  // 25MAY client: default sort = Record ID desc (latest PI-#### on top)
+  const [sortCol, setSortCol] = useState<string | null>('Record ID')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [columnFilters, setColumnFilters] = useState<Record<string, string>>({})
   const [filterOpen, setFilterOpen] = useState<string | null>(null)
 
@@ -141,6 +142,7 @@ export default function AdminPayrollInputs() {
 
   const colAccessor = (r: PayrollInput, col: string): string | number => {
     switch (col) {
+      case 'Record ID': return r.recordId ?? ''
       case 'CMID': return r.employeeCmid ?? 0
       case 'Employee Name': return (r.employeeName ?? '').toLowerCase()
       case 'Account': return (r.accountName ?? '').toLowerCase()
@@ -561,7 +563,7 @@ export default function AdminPayrollInputs() {
                           onChange={() => toggleSelect(r.id)}
                         />
                       </td>
-                      <td className="px-2 py-1.5 text-xs font-mono font-semibold text-violet-700 dark:text-violet-300 tabular-nums whitespace-nowrap">{r.recordId ?? '-'}</td>
+                      <td className="px-2 py-1.5 text-xs font-mono text-surface-700 dark:text-surface-200 tabular-nums whitespace-nowrap">{r.recordId ?? '-'}</td>
                       <td className="px-2 py-1.5 text-xs font-mono text-surface-700 dark:text-surface-200 tabular-nums whitespace-nowrap">{r.employeeCmid ?? '-'}</td>
                       <td className="px-2 py-1.5 text-xs font-medium text-surface-900 dark:text-surface-50 whitespace-nowrap">{r.employeeName ?? '-'}</td>
                       <td className="px-2 py-1.5 text-xs text-surface-700 dark:text-surface-200 whitespace-nowrap">{r.accountName ?? '-'}</td>

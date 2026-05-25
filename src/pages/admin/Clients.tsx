@@ -91,8 +91,9 @@ export default function AdminClients() {
   const [saving, setSaving] = useState(false)
   const [viewMode, setViewMode] = useState<'card' | 'table'>('table')
   const [search, setSearch] = useState('')
-  const [sortCol, setSortCol] = useState<string | null>(null)
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+  // 25MAY client: default sort = Record ID desc (latest ACT-#### on top)
+  const [sortCol, setSortCol] = useState<string | null>('Record ID')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [columnFilters, setColumnFilters] = useState<Record<string, string>>({})
   const [filterOpen, setFilterOpen] = useState<string | null>(null)
 
@@ -143,6 +144,7 @@ export default function AdminClients() {
 
   function getColValue(c: Client, col: string): string {
     switch (col) {
+      case 'Record ID': return c.recordId ?? ''
       case 'Company Name': return c.name.toLowerCase()
       case 'Vertical': return (c.vertical ?? '').toLowerCase()
       case 'Sales Owner': return (c.salesOwnerName ?? '').toLowerCase()
@@ -650,7 +652,7 @@ export default function AdminClients() {
                         onChange={() => toggleSelect(c.id)}
                       />
                     </td>
-                    <td className="px-3 py-2.5 text-xs font-mono font-semibold text-violet-700 dark:text-violet-300 tabular-nums whitespace-nowrap">{c.recordId ?? '-'}</td>
+                    <td className="px-3 py-2.5 text-xs font-mono text-surface-700 dark:text-surface-200 tabular-nums whitespace-nowrap">{c.recordId ?? '-'}</td>
                     <td className="px-3 py-2.5 text-xs font-medium text-surface-900 dark:text-surface-50 whitespace-nowrap">
                       <span className="flex items-center gap-1.5">
                         {c.name}

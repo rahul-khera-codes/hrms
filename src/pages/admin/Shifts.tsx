@@ -342,13 +342,18 @@ export default function AdminShifts() {
               </thead>
               <tbody>
                 {filteredShifts.map((s) => (
-                  <tr key={s.id} className="border-b border-surface-100 dark:border-surface-800 hover:bg-brand-50/40 transition-colors">
+                  // 25MAY client: make shifts openable on click (whole row)
+                  <tr
+                    key={s.id}
+                    className="border-b border-surface-100 dark:border-surface-800 hover:bg-brand-50/40 transition-colors cursor-pointer"
+                    onClick={() => openEdit(s)}
+                  >
                     <td className="px-3 py-2.5 text-xs font-medium text-surface-900 dark:text-surface-50 whitespace-nowrap">{s.name}</td>
                     <td className="px-3 py-2.5 text-xs font-mono text-surface-700 dark:text-surface-200 tabular-nums whitespace-nowrap">{formatTime(s.startTime)}</td>
                     <td className="px-3 py-2.5 text-xs font-mono text-surface-700 dark:text-surface-200 tabular-nums whitespace-nowrap">{formatTime(s.endTime)}</td>
                     <td className="px-3 py-2.5 text-xs text-surface-600 dark:text-surface-300 whitespace-nowrap">{timezoneLabel(s.timezone)}</td>
                     <td className="px-3 py-2.5 text-xs text-surface-600 dark:text-surface-300 whitespace-nowrap">{s.clientId ? (clientMap.get(s.clientId) || '-') : '-'}</td>
-                    <td className="px-3 py-2.5 whitespace-nowrap text-right">
+                    <td className="px-3 py-2.5 whitespace-nowrap text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center gap-1 justify-end">
                         <button type="button" onClick={() => openEdit(s)} className="p-1.5 rounded-lg text-surface-500 dark:text-surface-400 dark:text-surface-500 hover:bg-surface-100 dark:hover:bg-surface-700 dark:bg-surface-800" title="Edit">
                           <Pencil className="w-3.5 h-3.5" />

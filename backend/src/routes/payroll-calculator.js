@@ -114,7 +114,8 @@ router.get('/', async (req, res) => {
       return res.status(400).json({ error: 'Bad request', message: 'cycle query param is required' })
     }
     const result = await query(
-      'SELECT * FROM payroll_calculator_results WHERE payroll_cycle_code = $1 ORDER BY employee_name',
+      // 25MAY client: latest record_id on top by default
+      'SELECT * FROM payroll_calculator_results WHERE payroll_cycle_code = $1 ORDER BY record_id DESC NULLS LAST, employee_name',
       [cycle]
     )
     res.json(result.rows.map(mapRow))
@@ -542,7 +543,8 @@ router.post('/calculate', async (req, res) => {
 
     // 7. Return full result set
     const finalRes = await query(
-      'SELECT * FROM payroll_calculator_results WHERE payroll_cycle_code = $1 ORDER BY employee_name',
+      // 25MAY client: latest record_id on top by default
+      'SELECT * FROM payroll_calculator_results WHERE payroll_cycle_code = $1 ORDER BY record_id DESC NULLS LAST, employee_name',
       [cycleCode]
     )
     res.json(finalRes.rows.map(mapRow))

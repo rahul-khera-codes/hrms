@@ -117,6 +117,12 @@ try {
     await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS access_enabled BOOLEAN NOT NULL DEFAULT TRUE`)
     // Backfill: admins → admin, everyone else → agent on first run
     await pool.query(`UPDATE users SET access_level = 'admin' WHERE role = 'admin' AND (access_level IS NULL OR access_level = 'agent')`)
+    // 25MAY2026 client WhatsApp: EMP-#### record ID for employees alongside
+    // the existing CMID + Callmax ID. Sequence + DEFAULT + backfill.
+    await pool.query(`CREATE SEQUENCE IF NOT EXISTS users_record_seq START 1001`)
+    await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS record_id VARCHAR(20) UNIQUE`)
+    await pool.query(`UPDATE users SET record_id = 'EMP-' || LPAD(NEXTVAL('users_record_seq')::text, 4, '0') WHERE record_id IS NULL`)
+    await pool.query(`ALTER TABLE users ALTER COLUMN record_id SET DEFAULT 'EMP-' || LPAD(NEXTVAL('users_record_seq')::text, 4, '0')`)
   } catch (_) { /* columns may already exist */ }
 
   // Employee database table (separate from auth users)

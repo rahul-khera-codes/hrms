@@ -89,8 +89,9 @@ export default function AdminEmployees() {
   const [saving, setSaving] = useState(false)
   const [viewMode, setViewMode] = useState<'card' | 'table'>('table')
   const [search, setSearch] = useState('')
-  const [sortCol, setSortCol] = useState<string | null>(null)
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+  // 25MAY client: default sort = Record ID desc (latest EMP-#### on top)
+  const [sortCol, setSortCol] = useState<string | null>('Record ID')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [columnFilters, setColumnFilters] = useState<Record<string, string>>({})
   const [filterOpen, setFilterOpen] = useState<string | null>(null)
   const [activeEmployees, setActiveEmployees] = useState<Set<string>>(new Set())
@@ -334,6 +335,7 @@ export default function AdminEmployees() {
 
   const empColAccessor = useCallback((emp: EmployeeRecord, col: string): string | number => {
     switch (col) {
+      case 'Record ID': return emp.recordId ?? ''
       case 'CMID': return emp.cmid ?? 0
       case 'Employee Name': return emp.name.toLowerCase()
       case 'Account': return (emp.primaryClientName ?? '').toLowerCase()
@@ -1074,7 +1076,7 @@ export default function AdminEmployees() {
                       }}
                     />
                   </th>
-                  {['CMID', 'Employee Name', 'Account', 'Email', 'Location', 'Department', 'Job Title', 'Reports To', 'Shift', 'Salary Type', 'Salary', 'Contract Status', 'Actions'].map((col) => (
+                  {['Record ID', 'CMID', 'Employee Name', 'Account', 'Email', 'Location', 'Department', 'Job Title', 'Reports To', 'Shift', 'Salary Type', 'Salary', 'Contract Status', 'Actions'].map((col) => (
                     <th
                       key={col}
                       className={`px-3 py-1.5 text-[10px] font-semibold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 dark:border-surface-700 ${col === 'Actions' ? 'text-right' : col === 'Salary' ? 'text-right' : ''}`}
@@ -1156,6 +1158,8 @@ export default function AdminEmployees() {
                         onChange={() => toggleEmpSelect(emp.id)}
                       />
                     </td>
+                    {/* 25MAY client: Record ID (EMP-####) as first column */}
+                    <td className="px-3 py-2.5 text-xs font-mono text-surface-700 dark:text-surface-200 tabular-nums whitespace-nowrap">{emp.recordId ?? '-'}</td>
                     <td className="px-3 py-2.5 text-xs font-mono text-surface-700 dark:text-surface-200 tabular-nums whitespace-nowrap">{emp.cmid ?? '-'}</td>
                     <td className="px-3 py-2.5 text-xs font-medium text-surface-900 dark:text-surface-50 whitespace-nowrap">
                       <div className="flex items-center gap-2">

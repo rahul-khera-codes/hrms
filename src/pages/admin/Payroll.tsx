@@ -51,6 +51,8 @@ const sections: SectionDef[] = [
     bg: 'bg-surface-50 dark:bg-surface-900',
     headerText: 'text-surface-700 dark:text-surface-200',
     columns: [
+      // 25MAY client: surface PRC-#### in the calculator list view as the first column.
+      { key: 'recordId', label: 'Record ID', type: 'text', accessor: (r) => r.recordId ?? '-' },
       { key: 'cmid', label: 'CMID', type: 'text', accessor: (r) => r.employeeCmid ?? '-' },
       { key: 'employeeName', label: 'Name', type: 'text', accessor: (r) => r.employeeName },
       { key: 'governmentId', label: 'Gov. ID', type: 'text', accessor: (r) => r.governmentId ?? '' },
@@ -349,19 +351,22 @@ export default function AdminPayroll() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCycle])
 
-  /* ---------- Inline edit handler ---------- */
+  /* ---------- Inline edit handler ----------
+     25MAY client bug fix: clicking Save in the detail modal closed it, but the
+     textarea's blur then resolved this async update and called setDetailRow,
+     reopening the modal. Use the functional updater so we only refresh the
+     modal if it's still open — never re-open it. */
   const handleInlineUpdate = useCallback(
     async (row: PayrollCalcResult, field: 'payMethod' | 'notes' | 'ccEmail', value: string) => {
       try {
         const updated = await updatePayrollResultField(row.id, { [field]: value })
         setResults((prev) => prev.map((r) => (r.id === row.id ? updated : r)))
-        if (detailRow?.id === row.id) setDetailRow(updated)
+        setDetailRow((cur) => (cur?.id === row.id ? updated : cur))
       } catch {
         toast.error('Failed to update field')
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [detailRow],
+    [],
   )
 
   /* ---------- Unique filter values ---------- */

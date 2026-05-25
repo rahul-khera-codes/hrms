@@ -187,8 +187,9 @@ export default function AdminAttendance() {
   const [detailRecord, setDetailRecord] = useState<AttendanceRecord | null>(null)
 
   // Sort & Filter state
-  const [sortCol, setSortCol] = useState<string | null>(null)
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+  // 25MAY client: default sort = Record ID desc (most recent on top)
+  const [sortCol, setSortCol] = useState<string | null>('Record ID')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [columnFilters, setColumnFilters] = useState<Record<string, string>>({})
   const [filterOpen, setFilterOpen] = useState<string | null>(null)
 
@@ -433,6 +434,7 @@ export default function AdminAttendance() {
 
   const colAccessor = useCallback((r: AttendanceRecord, col: string): string | number => {
     switch (col) {
+      case 'Record ID': return r.recordId ?? ''
       case 'EID': return r.employeeCmid ?? 0
       case 'Employee': return r.employeeName.toLowerCase()
       case 'Account': return (r.accountName ?? '').toLowerCase()
@@ -699,6 +701,7 @@ export default function AdminAttendance() {
                 {/* Column header row */}
                 <tr>
                   {[
+                    'Record ID',
                     'EID',
                     'Employee',
                     'Account',
@@ -782,6 +785,10 @@ export default function AdminAttendance() {
                       className={`border-b border-surface-100 dark:border-surface-800 hover:bg-surface-50/60 transition-colors cursor-pointer ${isSaving ? 'opacity-60' : ''}`}
                       onClick={() => setDetailRecord(r)}
                     >
+                      {/* Record ID (SES-####) — 25MAY client follow-up */}
+                      <td className="px-2 py-1.5 text-xs font-mono text-surface-700 dark:text-surface-200 tabular-nums whitespace-nowrap">
+                        {r.recordId ?? '-'}
+                      </td>
                       {/* EID */}
                       <td className="px-2 py-1.5 text-xs text-surface-700 dark:text-surface-200 tabular-nums whitespace-nowrap">
                         {r.employeeCmid ?? ''}
@@ -1159,29 +1166,34 @@ export default function AdminAttendance() {
                       {BILL_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
                     </select>
                   </div>
+                  {/* 25MAY client: Reviewed is now a single-click checkbox
+                      (was a Yes/No dropdown which took 2 clicks). */}
                   <div>
                     <label className="label">Reviewed</label>
-                    <select
-                      value={detailRecord.reviewed ? 'yes' : 'no'}
-                      disabled={detailRecord.isLocked ?? false}
-                      onChange={async (e) => {
-                        const next = e.target.value === 'yes'
-                        try {
-                          await setAttendanceReviewed(detailRecord.id, next)
-                          setDetailRecord({ ...detailRecord, reviewed: next, reviewedAt: next ? new Date().toISOString() : null })
-                          setRecords((prev) => prev.map((r) => r.id === detailRecord.id ? { ...r, reviewed: next } : r))
-                        } catch (err) {
-                          console.error('Toggle reviewed failed', err)
-                        }
-                      }}
-                      className="text-sm border border-surface-200 dark:border-surface-700 rounded-lg px-1.5 py-1.5 w-full bg-white dark:bg-surface-900 focus:ring-1 focus:ring-brand-300 outline-none disabled:opacity-60"
+                    <label
+                      className="inline-flex items-center gap-2 h-[34px] px-2 rounded-lg border border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-900 cursor-pointer w-full"
                       title={detailRecord.reviewed
                         ? (detailRecord.reviewedByName ? `Marked by ${detailRecord.reviewedByName}` : 'Marked reviewed')
-                        : 'Flag once the supervisor has normalized this timesheet.'}
+                        : 'Click to mark this timesheet reviewed.'}
                     >
-                      <option value="no">No</option>
-                      <option value="yes">Yes</option>
-                    </select>
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 accent-brand-600 cursor-pointer"
+                        checked={detailRecord.reviewed ?? false}
+                        disabled={detailRecord.isLocked ?? false}
+                        onChange={async (e) => {
+                          const next = e.target.checked
+                          try {
+                            await setAttendanceReviewed(detailRecord.id, next)
+                            setDetailRecord({ ...detailRecord, reviewed: next, reviewedAt: next ? new Date().toISOString() : null })
+                            setRecords((prev) => prev.map((r) => r.id === detailRecord.id ? { ...r, reviewed: next } : r))
+                          } catch (err) {
+                            console.error('Toggle reviewed failed', err)
+                          }
+                        }}
+                      />
+                      <span className="text-xs text-surface-700 dark:text-surface-200">{detailRecord.reviewed ? 'Reviewed' : 'Pending'}</span>
+                    </label>
                   </div>
                 </div>
               </div>

@@ -2377,7 +2377,7 @@ router.get('/employees', async (req, res) => {
     // promote/demote via the form. We include role='admin' here too, and
     // access_level/access_enabled drive the visible tier + on-off toggle.
     const result = await query(
-      `SELECT u.id, u.name, u.email, u.role,
+      `SELECT u.id, u.record_id, u.name, u.email, u.role,
               COALESCE(u.access_level, CASE WHEN u.role = 'admin' THEN 'admin' ELSE 'agent' END) AS access_level,
               COALESCE(u.access_enabled, TRUE) AS access_enabled,
               COALESCE(e.salary_type, u.salary_type) AS salary_type,
@@ -2396,10 +2396,11 @@ router.get('/employees', async (req, res) => {
        LEFT JOIN clients c ON c.id = e.primary_client_id
        LEFT JOIN users mgr ON mgr.id = e.reports_to
        WHERE u.role IN ('employee', 'admin')
-       ORDER BY u.name`
+       ORDER BY u.record_id DESC NULLS LAST, u.name`
     )
     res.json(result.rows.map((r) => ({
       id: r.id,
+      recordId: r.record_id || null,
       name: r.name,
       email: r.email || '',
       role: r.role || 'employee',

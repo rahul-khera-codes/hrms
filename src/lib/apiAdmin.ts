@@ -398,6 +398,7 @@ export interface EmployeeOption {
 
 export interface EmployeeRecord {
   id: string
+  recordId?: string | null
   name: string
   email: string
   role?: string

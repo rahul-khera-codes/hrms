@@ -139,13 +139,15 @@ export default function AdminLeaveRequests() {
   const [filterCycle, setFilterCycle] = useState<string>('all')
   const [search, setSearch] = useState('')
   // Per-column sort/filter (standard from 14APR2026 — "every table")
-  const [sortCol, setSortCol] = useState<string | null>(null)
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+  // 25MAY client: default sort by Record ID desc (latest LOA-#### on top)
+  const [sortCol, setSortCol] = useState<string | null>('Record ID')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [columnFilters, setColumnFilters] = useState<Record<string, string>>({})
   const [filterOpen, setFilterOpen] = useState<string | null>(null)
 
   const leaveColAccessor = (r: AdminLeaveRequest, col: string): string | number => {
     switch (col) {
+      case 'Record ID': return r.recordId ?? ''
       case 'CMID': return r.employeeCmid ?? 0
       case 'Employee Name': return r.employeeName.toLowerCase()
       case 'Account': return (r.accountName ?? '').toLowerCase()
@@ -190,7 +192,9 @@ export default function AdminLeaveRequests() {
   const [reviewingId, setReviewingId] = useState<string | null>(null)
   const [reviewContext, setReviewContext] = useState<LeaveReviewContext | null>(null)
   const [contextLoading, setContextLoading] = useState(false)
-  const [reviewStatus, setReviewStatus] = useState<'approved' | 'rejected'>('approved')
+  // Kept only so the Approval Status pill can preserve a "last decision" intent —
+  // submitReview now reads reviewPayrollStatus directly. setter is the public API.
+  const [, setReviewStatus] = useState<'approved' | 'rejected'>('approved')
   const [reviewNote, setReviewNote] = useState('')
   const [calculationType, setCalculationType] = useState<LeaveCalcType>('hourly_salary')
   const [payableDaysInput, setPayableDaysInput] = useState('0')
@@ -208,6 +212,8 @@ export default function AdminLeaveRequests() {
   const [reviewPayrollCycle, setReviewPayrollCycle] = useState('')
   const [reviewDailyHours, setReviewDailyHours] = useState('')
   const [reviewHourlyRate, setReviewHourlyRate] = useState('')
+  // 25MAY client: monthly_salary edit needs a Monthly Rate input (was missing)
+  const [reviewMonthlyRate, setReviewMonthlyRate] = useState('')
   // Parity-with-new-leave fields (added per 18MAY2026 client video)
   const [reviewDaysOff, setReviewDaysOff] = useState<string[]>([])
   const [reviewAssetDeactivation, setReviewAssetDeactivation] = useState<string[]>([])
@@ -478,6 +484,7 @@ export default function AdminLeaveRequests() {
     setReviewPayrollCycle(row.payrollCycleCode ?? '')
     setReviewDailyHours('')
     setReviewHourlyRate('')
+    setReviewMonthlyRate('')
     // Parity-with-new-leave fields: parse comma-separated strings into arrays
     setReviewDaysOff(row.leaveAssociateDaysOff ? row.leaveAssociateDaysOff.split(',').map((s) => s.trim()).filter(Boolean) : ['Sun', 'Sat'])
     setReviewAssetDeactivation(row.assetDeactivation ? row.assetDeactivation.split(',').map((s) => s.trim()).filter(Boolean) : [])
@@ -525,6 +532,13 @@ export default function AdminLeaveRequests() {
           ctx.settings.hoursPerDay
         )
         setReviewHourlyRate(String(Math.round(hrRate * 10000) / 10000))
+        // 25MAY client fix: monthly rate input — seed from employee base salary
+        // when monthly salary type
+        setReviewMonthlyRate(
+          ctx.employee.salaryType === 'monthly' && ctx.employee.baseSalary
+            ? String(ctx.employee.baseSalary)
+            : ''
+        )
       })
       .catch(() => {
         setNotice('Could not load review details.')
@@ -654,6 +668,7 @@ export default function AdminLeaveRequests() {
     // Common editable leave-info fields sent with every save
     const parsedDailyHours = parseFloat(reviewDailyHours)
     const parsedHourlyRate = parseFloat(reviewHourlyRate)
+    const parsedMonthlyRate = parseFloat(reviewMonthlyRate)
     const editableFields = {
       leaveCategory: reviewLeaveCategory || undefined,
       startDate: reviewStartDate || undefined,
@@ -665,6 +680,8 @@ export default function AdminLeaveRequests() {
       payrollCycleCode: reviewPayrollCycle || undefined,
       dailyHoursInput: Number.isFinite(parsedDailyHours) ? parsedDailyHours : undefined,
       hourlyRateInput: Number.isFinite(parsedHourlyRate) ? parsedHourlyRate : undefined,
+      // 25MAY client fix: surface monthly rate when monthly_salary calc
+      monthlyRateInput: Number.isFinite(parsedMonthlyRate) && parsedMonthlyRate > 0 ? parsedMonthlyRate : undefined,
       // Parity-with-new-leave additions (18MAY2026 client feedback)
       associateDaysOff: reviewDaysOff.length > 0 ? reviewDaysOff : undefined,
       assetDeactivation: reviewAssetDeactivation.length > 0 ? reviewAssetDeactivation : undefined,
@@ -672,13 +689,19 @@ export default function AdminLeaveRequests() {
       payrollStatus: reviewPayrollStatus || undefined,
     }
     try {
-      if (reviewStatus === 'rejected') {
+      // 25MAY client bug fix: persist whatever Approval Status the user picked.
+      // Approval Status drives the leave's status field on the row.
+      //   Pending  → no status change, only edit fields (edit-only PATCH path)
+      //   Approved → status='approved' (triggers calc snapshot)
+      //   Rejected → status='rejected'
+      const approval = reviewPayrollStatus === 'N/A' ? 'Pending' : reviewPayrollStatus
+      if (approval === 'Rejected') {
         await reviewAdminLeaveRequest(reviewingId, {
           status: 'rejected',
           reviewedNote: reviewNote.trim() || undefined,
           ...editableFields,
         })
-      } else {
+      } else if (approval === 'Approved') {
         if (!reviewContext) {
           setNotice('Missing review context.')
           setSaving(false)
@@ -706,6 +729,13 @@ export default function AdminLeaveRequests() {
             ...editableFields,
           })
         }
+      } else {
+        // Pending — edit-only PATCH (no status change). Backend takes the
+        // edit-only path when `status` is undefined.
+        await reviewAdminLeaveRequest(reviewingId, {
+          reviewedNote: reviewNote.trim() || undefined,
+          ...editableFields,
+        })
       }
       setNotice('Leave request updated.')
       setReviewingId(null)
@@ -1055,7 +1085,7 @@ export default function AdminLeaveRequests() {
                         onChange={() => toggleSelect(r.id)}
                       />
                     </td>
-                    <td className="px-2 py-1.5 text-xs font-mono font-semibold text-violet-700 dark:text-violet-300 tabular-nums whitespace-nowrap">{r.recordId ?? '-'}</td>
+                    <td className="px-2 py-1.5 text-xs font-mono text-surface-700 dark:text-surface-200 tabular-nums whitespace-nowrap">{r.recordId ?? '-'}</td>
                     <td className="px-2 py-1.5 text-xs font-mono text-surface-700 dark:text-surface-200 tabular-nums whitespace-nowrap">{r.employeeCmid ?? '-'}</td>
                     <td className="px-2 py-1.5 text-xs font-medium text-surface-900 dark:text-surface-50 whitespace-nowrap">{r.employeeName}</td>
                     <td className="px-2 py-1.5 text-xs text-surface-700 dark:text-surface-200 whitespace-nowrap">{r.accountName ?? '-'}</td>
@@ -1561,6 +1591,17 @@ export default function AdminLeaveRequests() {
                             className="input w-full rounded-xl"
                           />
                           <p className="text-[10px] text-surface-500 dark:text-surface-400 mt-0.5">Suggested: {reviewContext.suggestedPayableDays}</p>
+                        </div>
+                        {/* 25MAY client: Monthly Rate input was missing for monthly_salary calc */}
+                        <div>
+                          <label className="label">Monthly Rate</label>
+                          <input
+                            type="number" min={0} step={100}
+                            value={reviewMonthlyRate}
+                            onChange={(e) => setReviewMonthlyRate(e.target.value)}
+                            disabled={reviewLocked}
+                            className="input w-full rounded-xl"
+                          />
                         </div>
                       </div>
                     )}
