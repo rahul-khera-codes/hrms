@@ -1364,6 +1364,11 @@ router.patch('/leave-requests/:id', async (req, res) => {
         add('leave_associate_days_off', v)
       }
       if (reason !== undefined) add('reason', reason || null)
+      // 26MAY client bug fix: edit-only PATCH path was ignoring Approval Status
+      // and Approver fields, so when the user picked "Pending" in the segmented
+      // control and hit Save, the row reopened with the OLD Approved/Approver.
+      if (payrollStatus !== undefined) add('payroll_status', payrollStatus ? String(payrollStatus).trim() : null)
+      if (approverName !== undefined) add('approver_name', approverName ? String(approverName).trim() : null)
       if (editSets.length === 0) return null
       // 21MAY2026 audit trail rollout: stamp modifier on every edit
       add('modified_by', req.user.id)
