@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { Calculator, Download, Search, AlertTriangle, Users, DollarSign, Building2, Loader2, X, FileText, CheckSquare, Square, Eye, EyeOff } from 'lucide-react'
+import { Calculator, Download, Search, AlertTriangle, Loader2, X, FileText, CheckSquare, Square, Eye, EyeOff } from 'lucide-react'
 import AdminSelect from '@/components/AdminSelect'
 import { PageHeader } from '@/components/PageHeader'
 import { SkeletonTableRows } from '@/components/Skeleton'
@@ -562,13 +562,13 @@ export default function AdminPayroll() {
         }
       />
 
-      {/* -- Stat cards -- */}
+      {/* -- Stat cards --
+          22MAY UI sweep: dropped the inline icons that some cards had so
+          every card has the same structure (label on top, value below) and
+          labels stay on a single line. */}
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 sm:gap-3">
         <div className="stat-card">
-          <div className="flex items-center gap-1.5 mb-1">
-            <Users className="w-3.5 h-3.5 text-surface-400 dark:text-surface-500" />
-            <p className="stat-label text-[10px]">Employees</p>
-          </div>
+          <p className="stat-label text-[10px] mb-1">Employees</p>
           <p className="stat-value text-base">{summary.employees}</p>
         </div>
         <div className="stat-card border-emerald-200/70 bg-emerald-50/30">
@@ -600,10 +600,7 @@ export default function AdminPayroll() {
           <p className="stat-value text-sm">{money(summary.otherIncome)}</p>
         </div>
         <div className="stat-card border-brand-200/70 bg-brand-50/40">
-          <div className="flex items-center gap-1.5 mb-1">
-            <DollarSign className="w-3.5 h-3.5 text-brand-500" />
-            <p className="stat-label text-[10px] text-brand-700">Gross Income</p>
-          </div>
+          <p className="stat-label text-[10px] text-brand-700 mb-1">Gross Income</p>
           <p className="stat-value text-sm">{money(summary.grossIncome)}</p>
         </div>
         <div className="stat-card border-sky-200/70 bg-sky-50/30">
@@ -619,17 +616,11 @@ export default function AdminPayroll() {
           <p className="stat-value text-sm">{money(summary.otherDeductions)}</p>
         </div>
         <div className="stat-card border-emerald-300/70 bg-emerald-50/60">
-          <div className="flex items-center gap-1.5 mb-1">
-            <DollarSign className="w-3.5 h-3.5 text-emerald-600" />
-            <p className="stat-label text-[10px] text-emerald-800">Net Salary</p>
-          </div>
+          <p className="stat-label text-[10px] text-emerald-800 mb-1">Net Salary</p>
           <p className="stat-value text-sm font-bold text-emerald-700">{money(summary.netSalary)}</p>
         </div>
         <div className="stat-card border-surface-200/70 bg-surface-50/40">
-          <div className="flex items-center gap-1.5 mb-1">
-            <Building2 className="w-3.5 h-3.5 text-surface-500 dark:text-surface-400 dark:text-surface-500" />
-            <p className="stat-label text-[10px] text-surface-600 dark:text-surface-300">Employer Cost</p>
-          </div>
+          <p className="stat-label text-[10px] text-surface-600 dark:text-surface-300 mb-1">Employer Cost</p>
           <p className="stat-value text-sm">{money(summary.employerCost)}</p>
         </div>
       </div>

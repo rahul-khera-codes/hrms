@@ -656,10 +656,12 @@ export default function AdminAttendance() {
         </div>
       </div>
 
-      {/* Summary cards - Row 3: Billable Hours */}
+      {/* Summary cards - Row 3: Billable Hours.
+          22MAY UI sweep: use the same 7-column grid as Payable Hours above so
+          card widths stay consistent across rows (4 cards + 3 empty slots). */}
       <div>
         <p className="text-[10px] sm:text-xs font-semibold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider mb-2">Billable Hours</p>
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 sm:gap-4">
           <SummaryCard label="Regular" value={fmtHours(summary.totalBillableReg)} color="brand" />
           <SummaryCard label="Premium" value={fmtHours(summary.totalBillablePrm)} color="violet" />
           <SummaryCard label="DNB" value={fmtHours(summary.billDnb)} color="surface" />

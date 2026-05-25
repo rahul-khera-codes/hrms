@@ -53,13 +53,17 @@ export default function EmployeeLayout() {
               </button>
             ) : (
               <>
-                {/* 22MAY2026 client video: role moved to user-info footer card. */}
-                <img
-                  src="/callmax-logo.png"
-                  alt="CALLMAX"
-                  className="h-8 w-auto object-contain"
-                  loading="eager"
-                />
+                {/* 22MAY2026 client video: role moved to user-info footer card.
+                    22MAY UI sweep: dark-mode logo visibility — light backdrop
+                    when the sidebar is dark. */}
+                <div className="rounded-lg dark:bg-white/95 dark:px-2 dark:py-1 transition-colors">
+                  <img
+                    src="/callmax-logo.png"
+                    alt="CALLMAX"
+                    className="h-7 w-auto object-contain"
+                    loading="eager"
+                  />
+                </div>
                 <button
                   type="button"
                   onClick={() => setCollapsed(true)}

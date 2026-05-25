@@ -113,14 +113,10 @@ export function Navbar() {
 
   return (
     <div className="flex items-center justify-between gap-3 bg-white/80 backdrop-blur-sm border-b border-surface-200/70 px-4 sm:px-6 py-3 sticky top-0 z-30 dark:bg-surface-900/80 dark:border-surface-800">
-      <div className="flex items-center gap-2">
-        <img
-          src="/callmax-logo.png"
-          alt="CALLMAX"
-          className="h-7 sm:h-8 w-auto object-contain"
-          loading="eager"
-        />
-      </div>
+      {/* 22MAY UI sweep: removed duplicate CALLMAX logo — the sidebar header
+          already shows it. Keeping a small spacer here so the right-side
+          icons stay flush right on every screen. */}
+      <div aria-hidden className="w-px" />
 
       <div className="flex items-center gap-1">
         <ThemeToggle />

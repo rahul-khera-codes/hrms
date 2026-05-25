@@ -101,14 +101,19 @@ export default function AdminLayout() {
             ) : (
               <>
                 {/* 22MAY2026 client video: the "Admin" pill next to the logo
-                    overlapped with the collapse icon on narrow widths. It now
-                    lives under the user name in the footer card. */}
-                <img
-                  src="/callmax-logo.png"
-                  alt="CALLMAX"
-                  className="h-8 w-auto object-contain"
-                  loading="eager"
-                />
+                    overlapped with the collapse icon on narrow widths. Role
+                    now lives in the footer user card.
+                    22MAY UI sweep: dark-mode visibility — the navy + cyan
+                    logo disappears on a near-black sidebar background. Wrap
+                    in a light backdrop in dark mode only. */}
+                <div className="rounded-lg dark:bg-white/95 dark:px-2 dark:py-1 transition-colors">
+                  <img
+                    src="/callmax-logo.png"
+                    alt="CALLMAX"
+                    className="h-7 w-auto object-contain"
+                    loading="eager"
+                  />
+                </div>
                 <button
                   type="button"
                   onClick={() => setCollapsed(true)}
