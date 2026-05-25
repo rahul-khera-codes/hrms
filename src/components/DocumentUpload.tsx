@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { Upload, File, Trash2, Download } from 'lucide-react'
 import { getDocuments, uploadDocument, deleteDocument, type DocumentRecord } from '@/lib/apiAdmin'
+import { getToken } from '@/lib/api'
 
 interface DocumentUploadProps {
   entityType: 'employee' | 'leave' | 'payroll_input' | 'account'
@@ -87,10 +88,33 @@ export default function DocumentUpload({ entityType, entityId }: DocumentUploadP
     }
   }
 
-  function handleDownload(doc: DocumentRecord) {
-    // Open in new tab — the backend should serve the file at this URL
+  async function handleDownload(doc: DocumentRecord) {
+    // 22MAY2026 follow-up fix: was using `${id}/download` (wrong path) and
+    // `window.open` (doesn't send the auth header from localStorage). Switch
+    // to a fetch+blob flow with the Authorization header so downloads work.
     const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000'
-    window.open(`${API_BASE}/api/documents/${doc.id}/download`, '_blank')
+    try {
+      const token = getToken()
+      const res = await fetch(`${API_BASE}/api/documents/download/${doc.id}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      if (!res.ok) {
+        setError(`Download failed (${res.status})`)
+        return
+      }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = doc.originalName || 'document'
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+    } catch (err: unknown) {
+      const msg = err && typeof err === 'object' && 'message' in err ? String((err as Error).message) : 'Download failed'
+      setError(msg)
+    }
   }
 
   return (

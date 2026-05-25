@@ -989,6 +989,11 @@ export default function AdminLeaveRequests() {
                     'Payable Amount',
                     'Payroll Cycle',
                     'Actions',
+                    // 22MAY2026 client video: audit columns at the END of list view.
+                    'Created By',
+                    'Created On',
+                    'Modified By',
+                    'Modified On',
                   ].map((col) => (
                     <th
                       key={col}
@@ -1019,7 +1024,7 @@ export default function AdminLeaveRequests() {
               <tbody>
                 {displayedRows.length === 0 ? (
                   <tr>
-                    <td colSpan={18} className="py-12">
+                    <td colSpan={22} className="py-12">
                       <div className="flex flex-col items-center justify-center text-center">
                         <div className="w-12 h-12 rounded-full bg-surface-100 dark:bg-surface-800 flex items-center justify-center text-surface-400 dark:text-surface-500 mb-3">
                           <Search className="w-5 h-5" />
@@ -1083,6 +1088,11 @@ export default function AdminLeaveRequests() {
                         <Pencil className="w-3.5 h-3.5" />
                       </button>
                     </td>
+                    {/* 22MAY2026 audit columns at end */}
+                    <td className="px-2 py-1.5 text-xs text-surface-600 dark:text-surface-300 whitespace-nowrap">{r.createdByName ?? '-'}</td>
+                    <td className="px-2 py-1.5 text-xs text-surface-600 dark:text-surface-300 whitespace-nowrap tabular-nums">{r.createdOn ? new Date(r.createdOn).toLocaleString() : r.createdAt ? new Date(r.createdAt).toLocaleString() : '-'}</td>
+                    <td className="px-2 py-1.5 text-xs text-surface-600 dark:text-surface-300 whitespace-nowrap">{r.modifiedByName ?? '-'}</td>
+                    <td className="px-2 py-1.5 text-xs text-surface-600 dark:text-surface-300 whitespace-nowrap tabular-nums">{r.modifiedOn ? new Date(r.modifiedOn).toLocaleString() : '-'}</td>
                   </tr>
                 ))}
               </tbody>

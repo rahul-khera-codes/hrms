@@ -523,7 +523,7 @@ export default function AdminPayrollInputs() {
                       }}
                     />
                   </th>
-                  {['Record ID', 'CMID', 'Employee Name', 'Account', 'Input Type', 'Calculation', 'Input Amount', 'Payroll Cycle', 'Approver', 'Approval Status', 'Actions'].map((col) => (
+                  {['Record ID', 'CMID', 'Employee Name', 'Account', 'Input Type', 'Calculation', 'Input Amount', 'Payroll Cycle', 'Approver', 'Approval Status', 'Actions', 'Created By', 'Created On', 'Modified By', 'Modified On'].map((col) => (
                     <th key={col} className={`px-2 py-1 text-[10px] font-semibold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 dark:border-surface-700 ${col === 'Actions' ? 'text-right' : col === 'Input Amount' ? 'text-right' : ''}`}>
                       {col === 'Actions' ? col : (
                         <>
@@ -593,6 +593,11 @@ export default function AdminPayrollInputs() {
                           </button>
                         </div>
                       </td>
+                      {/* 22MAY2026 audit columns at end */}
+                      <td className="px-2 py-1.5 text-xs text-surface-600 dark:text-surface-300 whitespace-nowrap">{r.createdByName ?? '-'}</td>
+                      <td className="px-2 py-1.5 text-xs text-surface-600 dark:text-surface-300 whitespace-nowrap tabular-nums">{r.createdOn ? new Date(r.createdOn).toLocaleString() : r.createdAt ? new Date(r.createdAt).toLocaleString() : '-'}</td>
+                      <td className="px-2 py-1.5 text-xs text-surface-600 dark:text-surface-300 whitespace-nowrap">{r.modifiedByName ?? '-'}</td>
+                      <td className="px-2 py-1.5 text-xs text-surface-600 dark:text-surface-300 whitespace-nowrap tabular-nums">{r.modifiedOn ? new Date(r.modifiedOn).toLocaleString() : '-'}</td>
                     </tr>
                   )
                 })}

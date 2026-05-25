@@ -122,3 +122,34 @@ test('Documents API accepts entityType=account', async () => {
   expect(r.ok(), `upload ${r.status()} ${await r.text()}`).toBeTruthy()
   await ctx.dispose()
 })
+
+test('Documents download endpoint returns file (route order fix)', async () => {
+  // 22MAY follow-up: /download/:id was being swallowed by /:entityType/:entityId
+  // because the list route was declared first. Verify the fix returns bytes.
+  const admin = await registerAdmin()
+  const ctx = await pwRequest.newContext({ extraHTTPHeaders: { Authorization: `Bearer ${admin.token}` } })
+
+  const clientId = (await (await ctx.post(`${API}/api/admin/clients`, { data: { name: `QA Dnld ${randomUUID().slice(0, 6)}` } })).json()).id
+  const payload = 'download-smoke-test'
+  const up = await ctx.post(`${API}/api/documents/upload`, {
+    data: {
+      entityType: 'account',
+      entityId: clientId,
+      fileName: 'dnld.txt',
+      mimeType: 'text/plain',
+      data: Buffer.from(payload).toString('base64'),
+    },
+  })
+  expect(up.ok()).toBeTruthy()
+  const doc = await up.json()
+
+  // Fetch the file back via the download endpoint — must hit the file route,
+  // not the list route.
+  const dn = await ctx.get(`${API}/api/documents/download/${doc.id}`)
+  expect(dn.ok(), `download ${dn.status()}`).toBeTruthy()
+  const ct = dn.headers()['content-type'] || ''
+  expect(ct).toContain('text/plain')
+  const body = await dn.body()
+  expect(body.toString('utf8')).toBe(payload)
+  await ctx.dispose()
+})

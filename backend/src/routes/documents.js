@@ -75,6 +75,42 @@ router.post('/upload', async (req, res) => {
   }
 })
 
+// 22MAY2026 video follow-up: download must be declared BEFORE
+// /:entityType/:entityId because Express matches in declaration order — the
+// list route was swallowing /download/<uuid> as entityType=download and
+// returning [], causing the client-reported "download error".
+//
+// GET /api/documents/download/:id — Download a file
+router.get('/download/:id', async (req, res) => {
+  try {
+    const { id } = req.params
+
+    const result = await query(
+      'SELECT id, file_name, original_name, mime_type FROM documents WHERE id = $1',
+      [id]
+    )
+    if (!result.rows.length) {
+      return res.status(404).json({ error: 'Not found', message: 'Document not found' })
+    }
+
+    const doc = result.rows[0]
+    const filePath = path.join(UPLOAD_DIR, doc.file_name)
+
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: 'Not found', message: 'File not found on disk' })
+    }
+
+    res.setHeader('Content-Type', doc.mime_type || 'application/octet-stream')
+    res.setHeader('Content-Disposition', `attachment; filename="${doc.original_name}"`)
+
+    const stream = fs.createReadStream(filePath)
+    stream.pipe(res)
+  } catch (err) {
+    console.error('Document download error:', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
 // GET /api/documents/:entityType/:entityId — List documents for an entity
 router.get('/:entityType/:entityId', async (req, res) => {
   try {
@@ -104,37 +140,6 @@ router.get('/:entityType/:entityId', async (req, res) => {
     })))
   } catch (err) {
     console.error('List documents error:', err)
-    res.status(500).json({ error: 'Internal server error' })
-  }
-})
-
-// GET /api/documents/download/:id — Download a file
-router.get('/download/:id', async (req, res) => {
-  try {
-    const { id } = req.params
-
-    const result = await query(
-      'SELECT id, file_name, original_name, mime_type FROM documents WHERE id = $1',
-      [id]
-    )
-    if (!result.rows.length) {
-      return res.status(404).json({ error: 'Not found', message: 'Document not found' })
-    }
-
-    const doc = result.rows[0]
-    const filePath = path.join(UPLOAD_DIR, doc.file_name)
-
-    if (!fs.existsSync(filePath)) {
-      return res.status(404).json({ error: 'Not found', message: 'File not found on disk' })
-    }
-
-    res.setHeader('Content-Type', doc.mime_type || 'application/octet-stream')
-    res.setHeader('Content-Disposition', `attachment; filename="${doc.original_name}"`)
-
-    const stream = fs.createReadStream(filePath)
-    stream.pipe(res)
-  } catch (err) {
-    console.error('Document download error:', err)
     res.status(500).json({ error: 'Internal server error' })
   }
 })
