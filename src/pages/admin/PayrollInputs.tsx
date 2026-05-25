@@ -7,6 +7,7 @@ import { BulkActionBar } from '@/components/BulkActionBar'
 import * as XLSX from 'xlsx'
 import AdminSelect from '@/components/AdminSelect'
 import DocumentUpload from '@/components/DocumentUpload'
+import StagedDocumentUpload, { uploadStagedDocuments } from '@/components/StagedDocumentUpload'
 import { PageHeader } from '@/components/PageHeader'
 import { DetailModalHeader } from '@/components/DetailModalHeader'
 import { SkeletonTableRows } from '@/components/Skeleton'
@@ -18,6 +19,7 @@ import {
   updatePayrollInput,
   setPayrollInputLocked,
   deletePayrollInput,
+  uploadDocument,
   computePayrollInputAmount,
   isDeductionInputType,
   getEmployees,
@@ -615,6 +617,10 @@ export default function AdminPayrollInputs() {
           onToggleLock={async (id: string, locked: boolean) => {
             await handleToggleLock(id, locked)
           }}
+          onDelete={async (id: string) => {
+            await handleDelete(id)
+            closeModal()
+          }}
         />
       )}
 
@@ -693,6 +699,7 @@ function PayrollInputModal({
   payrollPeriods,
   onClose,
   onSaved,
+  onDelete,
   onToggleLock,
 }: {
   existing?: PayrollInput
@@ -701,6 +708,7 @@ function PayrollInputModal({
   payrollPeriods: PayrollPeriod[]
   onClose: () => void
   onSaved: () => Promise<void>
+  onDelete?: (id: string) => Promise<void>
   onToggleLock: (id: string, locked: boolean) => Promise<void>
 }) {
   const isEdit = !!existing
@@ -731,6 +739,7 @@ function PayrollInputModal({
 
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [stagedDocs, setStagedDocs] = useState<File[]>([])
 
   // Live input amount preview — mirrors backend formula
   const liveAmount = computePayrollInputAmount({
@@ -770,7 +779,11 @@ function PayrollInputModal({
       if (isEdit && existing) {
         await updatePayrollInput(existing.id, { ...payload, reviewedNote: reviewedNote || undefined })
       } else {
-        await createPayrollInput(payload)
+        const created = await createPayrollInput(payload)
+        // 22MAY2026: flush staged docs to the new payroll input
+        if (stagedDocs.length > 0 && created?.id) {
+          await uploadStagedDocuments(stagedDocs, 'payroll_input', created.id, uploadDocument)
+        }
       }
       await onSaved()
     } catch (err: unknown) {
@@ -792,6 +805,7 @@ function PayrollInputModal({
             cmid={employee.cmid}
             reportsTo={employee.reportsToName}
             accountName={employee.primaryClientName}
+            recordId={existing?.recordId}
             onClose={onClose}
             extra={
               <>
@@ -999,16 +1013,12 @@ function PayrollInputModal({
             </div>
           )}
 
-          {/* Documents */}
+          {/* Documents — 22MAY2026: staged on new entries */}
           {isEdit && existing ? (
             <DocumentUpload entityType="payroll_input" entityId={existing.id} />
-          ) : !isEdit ? (
-            <div className="rounded-xl border border-dashed border-surface-300 bg-surface-50/60 p-4 text-center">
-              <Upload className="w-5 h-5 text-surface-400 dark:text-surface-500 mx-auto mb-1.5" />
-              <p className="text-xs font-medium text-surface-500 dark:text-surface-400 dark:text-surface-500">Documents</p>
-              <p className="text-[11px] text-surface-400 dark:text-surface-500 mt-0.5">Save the record first, then you can upload documents.</p>
-            </div>
-          ) : null}
+          ) : (
+            <StagedDocumentUpload files={stagedDocs} onFilesChange={setStagedDocs} disabled={saving} />
+          )}
 
           {/* Lock toggle */}
           {isEdit && existing && (
@@ -1054,11 +1064,31 @@ function PayrollInputModal({
           )}
         </div>
 
-        <div className="modal-footer">
-          <button type="button" onClick={onClose} className="btn-secondary" disabled={saving}>Cancel</button>
-          <button type="button" onClick={handleSave} disabled={saving || locked || !userId || !inputType} className="btn-primary">
-            {saving ? 'Saving…' : isEdit ? 'Save changes' : 'Create input'}
-          </button>
+        {/* 22MAY2026 client video: Delete option on the edit form. Guarded by
+            isEdit (no delete in create flow), disabled when the record is
+            locked, with a confirmation prompt. */}
+        <div className="modal-footer flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-2">
+          {isEdit && existing && onDelete ? (
+            <button
+              type="button"
+              onClick={async () => {
+                if (!window.confirm('Permanently delete this payroll input? This cannot be undone.')) return
+                setSaving(true)
+                try { await onDelete(existing.id) } finally { setSaving(false) }
+              }}
+              disabled={saving || locked}
+              title={locked ? 'Unlock the record before deleting.' : 'Permanently delete this payroll input'}
+              className="btn-danger sm:mr-auto"
+            >
+              <Trash2 className="w-3.5 h-3.5" /> Delete
+            </button>
+          ) : <span className="sm:mr-auto" aria-hidden />}
+          <div className="flex gap-2">
+            <button type="button" onClick={onClose} className="btn-secondary" disabled={saving}>Cancel</button>
+            <button type="button" onClick={handleSave} disabled={saving || locked || !userId || !inputType} className="btn-primary">
+              {saving ? 'Saving…' : isEdit ? 'Save changes' : 'Create input'}
+            </button>
+          </div>
         </div>
       </div>
     </div>

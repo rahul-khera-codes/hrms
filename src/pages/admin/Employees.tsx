@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { Users, Plus, Pencil, LayoutGrid, Table2, Search, Download, ArrowUp, ArrowDown, Filter, AlertCircle, CheckCircle2, Ban, Trash2, X, Upload, Lock, Unlock, Eye, EyeOff, ShieldCheck } from 'lucide-react'
+import { Users, Plus, Pencil, LayoutGrid, Table2, Search, Download, ArrowUp, ArrowDown, Filter, AlertCircle, CheckCircle2, Ban, Trash2, X, Lock, Unlock, Eye, EyeOff, ShieldCheck } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
 import DocumentUpload from '@/components/DocumentUpload'
+import StagedDocumentUpload, { uploadStagedDocuments } from '@/components/StagedDocumentUpload'
 import { DetailModalHeader } from '@/components/DetailModalHeader'
 import { statusBadgeClass } from '@/lib/badges'
 import { SkeletonTableRows } from '@/components/Skeleton'
@@ -18,6 +19,7 @@ import {
   getSchedule,
   createScheduleAssignment,
   getAdminAttendance,
+  uploadDocument,
   type EmployeeRecord,
   type Client,
   type Shift,
@@ -65,6 +67,8 @@ export default function AdminEmployees() {
   const [showPassword, setShowPassword] = useState(false)
   const [accessLevel, setAccessLevel] = useState<'admin' | 'supervisor' | 'agent'>('agent')
   const [accessEnabled, setAccessEnabled] = useState(true)
+  // 22MAY2026: staged documents for new-entry flow
+  const [stagedDocs, setStagedDocs] = useState<File[]>([])
   const [salaryType, setSalaryType] = useState<'hourly' | 'monthly'>('hourly')
   const [baseSalary, setBaseSalary] = useState('')
   const [clients, setClients] = useState<Client[]>([])
@@ -511,6 +515,7 @@ export default function AdminEmployees() {
     setShowPassword(false)
     setAccessLevel('agent')
     setAccessEnabled(true)
+    setStagedDocs([])
     setSalaryType('hourly')
     setBaseSalary('')
     setAssignedClientId('')
@@ -705,6 +710,8 @@ export default function AdminEmployees() {
     setSaving(true)
     try {
       if (modal === 'add') {
+        // 22MAY2026: capture staged docs before clearing form state
+        const docsToUpload = stagedDocs
         const createdEmployee = await createEmployee({
           name: trimmedName,
           email: trimmedEmail,
@@ -735,6 +742,11 @@ export default function AdminEmployees() {
           homePhone: homePhone || undefined,
           mobilePhone: mobilePhone || undefined,
         })
+        // 22MAY2026: flush staged docs to the new employee
+        if (docsToUpload.length > 0) {
+          const res = await uploadStagedDocuments(docsToUpload, 'employee', createdEmployee.id, uploadDocument)
+          if (res.failed > 0) setError(`Employee created. ${res.uploaded} document(s) uploaded, ${res.failed} failed${res.firstError ? ` (${res.firstError})` : ''}.`)
+        }
         if (assignedClientId && assignedShiftId) {
           try {
             await createScheduleAssignment({
@@ -1713,15 +1725,12 @@ export default function AdminEmployees() {
                   Keeping a per-employee single-date form here just confused users
                   and let people skip the scheduler. */}
 
-              {/* Documents — only shown when editing an existing employee */}
+              {/* Documents — 22MAY2026 client video: staged upload on new
+                  entries (was previously blocked behind "save first"). */}
               {modal === 'edit' && editing ? (
                 <DocumentUpload entityType="employee" entityId={editing.id} />
               ) : modal === 'add' ? (
-                <div className="rounded-xl border border-dashed border-surface-300 bg-surface-50/60 p-4 text-center">
-                  <Upload className="w-5 h-5 text-surface-400 dark:text-surface-500 mx-auto mb-1.5" />
-                  <p className="text-xs font-medium text-surface-500 dark:text-surface-400 dark:text-surface-500">Documents</p>
-                  <p className="text-[11px] text-surface-400 dark:text-surface-500 mt-0.5">Save the record first, then you can upload documents.</p>
-                </div>
+                <StagedDocumentUpload files={stagedDocs} onFilesChange={setStagedDocs} disabled={saving} />
               ) : null}
             </div>
             <div className="modal-footer">

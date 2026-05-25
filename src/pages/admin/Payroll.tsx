@@ -1045,6 +1045,18 @@ export default function AdminPayroll() {
                 )
               })}
             </div>
+
+            {/* 22MAY2026 client video: explicit Save (+ Lock) buttons on the
+                payroll calculator detail modal. Fields auto-save on blur (notes,
+                ccEmail, payMethod) — Save is the visual confirmation + exit. */}
+            <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 px-6 py-4 border-t border-surface-200 dark:border-surface-700">
+              <button type="button" onClick={() => setDetailRow(null)} className="btn-secondary">
+                Cancel
+              </button>
+              <button type="button" onClick={() => setDetailRow(null)} className="btn-primary">
+                Save
+              </button>
+            </div>
           </div>
         </div>
       )}

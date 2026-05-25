@@ -947,6 +947,7 @@ export default function AdminAttendance() {
                 employeeName={detailRecord.employeeName}
                 cmid={detailRecord.employeeCmid}
                 reportsTo={detailRecord.reportsTo}
+                recordId={detailRecord.recordId}
                 onClose={() => setDetailRecord(null)}
               />
             </div>
@@ -1104,7 +1105,10 @@ export default function AdminAttendance() {
                     </select>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-[1fr_1.5fr_auto_auto] gap-x-3 gap-y-3 mt-3">
+                {/* 22MAY2026 client video: Reviewed lives inside the classification
+                    box now. Stage column shrunk so the row fits Pay + Bill +
+                    Reviewed without overflowing. */}
+                <div className="grid grid-cols-2 sm:grid-cols-[0.85fr_1.4fr_5rem_5rem_5.5rem] gap-x-3 gap-y-3 mt-3">
                   <div>
                     <label className="label">Stage</label>
                     <select
@@ -1129,7 +1133,7 @@ export default function AdminAttendance() {
                       ]}
                     />
                   </div>
-                  <div className="w-24">
+                  <div>
                     <label className="label">Pay</label>
                     <select
                       value={detailRecord.payType ?? ''}
@@ -1141,7 +1145,7 @@ export default function AdminAttendance() {
                       {PAY_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
                     </select>
                   </div>
-                  <div className="w-24">
+                  <div>
                     <label className="label">Bill</label>
                     <select
                       value={detailRecord.billType ?? ''}
@@ -1151,6 +1155,30 @@ export default function AdminAttendance() {
                     >
                       <option value="">--</option>
                       {BILL_OPTIONS.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="label">Reviewed</label>
+                    <select
+                      value={detailRecord.reviewed ? 'yes' : 'no'}
+                      disabled={detailRecord.isLocked ?? false}
+                      onChange={async (e) => {
+                        const next = e.target.value === 'yes'
+                        try {
+                          await setAttendanceReviewed(detailRecord.id, next)
+                          setDetailRecord({ ...detailRecord, reviewed: next, reviewedAt: next ? new Date().toISOString() : null })
+                          setRecords((prev) => prev.map((r) => r.id === detailRecord.id ? { ...r, reviewed: next } : r))
+                        } catch (err) {
+                          console.error('Toggle reviewed failed', err)
+                        }
+                      }}
+                      className="text-sm border border-surface-200 dark:border-surface-700 rounded-lg px-1.5 py-1.5 w-full bg-white dark:bg-surface-900 focus:ring-1 focus:ring-brand-300 outline-none disabled:opacity-60"
+                      title={detailRecord.reviewed
+                        ? (detailRecord.reviewedByName ? `Marked by ${detailRecord.reviewedByName}` : 'Marked reviewed')
+                        : 'Flag once the supervisor has normalized this timesheet.'}
+                    >
+                      <option value="no">No</option>
+                      <option value="yes">Yes</option>
                     </select>
                   </div>
                 </div>
@@ -1186,36 +1214,8 @@ export default function AdminAttendance() {
                 </button>
               </div>
 
-              {/* Reviewed/Normalized toggle — 19MAY2026 Scheduler Demos meeting. */}
-              <div className="flex items-center justify-between rounded-xl border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900 p-4">
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-surface-900 dark:text-surface-50">
-                    {detailRecord.reviewed ? 'Reviewed / Normalized' : 'Needs review'}
-                  </p>
-                  <p className="text-[11px] text-surface-500 dark:text-surface-400 mt-0.5">
-                    {detailRecord.reviewed
-                      ? (detailRecord.reviewedByName ? `Marked by ${detailRecord.reviewedByName}` : 'Marked reviewed')
-                          + (detailRecord.reviewedAt ? ` · ${new Date(detailRecord.reviewedAt).toLocaleString()}` : '')
-                      : 'Flag once the supervisor has finished normalizing this timesheet.'}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    try {
-                      const next = !(detailRecord.reviewed ?? false)
-                      await setAttendanceReviewed(detailRecord.id, next)
-                      setDetailRecord({ ...detailRecord, reviewed: next, reviewedAt: next ? new Date().toISOString() : null })
-                      setRecords((prev) => prev.map((r) => r.id === detailRecord.id ? { ...r, reviewed: next } : r))
-                    } catch (e) {
-                      console.error('Toggle reviewed failed', e)
-                    }
-                  }}
-                  className={detailRecord.reviewed ? 'btn-secondary btn-sm' : 'btn-primary btn-sm'}
-                >
-                  {detailRecord.reviewed ? 'Mark as needs review' : 'Mark as Reviewed'}
-                </button>
-              </div>
+              {/* 22MAY2026 client video: standalone Reviewed panel removed —
+                  Reviewed now lives inside the Shift Classification grid above. */}
 
               {/* Audit footer — 19MAY2026 Scheduler Demos meeting. */}
               <div className="rounded-xl border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900 p-4 grid grid-cols-1 sm:grid-cols-2 gap-3 text-[11px] text-surface-600 dark:text-surface-300">
@@ -1236,6 +1236,14 @@ export default function AdminAttendance() {
                   <p className="text-surface-800 dark:text-surface-100 tabular-nums">{detailRecord.modifiedOn ? new Date(detailRecord.modifiedOn).toLocaleString() : '—'}</p>
                 </div>
               </div>
+            </div>
+
+            {/* 22MAY2026 client video: explicit Save button on the edit modal.
+                Fields auto-save inline as they're edited; Save is the visual
+                confirmation + exit. */}
+            <div className="modal-footer">
+              <button type="button" onClick={() => setDetailRecord(null)} className="btn-secondary">Cancel</button>
+              <button type="button" onClick={() => setDetailRecord(null)} className="btn-primary">Save</button>
             </div>
           </div>
         </div>

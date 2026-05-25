@@ -24,7 +24,8 @@ router.post('/upload', async (req, res) => {
       return res.status(400).json({ error: 'Bad request', message: 'entityType, entityId, fileName, and data (base64) are required' })
     }
 
-    const validEntityTypes = ['employee', 'leave', 'payroll_input']
+    // 22MAY2026 client video: account/client documents are needed too.
+    const validEntityTypes = ['employee', 'leave', 'payroll_input', 'account']
     if (!validEntityTypes.includes(entityType)) {
       return res.status(400).json({ error: 'Bad request', message: `entityType must be one of: ${validEntityTypes.join(', ')}` })
     }

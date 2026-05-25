@@ -217,23 +217,26 @@ export function EmployeeClockWidget({ onChange }: { onChange?: () => void }) {
         <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2 blur-2xl" />
       </div>
 
-      {/* Upcoming shifts (next 5 days) — per 18MAY2026 client video */}
-      {upcomingShifts.length > 0 && (
-        <div className="lg:col-span-2 card overflow-hidden">
-          <div className="card-header">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-8 h-8 rounded-lg bg-sky-50 border border-sky-100 text-sky-600 flex items-center justify-center shrink-0">
-                <CalendarDays className="w-4 h-4" />
-              </div>
-              <div className="min-w-0">
-                <h3 className="text-sm font-semibold text-surface-900 dark:text-surface-50">Upcoming shifts</h3>
-                <p className="text-[11px] text-surface-500 dark:text-surface-400 dark:text-surface-500 mt-0.5">Next 5 days</p>
-              </div>
+      {/* Upcoming shifts (next 5 days) — per 18MAY2026 client video.
+          22MAY2026: render unconditionally so the section is always visible.
+          When there are no upcoming published shifts, show an empty state so
+          the user knows the widget exists rather than wondering where it went. */}
+      <div className="lg:col-span-2 card overflow-hidden">
+        <div className="card-header">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-lg bg-sky-50 border border-sky-100 text-sky-600 flex items-center justify-center shrink-0">
+              <CalendarDays className="w-4 h-4" />
+            </div>
+            <div className="min-w-0">
+              <h3 className="text-sm font-semibold text-surface-900 dark:text-surface-50">Upcoming shifts</h3>
+              <p className="text-[11px] text-surface-500 dark:text-surface-400 dark:text-surface-500 mt-0.5">Next 5 days</p>
             </div>
           </div>
+        </div>
+        {upcomingShifts.length > 0 ? (
           <div className="p-3 sm:p-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
             {upcomingShifts.slice(0, 5).map((s) => (
-              <div key={s.id} className="rounded-lg border border-surface-200/80 bg-surface-50/40 p-3">
+              <div key={s.id} className="rounded-lg border border-surface-200/80 bg-surface-50/40 dark:bg-surface-900 p-3">
                 <p className="text-[10px] font-semibold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider">
                   {s.date ? format(new Date(s.date + 'T00:00:00'), 'EEE MMM d') : '—'}
                 </p>
@@ -243,8 +246,13 @@ export function EmployeeClockWidget({ onChange }: { onChange?: () => void }) {
               </div>
             ))}
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="p-6 text-center">
+            <p className="text-sm text-surface-500 dark:text-surface-400 dark:text-surface-500">No published shifts in the next 5 days.</p>
+            <p className="text-[11px] text-surface-400 dark:text-surface-500 mt-1">Your supervisor will publish your schedule from the Scheduler module.</p>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

@@ -71,6 +71,7 @@ export interface AttendanceRecord {
   reviewedByName?: string | null
   reviewedAt?: string | null
   isScheduled?: boolean
+  recordId?: string | null
   // Backward compatibility
   regularHours: number
   overtimeHours: number

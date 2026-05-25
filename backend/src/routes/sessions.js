@@ -221,8 +221,15 @@ router.use(authMiddleware)
 router.post('/clock-in', async (req, res) => {
   try {
     const userId = req.user.id
+    // 22MAY2026 bug fix: exclude scheduler-pre-populated rows (is_scheduled OR
+    // is_manual) when checking for "already clocked in" — those are upcoming
+    // shift placeholders, not actual punches.
     const existing = await query(
-      'SELECT id FROM sessions WHERE user_id = $1 AND clock_out IS NULL',
+      `SELECT id FROM sessions
+       WHERE user_id = $1
+         AND clock_out IS NULL
+         AND COALESCE(is_scheduled, FALSE) = FALSE
+         AND COALESCE(is_manual, FALSE) = FALSE`,
       [userId]
     )
     if (existing.rows.length > 0) {
@@ -244,8 +251,13 @@ router.post('/clock-in', async (req, res) => {
 router.post('/clock-out', async (req, res) => {
   try {
     const userId = req.user.id
+    // 22MAY2026 bug fix: same as clock-in — only target REAL active sessions.
     const active = await query(
-      'SELECT id, clock_in FROM sessions WHERE user_id = $1 AND clock_out IS NULL',
+      `SELECT id, clock_in FROM sessions
+       WHERE user_id = $1
+         AND clock_out IS NULL
+         AND COALESCE(is_scheduled, FALSE) = FALSE
+         AND COALESCE(is_manual, FALSE) = FALSE`,
       [userId]
     )
     if (active.rows.length === 0) {
@@ -329,10 +341,21 @@ router.post('/clock-out', async (req, res) => {
 })
 
 // GET /api/sessions/active
+// 22MAY2026 client video bug: employee always saw "Clocked in" and clock-out
+// didn't work. Scheduler bulk-assign pre-populates rows with clock_out=NULL +
+// is_scheduled=TRUE (these are upcoming-shift placeholders, NOT real punches).
+// We must exclude those — an active session is one created by a real clock-in.
 router.get('/active', async (req, res) => {
   try {
     const result = await query(
-      'SELECT id, clock_in, clock_out, regular_minutes, overtime_minutes, night_minutes FROM sessions WHERE user_id = $1 AND clock_out IS NULL ORDER BY clock_in DESC LIMIT 1',
+      `SELECT id, clock_in, clock_out, regular_minutes, overtime_minutes, night_minutes
+       FROM sessions
+       WHERE user_id = $1
+         AND clock_out IS NULL
+         AND COALESCE(is_scheduled, FALSE) = FALSE
+         AND COALESCE(is_manual, FALSE) = FALSE
+       ORDER BY clock_in DESC
+       LIMIT 1`,
       [req.user.id]
     )
     if (result.rows.length === 0) {

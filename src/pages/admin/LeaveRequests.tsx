@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { CalendarCheck2, Lock, Unlock, Plus, Calendar, Clock3, Download, LayoutGrid, Table2, Search, ArrowUp, ArrowDown, Filter, Pencil, XCircle, Upload, CheckCircle2, Trash2 } from 'lucide-react'
+import { CalendarCheck2, Lock, Unlock, Plus, Calendar, Clock3, Download, LayoutGrid, Table2, Search, ArrowUp, ArrowDown, Filter, Pencil, XCircle, CheckCircle2, Trash2 } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
 import {
   getAdminLeaveRequests,
@@ -8,6 +8,7 @@ import {
   createAdminLeaveRequest,
   setLeaveRequestLocked,
   deleteAdminLeaveRequest,
+  uploadDocument,
   getEmployees,
   getPayrollPeriods,
   type AdminLeaveRequest,
@@ -17,6 +18,7 @@ import {
 } from '@/lib/apiAdmin'
 import AdminSelect from '@/components/AdminSelect'
 import DocumentUpload from '@/components/DocumentUpload'
+import StagedDocumentUpload, { uploadStagedDocuments } from '@/components/StagedDocumentUpload'
 import { DetailModalHeader } from '@/components/DetailModalHeader'
 import { SkeletonTableRows } from '@/components/Skeleton'
 import { BulkActionBar } from '@/components/BulkActionBar'
@@ -250,6 +252,7 @@ export default function AdminLeaveRequests() {
   const [createAssetDeactivation, setCreateAssetDeactivation] = useState<string[]>([])
   const [createPayrollCycleCode, setCreatePayrollCycleCode] = useState('')
   const [createReason, setCreateReason] = useState('')
+  const [createStagedDocs, setCreateStagedDocs] = useState<File[]>([])
   const [createApproverName, setCreateApproverName] = useState('')
   const [createPayrollStatus, setCreatePayrollStatus] = useState('Pending')
   const [createSaving, setCreateSaving] = useState(false)
@@ -398,7 +401,8 @@ export default function AdminLeaveRequests() {
     setCreateSaving(true)
     try {
       const leaveType = createLeaveCategory === 'time_off' ? 'unpaid' : 'paid'
-      await createAdminLeaveRequest({
+      const docsToUpload = createStagedDocs
+      const created = await createAdminLeaveRequest({
         employeeId: createEmployeeId,
         leaveType,
         leaveCategory: createLeaveCategory,
@@ -420,6 +424,11 @@ export default function AdminLeaveRequests() {
         approverName: createApproverName || undefined,
         payrollStatus: createPayrollStatus === 'N/A' ? 'Pending' : (createPayrollStatus || 'Pending'),
       })
+      // 22MAY2026: flush staged docs to the new leave
+      if (docsToUpload.length > 0 && created?.id) {
+        const r = await uploadStagedDocuments(docsToUpload, 'leave', created.id, uploadDocument)
+        if (r.failed > 0) setNotice(`Leave created. ${r.uploaded} document(s) uploaded, ${r.failed} failed${r.firstError ? ` (${r.firstError})` : ''}.`)
+      }
       setNotice('Leave created successfully.')
       setShowCreateModal(false)
       // Reset form
@@ -442,6 +451,7 @@ export default function AdminLeaveRequests() {
       setCreateReason('')
       setCreateApproverName('')
       setCreatePayrollStatus('Pending')
+      setCreateStagedDocs([])
       await load(false)
     } catch (err: unknown) {
       const msg = err && typeof err === 'object' && 'message' in err ? String((err as Error).message) : 'Failed to create leave.'
@@ -1360,12 +1370,8 @@ export default function AdminLeaveRequests() {
                 <textarea value={createReason} onChange={(e) => setCreateReason(e.target.value)} rows={2} className="input w-full rounded-xl" placeholder="Optional notes for this leave" />
               </div>
 
-              {/* Documents placeholder for new records */}
-              <div className="rounded-xl border border-dashed border-surface-300 bg-surface-50/60 p-4 text-center">
-                <Upload className="w-5 h-5 text-surface-400 dark:text-surface-500 mx-auto mb-1.5" />
-                <p className="text-xs font-medium text-surface-500 dark:text-surface-400 dark:text-surface-500">Documents</p>
-                <p className="text-[11px] text-surface-400 dark:text-surface-500 mt-0.5">Save the record first, then you can upload documents.</p>
-              </div>
+              {/* 22MAY2026: staged docs on new entries — was previously a placeholder */}
+              <StagedDocumentUpload files={createStagedDocs} onFilesChange={setCreateStagedDocs} disabled={createSaving} />
             </div>
 
             <div className="mt-5 flex flex-col-reverse sm:flex-row justify-end gap-2">
@@ -1407,6 +1413,7 @@ export default function AdminLeaveRequests() {
                     cmid={reviewRow?.employeeCmid}
                     reportsTo={reviewRow?.reportsTo}
                     accountName={reviewRow?.accountName}
+                    recordId={reviewRow?.recordId}
                     onClose={() => { setReviewingId(null); setReviewContext(null) }}
                     extra={
                       <>
@@ -1444,6 +1451,12 @@ export default function AdminLeaveRequests() {
                 <div className="mx-5 mt-4 rounded-xl border border-surface-200 dark:border-surface-700 bg-surface-50/80 p-3 text-sm">
                   <p className="text-[10px] font-semibold text-surface-400 dark:text-surface-500 uppercase tracking-wider mb-3">Leave Info</p>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-3">
+                    {/* 22MAY2026 client video (10th request): Edit form layout
+                        now mirrors the New-leave form — Calculation segmented
+                        control + Payable Days + rate fields up top, then dates,
+                        then approver/status, then pay preview. The old layout
+                        hid Calculation behind "Decision = Approved" at the
+                        bottom of the modal. */}
                     <div>
                       <label className="label">Leave Type</label>
                       <AdminSelect
@@ -1457,24 +1470,89 @@ export default function AdminLeaveRequests() {
                       <p className="label">Type</p>
                       <p className="font-medium text-surface-900 dark:text-surface-50 mt-0.5">{reviewContext.leave.leaveType === 'paid' ? 'Paid' : 'Unpaid'}</p>
                     </div>
-                    {reviewContext.leave.calculationType ? (
-                      <div>
-                        <p className="label">Calculation</p>
-                        <p className="font-medium text-surface-900 dark:text-surface-50 mt-0.5">
-                          {reviewContext.leave.calculationType === 'non_payable' ? 'Non Payable' : reviewContext.leave.calculationType === 'hourly_salary' ? 'Hourly Salary' : 'Monthly Salary'}
-                        </p>
-                      </div>
-                    ) : null}
-                    {reviewContext.leave.associateDaysOff ? (
-                      <div>
-                        <p className="label">Days Off</p>
-                        <p className="font-medium text-surface-900 dark:text-surface-50 mt-0.5">{reviewContext.leave.associateDaysOff}</p>
-                      </div>
-                    ) : null}
                     <div>
                       <p className="label">Salary</p>
                       <p className="font-medium text-surface-900 dark:text-surface-50 mt-0.5">{reviewContext.employee.salaryType} · base ${reviewContext.employee.baseSalary.toFixed(2)}</p>
                     </div>
+
+                    {/* Calculation — segmented control at the top, like new-leave form */}
+                    <div className="col-span-2 sm:col-span-3">
+                      <label className="label">Calculation</label>
+                      <div className="flex gap-0 rounded-xl overflow-hidden border border-surface-200 dark:border-surface-700">
+                        {([
+                          { value: 'non_payable' as const, label: 'Non Payable' },
+                          { value: 'hourly_salary' as const, label: 'Hourly Salary' },
+                          { value: 'monthly_salary' as const, label: 'Monthly Salary' },
+                        ]).map((opt) => (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            disabled={reviewLocked}
+                            onClick={() => setCalculationType(opt.value as LeaveCalcType)}
+                            className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${
+                              calculationType === opt.value
+                                ? 'bg-brand-600 text-white'
+                                : 'bg-surface-50 dark:bg-surface-900 text-surface-600 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-800'
+                            } disabled:opacity-60`}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Payable Days + rate fields — visible at top, like new-leave form */}
+                    {calculationType === 'hourly_salary' && (
+                      <>
+                        <div>
+                          <label className="label">Payable Days</label>
+                          <input
+                            type="number" min={0} max={366} step={0.5}
+                            value={payableDaysInput}
+                            onChange={(e) => setPayableDaysInput(e.target.value)}
+                            disabled={reviewLocked}
+                            className="input w-full rounded-xl"
+                          />
+                          <p className="text-[10px] text-surface-500 dark:text-surface-400 mt-0.5">Suggested: {reviewContext.suggestedPayableDays}</p>
+                        </div>
+                        <div>
+                          <label className="label">Hourly Rate</label>
+                          <input
+                            type="number" min={0} step={0.0001}
+                            value={reviewHourlyRate}
+                            onChange={(e) => setReviewHourlyRate(e.target.value)}
+                            disabled={reviewLocked}
+                            className="input w-full rounded-xl"
+                          />
+                        </div>
+                        <div>
+                          <label className="label">Daily Hours</label>
+                          <input
+                            type="number" min={0} max={24} step={0.5}
+                            value={reviewDailyHours}
+                            onChange={(e) => setReviewDailyHours(e.target.value)}
+                            disabled={reviewLocked}
+                            className="input w-full rounded-xl"
+                          />
+                        </div>
+                      </>
+                    )}
+                    {calculationType === 'monthly_salary' && (
+                      <div className="col-span-2 sm:col-span-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="label">Payable Days</label>
+                          <input
+                            type="number" min={0} max={366} step={0.5}
+                            value={payableDaysInput}
+                            onChange={(e) => setPayableDaysInput(e.target.value)}
+                            disabled={reviewLocked}
+                            className="input w-full rounded-xl"
+                          />
+                          <p className="text-[10px] text-surface-500 dark:text-surface-400 mt-0.5">Suggested: {reviewContext.suggestedPayableDays}</p>
+                        </div>
+                      </div>
+                    )}
+
                     <div className="col-span-2 sm:col-span-3">
                       <label className="label">Start Date & Time</label>
                       <div className="grid grid-cols-2 gap-2 mt-0.5">
@@ -1618,98 +1696,24 @@ export default function AdminLeaveRequests() {
                 </div>
 
                 <div className={`mx-5 mt-4 space-y-3 ${reviewLocked ? 'opacity-50 pointer-events-none' : ''}`}>
-                  {/* 21MAY2026 client video: Decision dropdown removed — it duplicated
-                      the new Approval Status field above. Approval Status drives
-                      reviewStatus on change. */}
-
-                  {reviewStatus === 'approved' && (
-                    <>
-                      {isPaidLeave ? (
-                        <>
-                          <div>
-                            <label className="label">Calculation</label>
-                            <AdminSelect
-                              value={calculationType}
-                              onChange={(val) => setCalculationType(val as LeaveCalcType)}
-                              disabled={reviewLocked}
-                              options={[
-                                { value: 'non_payable', label: 'Non-payable' },
-                                { value: 'hourly_salary', label: 'Hourly salary' },
-                                { value: 'monthly_salary', label: 'Monthly salary' },
-                              ]}
-                            />
-                          </div>
-                          <div>
-                            <label className="label">Payable days</label>
-                            <input
-                              type="number"
-                              min={0}
-                              max={366}
-                              step={0.5}
-                              value={payableDaysInput}
-                              onChange={(e) => setPayableDaysInput(e.target.value)}
-                              disabled={reviewLocked}
-                              className="input w-full rounded-xl"
-                            />
-                            <p className="text-[10px] text-surface-500 dark:text-surface-400 dark:text-surface-500 mt-1">
-                              Suggested (calendar span): {reviewContext.suggestedPayableDays}
-                            </p>
-                          </div>
-                        </>
-                      ) : (
-                        <p className="text-xs text-surface-600 dark:text-surface-300 rounded-lg border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900 px-3 py-2">
-                          Unpaid leave — stored pay amount will be $0.
-                        </p>
-                      )}
-
-                      {preview && (isPaidLeave || reviewContext.leave.leaveType === 'unpaid') ? (
-                        <div className="rounded-xl border border-surface-200 dark:border-surface-700 p-3 space-y-2 text-sm">
-                          <p className="text-xs font-semibold text-surface-700 dark:text-surface-200 uppercase tracking-wide">Pay preview</p>
-                          <div className="grid grid-cols-2 gap-2 text-xs">
-                            <span className="text-surface-500 dark:text-surface-400 dark:text-surface-500">Hourly rate</span>
-                            <span className="tabular-nums text-right">
-                              {reviewLocked ? (
-                                <span className="flex items-center justify-end gap-1"><Lock className="w-3 h-3 text-surface-400 dark:text-surface-500" />${preview.hourlyRate.toFixed(4)}</span>
-                              ) : (
-                                <input
-                                  type="number"
-                                  min={0}
-                                  step={0.0001}
-                                  value={reviewHourlyRate}
-                                  onChange={(e) => setReviewHourlyRate(e.target.value)}
-                                  className="input w-full rounded-lg text-xs py-1 px-2 text-right tabular-nums"
-                                />
-                              )}
-                            </span>
-                            <span className="text-surface-500 dark:text-surface-400 dark:text-surface-500">Daily hours</span>
-                            <span className="tabular-nums text-right">
-                              {reviewLocked ? (
-                                <span className="flex items-center justify-end gap-1"><Lock className="w-3 h-3 text-surface-400 dark:text-surface-500" />{preview.dailyHours}</span>
-                              ) : (
-                                <input
-                                  type="number"
-                                  min={0}
-                                  max={24}
-                                  step={0.5}
-                                  value={reviewDailyHours}
-                                  onChange={(e) => setReviewDailyHours(e.target.value)}
-                                  className="input w-full rounded-lg text-xs py-1 px-2 text-right tabular-nums"
-                                />
-                              )}
-                            </span>
-                            <span className="text-surface-500 dark:text-surface-400 dark:text-surface-500">Daily salary</span>
-                            <span className="tabular-nums text-right flex items-center justify-end gap-1">
-                              <Lock className="w-3 h-3 text-surface-400 dark:text-surface-500" />${preview.dailySalary.toFixed(2)}
-                            </span>
-                            <span className="text-surface-500 dark:text-surface-400 dark:text-surface-500 font-medium">Payable amount</span>
-                            <span className="tabular-nums text-right font-semibold text-surface-900 dark:text-surface-50 flex items-center justify-end gap-1">
-                              <Lock className="w-3 h-3 text-surface-400 dark:text-surface-500" />${preview.payableAmount.toFixed(2)}
-                            </span>
-                          </div>
-                          <p className="text-[10px] text-surface-500 dark:text-surface-400 dark:text-surface-500">Payable amount = daily salary x payable days (computed on save).</p>
-                        </div>
-                      ) : null}
-                    </>
+                  {/* 22MAY2026 client video: pay preview promoted out of the
+                      approval-only block — it's always visible for paid leaves,
+                      same as the new-leave form. */}
+                  {isPaidLeave && preview && calculationType !== 'non_payable' && (
+                    <div className="rounded-xl border border-surface-200 dark:border-surface-700 p-3 space-y-2 text-sm">
+                      <p className="text-xs font-semibold text-surface-700 dark:text-surface-200 uppercase tracking-wide">Pay Preview</p>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <span className="text-surface-500 dark:text-surface-400 dark:text-surface-500">Hourly rate</span>
+                        <span className="tabular-nums text-right flex items-center justify-end gap-1"><Lock className="w-3 h-3 text-surface-400 dark:text-surface-500" />${preview.hourlyRate.toFixed(4)}</span>
+                        <span className="text-surface-500 dark:text-surface-400 dark:text-surface-500">Daily hours</span>
+                        <span className="tabular-nums text-right flex items-center justify-end gap-1"><Lock className="w-3 h-3 text-surface-400 dark:text-surface-500" />{preview.dailyHours}</span>
+                        <span className="text-surface-500 dark:text-surface-400 dark:text-surface-500">Daily salary</span>
+                        <span className="tabular-nums text-right flex items-center justify-end gap-1"><Lock className="w-3 h-3 text-surface-400 dark:text-surface-500" />${preview.dailySalary.toFixed(2)}</span>
+                        <span className="text-surface-500 dark:text-surface-400 dark:text-surface-500 font-medium">Payable amount</span>
+                        <span className="tabular-nums text-right font-semibold text-surface-900 dark:text-surface-50 flex items-center justify-end gap-1"><Lock className="w-3 h-3 text-surface-400 dark:text-surface-500" />${preview.payableAmount.toFixed(2)}</span>
+                      </div>
+                      <p className="text-[10px] text-surface-500 dark:text-surface-400">Payable amount = daily salary × payable days (computed on save).</p>
+                    </div>
                   )}
 
                   <div>

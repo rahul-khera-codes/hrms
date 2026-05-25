@@ -334,6 +334,12 @@ try {
     await pool.query(`ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS created_on TIMESTAMPTZ DEFAULT NOW()`)
     await pool.query(`ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS modified_by UUID REFERENCES users(id)`)
     await pool.query(`ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS modified_on TIMESTAMPTZ`)
+    // 22MAY2026 client video: short reference ID per record (LOA-#### for leaves).
+    // Auto-generated, sequential, used for traceability/e-discovery.
+    await pool.query(`CREATE SEQUENCE IF NOT EXISTS leave_requests_record_seq START 1001`)
+    await pool.query(`ALTER TABLE leave_requests ADD COLUMN IF NOT EXISTS record_id VARCHAR(20) UNIQUE`)
+    await pool.query(`UPDATE leave_requests SET record_id = 'LOA-' || LPAD(NEXTVAL('leave_requests_record_seq')::text, 4, '0') WHERE record_id IS NULL`)
+    await pool.query(`ALTER TABLE leave_requests ALTER COLUMN record_id SET DEFAULT 'LOA-' || LPAD(NEXTVAL('leave_requests_record_seq')::text, 4, '0')`)
   } catch (e) {
     if (e.code !== '42701') console.warn('leave_requests admin create columns migration:', e.message)
   }
@@ -384,8 +390,34 @@ try {
     await pool.query(`ALTER TABLE payroll_inputs ADD COLUMN IF NOT EXISTS created_on TIMESTAMPTZ DEFAULT NOW()`)
     await pool.query(`ALTER TABLE payroll_inputs ADD COLUMN IF NOT EXISTS modified_by UUID REFERENCES users(id)`)
     await pool.query(`ALTER TABLE payroll_inputs ADD COLUMN IF NOT EXISTS modified_on TIMESTAMPTZ`)
+    // 22MAY2026 client video: PI-#### record ID for payroll inputs.
+    await pool.query(`CREATE SEQUENCE IF NOT EXISTS payroll_inputs_record_seq START 1001`)
+    await pool.query(`ALTER TABLE payroll_inputs ADD COLUMN IF NOT EXISTS record_id VARCHAR(20) UNIQUE`)
+    await pool.query(`UPDATE payroll_inputs SET record_id = 'PI-' || LPAD(NEXTVAL('payroll_inputs_record_seq')::text, 4, '0') WHERE record_id IS NULL`)
+    await pool.query(`ALTER TABLE payroll_inputs ALTER COLUMN record_id SET DEFAULT 'PI-' || LPAD(NEXTVAL('payroll_inputs_record_seq')::text, 4, '0')`)
   } catch (e) {
     if (e.code !== '42701') console.warn('payroll_inputs audit columns migration:', e.message)
+  }
+
+  // 22MAY2026 client video: ACT-#### record ID for client/account records.
+  try {
+    await pool.query(`CREATE SEQUENCE IF NOT EXISTS clients_record_seq START 1001`)
+    await pool.query(`ALTER TABLE clients ADD COLUMN IF NOT EXISTS record_id VARCHAR(20) UNIQUE`)
+    await pool.query(`UPDATE clients SET record_id = 'ACT-' || LPAD(NEXTVAL('clients_record_seq')::text, 4, '0') WHERE record_id IS NULL`)
+    await pool.query(`ALTER TABLE clients ALTER COLUMN record_id SET DEFAULT 'ACT-' || LPAD(NEXTVAL('clients_record_seq')::text, 4, '0')`)
+  } catch (e) {
+    if (e.code !== '42701') console.warn('clients record_id migration:', e.message)
+  }
+
+  // 22MAY2026 client video: SES-#### record ID for attendance/session records.
+  // (Per the video — short ID for traceability of normalized timesheets.)
+  try {
+    await pool.query(`CREATE SEQUENCE IF NOT EXISTS sessions_record_seq START 1001`)
+    await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS record_id VARCHAR(20) UNIQUE`)
+    await pool.query(`UPDATE sessions SET record_id = 'SES-' || LPAD(NEXTVAL('sessions_record_seq')::text, 4, '0') WHERE record_id IS NULL`)
+    await pool.query(`ALTER TABLE sessions ALTER COLUMN record_id SET DEFAULT 'SES-' || LPAD(NEXTVAL('sessions_record_seq')::text, 4, '0')`)
+  } catch (e) {
+    if (e.code !== '42701') console.warn('sessions record_id migration:', e.message)
   }
   console.log('Payroll inputs table ready')
   await pool.query(`

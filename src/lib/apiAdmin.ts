@@ -340,6 +340,7 @@ export async function updateSettings(data: Partial<SettingsResponse>): Promise<S
 
 export interface Client {
   id: string
+  recordId?: string | null
   name: string
   code: string | null
   vertical: string | null
@@ -681,6 +682,7 @@ export async function getShiftGroups(): Promise<string[]> {
 
 export interface AdminLeaveRequest {
   id: string
+  recordId?: string | null
   employeeId: string
   employeeName: string
   leaveType: 'paid' | 'unpaid'
@@ -868,6 +870,7 @@ export type PayrollCalcType = 'hourly' | 'base_amount' | 'both'
 
 export interface PayrollInput {
   id: string
+  recordId?: string | null
   userId: string
   employeeName: string | null
   employeeCmid: number | null

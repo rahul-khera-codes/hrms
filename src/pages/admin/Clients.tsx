@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { Building2, Plus, Pencil, Trash2, LayoutGrid, Table2, Search, ArrowUp, ArrowDown, Filter, Download, Upload, X, Lock, Unlock } from 'lucide-react'
-import { getClients, createClient, updateClient, deleteClient, setClientLocked, getEmployees, type Client, type EmployeeRecord } from '@/lib/apiAdmin'
+import { Building2, Plus, Pencil, Trash2, LayoutGrid, Table2, Search, ArrowUp, ArrowDown, Filter, Download, X, Lock, Unlock } from 'lucide-react'
+import { getClients, createClient, updateClient, deleteClient, setClientLocked, getEmployees, uploadDocument, type Client, type EmployeeRecord } from '@/lib/apiAdmin'
 import { PageHeader } from '@/components/PageHeader'
 import { SkeletonTableRows } from '@/components/Skeleton'
 import { BulkActionBar } from '@/components/BulkActionBar'
@@ -9,6 +9,7 @@ import { useToast } from '@/components/Toast'
 import AdminSelect from '@/components/AdminSelect'
 import AdminDatePicker from '@/components/AdminDatePicker'
 import DocumentUpload from '@/components/DocumentUpload'
+import StagedDocumentUpload, { uploadStagedDocuments } from '@/components/StagedDocumentUpload'
 
 const VERTICALS = [
   'Home Care',
@@ -111,6 +112,7 @@ export default function AdminClients() {
 
   // Form state
   const [name, setName] = useState('')
+  const [stagedDocs, setStagedDocs] = useState<File[]>([])
   const [code, setCode] = useState('')
   const [vertical, setVertical] = useState('')
   const [salesOwnerId, setSalesOwnerId] = useState('')
@@ -205,6 +207,7 @@ export default function AdminClients() {
   }, [])
 
   function resetForm() {
+    setStagedDocs([])
     setName('')
     setCode('')
     setVertical('')
@@ -296,11 +299,16 @@ export default function AdminClients() {
     setSaving(true)
     try {
       if (modal === 'add') {
-        await createClient(buildPayload())
+        const created = await createClient(buildPayload())
+        // 22MAY2026: flush staged docs to the new account
+        if (stagedDocs.length > 0 && created?.id) {
+          await uploadStagedDocuments(stagedDocs, 'account', created.id, uploadDocument)
+        }
       } else if (editing) {
         await updateClient(editing.id, buildPayload())
       }
       setModal(null)
+      setStagedDocs([])
       const list = await getClients()
       setClients(list)
     } catch (e: unknown) {
@@ -877,11 +885,7 @@ export default function AdminClients() {
                 {editing ? (
                   <DocumentUpload entityType="account" entityId={editing.id} />
                 ) : (
-                  <div className="rounded-xl border border-dashed border-surface-300 bg-surface-50/60 p-4 text-center">
-                    <Upload className="w-5 h-5 text-surface-400 dark:text-surface-500 mx-auto mb-1.5" />
-                    <p className="text-xs font-medium text-surface-500 dark:text-surface-400 dark:text-surface-500">Documents</p>
-                    <p className="text-[11px] text-surface-400 dark:text-surface-500 mt-0.5">Save the record first, then you can upload documents.</p>
-                  </div>
+                  <StagedDocumentUpload files={stagedDocs} onFilesChange={setStagedDocs} disabled={saving} />
                 )}
               </>
             </div>

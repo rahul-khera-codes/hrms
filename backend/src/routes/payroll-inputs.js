@@ -63,6 +63,7 @@ export function computeInputAmount({
 function mapRow(r) {
   return {
     id: r.id,
+    recordId: r.record_id || null,
     userId: r.user_id,
     employeeName: r.user_name || null,
     employeeCmid: r.employee_cmid != null ? Number(r.employee_cmid) : null,

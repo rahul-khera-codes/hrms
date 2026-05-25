@@ -266,6 +266,7 @@ function toAttendanceRecord(row) {
     reviewedByName: row.reviewed_by_name || null,
     reviewedAt: row.reviewed_at || null,
     isScheduled: row.is_scheduled === true,
+    recordId: row.record_id || null,
     // Backward-compatible fields
     regularHours,
     overtimeHours,
@@ -497,6 +498,7 @@ router.get('/attendance', async (req, res) => {
         s.created_by, s.created_on, s.modified_by, s.modified_on,
         s.reviewed, s.reviewed_by, s.reviewed_at,
         s.is_scheduled,
+        s.record_id,
         created_user.name AS created_by_name,
         modified_user.name AS modified_by_name,
         reviewed_user.name AS reviewed_by_name,
@@ -1133,6 +1135,7 @@ router.get('/leave-requests', async (req, res) => {
               lr.leave_daily_salary,
               lr.is_locked,
               lr.payroll_status, lr.approver_name,
+              lr.record_id,
               lr.created_by, lr.created_on, lr.modified_by, lr.modified_on,
               created_by_user.name AS created_by_name,
               modified_by_user.name AS modified_by_name,
@@ -1189,6 +1192,7 @@ router.get('/leave-requests', async (req, res) => {
       isLocked: r.is_locked === true,
       payrollStatus: r.payroll_status || 'Pending',
       approverName: r.approver_name || null,
+      recordId: r.record_id || null,
       // 21MAY2026 audit trail
       createdBy: r.created_by || null,
       createdByName: r.created_by_name || null,
@@ -1607,6 +1611,7 @@ router.delete('/leave-requests/:id', async (req, res) => {
 function mapLeaveRowToJson(r) {
   return {
     id: r.id,
+    recordId: r.record_id || null,
     employeeId: r.user_id,
     leaveType: r.leave_type,
     startDate: r.start_date_str?.slice(0, 10) ?? null,
@@ -2584,6 +2589,7 @@ router.patch('/employees/:id/lock', requireAdmin, async (req, res) => {
 function mapClientRow(r) {
   return {
     id: r.id,
+    recordId: r.record_id || null,
     name: r.name,
     code: r.code || null,
     vertical: r.vertical || null,

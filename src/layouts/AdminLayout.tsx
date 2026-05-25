@@ -100,15 +100,15 @@ export default function AdminLayout() {
               </button>
             ) : (
               <>
-                <div className="flex items-center gap-2.5">
-                  <img
-                    src="/callmax-logo.png"
-                    alt="CALLMAX"
-                    className="h-8 w-auto object-contain"
-                    loading="eager"
-                  />
-                  <p className="text-[10px] text-brand-700 dark:text-brand-400 uppercase tracking-wider font-medium">Admin</p>
-                </div>
+                {/* 22MAY2026 client video: the "Admin" pill next to the logo
+                    overlapped with the collapse icon on narrow widths. It now
+                    lives under the user name in the footer card. */}
+                <img
+                  src="/callmax-logo.png"
+                  alt="CALLMAX"
+                  className="h-8 w-auto object-contain"
+                  loading="eager"
+                />
                 <button
                   type="button"
                   onClick={() => setCollapsed(true)}
@@ -171,6 +171,7 @@ export default function AdminLayout() {
               {!collapsed && (
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-semibold text-surface-900 dark:text-surface-50 truncate">{user?.name}</p>
+                  <p className="text-[10px] text-brand-700 dark:text-brand-400 uppercase tracking-wider font-semibold">Admin</p>
                   <p className="text-[10px] text-surface-500 dark:text-surface-400 dark:text-surface-500 truncate">{user?.email}</p>
                 </div>
               )}
