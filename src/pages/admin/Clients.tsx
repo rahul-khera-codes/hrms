@@ -62,7 +62,7 @@ const TERMINATION_REASONS = [
   'Non-Payment Suspension',
 ]
 
-const TABLE_COLUMNS = ['Company Name', 'Vertical', 'Sales Owner', 'Ops Owner', 'Contract Status', 'Actions'] as const
+const TABLE_COLUMNS = ['Record ID', 'Company Name', 'Vertical', 'Sales Owner', 'Ops Owner', 'Contract Status', 'Actions'] as const
 
 function contractStatusBadge(status: string | null) {
   if (!status) return null
@@ -650,6 +650,7 @@ export default function AdminClients() {
                         onChange={() => toggleSelect(c.id)}
                       />
                     </td>
+                    <td className="px-3 py-2.5 text-xs font-mono font-semibold text-violet-700 dark:text-violet-300 tabular-nums whitespace-nowrap">{c.recordId ?? '-'}</td>
                     <td className="px-3 py-2.5 text-xs font-medium text-surface-900 dark:text-surface-50 whitespace-nowrap">
                       <span className="flex items-center gap-1.5">
                         {c.name}

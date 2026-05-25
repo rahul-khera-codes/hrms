@@ -760,6 +760,17 @@ try {
   await pool.query(`ALTER TABLE payroll_calculator_results ADD COLUMN IF NOT EXISTS employee_cmid INTEGER`)
   await pool.query(`ALTER TABLE payroll_calculator_results ADD COLUMN IF NOT EXISTS government_id VARCHAR(20)`)
   await pool.query(`ALTER TABLE payroll_calculator_results ADD COLUMN IF NOT EXISTS cc_email VARCHAR(500)`)
+  // 22MAY2026 client video: PRC-#### record ID for payroll calculator rows
+  // (client explicitly named "payroll calculation" as one of the tables that
+  // needs its own short ID for traceability/e-discovery).
+  try {
+    await pool.query(`CREATE SEQUENCE IF NOT EXISTS payroll_calculator_results_record_seq START 1001`)
+    await pool.query(`ALTER TABLE payroll_calculator_results ADD COLUMN IF NOT EXISTS record_id VARCHAR(20) UNIQUE`)
+    await pool.query(`UPDATE payroll_calculator_results SET record_id = 'PRC-' || LPAD(NEXTVAL('payroll_calculator_results_record_seq')::text, 4, '0') WHERE record_id IS NULL`)
+    await pool.query(`ALTER TABLE payroll_calculator_results ALTER COLUMN record_id SET DEFAULT 'PRC-' || LPAD(NEXTVAL('payroll_calculator_results_record_seq')::text, 4, '0')`)
+  } catch (e) {
+    if (e.code !== '42701') console.warn('payroll_calculator_results record_id migration:', e.message)
+  }
   console.log('Payroll calculator results table ready')
   console.log('Clients, Shifts, Schedule tables ready')
   console.log('Payroll line items, government deductions tables ready')

@@ -1004,6 +1004,7 @@ export function isDeductionInputType(inputType: string): boolean {
 // ── Payroll Calculator ──
 export interface PayrollCalcResult {
   id: string
+  recordId?: string | null
   payrollCycleCode: string
   periodFrom: string
   periodTo: string

@@ -18,6 +18,7 @@ const round4 = (n) => Math.round(n * 10000) / 10000
 function mapRow(r) {
   return {
     id: r.id,
+    recordId: r.record_id || null,
     payrollCycleCode: r.payroll_cycle_code,
     periodFrom: r.period_from,
     periodTo: r.period_to,

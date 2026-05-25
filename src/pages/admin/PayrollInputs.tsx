@@ -523,7 +523,7 @@ export default function AdminPayrollInputs() {
                       }}
                     />
                   </th>
-                  {['CMID', 'Employee Name', 'Account', 'Input Type', 'Calculation', 'Input Amount', 'Payroll Cycle', 'Approver', 'Approval Status', 'Actions'].map((col) => (
+                  {['Record ID', 'CMID', 'Employee Name', 'Account', 'Input Type', 'Calculation', 'Input Amount', 'Payroll Cycle', 'Approver', 'Approval Status', 'Actions'].map((col) => (
                     <th key={col} className={`px-2 py-1 text-[10px] font-semibold text-surface-500 dark:text-surface-400 dark:text-surface-500 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 dark:border-surface-700 ${col === 'Actions' ? 'text-right' : col === 'Input Amount' ? 'text-right' : ''}`}>
                       {col === 'Actions' ? col : (
                         <>
@@ -561,6 +561,7 @@ export default function AdminPayrollInputs() {
                           onChange={() => toggleSelect(r.id)}
                         />
                       </td>
+                      <td className="px-2 py-1.5 text-xs font-mono font-semibold text-violet-700 dark:text-violet-300 tabular-nums whitespace-nowrap">{r.recordId ?? '-'}</td>
                       <td className="px-2 py-1.5 text-xs font-mono text-surface-700 dark:text-surface-200 tabular-nums whitespace-nowrap">{r.employeeCmid ?? '-'}</td>
                       <td className="px-2 py-1.5 text-xs font-medium text-surface-900 dark:text-surface-50 whitespace-nowrap">{r.employeeName ?? '-'}</td>
                       <td className="px-2 py-1.5 text-xs text-surface-700 dark:text-surface-200 whitespace-nowrap">{r.accountName ?? '-'}</td>

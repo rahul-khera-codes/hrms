@@ -973,6 +973,7 @@ export default function AdminLeaveRequests() {
                     />
                   </th>
                   {[
+                    'Record ID',
                     'CMID',
                     'Employee Name',
                     'Account',
@@ -1018,7 +1019,7 @@ export default function AdminLeaveRequests() {
               <tbody>
                 {displayedRows.length === 0 ? (
                   <tr>
-                    <td colSpan={17} className="py-12">
+                    <td colSpan={18} className="py-12">
                       <div className="flex flex-col items-center justify-center text-center">
                         <div className="w-12 h-12 rounded-full bg-surface-100 dark:bg-surface-800 flex items-center justify-center text-surface-400 dark:text-surface-500 mb-3">
                           <Search className="w-5 h-5" />
@@ -1049,6 +1050,7 @@ export default function AdminLeaveRequests() {
                         onChange={() => toggleSelect(r.id)}
                       />
                     </td>
+                    <td className="px-2 py-1.5 text-xs font-mono font-semibold text-violet-700 dark:text-violet-300 tabular-nums whitespace-nowrap">{r.recordId ?? '-'}</td>
                     <td className="px-2 py-1.5 text-xs font-mono text-surface-700 dark:text-surface-200 tabular-nums whitespace-nowrap">{r.employeeCmid ?? '-'}</td>
                     <td className="px-2 py-1.5 text-xs font-medium text-surface-900 dark:text-surface-50 whitespace-nowrap">{r.employeeName}</td>
                     <td className="px-2 py-1.5 text-xs text-surface-700 dark:text-surface-200 whitespace-nowrap">{r.accountName ?? '-'}</td>
