@@ -1094,7 +1094,7 @@ function PayrollInputModal({
           <div className="flex gap-2">
             <button type="button" onClick={onClose} className="btn-secondary" disabled={saving}>Cancel</button>
             <button type="button" onClick={handleSave} disabled={saving || locked || !userId || !inputType} className="btn-primary">
-              {saving ? 'Saving…' : isEdit ? 'Save changes' : 'Create input'}
+              {saving ? 'Saving…' : 'Save'}
             </button>
           </div>
         </div>

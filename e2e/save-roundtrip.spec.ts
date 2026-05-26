@@ -82,8 +82,8 @@ test('Payroll Input edit: type → Save → reopen shows new value', async ({ pa
   await baseAmountInput.fill('1500')
   await page.waitForTimeout(200)
 
-  // Click "Save changes"
-  await page.click('button:has-text("Save changes")')
+  // Click "Save"
+  await page.click('button:has-text("Save"):not(:has-text("Saving"))')
   await page.waitForTimeout(2500)
 
   // Reload page to be sure nothing's cached
@@ -163,7 +163,7 @@ test('Leaves edit: edit Days Off + Notes → Save → reopen shows new values', 
   await page.waitForTimeout(200)
 
   // Click "Save"
-  await page.click('button:has-text("Save"):not(:has-text("Save changes"))')
+  await page.click('button:has-text("Save"):not(:has-text("Saving"))')
   await page.waitForTimeout(3000)
 
   // Reload + reopen
@@ -215,7 +215,7 @@ test('Leaves edit: change Approval Status Approved→Pending persists', async ({
   await page.locator('button:has-text("Pending"):not(:has-text("Rejected"))').first().click()
   await page.waitForTimeout(300)
 
-  await page.click('button:has-text("Save"):not(:has-text("Save changes"))')
+  await page.click('button:has-text("Save"):not(:has-text("Saving"))')
   await page.waitForTimeout(3000)
 
   // Reload + verify via API too (most direct)
