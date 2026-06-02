@@ -253,10 +253,14 @@ router.post('/calculate', async (req, res) => {
         hholHours = round2(hholHours + reconciledHol)
       }
 
-      // 4b. Payroll inputs (approved, matching cycle)
+      // 4b. Payroll inputs (approved, matching cycle).
+      // 31MAY2026 client voice note: include 'RECURRENT' cycle inputs in EVERY
+      // cycle's calculation. An input with payroll_cycle_code='RECURRENT' stays
+      // active until its status is changed away from 'approved' (or it's deleted).
       const inputsRes = await query(`
         SELECT input_type, SUM(input_amount) as total, SUM(COALESCE(payable_hours,0)) as hours
-        FROM payroll_inputs WHERE user_id=$1 AND payroll_cycle_code=$2 AND status='approved'
+        FROM payroll_inputs
+        WHERE user_id=$1 AND (payroll_cycle_code=$2 OR payroll_cycle_code='RECURRENT') AND status='approved'
         GROUP BY input_type
       `, [emp.id, cycleCode])
 

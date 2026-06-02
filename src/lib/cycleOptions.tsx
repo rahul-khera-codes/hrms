@@ -53,3 +53,25 @@ export function buildCycleOptions(
   })
   return [...extra, ...main]
 }
+
+/**
+ * Special "RECURRENT" payroll-cycle option. Used only on the Payroll Inputs
+ * page (per Orlando's 31MAY2026 voice note): an input assigned to the
+ * RECURRENT cycle is included in EVERY payroll cycle's calculation until its
+ * status is changed away from "approved" or it's deleted. Stays out of cycle
+ * dropdowns on pages that don't need it (Leaves, Attendance, etc.).
+ */
+export const RECURRENT_CYCLE_CODE = 'RECURRENT'
+
+export const recurrentCycleOption: CycleOption = {
+  value: RECURRENT_CYCLE_CODE,
+  label: (
+    <span className="inline-flex items-center gap-1.5">
+      <span className="inline-block w-1.5 h-1.5 rounded-full bg-violet-500" />
+      <span>Recurrent</span>
+      <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-semibold uppercase tracking-wider bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300">
+        every cycle
+      </span>
+    </span>
+  ),
+}

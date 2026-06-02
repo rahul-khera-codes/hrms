@@ -12,7 +12,7 @@ import { PageHeader } from '@/components/PageHeader'
 import { DetailModalHeader } from '@/components/DetailModalHeader'
 import { SkeletonTableRows } from '@/components/Skeleton'
 import { useToast } from '@/components/Toast'
-import { buildCycleOptions } from '@/lib/cycleOptions'
+import { buildCycleOptions, recurrentCycleOption, RECURRENT_CYCLE_CODE } from '@/lib/cycleOptions'
 import {
   getPayrollInputs,
   createPayrollInput,
@@ -434,6 +434,7 @@ export default function AdminPayrollInputs() {
             onChange={(val) => setFilterCycle(val)}
             options={[
               { value: 'all', label: 'All cycles' },
+              recurrentCycleOption,
               ...buildCycleOptions(payrollPeriods),
             ]}
           />
@@ -496,7 +497,16 @@ export default function AdminPayrollInputs() {
                   <p className={`text-sm font-bold mt-1 tabular-nums ${isDeductionInputType(r.inputType) ? 'text-red-600' : 'text-brand-700'}`}>
                     {isDeductionInputType(r.inputType) ? '−' : '+'}${r.inputAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </p>
-                  {r.payrollCycleCode && <p className="text-[11px] text-surface-500 dark:text-surface-400 dark:text-surface-500 mt-0.5">Cycle {r.payrollCycleCode}</p>}
+                  {r.payrollCycleCode === RECURRENT_CYCLE_CODE ? (
+                    <p className="mt-0.5">
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300">
+                        <span className="inline-block w-1.5 h-1.5 rounded-full bg-violet-500" />
+                        Recurrent — every cycle
+                      </span>
+                    </p>
+                  ) : (
+                    r.payrollCycleCode && <p className="text-[11px] text-surface-500 dark:text-surface-400 dark:text-surface-500 mt-0.5">Cycle {r.payrollCycleCode}</p>
+                  )}
                 </div>
                 <div className="flex flex-col items-end gap-1 shrink-0">
                   <span className={`${r.status === 'approved' ? 'badge-success' : 'badge-warning'}`}>{backendToPayrollStatus(r.status)}</span>
@@ -574,7 +584,16 @@ export default function AdminPayrollInputs() {
                       <td className={`px-2 py-1.5 text-xs tabular-nums whitespace-nowrap text-right font-bold ${isDed ? 'text-red-600' : 'text-brand-700'}`}>
                         {isDed ? '−' : '+'}${r.inputAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
-                      <td className="px-2 py-1.5 text-xs font-mono text-surface-700 dark:text-surface-200 tabular-nums whitespace-nowrap">{r.payrollCycleCode ?? '-'}</td>
+                      <td className="px-2 py-1.5 text-xs whitespace-nowrap">
+                        {r.payrollCycleCode === RECURRENT_CYCLE_CODE ? (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300">
+                            <span className="inline-block w-1.5 h-1.5 rounded-full bg-violet-500" />
+                            Recurrent
+                          </span>
+                        ) : (
+                          <span className="font-mono text-surface-700 dark:text-surface-200 tabular-nums">{r.payrollCycleCode ?? '-'}</span>
+                        )}
+                      </td>
                       <td className="px-2 py-1.5 text-xs text-surface-700 dark:text-surface-200 whitespace-nowrap">{r.approverName ?? '-'}</td>
                       <td className="px-2 py-1.5 whitespace-nowrap">
                         <div className="flex items-center gap-1">
@@ -954,6 +973,7 @@ function PayrollInputModal({
                 disabled={locked}
                 options={[
                   { value: '', label: 'Select payroll cycle' },
+                  recurrentCycleOption,
                   ...buildCycleOptions(payrollPeriods),
                 ]}
               />

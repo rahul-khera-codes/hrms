@@ -3292,9 +3292,9 @@ router.post('/schedule/bulk-assign', async (req, res) => {
                  account_override,
                  is_scheduled, is_manual,
                  created_by, created_on
-               ) VALUES ($1, ($2::date || ' ' || $3::text)::timestamptz, NULL,
-                          ($2::date || ' ' || $3::text)::timestamptz,
-                          ($2::date || ' ' || $4::text)::timestamptz,
+               ) VALUES ($1, (($2::date || ' ' || $3::text)::timestamp AT TIME ZONE 'UTC'), NULL,
+                          (($2::date || ' ' || $3::text)::timestamp AT TIME ZONE 'UTC'),
+                          (($2::date || ' ' || $4::text)::timestamp AT TIME ZONE 'UTC'),
                           $5, TRUE, TRUE, $6, NOW())`,
               [userId, date, sStart, sEnd, clientId, req.user?.id || null],
             )
