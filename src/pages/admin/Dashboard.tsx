@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
 import { format } from 'date-fns'
+// 03JUN2026 — clock times go through the AST 12-hour helper
+import { fmtTime as fmtTimeAST } from '@/lib/timeFormat'
 import { Link } from 'react-router-dom'
 import { Users, Clock, FileCheck, AlertCircle, ChevronRight, TrendingUp, LayoutDashboard } from 'lucide-react'
 import { getAdminDashboard } from '@/lib/apiAdmin'
@@ -184,7 +186,7 @@ export default function AdminDashboard() {
                       <div className="min-w-0">
                         <p className="text-sm font-medium text-surface-900 dark:text-surface-50 truncate">{r.employeeName}</p>
                         <p className="text-[11px] text-surface-500 dark:text-surface-400 dark:text-surface-500 mt-0.5 truncate">
-                          {format(new Date(r.date), 'MMM d')} · {r.clockIn ? format(new Date(r.clockIn), 'HH:mm') : '—'} – {r.clockOut ? format(new Date(r.clockOut), 'HH:mm') : '—'}
+                          {format(new Date(r.date), 'MMM d')} · {r.clockIn ? fmtTimeAST(r.clockIn) : '—'} – {r.clockOut ? fmtTimeAST(r.clockOut) : '—'}
                         </p>
                       </div>
                     </div>

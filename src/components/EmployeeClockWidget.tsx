@@ -1,5 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { format, addDays } from 'date-fns'
+// 03JUN2026 — universal AST 12-hour formatting for the clock widget
+import { fmtTime as fmtTimeAST, fmtTimeWithSeconds } from '@/lib/timeFormat'
 import { Briefcase, Play, Square, CalendarDays } from 'lucide-react'
 import {
   getActiveSession,
@@ -54,12 +56,11 @@ export function EmployeeClockWidget({ onChange }: { onChange?: () => void }) {
   }, [])
 
   const clockedIn = activeSession != null
-  const currentTime = format(now, clockedIn ? 'HH:mm:ss' : 'HH:mm')
+  const currentTime = clockedIn ? fmtTimeWithSeconds(now) : fmtTimeAST(now)
   const currentDate = format(now, 'EEEE, MMMM d')
 
   function fmtTime(isoStr: string | null | undefined): string {
-    if (!isoStr) return '--:--'
-    try { return format(new Date(isoStr), 'HH:mm') } catch { return '--:--' }
+    return fmtTimeAST(isoStr) || '--:--'
   }
 
   async function handleClockIn() {

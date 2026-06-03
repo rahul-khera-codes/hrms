@@ -154,11 +154,11 @@ export async function buildPayrollEmployeeRow(
   }
 
   const sessionsResult = await query(
-    `SELECT (clock_in AT TIME ZONE 'UTC')::date AS date,
+    `SELECT (clock_in AT TIME ZONE 'America/Santo_Domingo')::date AS date,
             regular_minutes, overtime_minutes, night_minutes
      FROM sessions WHERE user_id = $1 AND clock_out IS NOT NULL
-       AND (clock_in AT TIME ZONE 'UTC')::date >= $2::date
-       AND (clock_in AT TIME ZONE 'UTC')::date <= $3::date
+       AND (clock_in AT TIME ZONE 'America/Santo_Domingo')::date >= $2::date
+       AND (clock_in AT TIME ZONE 'America/Santo_Domingo')::date <= $3::date
      ORDER BY clock_in`,
     [emp.id, fromDate, toDate]
   )

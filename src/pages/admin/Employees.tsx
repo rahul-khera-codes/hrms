@@ -1691,7 +1691,7 @@ export default function AdminEmployees() {
                   />
                 </div>
                 <div>
-                  <label className="label">Company Email</label>
+                  <label className="label">Company Email <span className="text-red-500" aria-hidden>*</span></label>
                   <input
                     type="email"
                     className="input w-full"

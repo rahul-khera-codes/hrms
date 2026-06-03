@@ -54,15 +54,8 @@ const CARD_COLORS: Record<string, { border: string; bg: string; label: string }>
 // Helpers
 // ---------------------------------------------------------------------------
 
-function fmtTime(dateStr: string | null | undefined): string {
-  if (!dateStr) return ''
-  try { return format(new Date(dateStr), 'HH:mm') } catch { return '' }
-}
-
-function fmtDateTime(dateStr: string | null | undefined): string {
-  if (!dateStr) return ''
-  try { return format(new Date(dateStr), 'MM/dd HH:mm') } catch { return '' }
-}
+// 03JUN2026 — Atlantic-time 12-hour formatting via the shared helper.
+import { fmtTime, fmtDateTime } from '@/lib/timeFormat'
 
 function fmtHours(val: number | null | undefined): string {
   if (val == null || isNaN(val)) return '0.00'

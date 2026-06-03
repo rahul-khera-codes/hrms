@@ -79,13 +79,10 @@ function aggregatePayableHours(records: AttendanceRecord[]) {
   return { pReg, pN15, pX35, pX100, pHdy, pDnp, pRvw }
 }
 
+// 03JUN2026 — universal AST 12-hour formatting via the shared helper.
+import { fmtTime as fmtTimeAST, fmtTimeWithSeconds } from '@/lib/timeFormat'
 function fmtTime(isoStr: string | null | undefined): string {
-  if (!isoStr) return '--:--'
-  try {
-    return format(new Date(isoStr), 'HH:mm')
-  } catch {
-    return '--:--'
-  }
+  return fmtTimeAST(isoStr) || '--:--'
 }
 
 export default function EmployeeDashboard() {
@@ -214,7 +211,7 @@ export default function EmployeeDashboard() {
   }, [])
 
   const clockedIn = activeSession != null
-  const currentTime = format(now, clockedIn ? 'HH:mm:ss' : 'HH:mm')
+  const currentTime = clockedIn ? fmtTimeWithSeconds(now) : fmtTimeAST(now)
   const currentDate = format(now, 'EEEE, MMMM d')
 
   // Aggregate payable hours for the cycle
@@ -729,7 +726,7 @@ export default function EmployeeDashboard() {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-surface-900 dark:text-surface-50">{format(new Date(s.clockIn), 'MMM d, yyyy')}</p>
                   <p className="text-[11px] text-surface-500 dark:text-surface-400 dark:text-surface-500 mt-0.5 tabular-nums">
-                    {format(new Date(s.clockIn), 'HH:mm:ss')} – {s.clockOut ? format(new Date(s.clockOut), 'HH:mm:ss') : '--'}
+                    {fmtTimeWithSeconds(s.clockIn)} – {s.clockOut ? fmtTimeWithSeconds(s.clockOut) : '--'}
                   </p>
                 </div>
                 <span className={`${s.status === 'active' ? 'badge-warning' : 'badge-neutral'} capitalize shrink-0`}>
@@ -756,10 +753,10 @@ export default function EmployeeDashboard() {
                       {format(new Date(s.clockIn), 'MMM d, yyyy')}
                     </td>
                     <td className="px-3 py-2.5 text-xs font-mono text-surface-700 dark:text-surface-200 tabular-nums whitespace-nowrap">
-                      {format(new Date(s.clockIn), 'HH:mm:ss')}
+                      {fmtTimeWithSeconds(s.clockIn)}
                     </td>
                     <td className="px-3 py-2.5 text-xs font-mono text-surface-700 dark:text-surface-200 tabular-nums whitespace-nowrap">
-                      {s.clockOut ? format(new Date(s.clockOut), 'HH:mm:ss') : '--'}
+                      {s.clockOut ? fmtTimeWithSeconds(s.clockOut) : '--'}
                     </td>
                     <td className="px-3 py-2.5 whitespace-nowrap">
                       <span className={`${s.status === 'active' ? 'badge-warning' : 'badge-neutral'} capitalize`}>

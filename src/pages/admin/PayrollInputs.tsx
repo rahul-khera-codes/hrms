@@ -13,6 +13,8 @@ import { DetailModalHeader } from '@/components/DetailModalHeader'
 import { SkeletonTableRows } from '@/components/Skeleton'
 import { useToast } from '@/components/Toast'
 import { buildCycleOptions, recurrentCycleOption, RECURRENT_CYCLE_CODE } from '@/lib/cycleOptions'
+// 03JUN2026 — audit-column timestamps in AST 12-hour format
+import { fmtFullDateTime } from '@/lib/timeFormat'
 import {
   getPayrollInputs,
   createPayrollInput,
@@ -629,9 +631,9 @@ export default function AdminPayrollInputs() {
                       </td>
                       {/* 22MAY2026 audit columns at end */}
                       <td className="px-2 py-1.5 text-xs text-surface-600 dark:text-surface-300 whitespace-nowrap">{r.createdByName ?? '-'}</td>
-                      <td className="px-2 py-1.5 text-xs text-surface-600 dark:text-surface-300 whitespace-nowrap tabular-nums">{r.createdOn ? new Date(r.createdOn).toLocaleString() : r.createdAt ? new Date(r.createdAt).toLocaleString() : '-'}</td>
+                      <td className="px-2 py-1.5 text-xs text-surface-600 dark:text-surface-300 whitespace-nowrap tabular-nums">{r.createdOn ? fmtFullDateTime(r.createdOn) : r.createdAt ? fmtFullDateTime(r.createdAt) : '-'}</td>
                       <td className="px-2 py-1.5 text-xs text-surface-600 dark:text-surface-300 whitespace-nowrap">{r.modifiedByName ?? '-'}</td>
-                      <td className="px-2 py-1.5 text-xs text-surface-600 dark:text-surface-300 whitespace-nowrap tabular-nums">{r.modifiedOn ? new Date(r.modifiedOn).toLocaleString() : '-'}</td>
+                      <td className="px-2 py-1.5 text-xs text-surface-600 dark:text-surface-300 whitespace-nowrap tabular-nums">{r.modifiedOn ? fmtFullDateTime(r.modifiedOn) : '-'}</td>
                     </tr>
                   )
                 })}
@@ -1148,7 +1150,7 @@ function PayrollInputModal({
               </div>
               <div>
                 <p className="font-semibold uppercase tracking-wider text-surface-400 dark:text-surface-500 mb-0.5">Created On</p>
-                <p className="text-surface-800 dark:text-surface-100 tabular-nums">{existing.createdOn ? new Date(existing.createdOn).toLocaleString() : existing.createdAt ? new Date(existing.createdAt).toLocaleString() : '—'}</p>
+                <p className="text-surface-800 dark:text-surface-100 tabular-nums">{existing.createdOn ? fmtFullDateTime(existing.createdOn) : existing.createdAt ? fmtFullDateTime(existing.createdAt) : '—'}</p>
               </div>
               <div>
                 <p className="font-semibold uppercase tracking-wider text-surface-400 dark:text-surface-500 mb-0.5">Modified By</p>
@@ -1156,7 +1158,7 @@ function PayrollInputModal({
               </div>
               <div>
                 <p className="font-semibold uppercase tracking-wider text-surface-400 dark:text-surface-500 mb-0.5">Modified On</p>
-                <p className="text-surface-800 dark:text-surface-100 tabular-nums">{existing.modifiedOn ? new Date(existing.modifiedOn).toLocaleString() : '—'}</p>
+                <p className="text-surface-800 dark:text-surface-100 tabular-nums">{existing.modifiedOn ? fmtFullDateTime(existing.modifiedOn) : '—'}</p>
               </div>
             </div>
           )}

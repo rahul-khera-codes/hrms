@@ -199,14 +199,14 @@ router.post('/calculate', async (req, res) => {
       // so we shift by +1 day before truncating, then shift back to get Sunday-start weeks.
       const sessRes = await query(`
         SELECT
-          date_trunc('week', (clock_in AT TIME ZONE 'UTC')::date + 1)::date - 1 AS week_start,
+          date_trunc('week', (clock_in AT TIME ZONE 'America/Santo_Domingo')::date + 1)::date - 1 AS week_start,
           COALESCE(SUM(reg_hours),0) as reg,
           COALESCE(SUM(n15_hours),0) as n15,
           COALESCE(SUM(x35_hours),0) as x35,
           COALESCE(SUM(x100_hours),0) as x100,
           COALESCE(SUM(hol_hours),0) as hol
         FROM sessions WHERE user_id=$1 AND clock_in IS NOT NULL
-          AND (clock_in AT TIME ZONE 'UTC')::date >= $2 AND (clock_in AT TIME ZONE 'UTC')::date <= $3
+          AND (clock_in AT TIME ZONE 'America/Santo_Domingo')::date >= $2 AND (clock_in AT TIME ZONE 'America/Santo_Domingo')::date <= $3
         GROUP BY week_start
         ORDER BY week_start
       `, [emp.id, periodFrom, periodTo])

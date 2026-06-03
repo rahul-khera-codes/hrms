@@ -401,7 +401,7 @@ router.get('/dashboard', async (req, res) => {
       `SELECT COUNT(DISTINCT s.user_id)::int AS count
        FROM sessions s
        JOIN users u ON u.id = s.user_id AND u.role = 'employee'
-       WHERE (s.clock_in AT TIME ZONE 'UTC')::date = $1::date
+       WHERE (s.clock_in AT TIME ZONE 'America/Santo_Domingo')::date = $1::date
           OR s.clock_out IS NULL`,
       [today]
     )
@@ -413,7 +413,7 @@ router.get('/dashboard', async (req, res) => {
     const fromStr = fromRecent.toISOString().slice(0, 10)
     const recentSql = `
       SELECT u.id AS user_id, u.name AS user_name,
-             (s.clock_in AT TIME ZONE 'UTC')::date AS date,
+             (s.clock_in AT TIME ZONE 'America/Santo_Domingo')::date AS date,
              MIN(s.clock_in) AS first_clock_in, MAX(s.clock_out) AS last_clock_out,
              COALESCE(SUM(s.regular_minutes), 0)::int AS regular_minutes,
              COALESCE(SUM(s.overtime_minutes), 0)::int AS overtime_minutes,
@@ -421,10 +421,10 @@ router.get('/dashboard', async (req, res) => {
              BOOL_OR(s.clock_out IS NULL) AS has_active_session
       FROM sessions s
       JOIN users u ON u.id = s.user_id AND u.role = 'employee'
-      WHERE (s.clock_in AT TIME ZONE 'UTC')::date >= $1::date
-        AND (s.clock_in AT TIME ZONE 'UTC')::date <= $2::date
-      GROUP BY u.id, u.name, (s.clock_in AT TIME ZONE 'UTC')::date
-      ORDER BY (s.clock_in AT TIME ZONE 'UTC')::date DESC, MIN(s.clock_in) DESC
+      WHERE (s.clock_in AT TIME ZONE 'America/Santo_Domingo')::date >= $1::date
+        AND (s.clock_in AT TIME ZONE 'America/Santo_Domingo')::date <= $2::date
+      GROUP BY u.id, u.name, (s.clock_in AT TIME ZONE 'America/Santo_Domingo')::date
+      ORDER BY (s.clock_in AT TIME ZONE 'America/Santo_Domingo')::date DESC, MIN(s.clock_in) DESC
       LIMIT 5
     `
     const recentResult = await query(recentSql, [fromStr, today])
@@ -460,7 +460,7 @@ router.get('/attendance', async (req, res) => {
         s.id AS session_id,
         u.id AS user_id,
         u.name AS user_name,
-        (s.clock_in AT TIME ZONE 'UTC')::date AS date,
+        (s.clock_in AT TIME ZONE 'America/Santo_Domingo')::date AS date,
         s.clock_in AS first_clock_in,
         s.clock_out AS last_clock_out,
         COALESCE(s.regular_minutes, 0)::int AS regular_minutes,
@@ -504,10 +504,10 @@ router.get('/attendance', async (req, res) => {
         reviewed_user.name AS reviewed_by_name,
         -- Dynamic shift lookup (UTC-safe)
         CASE WHEN sh.start_time IS NOT NULL THEN
-          (((s.clock_in AT TIME ZONE 'UTC')::date || 'T' || COALESCE(sa_shift.override_start, sh.start_time)::text)::timestamp AT TIME ZONE 'UTC')
+          (((s.clock_in AT TIME ZONE 'America/Santo_Domingo')::date || 'T' || COALESCE(sa_shift.override_start, sh.start_time)::text)::timestamp AT TIME ZONE 'America/Santo_Domingo')
         ELSE NULL END AS dynamic_shift_start,
         CASE WHEN sh.end_time IS NOT NULL THEN
-          (((s.clock_in AT TIME ZONE 'UTC')::date || 'T' || COALESCE(sa_shift.override_end, sh.end_time)::text)::timestamp AT TIME ZONE 'UTC')
+          (((s.clock_in AT TIME ZONE 'America/Santo_Domingo')::date || 'T' || COALESCE(sa_shift.override_end, sh.end_time)::text)::timestamp AT TIME ZONE 'America/Santo_Domingo')
         ELSE NULL END AS dynamic_shift_end,
         h.name AS dynamic_holiday_name
       FROM sessions s
@@ -522,11 +522,11 @@ router.get('/attendance', async (req, res) => {
                a.override_start_time AS override_start,
                a.override_end_time AS override_end
         FROM schedule_assignments a
-        WHERE a.user_id = u.id AND a.date = (s.clock_in AT TIME ZONE 'UTC')::date
+        WHERE a.user_id = u.id AND a.date = (s.clock_in AT TIME ZONE 'America/Santo_Domingo')::date
         LIMIT 1
       ) sa_shift ON true
       LEFT JOIN shifts sh ON sh.id = sa_shift.shift_id
-      LEFT JOIN holidays h ON h.holiday_date = (s.clock_in AT TIME ZONE 'UTC')::date AND h.is_paid = TRUE
+      LEFT JOIN holidays h ON h.holiday_date = (s.clock_in AT TIME ZONE 'America/Santo_Domingo')::date AND h.is_paid = TRUE
       LEFT JOIN users created_user ON created_user.id = s.created_by
       LEFT JOIN users modified_user ON modified_user.id = s.modified_by
       LEFT JOIN users reviewed_user ON reviewed_user.id = s.reviewed_by
@@ -535,11 +535,11 @@ router.get('/attendance', async (req, res) => {
     const params = []
     if (from) {
       params.push(from)
-      sql += ` AND (s.clock_in AT TIME ZONE 'UTC')::date >= $${params.length}::date`
+      sql += ` AND (s.clock_in AT TIME ZONE 'America/Santo_Domingo')::date >= $${params.length}::date`
     }
     if (to) {
       params.push(to)
-      sql += ` AND (s.clock_in AT TIME ZONE 'UTC')::date <= $${params.length}::date`
+      sql += ` AND (s.clock_in AT TIME ZONE 'America/Santo_Domingo')::date <= $${params.length}::date`
     }
     if (search && String(search).trim()) {
       params.push(`%${String(search).trim()}%`)
@@ -766,7 +766,7 @@ router.patch('/attendance/:sessionId', async (req, res) => {
     // Re-fetch the updated record with joins
     const updated = await query(
       `SELECT s.id AS session_id, u.id AS user_id, u.name AS user_name,
-              (s.clock_in AT TIME ZONE 'UTC')::date AS date,
+              (s.clock_in AT TIME ZONE 'America/Santo_Domingo')::date AS date,
               s.clock_in AS first_clock_in, s.clock_out AS last_clock_out,
               COALESCE(s.regular_minutes, 0)::int AS regular_minutes,
               COALESCE(s.overtime_minutes, 0)::int AS overtime_minutes,
@@ -872,7 +872,7 @@ router.post('/attendance', async (req, res) => {
     // Re-fetch with joins (same as PATCH endpoint)
     const full = await query(
       `SELECT s.id AS session_id, u.id AS user_id, u.name AS user_name,
-              (s.clock_in AT TIME ZONE 'UTC')::date AS date,
+              (s.clock_in AT TIME ZONE 'America/Santo_Domingo')::date AS date,
               s.clock_in AS first_clock_in, s.clock_out AS last_clock_out,
               COALESCE(s.regular_minutes, 0)::int AS regular_minutes,
               COALESCE(s.overtime_minutes, 0)::int AS overtime_minutes,
@@ -954,8 +954,8 @@ router.get('/attendance/needs-review', async (req, res) => {
        JOIN users u ON u.id = s.user_id AND u.role = 'employee'
        WHERE s.reviewed = FALSE
          AND s.clock_out IS NOT NULL
-         AND (s.clock_in AT TIME ZONE 'UTC')::date >= $1::date
-         AND (s.clock_in AT TIME ZONE 'UTC')::date <= $2::date`,
+         AND (s.clock_in AT TIME ZONE 'America/Santo_Domingo')::date >= $1::date
+         AND (s.clock_in AT TIME ZONE 'America/Santo_Domingo')::date <= $2::date`,
       [fromDate, toDate],
     )
     res.json({ needsReview: Number(r.rows[0]?.n || 0) })
@@ -2351,8 +2351,8 @@ router.get('/reports/summary', async (req, res) => {
        FROM sessions s
        JOIN users u ON u.id = s.user_id AND u.role = 'employee'
        WHERE s.clock_out IS NOT NULL
-         AND (s.clock_in AT TIME ZONE 'UTC')::date >= $1::date
-         AND (s.clock_in AT TIME ZONE 'UTC')::date <= $2::date`,
+         AND (s.clock_in AT TIME ZONE 'America/Santo_Domingo')::date >= $1::date
+         AND (s.clock_in AT TIME ZONE 'America/Santo_Domingo')::date <= $2::date`,
       [fromDate, toDate]
     )
     const row = result.rows[0]
@@ -2452,7 +2452,12 @@ router.post('/employees', requireAdmin, async (req, res) => {
     const { name, email, password, salaryType, baseSalary,
             cmid, contractType, hireDate, location, department,
             primaryClientId, jobTitle, reportsTo, contractStatus, terminationDate,
-            shiftGroup, accessLevel, accessEnabled } = req.body
+            shiftGroup, accessLevel, accessEnabled,
+            // 03JUN2026 video feedback: these fields were sent by the form
+            // but the INSERT was missing them, so first-save dropped them.
+            bank, bankAccount, governmentId, gender, dateOfBirth,
+            personalEmail, companyEmail, homePhone, mobilePhone,
+            terminationReason } = req.body
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     if (!name || String(name).trim() === '') {
       return res.status(400).json({ error: 'Validation failed', message: 'Name is required' })
@@ -2485,11 +2490,37 @@ router.post('/employees', requireAdmin, async (req, res) => {
     const cmidVal = cmid != null && Number.isInteger(Number(cmid)) ? Number(cmid) : null
     const harmonyIdVal = cmidVal != null ? `CMX-${String(cmidVal).padStart(5, '0')}` : null
     const termDateVal = contractStatusVal === 'terminated' && terminationDate ? terminationDate : null
+    // 03JUN2026 video: persist all personal-detail fields on first save
+    // (bank/contact/identity/DOB/gender/termination_reason). Same fields are
+    // already accepted by PATCH; bringing POST in line so admins don't have
+    // to immediately re-edit to make their input stick.
+    const termReasonVal = (contractStatusVal === 'terminated' || contractStatusVal === 'prenotice') && terminationReason ? terminationReason : null
     await query(
-      `INSERT INTO employees (user_id, salary_type, base_salary, cmid, harmony_id, contract_type, hire_date, location, department, primary_client_id, job_title, reports_to, contract_status, termination_date, shift_group)
-       VALUES ($1, $2, $3, $4, $5, $6, $7::date, $8, $9, $10::uuid, $11, $12::uuid, $13, $14::date, $15)
-       ON CONFLICT (user_id) DO UPDATE SET salary_type = $2, base_salary = $3, cmid = $4, harmony_id = $5, contract_type = $6, hire_date = $7::date, location = $8, department = $9, primary_client_id = $10::uuid, job_title = $11, reports_to = $12::uuid, contract_status = $13, termination_date = $14::date, shift_group = $15, updated_at = NOW()`,
-      [u.id, st, sal, cmidVal, harmonyIdVal, contractTypeVal, hireDate || null, location || null, department || null, primaryClientId || null, jobTitle || null, reportsTo || null, contractStatusVal, termDateVal, shiftGroup || null]
+      `INSERT INTO employees (user_id, salary_type, base_salary, cmid, harmony_id,
+                              contract_type, hire_date, location, department,
+                              primary_client_id, job_title, reports_to,
+                              contract_status, termination_date, shift_group,
+                              bank, bank_account, government_id, gender,
+                              date_of_birth, personal_email, company_email,
+                              home_phone, mobile_phone, termination_reason)
+       VALUES ($1, $2, $3, $4, $5, $6, $7::date, $8, $9, $10::uuid, $11, $12::uuid,
+               $13, $14::date, $15, $16, $17, $18, $19, $20::date, $21, $22, $23, $24, $25)
+       ON CONFLICT (user_id) DO UPDATE SET
+         salary_type = $2, base_salary = $3, cmid = $4, harmony_id = $5,
+         contract_type = $6, hire_date = $7::date, location = $8, department = $9,
+         primary_client_id = $10::uuid, job_title = $11, reports_to = $12::uuid,
+         contract_status = $13, termination_date = $14::date, shift_group = $15,
+         bank = $16, bank_account = $17, government_id = $18, gender = $19,
+         date_of_birth = $20::date, personal_email = $21, company_email = $22,
+         home_phone = $23, mobile_phone = $24, termination_reason = $25,
+         updated_at = NOW()`,
+      [u.id, st, sal, cmidVal, harmonyIdVal, contractTypeVal, hireDate || null,
+       location || null, department || null, primaryClientId || null,
+       jobTitle || null, reportsTo || null, contractStatusVal, termDateVal,
+       shiftGroup || null,
+       bank || null, bankAccount || null, governmentId || null, gender || null,
+       dateOfBirth || null, personalEmail || null, companyEmail || null,
+       homePhone || null, mobilePhone || null, termReasonVal]
     )
     const created = await query(
       `SELECT u.id, u.name, u.email, u.role,
@@ -2500,6 +2531,10 @@ router.post('/employees', requireAdmin, async (req, res) => {
               e.cmid, e.harmony_id, e.contract_type, e.hire_date::text AS hire_date,
               e.location, e.department, e.shift_group, e.primary_client_id, e.job_title,
               e.reports_to, e.contract_status, e.termination_date::text AS termination_date,
+              e.bank, e.bank_account, e.government_id, e.gender,
+              e.date_of_birth::text AS date_of_birth,
+              e.personal_email, e.company_email, e.home_phone, e.mobile_phone,
+              e.termination_reason,
               c.name AS primary_client_name,
               mgr.name AS reports_to_name
        FROM users u
@@ -2533,6 +2568,18 @@ router.post('/employees', requireAdmin, async (req, res) => {
       reportsToName: row.reports_to_name || null,
       contractStatus: row.contract_status || 'active',
       terminationDate: row.termination_date?.slice(0, 10) ?? null,
+      // 03JUN2026 — round out the response with the personal-detail fields
+      // so the form rehydrates exactly what the admin typed on first save.
+      bank: row.bank || null,
+      bankAccount: row.bank_account || null,
+      governmentId: row.government_id || null,
+      gender: row.gender || null,
+      dateOfBirth: row.date_of_birth?.slice(0, 10) ?? null,
+      personalEmail: row.personal_email || null,
+      companyEmail: row.company_email || null,
+      homePhone: row.home_phone || null,
+      mobilePhone: row.mobile_phone || null,
+      terminationReason: row.termination_reason || null,
     })
   } catch (err) {
     console.error('Admin create employee error:', err)
@@ -3280,7 +3327,7 @@ router.post('/schedule/bulk-assign', async (req, res) => {
           const dupe = await query(
             `SELECT id FROM sessions
              WHERE user_id = $1
-               AND (clock_in AT TIME ZONE 'UTC')::date = $2::date
+               AND (clock_in AT TIME ZONE 'America/Santo_Domingo')::date = $2::date
              LIMIT 1`,
             [userId, date],
           )
@@ -3292,9 +3339,15 @@ router.post('/schedule/bulk-assign', async (req, res) => {
                  account_override,
                  is_scheduled, is_manual,
                  created_by, created_on
-               ) VALUES ($1, (($2::date || ' ' || $3::text)::timestamp AT TIME ZONE 'UTC'), NULL,
-                          (($2::date || ' ' || $3::text)::timestamp AT TIME ZONE 'UTC'),
-                          (($2::date || ' ' || $4::text)::timestamp AT TIME ZONE 'UTC'),
+               )
+               -- 03JUN2026 video feedback: clock_in stays NULL for a scheduled
+               -- placeholder (the agent clocks in manually). shift_start /
+               -- shift_end carry the planned times. Interpret entered "HH:MM"
+               -- as Atlantic time (UTC-4, no DST) so the value the admin typed
+               -- is what they see back — Orlando's "universal UTC-4" ask.
+               VALUES ($1, NULL, NULL,
+                          (($2::date || ' ' || $3::text)::timestamp AT TIME ZONE 'America/Santo_Domingo'),
+                          (($2::date || ' ' || $4::text)::timestamp AT TIME ZONE 'America/Santo_Domingo'),
                           $5, TRUE, TRUE, $6, NOW())`,
               [userId, date, sStart, sEnd, clientId, req.user?.id || null],
             )

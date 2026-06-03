@@ -104,6 +104,11 @@ try {
     // Pre-populated from scheduler bulk-assign (no clock in/out yet). Lets the
     // attendance module surface upcoming shifts that need normalization.
     await pool.query(`ALTER TABLE sessions ADD COLUMN IF NOT EXISTS is_scheduled BOOLEAN NOT NULL DEFAULT FALSE`)
+    // 03JUN2026 client video feedback: admin must be able to clear clock_in
+    // on a pre-populated scheduled row (so the agent clocks in manually).
+    // clock_in NOT NULL was making the PATCH silently fail. Drop the constraint
+    // and keep the column nullable; the schema is otherwise unchanged.
+    await pool.query(`ALTER TABLE sessions ALTER COLUMN clock_in DROP NOT NULL`).catch(() => {/* already nullable */})
   } catch (e) {
     if (e.code !== '42701') console.warn('sessions attendance columns migration:', e.message)
   }

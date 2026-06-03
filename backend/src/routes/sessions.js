@@ -381,7 +381,7 @@ router.get('/my-attendance', async (req, res) => {
         s.id AS session_id,
         u.id AS user_id,
         u.name AS user_name,
-        (s.clock_in AT TIME ZONE 'UTC')::date AS date,
+        (s.clock_in AT TIME ZONE 'America/Santo_Domingo')::date AS date,
         s.clock_in AS first_clock_in,
         s.clock_out AS last_clock_out,
         COALESCE(s.regular_minutes, 0)::int AS regular_minutes,
@@ -415,10 +415,10 @@ router.get('/my-attendance', async (req, res) => {
         e.cmid AS employee_cmid,
         s.is_locked,
         CASE WHEN sh.start_time IS NOT NULL THEN
-          (((s.clock_in AT TIME ZONE 'UTC')::date || 'T' || COALESCE(sa_shift.override_start, sh.start_time)::text)::timestamp AT TIME ZONE 'UTC')
+          (((s.clock_in AT TIME ZONE 'America/Santo_Domingo')::date || 'T' || COALESCE(sa_shift.override_start, sh.start_time)::text)::timestamp AT TIME ZONE 'America/Santo_Domingo')
         ELSE NULL END AS dynamic_shift_start,
         CASE WHEN sh.end_time IS NOT NULL THEN
-          (((s.clock_in AT TIME ZONE 'UTC')::date || 'T' || COALESCE(sa_shift.override_end, sh.end_time)::text)::timestamp AT TIME ZONE 'UTC')
+          (((s.clock_in AT TIME ZONE 'America/Santo_Domingo')::date || 'T' || COALESCE(sa_shift.override_end, sh.end_time)::text)::timestamp AT TIME ZONE 'America/Santo_Domingo')
         ELSE NULL END AS dynamic_shift_end,
         h.name AS dynamic_holiday_name
       FROM sessions s
@@ -431,21 +431,21 @@ router.get('/my-attendance', async (req, res) => {
                a.override_start_time AS override_start,
                a.override_end_time AS override_end
         FROM schedule_assignments a
-        WHERE a.user_id = u.id AND a.date = (s.clock_in AT TIME ZONE 'UTC')::date
+        WHERE a.user_id = u.id AND a.date = (s.clock_in AT TIME ZONE 'America/Santo_Domingo')::date
         LIMIT 1
       ) sa_shift ON true
       LEFT JOIN shifts sh ON sh.id = sa_shift.shift_id
-      LEFT JOIN holidays h ON h.holiday_date = (s.clock_in AT TIME ZONE 'UTC')::date AND h.is_paid = TRUE
+      LEFT JOIN holidays h ON h.holiday_date = (s.clock_in AT TIME ZONE 'America/Santo_Domingo')::date AND h.is_paid = TRUE
       WHERE s.user_id = $1
     `
     const params = [userId]
     if (from) {
       params.push(from)
-      sql += ` AND (s.clock_in AT TIME ZONE 'UTC')::date >= $${params.length}::date`
+      sql += ` AND (s.clock_in AT TIME ZONE 'America/Santo_Domingo')::date >= $${params.length}::date`
     }
     if (to) {
       params.push(to)
-      sql += ` AND (s.clock_in AT TIME ZONE 'UTC')::date <= $${params.length}::date`
+      sql += ` AND (s.clock_in AT TIME ZONE 'America/Santo_Domingo')::date <= $${params.length}::date`
     }
     sql += `
       ORDER BY date DESC, s.clock_in DESC

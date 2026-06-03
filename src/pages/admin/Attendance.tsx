@@ -112,54 +112,13 @@ const statusColors: Record<string, string> = {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function fmtTime(dateStr: string | null | undefined): string {
-  if (!dateStr) return ''
-  try {
-    return format(new Date(dateStr), 'HH:mm')
-  } catch {
-    return ''
-  }
-}
-
-function fmtDateTime(dateStr: string | null | undefined): string {
-  if (!dateStr) return ''
-  try {
-    return format(new Date(dateStr), 'MM/dd HH:mm')
-  } catch {
-    return ''
-  }
-}
-
-
-function toDateTimeLocal(dateStr: string | null | undefined): string {
-  // Convert ISO string to YYYY-MM-DDTHH:MM for <input type="datetime-local">
-  if (!dateStr) return ''
-  try {
-    const d = new Date(dateStr)
-    const offset = d.getTimezoneOffset() * 60000
-    return new Date(d.getTime() - offset).toISOString().slice(0, 16)
-  } catch {
-    return ''
-  }
-}
-
-function fromDateTimeLocal(val: string): string | null {
-  // Convert local datetime string back to ISO
-  if (!val) return null
-  try {
-    return new Date(val).toISOString()
-  } catch {
-    return null
-  }
-}
+// 03JUN2026 — all time formatting goes through the shared AST 12-hour helpers
+// so Attendance matches every other screen (universal UTC-4, hh:mm AM/PM).
+import { fmtTime, fmtDateTime, toDateTimeLocal, fromDateTimeLocal, fmtDateISO, fmtFullDateTime } from '@/lib/timeFormat'
 
 function fmtDate(dateStr: string | null | undefined): string {
-  if (!dateStr) return ''
-  try {
-    return format(new Date(dateStr), 'yyyy-MM-dd')
-  } catch {
-    return dateStr ?? ''
-  }
+  // AST-anchored ISO date — keeps the row's date column matching the AST clock_in.
+  return fmtDateISO(dateStr) || (dateStr ?? '')
 }
 
 function fmtHours(val: number | null | undefined): string {
@@ -1239,7 +1198,7 @@ export default function AdminAttendance() {
                 </div>
                 <div>
                   <p className="font-semibold uppercase tracking-wider text-surface-400 dark:text-surface-500 mb-0.5">Created On</p>
-                  <p className="text-surface-800 dark:text-surface-100 tabular-nums">{detailRecord.createdOn ? new Date(detailRecord.createdOn).toLocaleString() : '—'}</p>
+                  <p className="text-surface-800 dark:text-surface-100 tabular-nums">{detailRecord.createdOn ? fmtFullDateTime(detailRecord.createdOn) : '—'}</p>
                 </div>
                 <div>
                   <p className="font-semibold uppercase tracking-wider text-surface-400 dark:text-surface-500 mb-0.5">Modified By</p>
@@ -1247,7 +1206,7 @@ export default function AdminAttendance() {
                 </div>
                 <div>
                   <p className="font-semibold uppercase tracking-wider text-surface-400 dark:text-surface-500 mb-0.5">Modified On</p>
-                  <p className="text-surface-800 dark:text-surface-100 tabular-nums">{detailRecord.modifiedOn ? new Date(detailRecord.modifiedOn).toLocaleString() : '—'}</p>
+                  <p className="text-surface-800 dark:text-surface-100 tabular-nums">{detailRecord.modifiedOn ? fmtFullDateTime(detailRecord.modifiedOn) : '—'}</p>
                 </div>
               </div>
             </div>

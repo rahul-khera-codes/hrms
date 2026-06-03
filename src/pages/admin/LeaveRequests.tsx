@@ -16,6 +16,8 @@ import {
   type EmployeeRecord,
   type PayrollPeriod,
 } from '@/lib/apiAdmin'
+// 03JUN2026 — audit-column timestamps in AST 12-hour format
+import { fmtFullDateTime } from '@/lib/timeFormat'
 import AdminSelect from '@/components/AdminSelect'
 import DocumentUpload from '@/components/DocumentUpload'
 import StagedDocumentUpload, { uploadStagedDocuments } from '@/components/StagedDocumentUpload'
@@ -1120,9 +1122,9 @@ export default function AdminLeaveRequests() {
                     </td>
                     {/* 22MAY2026 audit columns at end */}
                     <td className="px-2 py-1.5 text-xs text-surface-600 dark:text-surface-300 whitespace-nowrap">{r.createdByName ?? '-'}</td>
-                    <td className="px-2 py-1.5 text-xs text-surface-600 dark:text-surface-300 whitespace-nowrap tabular-nums">{r.createdOn ? new Date(r.createdOn).toLocaleString() : r.createdAt ? new Date(r.createdAt).toLocaleString() : '-'}</td>
+                    <td className="px-2 py-1.5 text-xs text-surface-600 dark:text-surface-300 whitespace-nowrap tabular-nums">{r.createdOn ? fmtFullDateTime(r.createdOn) : r.createdAt ? fmtFullDateTime(r.createdAt) : '-'}</td>
                     <td className="px-2 py-1.5 text-xs text-surface-600 dark:text-surface-300 whitespace-nowrap">{r.modifiedByName ?? '-'}</td>
-                    <td className="px-2 py-1.5 text-xs text-surface-600 dark:text-surface-300 whitespace-nowrap tabular-nums">{r.modifiedOn ? new Date(r.modifiedOn).toLocaleString() : '-'}</td>
+                    <td className="px-2 py-1.5 text-xs text-surface-600 dark:text-surface-300 whitespace-nowrap tabular-nums">{r.modifiedOn ? fmtFullDateTime(r.modifiedOn) : '-'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -1827,7 +1829,7 @@ export default function AdminLeaveRequests() {
                   </div>
                   <div>
                     <p className="font-semibold uppercase tracking-wider text-surface-400 dark:text-surface-500 mb-0.5">Created On</p>
-                    <p className="text-surface-800 dark:text-surface-100 tabular-nums">{reviewRow.createdOn ? new Date(reviewRow.createdOn).toLocaleString() : reviewRow.createdAt ? new Date(reviewRow.createdAt).toLocaleString() : '—'}</p>
+                    <p className="text-surface-800 dark:text-surface-100 tabular-nums">{reviewRow.createdOn ? fmtFullDateTime(reviewRow.createdOn) : reviewRow.createdAt ? fmtFullDateTime(reviewRow.createdAt) : '—'}</p>
                   </div>
                   <div>
                     <p className="font-semibold uppercase tracking-wider text-surface-400 dark:text-surface-500 mb-0.5">Modified By</p>
@@ -1835,7 +1837,7 @@ export default function AdminLeaveRequests() {
                   </div>
                   <div>
                     <p className="font-semibold uppercase tracking-wider text-surface-400 dark:text-surface-500 mb-0.5">Modified On</p>
-                    <p className="text-surface-800 dark:text-surface-100 tabular-nums">{reviewRow.modifiedOn ? new Date(reviewRow.modifiedOn).toLocaleString() : '—'}</p>
+                    <p className="text-surface-800 dark:text-surface-100 tabular-nums">{reviewRow.modifiedOn ? fmtFullDateTime(reviewRow.modifiedOn) : '—'}</p>
                   </div>
                 </div>
               )

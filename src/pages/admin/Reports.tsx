@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { format, subDays } from 'date-fns'
+// 03JUN2026 — clock-in/out times go through the AST 12-hour helper
+import { fmtTimeWithSeconds } from '@/lib/timeFormat'
 import { BarChart3, Download, Search, LayoutGrid, Table2, Clock, TrendingUp, Moon } from 'lucide-react'
 import { getAdminAttendance, getReportsSummary } from '@/lib/apiAdmin'
 import type { AttendanceRecord } from '@/types'
@@ -89,8 +91,8 @@ export default function AdminReports() {
       const rows = filteredAttendance.map((r) => [
         r.employeeName,
         r.date,
-        r.clockIn ? format(new Date(r.clockIn), 'HH:mm:ss') : '',
-        r.clockOut ? format(new Date(r.clockOut), 'HH:mm:ss') : '',
+        r.clockIn ? fmtTimeWithSeconds(r.clockIn) : '',
+        r.clockOut ? fmtTimeWithSeconds(r.clockOut) : '',
         formatDurationFromHours(r.regularHours),
         formatDurationFromHours(r.overtimeHours),
         formatDurationFromHours(r.nightHours),
@@ -277,10 +279,10 @@ export default function AdminReports() {
                     <td className="px-3 py-2.5 text-xs font-medium text-surface-900 dark:text-surface-50 whitespace-nowrap">{r.employeeName}</td>
                     <td className="px-3 py-2.5 text-xs text-surface-700 dark:text-surface-200 tabular-nums whitespace-nowrap">{r.date}</td>
                     <td className="px-3 py-2.5 text-xs font-mono text-surface-700 dark:text-surface-200 tabular-nums whitespace-nowrap">
-                      {r.clockIn ? format(new Date(r.clockIn), 'HH:mm:ss') : '-'}
+                      {r.clockIn ? fmtTimeWithSeconds(r.clockIn) : '-'}
                     </td>
                     <td className="px-3 py-2.5 text-xs font-mono text-surface-700 dark:text-surface-200 tabular-nums whitespace-nowrap">
-                      {r.clockOut ? format(new Date(r.clockOut), 'HH:mm:ss') : '-'}
+                      {r.clockOut ? fmtTimeWithSeconds(r.clockOut) : '-'}
                     </td>
                     <td className="px-3 py-2.5 text-xs font-mono text-surface-700 dark:text-surface-200 tabular-nums whitespace-nowrap text-right">
                       {formatDurationFromHours(r.regularHours + r.overtimeHours)}
