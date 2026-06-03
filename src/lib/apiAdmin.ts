@@ -887,6 +887,9 @@ export interface PayrollInput {
   exchangeRate: number | null
   inputAmount: number
   payrollCycleCode: string | null
+  // 02JUN2026 — optional bounds when payrollCycleCode === 'RECURRENT' (null = unbounded)
+  recurrentFromCycle?: string | null
+  recurrentToCycle?: string | null
   approverId: string | null
   approverName: string | null
   status: 'pending' | 'approved' | 'rejected'
@@ -918,6 +921,8 @@ export interface PayrollInputCreate {
   baseAmount?: number | null
   exchangeRate?: number | null
   payrollCycleCode?: string | null
+  recurrentFromCycle?: string | null
+  recurrentToCycle?: string | null
   approverId?: string | null
   status?: 'pending' | 'approved' | 'rejected'
   notes?: string | null

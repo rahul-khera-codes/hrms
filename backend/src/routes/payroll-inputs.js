@@ -79,6 +79,9 @@ function mapRow(r) {
     exchangeRate: r.exchange_rate != null ? Number(r.exchange_rate) : null,
     inputAmount: Number(r.input_amount) || 0,
     payrollCycleCode: r.payroll_cycle_code || null,
+    // 02JUN2026 — optional cycle range for RECURRENT inputs (null = unbounded)
+    recurrentFromCycle: r.recurrent_from_cycle || null,
+    recurrentToCycle: r.recurrent_to_cycle || null,
     approverId: r.approver_id || null,
     approverName: r.approver_name || null,
     status: r.status,
@@ -379,11 +382,18 @@ router.post('/', async (req, res) => {
       currency, baseAmount, exchangeRate,
       payrollCycleCode, approverId,
       status = 'pending', notes,
+      recurrentFromCycle, recurrentToCycle,
     } = req.body
 
     const inputAmount = computeInputAmount({
       payableHours, hourlyRate, hourlyMultiplier, baseAmount, exchangeRate,
     })
+
+    // 02JUN2026 — cycle bounds only meaningful when cycle is RECURRENT; ignore
+    // them otherwise so a stray value can't poison a one-off input.
+    const isRecurrent = payrollCycleCode === 'RECURRENT'
+    const fromCycle = isRecurrent ? (recurrentFromCycle || null) : null
+    const toCycle = isRecurrent ? (recurrentToCycle || null) : null
 
     const result = await query(
       `INSERT INTO payroll_inputs (
@@ -391,8 +401,9 @@ router.post('/', async (req, res) => {
          payable_hours, hourly_rate, hourly_multiplier,
          currency, base_amount, exchange_rate,
          input_amount, payroll_cycle_code, approver_id,
-         status, notes, created_by, created_on
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,NOW())
+         status, notes, created_by, created_on,
+         recurrent_from_cycle, recurrent_to_cycle
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,NOW(),$16,$17)
        RETURNING id`,
       [
         userId, inputType, calculationType,
@@ -400,6 +411,7 @@ router.post('/', async (req, res) => {
         currency || null, baseAmount ?? null, exchangeRate ?? null,
         inputAmount, payrollCycleCode || null, approverId || null,
         status, notes || null, req.user?.id || null,
+        fromCycle, toCycle,
       ]
     )
     const newId = result.rows[0].id
@@ -464,11 +476,24 @@ router.patch('/:id', async (req, res) => {
       payrollCycleCode: 'payroll_cycle_code',
       approverId: 'approver_id',
       notes: 'notes',
+      recurrentFromCycle: 'recurrent_from_cycle',
+      recurrentToCycle: 'recurrent_to_cycle',
     }
     for (const [k, col] of Object.entries(simpleFields)) {
       if (k in req.body) {
         updates.push(`${col} = $${i++}`)
         params.push(req.body[k] === '' ? null : req.body[k])
+      }
+    }
+    // 02JUN2026 — if the cycle is being changed away from RECURRENT, clear the
+    // bounds so they can't quietly survive on a non-recurrent input. The same
+    // happens when the cycle is unset entirely.
+    if ('payrollCycleCode' in req.body && req.body.payrollCycleCode !== 'RECURRENT') {
+      if (!('recurrentFromCycle' in req.body)) {
+        updates.push(`recurrent_from_cycle = NULL`)
+      }
+      if (!('recurrentToCycle' in req.body)) {
+        updates.push(`recurrent_to_cycle = NULL`)
       }
     }
     // Status transitions — set reviewed_by/reviewed_at automatically

@@ -60,6 +60,19 @@ function statusBadgeClass(bs: string): string {
   return 'badge-warning'
 }
 
+/**
+ * Compact label for a RECURRENT input's effective range — used in the list
+ * badge so admins can see at a glance whether the input runs forever or is
+ * bounded. Cycle codes are zero-padded YYYY-Pnn so a literal "→" is the
+ * clearest visual marker between them.
+ */
+function formatRecurrentLabel(from?: string | null, to?: string | null): string {
+  if (!from && !to) return 'Recurrent — every cycle'
+  if (from && to) return `Recurrent ${from} → ${to}`
+  if (from) return `Recurrent from ${from}`
+  return `Recurrent until ${to}`
+}
+
 // Cycle dropdown options come from the shared helper so the green-highlight
 // behavior is consistent everywhere — per 19MAY2026 client meeting.
 
@@ -501,7 +514,7 @@ export default function AdminPayrollInputs() {
                     <p className="mt-0.5">
                       <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300">
                         <span className="inline-block w-1.5 h-1.5 rounded-full bg-violet-500" />
-                        Recurrent — every cycle
+                        {formatRecurrentLabel(r.recurrentFromCycle, r.recurrentToCycle)}
                       </span>
                     </p>
                   ) : (
@@ -588,7 +601,7 @@ export default function AdminPayrollInputs() {
                         {r.payrollCycleCode === RECURRENT_CYCLE_CODE ? (
                           <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300">
                             <span className="inline-block w-1.5 h-1.5 rounded-full bg-violet-500" />
-                            Recurrent
+                            {formatRecurrentLabel(r.recurrentFromCycle, r.recurrentToCycle)}
                           </span>
                         ) : (
                           <span className="font-mono text-surface-700 dark:text-surface-200 tabular-nums">{r.payrollCycleCode ?? '-'}</span>
@@ -757,6 +770,11 @@ function PayrollInputModal({
   const [baseAmount, setBaseAmount] = useState(existing?.baseAmount != null ? String(existing.baseAmount) : '')
   const [exchangeRate, setExchangeRate] = useState(existing?.exchangeRate != null ? String(existing.exchangeRate) : '1')
   const [payrollCycleCode, setPayrollCycleCode] = useState(existing?.payrollCycleCode ?? '')
+  // 02JUN2026 — optional bounds for RECURRENT inputs ("from cycle X to cycle Y").
+  // Empty string = unbounded on that side.
+  const [recurrentFromCycle, setRecurrentFromCycle] = useState(existing?.recurrentFromCycle ?? '')
+  const [recurrentToCycle, setRecurrentToCycle] = useState(existing?.recurrentToCycle ?? '')
+  const isRecurrent = payrollCycleCode === RECURRENT_CYCLE_CODE
   const [approverId, setApproverId] = useState(existing?.approverId ?? '')
   const [payrollStatus, setPayrollStatus] = useState<ApproverStatus>(
     (existing?.status === 'approved' || existing?.status === 'rejected') ? existing.status : 'pending'
@@ -785,6 +803,9 @@ function PayrollInputModal({
     if (!inputType) { setError('Please select an input type.'); return }
     if (!payrollCycleCode) { setError('Please select a payroll cycle.'); return }
     if (!approverId) { setError('Please select an approver.'); return }
+    if (isRecurrent && recurrentFromCycle && recurrentToCycle && recurrentFromCycle > recurrentToCycle) {
+      setError('Recurrent "From cycle" must be on or before "To cycle".'); return
+    }
     setError(null)
     setSaving(true)
     try {
@@ -799,6 +820,12 @@ function PayrollInputModal({
         baseAmount: showBaseFields && baseAmount ? Number(baseAmount) : null,
         exchangeRate: showBaseFields && exchangeRate ? Number(exchangeRate) : null,
         payrollCycleCode: payrollCycleCode || null,
+        // Bounds are only persisted when the cycle is RECURRENT — sending the
+        // pair (even as null) on every save keeps the row aligned with the
+        // current selection (e.g., switching from RECURRENT back to a real
+        // cycle clears any stale bounds on the server).
+        recurrentFromCycle: isRecurrent ? (recurrentFromCycle || null) : null,
+        recurrentToCycle: isRecurrent ? (recurrentToCycle || null) : null,
         approverId: approverId || null,
         status: payrollStatusToBackend(payrollStatus),
         notes: notes || null,
@@ -977,6 +1004,12 @@ function PayrollInputModal({
                   ...buildCycleOptions(payrollPeriods),
                 ]}
               />
+              {isRecurrent && (
+                <p className="mt-1 text-[11px] text-violet-700 dark:text-violet-300">
+                  Included in every cycle's calculation while status = Approved.
+                  Set "From cycle" / "To cycle" below to bound the recurrence.
+                </p>
+              )}
             </div>
             <div>
               <label className="label">Approver *</label>
@@ -991,6 +1024,43 @@ function PayrollInputModal({
               />
             </div>
           </div>
+
+          {isRecurrent && (
+            <div className="rounded-xl border border-violet-200 dark:border-violet-800 bg-violet-50/50 dark:bg-violet-900/10 p-3">
+              <p className="text-[10px] font-semibold text-violet-700 dark:text-violet-300 uppercase tracking-wider mb-2">
+                Recurrence range (optional)
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="label">From cycle</label>
+                  <AdminSelect
+                    value={recurrentFromCycle}
+                    onChange={setRecurrentFromCycle}
+                    disabled={locked}
+                    options={[
+                      { value: '', label: 'Any (no start bound)' },
+                      ...buildCycleOptions(payrollPeriods),
+                    ]}
+                  />
+                </div>
+                <div>
+                  <label className="label">To cycle</label>
+                  <AdminSelect
+                    value={recurrentToCycle}
+                    onChange={setRecurrentToCycle}
+                    disabled={locked}
+                    options={[
+                      { value: '', label: 'Any (no end bound)' },
+                      ...buildCycleOptions(payrollPeriods),
+                    ]}
+                  />
+                </div>
+              </div>
+              <p className="mt-2 text-[11px] text-surface-500 dark:text-surface-400">
+                Leave both empty for "every cycle forever." Set one or both to limit the recurrence — e.g., From <span className="font-mono">2026-P10</span> To <span className="font-mono">2026-P15</span> pays for those 6 cycles only.
+              </p>
+            </div>
+          )}
 
           <div>
             <label className="label">Approval Status</label>

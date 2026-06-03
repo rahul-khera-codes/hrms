@@ -401,6 +401,11 @@ try {
     await pool.query(`ALTER TABLE payroll_inputs ADD COLUMN IF NOT EXISTS record_id VARCHAR(20) UNIQUE`)
     await pool.query(`UPDATE payroll_inputs SET record_id = 'PI-' || LPAD(NEXTVAL('payroll_inputs_record_seq')::text, 4, '0') WHERE record_id IS NULL`)
     await pool.query(`ALTER TABLE payroll_inputs ALTER COLUMN record_id SET DEFAULT 'PI-' || LPAD(NEXTVAL('payroll_inputs_record_seq')::text, 4, '0')`)
+    // 02JUN2026 client follow-up to the recurring-input feature: optional bounds
+    // so a recurrent input can be "from cycle X to cycle Y" instead of forever.
+    // Both NULL = unbounded (current "every cycle" behavior).
+    await pool.query(`ALTER TABLE payroll_inputs ADD COLUMN IF NOT EXISTS recurrent_from_cycle VARCHAR(20)`)
+    await pool.query(`ALTER TABLE payroll_inputs ADD COLUMN IF NOT EXISTS recurrent_to_cycle VARCHAR(20)`)
   } catch (e) {
     if (e.code !== '42701') console.warn('payroll_inputs audit columns migration:', e.message)
   }

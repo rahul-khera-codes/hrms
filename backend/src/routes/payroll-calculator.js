@@ -257,10 +257,21 @@ router.post('/calculate', async (req, res) => {
       // 31MAY2026 client voice note: include 'RECURRENT' cycle inputs in EVERY
       // cycle's calculation. An input with payroll_cycle_code='RECURRENT' stays
       // active until its status is changed away from 'approved' (or it's deleted).
+      // 02JUN2026 follow-up: recurrent inputs can optionally be bounded by
+      // recurrent_from_cycle / recurrent_to_cycle. Cycle codes are zero-padded
+      // (YYYY-Pnn) so lexicographic >= / <= compares correctly across years.
       const inputsRes = await query(`
         SELECT input_type, SUM(input_amount) as total, SUM(COALESCE(payable_hours,0)) as hours
         FROM payroll_inputs
-        WHERE user_id=$1 AND (payroll_cycle_code=$2 OR payroll_cycle_code='RECURRENT') AND status='approved'
+        WHERE user_id=$1 AND status='approved'
+          AND (
+            payroll_cycle_code = $2
+            OR (
+              payroll_cycle_code = 'RECURRENT'
+              AND (recurrent_from_cycle IS NULL OR $2 >= recurrent_from_cycle)
+              AND (recurrent_to_cycle IS NULL OR $2 <= recurrent_to_cycle)
+            )
+          )
         GROUP BY input_type
       `, [emp.id, cycleCode])
 
