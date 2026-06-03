@@ -80,7 +80,7 @@ function aggregatePayableHours(records: AttendanceRecord[]) {
 }
 
 // 03JUN2026 — universal AST 12-hour formatting via the shared helper.
-import { fmtTime as fmtTimeAST, fmtTimeWithSeconds } from '@/lib/timeFormat'
+import { fmtTime as fmtTimeAST, fmtTimeWithSeconds, fmtShiftTimeStr } from '@/lib/timeFormat'
 function fmtTime(isoStr: string | null | undefined): string {
   return fmtTimeAST(isoStr) || '--:--'
 }
@@ -326,11 +326,11 @@ export default function EmployeeDashboard() {
                 <div className="grid grid-cols-2 gap-2">
                   <div className="rounded-lg bg-surface-50 dark:bg-surface-900 border border-surface-100 dark:border-surface-800 py-2.5 px-3 text-center">
                     <p className="text-[10px] font-semibold text-surface-400 dark:text-surface-500 uppercase tracking-wider">Shift Start</p>
-                    <p className="text-lg font-bold tabular-nums text-surface-800 dark:text-surface-100 mt-0.5">{todaySchedule.startTime || '--:--'}</p>
+                    <p className="text-lg font-bold tabular-nums text-surface-800 dark:text-surface-100 mt-0.5">{fmtShiftTimeStr(todaySchedule.startTime) || '--:--'}</p>
                   </div>
                   <div className="rounded-lg bg-surface-50 dark:bg-surface-900 border border-surface-100 dark:border-surface-800 py-2.5 px-3 text-center">
                     <p className="text-[10px] font-semibold text-surface-400 dark:text-surface-500 uppercase tracking-wider">Shift End</p>
-                    <p className="text-lg font-bold tabular-nums text-surface-800 dark:text-surface-100 mt-0.5">{todaySchedule.endTime || '--:--'}</p>
+                    <p className="text-lg font-bold tabular-nums text-surface-800 dark:text-surface-100 mt-0.5">{fmtShiftTimeStr(todaySchedule.endTime) || '--:--'}</p>
                   </div>
                   <div className="rounded-lg bg-blue-50 border border-blue-100 py-2.5 px-3 text-center">
                     <p className="text-[10px] font-semibold text-blue-400 uppercase tracking-wider">Clock In</p>
@@ -464,7 +464,7 @@ export default function EmployeeDashboard() {
                   <p className="text-[11px] text-surface-500 dark:text-surface-400 dark:text-surface-500 truncate">{s.clientName}</p>
                 </div>
                 <div className="text-right shrink-0">
-                  <p className="text-xs font-mono tabular-nums text-surface-800 dark:text-surface-100">{String(s.startTime).slice(0, 5)}–{String(s.endTime).slice(0, 5)}</p>
+                  <p className="text-xs font-mono tabular-nums text-surface-800 dark:text-surface-100">{fmtShiftTimeStr(s.startTime)}–{fmtShiftTimeStr(s.endTime)}</p>
                   <p className="text-[10px] text-surface-400 dark:text-surface-500">{s.date ? format(new Date(s.date), 'EEE') : ''}</p>
                 </div>
               </li>

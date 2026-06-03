@@ -5,12 +5,12 @@ import { getShifts, getClients, createShift, updateShift, deleteShift, type Shif
 import AdminSelect from '@/components/AdminSelect'
 import { PageHeader } from '@/components/PageHeader'
 import { SkeletonTableRows } from '@/components/Skeleton'
+// 03JUN2026 — 12-hour AST display for shift TIME strings
+import { fmtShiftTimeStr } from '@/lib/timeFormat'
 
 function formatTime(t: string) {
   if (!t) return '—'
-  const s = String(t)
-  if (s.length >= 5) return s.slice(0, 5)
-  return s
+  return fmtShiftTimeStr(t)
 }
 
 // 21MAY2026 client video + WhatsApp follow-up: exact 8-zone US list in the

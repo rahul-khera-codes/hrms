@@ -26,6 +26,8 @@ import {
 } from '@/lib/apiAdmin'
 import AdminSelect from '@/components/AdminSelect'
 import { addDays, format } from 'date-fns'
+// 03JUN2026 — 12-hour AST display for shift TIME strings
+import { fmtShiftTimeStr } from '@/lib/timeFormat'
 
 const EMPLOYEES_PER_PAGE = 10
 
@@ -50,9 +52,9 @@ function normalizeTimeInput(value: string) {
 }
 
 function formatShiftTimeRange(start?: string | null, end?: string | null) {
-  const s = start ? String(start).slice(0, 5) : '—'
-  const e = end ? String(end).slice(0, 5) : '—'
-  return `${s}-${e}`
+  const s = start ? fmtShiftTimeStr(start) : '—'
+  const e = end ? fmtShiftTimeStr(end) : '—'
+  return `${s}–${e}`
 }
 
 export default function AdminEmployees() {

@@ -17,7 +17,7 @@ import {
   type PayrollPeriod,
 } from '@/lib/apiAdmin'
 // 03JUN2026 — audit-column timestamps in AST 12-hour format
-import { fmtFullDateTime } from '@/lib/timeFormat'
+import { fmtFullDateTime, fmtShiftTimeStr } from '@/lib/timeFormat'
 import AdminSelect from '@/components/AdminSelect'
 import DocumentUpload from '@/components/DocumentUpload'
 import StagedDocumentUpload, { uploadStagedDocuments } from '@/components/StagedDocumentUpload'
@@ -1100,10 +1100,10 @@ export default function AdminLeaveRequests() {
                     <td className="px-2 py-1.5 text-xs text-surface-700 dark:text-surface-200 whitespace-nowrap">
                       {r.leaveCalculationType === 'non_payable' ? 'Non Payable' : r.leaveCalculationType === 'hourly_salary' ? 'Hourly Salary' : r.leaveCalculationType === 'monthly_salary' ? 'Monthly Salary' : '-'}
                     </td>
-                    <td className="px-2 py-1.5 text-xs font-mono text-surface-700 dark:text-surface-200 tabular-nums whitespace-nowrap">{r.startDate ?? ''}{r.startTime ? ` ${r.startTime}` : ''}</td>
-                    <td className="px-2 py-1.5 text-xs font-mono text-surface-700 dark:text-surface-200 tabular-nums whitespace-nowrap">{r.endDate ?? ''}{r.endTime ? ` ${r.endTime}` : ''}</td>
+                    <td className="px-2 py-1.5 text-xs font-mono text-surface-700 dark:text-surface-200 tabular-nums whitespace-nowrap">{r.startDate ?? ''}{r.startTime ? ` ${fmtShiftTimeStr(r.startTime)}` : ''}</td>
+                    <td className="px-2 py-1.5 text-xs font-mono text-surface-700 dark:text-surface-200 tabular-nums whitespace-nowrap">{r.endDate ?? ''}{r.endTime ? ` ${fmtShiftTimeStr(r.endTime)}` : ''}</td>
                     <td className="px-2 py-1.5 text-xs text-surface-700 dark:text-surface-200 whitespace-nowrap">{r.leaveAssociateDaysOff ?? '-'}</td>
-                    <td className="px-2 py-1.5 text-xs font-mono text-surface-700 dark:text-surface-200 tabular-nums whitespace-nowrap">{r.returnDate ?? ''}{r.returnTime ? ` ${r.returnTime}` : ''}</td>
+                    <td className="px-2 py-1.5 text-xs font-mono text-surface-700 dark:text-surface-200 tabular-nums whitespace-nowrap">{r.returnDate ?? ''}{r.returnTime ? ` ${fmtShiftTimeStr(r.returnTime)}` : ''}</td>
                     <td className="px-2 py-1.5 text-xs text-surface-700 dark:text-surface-200 tabular-nums whitespace-nowrap text-right">{r.leavePayableDays != null ? r.leavePayableDays : '-'}</td>
                     <td className="px-2 py-1.5 text-xs text-surface-700 dark:text-surface-200 tabular-nums whitespace-nowrap text-right font-medium">{r.dailySalary != null ? `$${r.dailySalary.toFixed(2)}` : '-'}</td>
                     <td className={`px-2 py-1.5 text-xs tabular-nums whitespace-nowrap text-right font-semibold ${r.leavePayableAmount != null && r.leavePayableAmount > 0 ? 'text-brand-700' : 'text-surface-400 dark:text-surface-500'}`}>
@@ -1935,9 +1935,9 @@ export default function AdminLeaveRequests() {
                   <div className="col-span-2 sm:col-span-3">
                     <p className="label">Period</p>
                     <p className="font-medium text-surface-900 dark:text-surface-50 tabular-nums mt-0.5">
-                      {detailRow.startDate ?? '-'}{detailRow.startTime ? ` ${detailRow.startTime}` : ''}
+                      {detailRow.startDate ?? '-'}{detailRow.startTime ? ` ${fmtShiftTimeStr(detailRow.startTime)}` : ''}
                       <span className="text-surface-400 dark:text-surface-500 mx-1.5">&rarr;</span>
-                      {detailRow.endDate ?? '-'}{detailRow.endTime ? ` ${detailRow.endTime}` : ''}
+                      {detailRow.endDate ?? '-'}{detailRow.endTime ? ` ${fmtShiftTimeStr(detailRow.endTime)}` : ''}
                     </p>
                   </div>
                   {detailRow.returnDate && (

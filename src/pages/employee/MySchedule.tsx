@@ -6,11 +6,12 @@ import AdminSelect from '@/components/AdminSelect'
 import { PageHeader } from '@/components/PageHeader'
 import { SkeletonTableRows } from '@/components/Skeleton'
 import { buildCycleOptions } from '@/lib/cycleOptions'
+// 03JUN2026 — shift TIME strings ("08:00:00") rendered as AST 12-hour ("08:00 AM")
+import { fmtShiftTimeStr } from '@/lib/timeFormat'
 
 function formatTime(t: string) {
   if (!t) return '—'
-  const s = String(t)
-  return s.length >= 5 ? s.slice(0, 5) : s
+  return fmtShiftTimeStr(t)
 }
 
 export default function EmployeeMySchedule() {

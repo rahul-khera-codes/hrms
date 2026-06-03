@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { format, addDays } from 'date-fns'
 // 03JUN2026 — universal AST 12-hour formatting for the clock widget
-import { fmtTime as fmtTimeAST, fmtTimeWithSeconds } from '@/lib/timeFormat'
+import { fmtTime as fmtTimeAST, fmtTimeWithSeconds, fmtShiftTimeStr } from '@/lib/timeFormat'
 import { Briefcase, Play, Square, CalendarDays } from 'lucide-react'
 import {
   getActiveSession,
@@ -114,11 +114,11 @@ export function EmployeeClockWidget({ onChange }: { onChange?: () => void }) {
               <div className="grid grid-cols-2 gap-2">
                 <div className="rounded-lg bg-surface-50 dark:bg-surface-900 border border-surface-100 dark:border-surface-800 py-2.5 px-3 text-center">
                   <p className="label">Shift Start</p>
-                  <p className="text-lg font-bold tabular-nums text-surface-800 dark:text-surface-100 mt-0.5">{todaySchedule.startTime || '--:--'}</p>
+                  <p className="text-lg font-bold tabular-nums text-surface-800 dark:text-surface-100 mt-0.5">{fmtShiftTimeStr(todaySchedule.startTime) || '--:--'}</p>
                 </div>
                 <div className="rounded-lg bg-surface-50 dark:bg-surface-900 border border-surface-100 dark:border-surface-800 py-2.5 px-3 text-center">
                   <p className="label">Shift End</p>
-                  <p className="text-lg font-bold tabular-nums text-surface-800 dark:text-surface-100 mt-0.5">{todaySchedule.endTime || '--:--'}</p>
+                  <p className="text-lg font-bold tabular-nums text-surface-800 dark:text-surface-100 mt-0.5">{fmtShiftTimeStr(todaySchedule.endTime) || '--:--'}</p>
                 </div>
                 <div className="rounded-lg bg-blue-50 border border-blue-100 py-2.5 px-3 text-center">
                   <p className="label text-blue-400">Clock In</p>
@@ -242,7 +242,7 @@ export function EmployeeClockWidget({ onChange }: { onChange?: () => void }) {
                   {s.date ? format(new Date(s.date + 'T00:00:00'), 'EEE MMM d') : '—'}
                 </p>
                 <p className="text-xs font-semibold text-violet-700 mt-1">{s.shiftName}</p>
-                <p className="text-[11px] text-surface-600 dark:text-surface-300 mt-0.5">{s.startTime} – {s.endTime}</p>
+                <p className="text-[11px] text-surface-600 dark:text-surface-300 mt-0.5">{fmtShiftTimeStr(s.startTime)} – {fmtShiftTimeStr(s.endTime)}</p>
                 <p className="text-[11px] text-surface-500 dark:text-surface-400 dark:text-surface-500 truncate mt-0.5">{s.clientName}</p>
               </div>
             ))}

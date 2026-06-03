@@ -18,6 +18,8 @@ import {
   type WeeklyPatternEntry,
 } from '@/lib/apiAdmin'
 import { addDays, startOfWeek, format, parseISO } from 'date-fns'
+// 03JUN2026 — render shift TIME strings as AST 12-hour
+import { fmtShiftTimeStr } from '@/lib/timeFormat'
 import AdminSelect from '@/components/AdminSelect'
 import { PageHeader } from '@/components/PageHeader'
 
@@ -255,7 +257,7 @@ export default function AdminSchedule() {
         : `${activeDays.length} of 7 weekdays`
     } else if (paneShiftId) {
       const s = shifts.find((x) => x.id === paneShiftId)
-      if (s) shiftLabel = `${s.name} (${String(s.startTime).slice(0, 5)}–${String(s.endTime).slice(0, 5)})`
+      if (s) shiftLabel = `${s.name} (${fmtShiftTimeStr(s.startTime)}–${fmtShiftTimeStr(s.endTime)})`
     } else if (paneStart && paneEnd) {
       shiftLabel = `Custom ${paneStart}–${paneEnd}`
     }
@@ -594,7 +596,7 @@ export default function AdminSchedule() {
                     onChange={(v) => { setPaneShiftId(v); if (v) { setPaneStart(''); setPaneEnd('') } }}
                     options={[
                       { value: '', label: 'Custom times (no template)' },
-                      ...shifts.map((s) => ({ value: s.id, label: `${s.name} · ${String(s.startTime).slice(0, 5)}–${String(s.endTime).slice(0, 5)}` })),
+                      ...shifts.map((s) => ({ value: s.id, label: `${s.name} · ${fmtShiftTimeStr(s.startTime)}–${fmtShiftTimeStr(s.endTime)}` })),
                     ]}
                   />
                   {!paneShiftId && (
@@ -648,7 +650,7 @@ export default function AdminSchedule() {
                                 disabled={!row.enabled}
                                 options={[
                                   { value: '', label: 'Custom times' },
-                                  ...shifts.map((s) => ({ value: s.id, label: `${s.name} · ${String(s.startTime).slice(0, 5)}–${String(s.endTime).slice(0, 5)}` })),
+                                  ...shifts.map((s) => ({ value: s.id, label: `${s.name} · ${fmtShiftTimeStr(s.startTime)}–${fmtShiftTimeStr(s.endTime)}` })),
                                 ]}
                               />
                             </div>
