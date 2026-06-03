@@ -110,7 +110,9 @@ export default function AdminEmployees() {
     })
   }
   const [cmid, setCmid] = useState('')
-  const [contractType, setContractType] = useState<string>('employee')
+  // 03JUN2026 — default to a value that actually exists in the dropdown so
+  // the form opens with a selection instead of "Select…".
+  const [contractType, setContractType] = useState<string>('Employee (I)')
   const [hireDate, setHireDate] = useState('')
   const [location, setLocation] = useState('')
   const [department, setDepartment] = useState('')
@@ -568,7 +570,7 @@ export default function AdminEmployees() {
     setAssignmentEndTime(assignment ? String(assignment.shiftEnd).slice(0, 5) : '')
     setAssignmentDate(assignment?.date ?? format(new Date(), 'yyyy-MM-dd'))
     setCmid(emp.cmid != null ? String(emp.cmid) : '')
-    setContractType(emp.contractType || 'employee')
+    setContractType(emp.contractType || 'Employee (I)')
     setHireDate(emp.hireDate || '')
     setLocation(emp.location || '')
     setDepartment(emp.department || '')
@@ -1026,7 +1028,7 @@ export default function AdminEmployees() {
                   </p>
                   {emp.contractStatus && (
                     <p className="text-xs text-surface-500 dark:text-surface-400 dark:text-surface-500 mt-0.5">
-                      {emp.contractType === 'contractor' ? 'Contractor' : 'Employee'}
+                      {emp.contractType || 'Employee (I)'}
                       {emp.harmonyId ? ` · ${emp.harmonyId}` : ''}
                       {emp.location ? ` · ${emp.location}` : ''}
                       {emp.department ? ` · ${emp.department}` : ''}

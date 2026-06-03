@@ -2485,7 +2485,13 @@ router.post('/employees', requireAdmin, async (req, res) => {
       [String(email).trim().toLowerCase(), String(name).trim(), password_hash, roleVal, st, sal, accessLevelVal, accessEnabledVal]
     )
     const u = createdUser.rows[0]
-    const contractTypeVal = contractType === 'contractor' ? 'contractor' : 'employee'
+    // 03JUN2026 — store contract_type verbatim (matches the values the
+    // frontend dropdown actually offers: "Employee (I)", "Employee (T)",
+    // "Contractor"). Previously this normalized everything to lowercase
+    // 'employee'/'contractor', which silently dropped the (I)/(T)
+    // distinction and made the dropdown reopen on "Select…". PATCH already
+    // preserves the value as-is; POST now matches.
+    const contractTypeVal = contractType ? String(contractType).trim() : 'Employee (I)'
     const contractStatusVal = ['active', 'terminated', 'suspended'].includes(contractStatus) ? contractStatus : 'active'
     const cmidVal = cmid != null && Number.isInteger(Number(cmid)) ? Number(cmid) : null
     const harmonyIdVal = cmidVal != null ? `CMX-${String(cmidVal).padStart(5, '0')}` : null
