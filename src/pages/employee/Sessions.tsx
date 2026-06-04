@@ -14,18 +14,37 @@ import { EmployeeClockWidget } from '@/components/EmployeeClockWidget'
 // ---------------------------------------------------------------------------
 
 // Same scheme as admin Attendance — per 19MAY2026 client video
+// 03JUN2026 client spec — same 9 auto + 8 manual statuses as the admin page.
+// Keep this map in lockstep with src/pages/admin/Attendance.tsx so the badge
+// colors match across views.
 const statusColors: Record<string, string> = {
-  Present: 'bg-emerald-100 text-emerald-700',
-  Absent: 'bg-red-100 text-red-700',
+  // Auto-calculated
+  Blank: 'bg-surface-100 text-surface-500 dark:bg-surface-800 dark:text-surface-400',
+  Upcoming: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300',
+  'Missed In': 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+  Absent: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
+  Present: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
+  'Late In': 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+  'Early Out': 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+  'Late In + Early Out': 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+  'Missed Out': 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+  // Manual-only
+  'Time Off': 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300',
+  Vacation: 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300',
+  Leave: 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300',
+  'Shift Error': 'bg-surface-200 text-surface-700 dark:bg-surface-700 dark:text-surface-200',
+  'Technical Issue': 'bg-surface-200 text-surface-700 dark:bg-surface-700 dark:text-surface-200',
+  Suspended: 'bg-surface-200 text-surface-700 dark:bg-surface-700 dark:text-surface-200',
+  Terminated: 'bg-surface-200 text-surface-700 dark:bg-surface-700 dark:text-surface-200',
+  Prenotice: 'bg-surface-200 text-surface-700 dark:bg-surface-700 dark:text-surface-200',
+  Breastfeeding: 'bg-surface-200 text-surface-700 dark:bg-surface-700 dark:text-surface-200',
+  // Legacy fall-throughs (kept so old data still renders)
+  REVIEW: 'bg-indigo-100 text-indigo-700',
+  Review: 'bg-indigo-100 text-indigo-700',
   Late: 'bg-amber-100 text-amber-700',
   'Left Early': 'bg-amber-100 text-amber-700',
   'Late & Left Early': 'bg-amber-100 text-amber-700',
-  'Time Off': 'bg-sky-100 text-sky-700',
   'System Issues': 'bg-surface-200 text-surface-700 dark:text-surface-200',
-  Terminated: 'bg-surface-200 text-surface-700 dark:text-surface-200',
-  Prenotice: 'bg-surface-200 text-surface-700 dark:text-surface-200',
-  Breastfeeding: 'bg-surface-200 text-surface-700 dark:text-surface-200',
-  REVIEW: 'bg-indigo-100 text-indigo-700',
   present: 'bg-emerald-100 text-emerald-700',
   absent: 'bg-red-100 text-red-700',
   active: 'bg-amber-100 text-amber-700',
@@ -34,10 +53,7 @@ const statusColors: Record<string, string> = {
   late_in: 'bg-amber-100 text-amber-700',
   early_out: 'bg-amber-100 text-amber-700',
   late_in_early_out: 'bg-amber-100 text-amber-700',
-  'Late In': 'bg-amber-100 text-amber-700',
-  'Early Out': 'bg-amber-100 text-amber-700',
   'Late In-Early Out': 'bg-amber-100 text-amber-700',
-  Review: 'bg-indigo-100 text-indigo-700',
 }
 
 const CARD_COLORS: Record<string, { border: string; bg: string; label: string }> = {
@@ -146,12 +162,21 @@ export default function EmployeeSessions() {
 
   const summary = useMemo(() => {
     const total = records.length
+    // 03JUN2026 client spec — new status names: "Late In" / "Early Out" /
+    // "Late In + Early Out" / "Missed In" / "Missed Out". toLowerCase().includes
+    // matches both "late in" and the legacy "late" / "late & left early".
     const present = records.filter((r) => r.status.toLowerCase() === 'present').length
-    const absent = records.filter((r) => r.status.toLowerCase() === 'absent').length
+    const absent = records.filter((r) => r.status.toLowerCase() === 'absent' || r.status.toLowerCase() === 'missed in').length
     const late = records.filter((r) => r.status.toLowerCase().includes('late')).length
-    const leftEarly = records.filter((r) => r.status.toLowerCase().includes('left early')).length
-    const timeOff = records.filter((r) => r.status.toLowerCase() === 'time off').length
-    const systemIssues = records.filter((r) => r.status.toLowerCase() === 'system issues').length
+    const leftEarly = records.filter((r) => r.status.toLowerCase().includes('early out') || r.status.toLowerCase().includes('left early')).length
+    const timeOff = records.filter((r) => {
+      const s = r.status.toLowerCase()
+      return s === 'time off' || s === 'vacation' || s === 'leave'
+    }).length
+    const systemIssues = records.filter((r) => {
+      const s = r.status.toLowerCase()
+      return s === 'shift error' || s === 'technical issue' || s === 'system issues'
+    }).length
     const totalReg = records.reduce((a, r) => a + (r.regHours ?? 0), 0)
     const totalN15 = records.reduce((a, r) => a + (r.n15Hours ?? 0), 0)
     const totalX35 = records.reduce((a, r) => a + (r.x35Hours ?? 0), 0)

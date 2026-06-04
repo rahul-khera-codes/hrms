@@ -380,24 +380,28 @@ export default function AdminAttendance() {
 
   const summary = useMemo(() => {
     const total = records.length
-    const present = records.filter(
-      (r) => r.status.toLowerCase() === 'present',
-    ).length
-    const absent = records.filter(
-      (r) => r.status.toLowerCase() === 'absent',
-    ).length
-    const late = records.filter((r) =>
-      r.status.toLowerCase().includes('late'),
-    ).length
+    // 03JUN2026 client spec — bucket the 17 statuses into the 6 summary cards:
+    //   Present     = "Present"
+    //   Absent      = "Absent" + "Missed In"
+    //   Late        = anything with "late" (Late In / Late In + Early Out / legacy Late)
+    //   Left Early  = "Early Out" / "Late In + Early Out" / legacy "Left Early"
+    //   Time Off    = Time Off / Vacation / Leave
+    //   System Iss. = Shift Error / Technical Issue / legacy "System Issues"
+    const lc = (r: AttendanceRecord) => (r.status ?? '').toLowerCase()
+    const present = records.filter((r) => lc(r) === 'present').length
+    const absent = records.filter((r) => lc(r) === 'absent' || lc(r) === 'missed in').length
+    const late = records.filter((r) => lc(r).includes('late')).length
     const leftEarly = records.filter((r) =>
-      r.status.toLowerCase().includes('left early'),
+      lc(r).includes('early out') || lc(r).includes('left early'),
     ).length
-    const timeOff = records.filter(
-      (r) => r.status.toLowerCase() === 'time off',
-    ).length
-    const systemIssues = records.filter(
-      (r) => r.status.toLowerCase() === 'system issues',
-    ).length
+    const timeOff = records.filter((r) => {
+      const s = lc(r)
+      return s === 'time off' || s === 'vacation' || s === 'leave'
+    }).length
+    const systemIssues = records.filter((r) => {
+      const s = lc(r)
+      return s === 'shift error' || s === 'technical issue' || s === 'system issues'
+    }).length
     // Payable hours
     const totalReg = records.reduce((a, r) => a + (r.regHours ?? 0), 0)
     const totalN15 = records.reduce((a, r) => a + (r.n15Hours ?? 0), 0)
