@@ -5,6 +5,7 @@ import { createNotification } from './notifications.js'
 import { getSettings } from '../lib/payrollSettings.js'
 import { buildPayrollEmployeeRow } from '../lib/payrollEmployeeRow.js'
 import { renderPayrollSlipPdf } from '../lib/renderPayrollSlipPdf.js'
+import { computeAutoStatus, normalizeStatus } from '../lib/attendanceStatus.js'
 import { buildPaystubHTML } from './payroll-calculator.js'
 
 const router = express.Router()
@@ -94,32 +95,11 @@ function toMyAttendanceRecord(row) {
   const shiftStart = row.dynamic_shift_start || row.shift_start || null
   const shiftEnd = row.dynamic_shift_end || row.shift_end || null
 
-  // Same canonical title-case strings as the admin endpoint (per 19MAY2026 client video).
-  let autoStatus = hasActive ? 'active' : 'Present'
-  if (!hasActive && clockIn && shiftStart) {
-    const clockInMs = new Date(clockIn).getTime()
-    const shiftStartMs = new Date(shiftStart).getTime()
-    const shiftEndMs = shiftEnd ? new Date(shiftEnd).getTime() : null
-    const clockOutMs = clockOut ? new Date(clockOut).getTime() : null
-    const lateThreshold = 5 * 60 * 1000
-    const isLate = clockInMs - shiftStartMs > lateThreshold
-    const isEarlyOut = clockOutMs && shiftEndMs && (shiftEndMs - clockOutMs > lateThreshold)
-    if (isLate && isEarlyOut) autoStatus = 'Late & Left Early'
-    else if (isLate) autoStatus = 'Late'
-    else if (isEarlyOut) autoStatus = 'Left Early'
-  }
-  if (!clockIn && !hasActive) autoStatus = 'Absent'
-  const LEGACY_MAP = {
-    late_in_early_out: 'Late & Left Early',
-    late_in: 'Late',
-    early_out: 'Left Early',
-    present: 'Present',
-    absent: 'Absent',
-    time_off: 'Time Off',
-    system_issues: 'System Issues',
-  }
-  const rawOverride = row.status_override
-  const normalizedOverride = rawOverride && LEGACY_MAP[rawOverride] ? LEGACY_MAP[rawOverride] : rawOverride
+  // 03JUN2026 client spec — 9-state auto-calc via shared helper. Status
+  // evolves through the day (Upcoming → Missed In → Absent if no clock-in),
+  // and an admin override (status_override) always wins.
+  const autoStatus = computeAutoStatus({ shiftStart, shiftEnd, clockIn, clockOut })
+  const normalizedOverride = normalizeStatus(row.status_override)
   const status = normalizedOverride || autoStatus
 
   let scheduledHours = 0
@@ -194,6 +174,8 @@ function toMyAttendanceRecord(row) {
     reportsTo: row.reports_to_name || null,
     task: row.task || null,
     status,
+    autoStatus,
+    statusOverride: normalizedOverride || null,
     payType,
     scheduledHours: r2(scheduledHours),
     sdbtHours: r2(sdbtHours),

@@ -40,6 +40,11 @@ export interface AttendanceRecord {
   reportsToId?: string | null
   task?: string | null
   status: string
+  // 03JUN2026 client spec — separate auto-calc value (Blank/Upcoming/Missed In/
+  // Absent/Present/Late In/Early Out/Late In + Early Out/Missed Out) from any
+  // admin override. `status` is the resolved (override || auto) value.
+  autoStatus?: string
+  statusOverride?: string | null
   payType?: string
   billType?: string
   scheduledHours?: number

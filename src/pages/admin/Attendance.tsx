@@ -13,18 +13,35 @@ import { DetailModalHeader } from '@/components/DetailModalHeader'
 // Constants
 // ---------------------------------------------------------------------------
 
-const STATUS_OPTIONS = [
-  'Present',
+// 03JUN2026 client spec — 9 auto-calculated statuses + 8 manual-only.
+// Auto values are recomputed on every read from clock/shift comparisons
+// (see backend/src/lib/attendanceStatus.js). Manual values stick once an
+// admin picks them and can only be cleared via "(Auto)".
+const AUTO_STATUS_OPTIONS = [
+  'Blank',
+  'Upcoming',
+  'Missed In',
   'Absent',
-  'Late',
-  'Left Early',
-  'Late & Left Early',
+  'Present',
+  'Late In',
+  'Early Out',
+  'Late In + Early Out',
+  'Missed Out',
+] as const
+
+const MANUAL_STATUS_OPTIONS = [
   'Time Off',
-  'System Issues',
+  'Vacation',
+  'Shift Error',
+  'Technical Issue',
+  'Suspended',
   'Terminated',
   'Prenotice',
+  'Leave',
   'Breastfeeding',
 ] as const
+
+const STATUS_OPTIONS = [...AUTO_STATUS_OPTIONS, ...MANUAL_STATUS_OPTIONS] as const
 
 const PAY_OPTIONS = ['Regular', 'X35%', 'X100%', 'Holiday', 'DNP', 'Review'] as const
 const BILL_OPTIONS = ['Regular', 'Premium', 'DNB', 'Review'] as const
@@ -80,19 +97,38 @@ const TASK_OPTIONS = [
 // "Present this green, absent this red, late/left early/everything in between this orange,
 // Time off goes this color [sky]. And system issues, terminated, prenotice, breastfeeding,
 // you can have all of those in red as well. Or maybe just gray, I guess gray to avoid conflicts."
+// 03JUN2026 client spec colors. "Present this green, absent this red,
+// late/early/everything in between this orange, time off sky-blue, and the
+// other manual statuses (suspended, terminated, etc.) gray to avoid clashing."
+// Upcoming + Blank are passive states → neutral surface tones.
 const statusColors: Record<string, string> = {
-  Present: 'bg-emerald-100 text-emerald-700',
-  Absent: 'bg-red-100 text-red-700',
+  // Auto-calculated
+  Blank: 'bg-surface-100 text-surface-500 dark:bg-surface-800 dark:text-surface-400',
+  Upcoming: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300',
+  'Missed In': 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+  Absent: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
+  Present: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
+  'Late In': 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+  'Early Out': 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+  'Late In + Early Out': 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+  'Missed Out': 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+  // Manual-only
+  'Time Off': 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300',
+  Vacation: 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300',
+  Leave: 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300',
+  'Shift Error': 'bg-surface-200 text-surface-700 dark:bg-surface-700 dark:text-surface-200',
+  'Technical Issue': 'bg-surface-200 text-surface-700 dark:bg-surface-700 dark:text-surface-200',
+  Suspended: 'bg-surface-200 text-surface-700 dark:bg-surface-700 dark:text-surface-200',
+  Terminated: 'bg-surface-200 text-surface-700 dark:bg-surface-700 dark:text-surface-200',
+  Prenotice: 'bg-surface-200 text-surface-700 dark:bg-surface-700 dark:text-surface-200',
+  Breastfeeding: 'bg-surface-200 text-surface-700 dark:bg-surface-700 dark:text-surface-200',
+  // REVIEW + legacy fall-throughs (kept so old data still renders)
+  REVIEW: 'bg-indigo-100 text-indigo-700',
+  Review: 'bg-indigo-100 text-indigo-700',
   Late: 'bg-amber-100 text-amber-700',
   'Left Early': 'bg-amber-100 text-amber-700',
   'Late & Left Early': 'bg-amber-100 text-amber-700',
-  'Time Off': 'bg-sky-100 text-sky-700',
   'System Issues': 'bg-surface-200 text-surface-700 dark:text-surface-200',
-  Terminated: 'bg-surface-200 text-surface-700 dark:text-surface-200',
-  Prenotice: 'bg-surface-200 text-surface-700 dark:text-surface-200',
-  Breastfeeding: 'bg-surface-200 text-surface-700 dark:text-surface-200',
-  REVIEW: 'bg-indigo-100 text-indigo-700',
-  // Legacy lowercase mappings (backward compat with old data)
   present: 'bg-emerald-100 text-emerald-700',
   absent: 'bg-red-100 text-red-700',
   active: 'bg-amber-100 text-amber-700',
@@ -101,11 +137,7 @@ const statusColors: Record<string, string> = {
   late_in: 'bg-amber-100 text-amber-700',
   early_out: 'bg-amber-100 text-amber-700',
   late_in_early_out: 'bg-amber-100 text-amber-700',
-  // Legacy capitalized mappings
-  'Late In': 'bg-amber-100 text-amber-700',
-  'Early Out': 'bg-amber-100 text-amber-700',
   'Late In-Early Out': 'bg-amber-100 text-amber-700',
-  Review: 'bg-indigo-100 text-indigo-700',
 }
 
 // ---------------------------------------------------------------------------
@@ -776,14 +808,29 @@ export default function AdminAttendance() {
                       <td className="px-2 py-1.5 text-xs font-mono text-surface-700 dark:text-surface-200 tabular-nums whitespace-nowrap">
                         {fmtDateTime(r.clockOut)}
                       </td>
-                      {/* Status (editable) */}
+                      {/* Status (editable) — 03JUN2026 client spec: auto-calc
+                          shown when no override is set; admin can pick any
+                          status from either group, or "(Auto)" to clear an
+                          existing override. */}
                       <td className="px-2 py-1.5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                        <InlineSelect
-                          value={r.status}
-                          options={STATUS_OPTIONS}
-                          onChange={(v) => handleFieldUpdate(r, 'status', v)}
-                          colorMap={statusColors}
-                        />
+                        <select
+                          value={r.statusOverride ?? ''}
+                          onChange={(e) => handleFieldUpdate(r, 'status', e.target.value)}
+                          className={`text-xs bg-transparent border-0 outline-none cursor-pointer py-0 px-0 pr-4 rounded ${statusColors[r.status] ?? 'text-surface-700 dark:text-surface-200'} focus:ring-1 focus:ring-brand-300`}
+                          title={r.statusOverride ? `Override: ${r.statusOverride}` : `Auto: ${r.autoStatus ?? r.status}`}
+                        >
+                          <option value="">(Auto{r.autoStatus ? `: ${r.autoStatus}` : ''})</option>
+                          <optgroup label="Auto-calculated">
+                            {AUTO_STATUS_OPTIONS.map((opt) => (
+                              <option key={opt} value={opt}>{opt}</option>
+                            ))}
+                          </optgroup>
+                          <optgroup label="Manual">
+                            {MANUAL_STATUS_OPTIONS.map((opt) => (
+                              <option key={opt} value={opt}>{opt}</option>
+                            ))}
+                          </optgroup>
+                        </select>
                       </td>
                       {/* Pay (editable) */}
                       <td className="px-2 py-1.5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>

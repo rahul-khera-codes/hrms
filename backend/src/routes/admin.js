@@ -6,6 +6,7 @@ import { getSettings } from '../lib/payrollSettings.js'
 import { buildPayrollEmployeeRow, listDateStrings } from '../lib/payrollEmployeeRow.js'
 import { computeLeavePaySnapshot, countInclusiveCalendarDays } from '../lib/leavePayComputation.js'
 import { renderPayrollSlipPdf } from '../lib/renderPayrollSlipPdf.js'
+import { computeAutoStatus, normalizeStatus } from '../lib/attendanceStatus.js'
 import { createNotification } from './notifications.js'
 
 const router = express.Router()
@@ -47,37 +48,12 @@ function toAttendanceRecord(row) {
   const shiftStart = row.dynamic_shift_start || row.shift_start || null
   const shiftEnd = row.dynamic_shift_end || row.shift_end || null
 
-  // Auto-detect status from shift vs clock comparison.
-  // Output strings match the inline-edit dropdown options (STATUS_OPTIONS) so the
-  // badge colors and dropdown selection both work — per 19MAY2026 client video.
-  let autoStatus = hasActive ? 'active' : 'Present'
-  if (!hasActive && clockIn && shiftStart) {
-    const clockInMs = new Date(clockIn).getTime()
-    const shiftStartMs = new Date(shiftStart).getTime()
-    const shiftEndMs = shiftEnd ? new Date(shiftEnd).getTime() : null
-    const clockOutMs = clockOut ? new Date(clockOut).getTime() : null
-    const lateThreshold = 5 * 60 * 1000 // 5 minutes
-    const isLate = clockInMs - shiftStartMs > lateThreshold
-    const isEarlyOut = clockOutMs && shiftEndMs && (shiftEndMs - clockOutMs > lateThreshold)
-    if (isLate && isEarlyOut) autoStatus = 'Late & Left Early'
-    else if (isLate) autoStatus = 'Late'
-    else if (isEarlyOut) autoStatus = 'Left Early'
-  }
-  if (!clockIn && !hasActive) autoStatus = 'Absent'
-
-  // Backward-compat: normalize any legacy snake_case status_override values to the
-  // canonical title-case form expected by the dropdown.
-  const LEGACY_MAP = {
-    late_in_early_out: 'Late & Left Early',
-    late_in: 'Late',
-    early_out: 'Left Early',
-    present: 'Present',
-    absent: 'Absent',
-    time_off: 'Time Off',
-    system_issues: 'System Issues',
-  }
-  const rawOverride = row.status_override
-  const normalizedOverride = rawOverride && LEGACY_MAP[rawOverride] ? LEGACY_MAP[rawOverride] : rawOverride
+  // 03JUN2026 client spec — 9-state auto-calc lives in the shared helper.
+  // status_override (admin pick) wins if present; otherwise the auto value
+  // is recomputed on every read so the status evolves through the day
+  // (Upcoming → Missed In → Absent, etc.).
+  const autoStatus = computeAutoStatus({ shiftStart, shiftEnd, clockIn, clockOut })
+  const normalizedOverride = normalizeStatus(row.status_override)
   const status = normalizedOverride || autoStatus
 
   // --- SCH: Scheduled hours (ShiftEnd - ShiftStart) ---
@@ -234,6 +210,10 @@ function toAttendanceRecord(row) {
     reportsToId: row.reports_to_override || row.reports_to_id || null,
     task: row.task || null,
     status,
+    // 03JUN2026 client spec: expose both pieces so the UI can show whether
+    // the displayed status is auto-calculated or admin-overridden.
+    autoStatus,
+    statusOverride: normalizedOverride || null,
     payType,
     billType: row.bill_type || 'Regular',
     scheduledHours: r2(scheduledHours),
