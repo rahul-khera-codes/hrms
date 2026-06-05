@@ -16,8 +16,15 @@ const router = express.Router()
  * Dynamically calculates hour classification from session data + pay type + holiday.
  */
 function toAttendanceRecord(row) {
-  const clockIn = row.first_clock_in || row.clock_in
-  const clockOut = row.last_clock_out || row.clock_out
+  // 04JUN2026 client video — clock + shift fields have override columns now.
+  // Effective value = override ?? raw. We expose all three pieces so the UI
+  // can show a "Manually adjusted by X, click to reset" affordance.
+  const clockInRaw = row.first_clock_in || row.clock_in || null
+  const clockOutRaw = row.last_clock_out || row.clock_out || null
+  const clockInOverride = row.clock_in_override || null
+  const clockOutOverride = row.clock_out_override || null
+  const clockIn = clockInOverride || clockInRaw
+  const clockOut = clockOutOverride || clockOutRaw
   const hasActive = row.has_active_session
   const regularMinutes = Number(row.regular_minutes ?? 0)
   const overtimeMinutes = Number(row.overtime_minutes ?? 0)
@@ -44,9 +51,14 @@ function toAttendanceRecord(row) {
 
   const date = row.date ?? (clockIn ? new Date(clockIn).toISOString().slice(0, 10) : '')
 
-  // Use dynamic shift lookup (from schedule_assignments JOIN) or stored values
-  const shiftStart = row.dynamic_shift_start || row.shift_start || null
-  const shiftEnd = row.dynamic_shift_end || row.shift_end || null
+  // Use dynamic shift lookup (from schedule_assignments JOIN) or stored values,
+  // then apply admin override on top.
+  const shiftStartRaw = row.dynamic_shift_start || row.shift_start || null
+  const shiftEndRaw = row.dynamic_shift_end || row.shift_end || null
+  const shiftStartOverride = row.shift_start_override || null
+  const shiftEndOverride = row.shift_end_override || null
+  const shiftStart = shiftStartOverride || shiftStartRaw
+  const shiftEnd = shiftEndOverride || shiftEndRaw
 
   // 03JUN2026 client spec — 9-state auto-calc lives in the shared helper.
   // status_override (admin pick) wins if present; otherwise the auto value
@@ -214,6 +226,20 @@ function toAttendanceRecord(row) {
     // the displayed status is auto-calculated or admin-overridden.
     autoStatus,
     statusOverride: normalizedOverride || null,
+    // 04JUN2026 client video — per-field override so admins can see at a
+    // glance which values were manually adjusted (and click ↻ to reset).
+    clockInRaw,
+    clockInOverride,
+    clockInOverridden: clockInOverride != null,
+    clockOutRaw,
+    clockOutOverride,
+    clockOutOverridden: clockOutOverride != null,
+    shiftStartRaw,
+    shiftStartOverride,
+    shiftStartOverridden: shiftStartOverride != null,
+    shiftEndRaw,
+    shiftEndOverride,
+    shiftEndOverridden: shiftEndOverride != null,
     payType,
     billType: row.bill_type || 'Regular',
     scheduledHours: r2(scheduledHours),
@@ -449,6 +475,7 @@ router.get('/attendance', async (req, res) => {
         COALESCE(CASE WHEN s.clock_out IS NOT NULL THEN EXTRACT(EPOCH FROM (s.clock_out - s.clock_in)) / 60.0 ELSE 0 END, 0) AS precise_total_minutes,
         (s.clock_out IS NULL) AS has_active_session,
         s.shift_start, s.shift_end,
+              s.shift_start_override, s.shift_end_override, s.clock_in_override, s.clock_out_override,
         COALESCE(s.location, e.location) AS location,
         COALESCE(s.stage, 'Production') AS stage,
         s.task,
@@ -716,10 +743,15 @@ router.patch('/attendance/:sessionId', async (req, res) => {
     if (stage !== undefined) { updates.push(`stage = $${i++}`); params.push(stage || null) }
     if (location !== undefined) { updates.push(`location = $${i++}`); params.push(location || null) }
     if (comments !== undefined) { updates.push(`comments = $${i++}`); params.push(comments || null) }
-    if (shiftStart !== undefined) { updates.push(`shift_start = $${i++}`); params.push(shiftStart || null) }
-    if (shiftEnd !== undefined) { updates.push(`shift_end = $${i++}`); params.push(shiftEnd || null) }
-    if (clockIn !== undefined) { updates.push(`clock_in = $${i++}`); params.push(clockIn || null) }
-    if (clockOut !== undefined) { updates.push(`clock_out = $${i++}`); params.push(clockOut || null) }
+    // 04JUN2026 client video — field-level "Manually adjusted, click to reset":
+    // admin edits go into *_override columns (not the source columns) so the
+    // original captured punch / planned shift is preserved. Sending null on
+    // an override field is the explicit "reset" — clears the override and
+    // the reader's COALESCE falls back to the raw value.
+    if (shiftStart !== undefined) { updates.push(`shift_start_override = $${i++}`); params.push(shiftStart || null) }
+    if (shiftEnd !== undefined) { updates.push(`shift_end_override = $${i++}`); params.push(shiftEnd || null) }
+    if (clockIn !== undefined) { updates.push(`clock_in_override = $${i++}`); params.push(clockIn || null) }
+    if (clockOut !== undefined) { updates.push(`clock_out_override = $${i++}`); params.push(clockOut || null) }
     if (reportsToOverride !== undefined) { updates.push(`reports_to_override = $${i++}`); params.push(reportsToOverride || null) }
     if (accountOverride !== undefined) { updates.push(`account_override = $${i++}`); params.push(accountOverride || null) }
     if (isLocked !== undefined) { updates.push(`is_locked = $${i++}`); params.push(!!isLocked) }
@@ -754,6 +786,7 @@ router.patch('/attendance/:sessionId', async (req, res) => {
               CASE WHEN s.clock_out IS NOT NULL THEN EXTRACT(EPOCH FROM (s.clock_out - s.clock_in)) / 60.0 ELSE 0 END AS precise_total_minutes,
               (s.clock_out IS NULL) AS has_active_session,
               s.shift_start, s.shift_end,
+              s.shift_start_override, s.shift_end_override, s.clock_in_override, s.clock_out_override,
               COALESCE(s.location, e.location) AS location,
               COALESCE(s.stage, 'Production') AS stage,
               s.task, s.status_override, s.pay_type, s.bill_type, s.comments,
@@ -860,6 +893,7 @@ router.post('/attendance', async (req, res) => {
               CASE WHEN s.clock_out IS NOT NULL THEN EXTRACT(EPOCH FROM (s.clock_out - s.clock_in)) / 60.0 ELSE 0 END AS precise_total_minutes,
               (s.clock_out IS NULL) AS has_active_session,
               s.shift_start, s.shift_end,
+              s.shift_start_override, s.shift_end_override, s.clock_in_override, s.clock_out_override,
               COALESCE(s.location, e.location) AS location,
               COALESCE(s.stage, 'Production') AS stage,
               s.task, s.status_override, s.pay_type, s.bill_type, s.comments,

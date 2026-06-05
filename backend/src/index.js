@@ -233,10 +233,10 @@ try {
   }
   // 04JUN2026 client video: audit columns on every table.
   // Already present on sessions / leave_requests / payroll_inputs (added per
-  // 21MAY2026 rollout). Adding to employees, clients, payroll_calculator_results
-  // and payroll_periods so admins can see who created/modified each record.
+  // 21MAY2026 rollout). Adding to employees, clients, payroll_calculator_results,
+  // payroll_periods, and shifts so admins can see who created/modified each record.
   try {
-    for (const t of ['employees', 'clients', 'payroll_calculator_results', 'payroll_periods']) {
+    for (const t of ['employees', 'clients', 'payroll_calculator_results', 'payroll_periods', 'shifts']) {
       await pool.query(`ALTER TABLE ${t} ADD COLUMN IF NOT EXISTS created_by UUID REFERENCES users(id) ON DELETE SET NULL`)
       await pool.query(`ALTER TABLE ${t} ADD COLUMN IF NOT EXISTS created_on TIMESTAMPTZ DEFAULT NOW()`)
       await pool.query(`ALTER TABLE ${t} ADD COLUMN IF NOT EXISTS modified_by UUID REFERENCES users(id) ON DELETE SET NULL`)

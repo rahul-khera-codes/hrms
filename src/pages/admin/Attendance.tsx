@@ -1005,24 +1005,40 @@ export default function AdminAttendance() {
                     value={toDateTimeLocal(detailRecord.shiftStart)}
                     disabled={detailRecord.isLocked ?? false}
                     onSave={(v) => handleFieldUpdate(detailRecord, 'shiftStart', fromDateTimeLocal(v) ?? '')}
+                    overridden={detailRecord.shiftStartOverridden}
+                    rawValue={detailRecord.shiftStartRaw}
+                    onReset={() => handleFieldUpdate(detailRecord, 'shiftStart', '')}
+                    modifiedByName={detailRecord.modifiedByName}
                   />
                   <ShiftTimeInput
                     label="Clock In"
                     value={toDateTimeLocal(detailRecord.clockIn)}
                     disabled={detailRecord.isLocked ?? false}
                     onSave={(v) => handleFieldUpdate(detailRecord, 'clockIn', fromDateTimeLocal(v) ?? '')}
+                    overridden={detailRecord.clockInOverridden}
+                    rawValue={detailRecord.clockInRaw}
+                    onReset={() => handleFieldUpdate(detailRecord, 'clockIn', '')}
+                    modifiedByName={detailRecord.modifiedByName}
                   />
                   <ShiftTimeInput
                     label="Shift End"
                     value={toDateTimeLocal(detailRecord.shiftEnd)}
                     disabled={detailRecord.isLocked ?? false}
                     onSave={(v) => handleFieldUpdate(detailRecord, 'shiftEnd', fromDateTimeLocal(v) ?? '')}
+                    overridden={detailRecord.shiftEndOverridden}
+                    rawValue={detailRecord.shiftEndRaw}
+                    onReset={() => handleFieldUpdate(detailRecord, 'shiftEnd', '')}
+                    modifiedByName={detailRecord.modifiedByName}
                   />
                   <ShiftTimeInput
                     label="Clock Out"
                     value={toDateTimeLocal(detailRecord.clockOut)}
                     disabled={detailRecord.isLocked ?? false}
                     onSave={(v) => handleFieldUpdate(detailRecord, 'clockOut', fromDateTimeLocal(v) ?? '')}
+                    overridden={detailRecord.clockOutOverridden}
+                    rawValue={detailRecord.clockOutRaw}
+                    onReset={() => handleFieldUpdate(detailRecord, 'clockOut', '')}
+                    modifiedByName={detailRecord.modifiedByName}
                   />
                 </div>
               </div>
@@ -1607,11 +1623,20 @@ function ShiftTimeInput({
   value,
   onSave,
   disabled,
+  overridden,
+  rawValue,
+  onReset,
+  modifiedByName,
 }: {
   label: string
   value: string  // datetime-local format
   onSave: (val: string) => void
   disabled?: boolean
+  // 04JUN2026 client video — "Manually adjusted by X, click to reset"
+  overridden?: boolean
+  rawValue?: string | null
+  onReset?: () => void
+  modifiedByName?: string | null
 }) {
   const [local, setLocal] = useState(value)
   const timeRef = useRef<HTMLInputElement>(null)
@@ -1620,9 +1645,28 @@ function ShiftTimeInput({
     if (document.activeElement !== timeRef.current) setLocal(value)
   }, [value])
 
+  // Only show the reset affordance when (a) we actually have an override and
+  // (b) there's a raw value to revert to. Resetting to "blank" isn't useful
+  // (Orlando: "this didn't put it back to blank — for obvious reasons").
+  const canReset = !!overridden && !!rawValue && !disabled
+  const rawDisplay = rawValue ? fmtDateTime(rawValue) : null
+
   return (
-    <div className="rounded-lg bg-white dark:bg-surface-900 border border-surface-100 dark:border-surface-800 p-2.5">
-      <p className="label">{label}</p>
+    <div className={`rounded-lg bg-white dark:bg-surface-900 border p-2.5 ${overridden ? 'border-violet-300 dark:border-violet-700' : 'border-surface-100 dark:border-surface-800'}`}>
+      <div className="flex items-center justify-between gap-1">
+        <p className="label">{label}</p>
+        {canReset && (
+          <button
+            type="button"
+            onClick={onReset}
+            className="text-[10px] text-violet-600 hover:text-violet-800 dark:text-violet-400 dark:hover:text-violet-200 font-semibold flex items-center gap-0.5 leading-none"
+            title={`Manually adjusted${modifiedByName ? ' by ' + modifiedByName : ''}. Click to reset to original (${rawDisplay}).`}
+            aria-label={`Reset ${label} to original value`}
+          >
+            <span className="text-xs">↻</span> Reset
+          </button>
+        )}
+      </div>
       <input
         ref={timeRef}
         type="datetime-local"
@@ -1632,6 +1676,11 @@ function ShiftTimeInput({
         disabled={disabled}
         className="w-full text-sm font-medium text-surface-900 dark:text-surface-50 tabular-nums mt-0.5 bg-transparent border-0 outline-none focus:ring-1 focus:ring-brand-300 rounded disabled:opacity-70"
       />
+      {overridden && (
+        <p className="text-[10px] text-violet-600 dark:text-violet-400 mt-1 leading-tight">
+          Manually adjusted{modifiedByName ? ' by ' + modifiedByName : ''}{rawDisplay ? ` · original: ${rawDisplay}` : ''}
+        </p>
+      )}
     </div>
   )
 }

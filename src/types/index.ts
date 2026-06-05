@@ -45,6 +45,22 @@ export interface AttendanceRecord {
   // admin override. `status` is the resolved (override || auto) value.
   autoStatus?: string
   statusOverride?: string | null
+  // 04JUN2026 client video — per-field "Manually adjusted, click to reset"
+  // metadata. *Raw = the original captured punch / planned shift; *Override =
+  // admin's manual edit (or null). The flat clockIn / shiftStart fields hold
+  // the effective value (override ?? raw).
+  clockInRaw?: string | null
+  clockInOverride?: string | null
+  clockInOverridden?: boolean
+  clockOutRaw?: string | null
+  clockOutOverride?: string | null
+  clockOutOverridden?: boolean
+  shiftStartRaw?: string | null
+  shiftStartOverride?: string | null
+  shiftStartOverridden?: boolean
+  shiftEndRaw?: string | null
+  shiftEndOverride?: string | null
+  shiftEndOverridden?: boolean
   payType?: string
   billType?: string
   scheduledHours?: number

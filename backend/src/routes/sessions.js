@@ -68,8 +68,11 @@ function toSession(row) {
 
 // Mirrors admin toAttendanceRecord but lives in sessions.js for the employee my-attendance endpoint
 function toMyAttendanceRecord(row) {
-  const clockIn = row.first_clock_in || row.clock_in
-  const clockOut = row.last_clock_out || row.clock_out
+  // 04JUN2026 — use the effective values so admin-applied overrides flow
+  // through to the employee's own attendance view. (Employees don't see the
+  // override metadata directly — that's an admin concern.)
+  const clockIn = row.clock_in_override || row.first_clock_in || row.clock_in
+  const clockOut = row.clock_out_override || row.last_clock_out || row.clock_out
   const hasActive = row.has_active_session
   const regularMinutes = Number(row.regular_minutes ?? 0)
   const overtimeMinutes = Number(row.overtime_minutes ?? 0)
@@ -92,8 +95,8 @@ function toMyAttendanceRecord(row) {
   }
 
   const date = row.date ?? (clockIn ? new Date(clockIn).toISOString().slice(0, 10) : '')
-  const shiftStart = row.dynamic_shift_start || row.shift_start || null
-  const shiftEnd = row.dynamic_shift_end || row.shift_end || null
+  const shiftStart = row.shift_start_override || row.dynamic_shift_start || row.shift_start || null
+  const shiftEnd = row.shift_end_override || row.dynamic_shift_end || row.shift_end || null
 
   // 03JUN2026 client spec — 9-state auto-calc via shared helper. Status
   // evolves through the day (Upcoming → Missed In → Absent if no clock-in),
@@ -372,6 +375,7 @@ router.get('/my-attendance', async (req, res) => {
         COALESCE(CASE WHEN s.clock_out IS NOT NULL THEN EXTRACT(EPOCH FROM (s.clock_out - s.clock_in)) / 60.0 ELSE 0 END, 0) AS precise_total_minutes,
         (s.clock_out IS NULL) AS has_active_session,
         s.shift_start, s.shift_end,
+              s.shift_start_override, s.shift_end_override, s.clock_in_override, s.clock_out_override,
         COALESCE(s.location, e.location) AS location,
         COALESCE(s.stage, 'Production') AS stage,
         s.task,
