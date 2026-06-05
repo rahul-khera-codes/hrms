@@ -113,22 +113,35 @@ export default function AdminPayrollCalendar() {
                   <tbody>
                     {periods.map((p) => {
                       // 21MAY2026 client video: explicit cycle status derived from
-                      // pay date + period boundaries (closed / current / upcoming).
-                      // The backend column may lag if today's date moved past pay
-                      // date since last server boot, so we recompute client-side
-                      // for accuracy.
+                      // pay date + period boundaries. 04JUN2026 follow-up: there
+                      // are FOUR meaningful states, not three — a cycle whose
+                      // period has ended but whose pay date hasn't arrived yet
+                      // is *not* "Upcoming" (Orlando: "P12 is May 17-30, pay
+                      // date Jun 5 — it shouldn't say Upcoming, it should be
+                      // In Process"). The four buckets:
+                      //   Upcoming   today < period_from         (period not started)
+                      //   Current    period_from ≤ today ≤ period_to
+                      //   In Process period_to < today ≤ pay_date (period done, not yet paid)
+                      //   Closed     today > pay_date            (paid)
                       const fromD = new Date(p.periodFrom)
                       const toD = new Date(p.periodTo)
                       const payD = new Date(p.payDate)
-                      const isCurrent = today >= fromD && today <= toD
-                      const isClosed = today > payD
-                      const cycleStatus: 'closed' | 'current' | 'upcoming' = isClosed ? 'closed' : isCurrent ? 'current' : 'upcoming'
-                      const statusBadge = cycleStatus === 'closed'
-                        ? 'bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-300 border-surface-200 dark:border-surface-700'
-                        : cycleStatus === 'current'
-                          ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
-                          : 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800'
-                      const statusLabel = cycleStatus === 'closed' ? 'Closed' : cycleStatus === 'current' ? 'Current' : 'Upcoming'
+                      let cycleStatus: 'closed' | 'current' | 'in_process' | 'upcoming'
+                      if (today > payD) cycleStatus = 'closed'
+                      else if (today >= fromD && today <= toD) cycleStatus = 'current'
+                      else if (today > toD && today <= payD) cycleStatus = 'in_process'
+                      else cycleStatus = 'upcoming'
+                      const isCurrent = cycleStatus === 'current'
+                      const statusBadge =
+                        cycleStatus === 'closed' ? 'bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-300 border-surface-200 dark:border-surface-700' :
+                        cycleStatus === 'current' ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800' :
+                        cycleStatus === 'in_process' ? 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800' :
+                        'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800'
+                      const statusLabel =
+                        cycleStatus === 'closed' ? 'Closed' :
+                        cycleStatus === 'current' ? 'Current' :
+                        cycleStatus === 'in_process' ? 'In Process' :
+                        'Upcoming'
                       return (
                         <tr key={p.cycleCode} className={`border-t border-surface-100 dark:border-surface-800 transition-colors ${p.isSpecial ? 'bg-red-50/60 hover:bg-red-50' : isCurrent ? 'bg-emerald-50/30 dark:bg-emerald-900/10' : 'hover:bg-brand-50/30'}`}>
                           <td className="px-4 py-3 whitespace-nowrap">

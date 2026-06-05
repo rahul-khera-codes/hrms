@@ -432,6 +432,13 @@ export interface EmployeeRecord {
   terminationReason?: string | null
   isLocked?: boolean
   shiftGroup?: string | null
+  // 04JUN2026 — audit trail (mirrors sessions / leaves / payroll_inputs)
+  createdBy?: string | null
+  createdByName?: string | null
+  createdOn?: string | null
+  modifiedBy?: string | null
+  modifiedByName?: string | null
+  modifiedOn?: string | null
 }
 
 export async function getEmployees(): Promise<EmployeeRecord[]> {

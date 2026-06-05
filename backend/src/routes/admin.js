@@ -1,6 +1,6 @@
 import express from 'express'
 import bcrypt from 'bcryptjs'
-import { query } from '../config/db.js'
+import pool, { query } from '../config/db.js'
 import { authMiddleware, requireAdmin } from '../middleware/auth.js'
 import { getSettings } from '../lib/payrollSettings.js'
 import { buildPayrollEmployeeRow, listDateStrings } from '../lib/payrollEmployeeRow.js'
@@ -2245,8 +2245,12 @@ router.patch('/employees/:id', async (req, res) => {
           if (['primary_client_id', 'reports_to'].includes(k)) return `${k} = $${idx + 1}::uuid`
           return `${k} = $${idx + 1}`
         })
-        setClauses.push('updated_at = NOW()')
-        const vals = [...definedFields.map(([, v]) => v), id]
+        // 04JUN2026 — stamp modifier on every employee edit (mirrors leaves/inputs).
+        // modified_by added as a numbered parameter to avoid string interpolation.
+        const fieldVals = definedFields.map(([, v]) => v)
+        const modifierIdx = fieldVals.length + 1
+        setClauses.push('updated_at = NOW()', 'modified_on = NOW()', `modified_by = $${modifierIdx}::uuid`)
+        const vals = [...fieldVals, req.user?.id || null, id]
         await query(`UPDATE employees SET ${setClauses.join(', ')} WHERE user_id = $${vals.length}`, vals)
       }
     }
@@ -2264,12 +2268,17 @@ router.patch('/employees/:id', async (req, res) => {
               e.government_id, e.gender, e.date_of_birth::text AS date_of_birth,
               e.personal_email, e.company_email, e.home_phone, e.mobile_phone, e.termination_reason,
               e.is_locked, e.shift_group,
+              e.created_by, e.created_on, e.modified_by, e.modified_on,
               c.name AS primary_client_name,
-              mgr.name AS reports_to_name
+              mgr.name AS reports_to_name,
+              cu.name AS created_by_name,
+              mu.name AS modified_by_name
        FROM users u
        LEFT JOIN employees e ON e.user_id = u.id
        LEFT JOIN clients c ON c.id = e.primary_client_id
        LEFT JOIN users mgr ON mgr.id = e.reports_to
+       LEFT JOIN users cu ON cu.id = e.created_by
+       LEFT JOIN users mu ON mu.id = e.modified_by
        WHERE u.id = $1`,
       [id]
     )
@@ -2309,6 +2318,13 @@ router.patch('/employees/:id', async (req, res) => {
       terminationReason: row.termination_reason || null,
       isLocked: row.is_locked === true,
       shiftGroup: row.shift_group || null,
+      // 04JUN2026 — audit trail surfaced on the employee response
+      createdBy: row.created_by || null,
+      createdByName: row.created_by_name || null,
+      createdOn: row.created_on || null,
+      modifiedBy: row.modified_by || null,
+      modifiedByName: row.modified_by_name || null,
+      modifiedOn: row.modified_on || null,
     })
   } catch (err) {
     console.error('Update employee error:', err)
@@ -2374,12 +2390,17 @@ router.get('/employees', async (req, res) => {
               e.government_id, e.gender, e.date_of_birth::text AS date_of_birth,
               e.personal_email, e.company_email, e.home_phone, e.mobile_phone, e.termination_reason,
               e.is_locked, e.shift_group,
+              e.created_by, e.created_on, e.modified_by, e.modified_on,
               c.name AS primary_client_name,
-              mgr.name AS reports_to_name
+              mgr.name AS reports_to_name,
+              cu.name AS created_by_name,
+              mu.name AS modified_by_name
        FROM users u
        LEFT JOIN employees e ON e.user_id = u.id
        LEFT JOIN clients c ON c.id = e.primary_client_id
        LEFT JOIN users mgr ON mgr.id = e.reports_to
+       LEFT JOIN users cu ON cu.id = e.created_by
+       LEFT JOIN users mu ON mu.id = e.modified_by
        WHERE u.role IN ('employee', 'admin')
        ORDER BY u.record_id DESC NULLS LAST, u.name`
     )
@@ -2419,6 +2440,13 @@ router.get('/employees', async (req, res) => {
       terminationReason: r.termination_reason || null,
       isLocked: r.is_locked === true,
       shiftGroup: r.shift_group || null,
+      // 04JUN2026 — audit trail
+      createdBy: r.created_by || null,
+      createdByName: r.created_by_name || null,
+      createdOn: r.created_on || null,
+      modifiedBy: r.modified_by || null,
+      modifiedByName: r.modified_by_name || null,
+      modifiedOn: r.modified_on || null,
     })))
   } catch (err) {
     console.error('Admin list employees error:', err)
@@ -2480,6 +2508,7 @@ router.post('/employees', requireAdmin, async (req, res) => {
     // (bank/contact/identity/DOB/gender/termination_reason). Same fields are
     // already accepted by PATCH; bringing POST in line so admins don't have
     // to immediately re-edit to make their input stick.
+    // 04JUN2026 follow-up: also stamp created_by/created_on for audit trail.
     const termReasonVal = (contractStatusVal === 'terminated' || contractStatusVal === 'prenotice') && terminationReason ? terminationReason : null
     await query(
       `INSERT INTO employees (user_id, salary_type, base_salary, cmid, harmony_id,
@@ -2488,9 +2517,11 @@ router.post('/employees', requireAdmin, async (req, res) => {
                               contract_status, termination_date, shift_group,
                               bank, bank_account, government_id, gender,
                               date_of_birth, personal_email, company_email,
-                              home_phone, mobile_phone, termination_reason)
+                              home_phone, mobile_phone, termination_reason,
+                              created_by, created_on)
        VALUES ($1, $2, $3, $4, $5, $6, $7::date, $8, $9, $10::uuid, $11, $12::uuid,
-               $13, $14::date, $15, $16, $17, $18, $19, $20::date, $21, $22, $23, $24, $25)
+               $13, $14::date, $15, $16, $17, $18, $19, $20::date, $21, $22, $23, $24, $25,
+               $26, NOW())
        ON CONFLICT (user_id) DO UPDATE SET
          salary_type = $2, base_salary = $3, cmid = $4, harmony_id = $5,
          contract_type = $6, hire_date = $7::date, location = $8, department = $9,
@@ -2499,14 +2530,15 @@ router.post('/employees', requireAdmin, async (req, res) => {
          bank = $16, bank_account = $17, government_id = $18, gender = $19,
          date_of_birth = $20::date, personal_email = $21, company_email = $22,
          home_phone = $23, mobile_phone = $24, termination_reason = $25,
-         updated_at = NOW()`,
+         modified_by = $26, modified_on = NOW(), updated_at = NOW()`,
       [u.id, st, sal, cmidVal, harmonyIdVal, contractTypeVal, hireDate || null,
        location || null, department || null, primaryClientId || null,
        jobTitle || null, reportsTo || null, contractStatusVal, termDateVal,
        shiftGroup || null,
        bank || null, bankAccount || null, governmentId || null, gender || null,
        dateOfBirth || null, personalEmail || null, companyEmail || null,
-       homePhone || null, mobilePhone || null, termReasonVal]
+       homePhone || null, mobilePhone || null, termReasonVal,
+       req.user?.id || null]
     )
     const created = await query(
       `SELECT u.id, u.name, u.email, u.role,
@@ -2521,12 +2553,17 @@ router.post('/employees', requireAdmin, async (req, res) => {
               e.date_of_birth::text AS date_of_birth,
               e.personal_email, e.company_email, e.home_phone, e.mobile_phone,
               e.termination_reason,
+              e.created_by, e.created_on, e.modified_by, e.modified_on,
               c.name AS primary_client_name,
-              mgr.name AS reports_to_name
+              mgr.name AS reports_to_name,
+              cu.name AS created_by_name,
+              mu.name AS modified_by_name
        FROM users u
        LEFT JOIN employees e ON e.user_id = u.id
        LEFT JOIN clients c ON c.id = e.primary_client_id
        LEFT JOIN users mgr ON mgr.id = e.reports_to
+       LEFT JOIN users cu ON cu.id = e.created_by
+       LEFT JOIN users mu ON mu.id = e.modified_by
        WHERE u.id = $1`,
       [u.id]
     )
@@ -2566,6 +2603,13 @@ router.post('/employees', requireAdmin, async (req, res) => {
       homePhone: row.home_phone || null,
       mobilePhone: row.mobile_phone || null,
       terminationReason: row.termination_reason || null,
+      // 04JUN2026 — audit trail
+      createdBy: row.created_by || null,
+      createdByName: row.created_by_name || null,
+      createdOn: row.created_on || null,
+      modifiedBy: row.modified_by || null,
+      modifiedByName: row.modified_by_name || null,
+      modifiedOn: row.modified_on || null,
     })
   } catch (err) {
     console.error('Admin create employee error:', err)
@@ -2585,17 +2629,52 @@ router.delete('/employees/:id', requireAdmin, async (req, res) => {
     if (lockRow.rows.length > 0 && lockRow.rows[0].is_locked) {
       return res.status(409).json({ error: 'Locked', message: 'Unlock the employee before deleting.' })
     }
-    await query('DELETE FROM schedule_assignments WHERE user_id = $1', [id])
-    await query('DELETE FROM notifications WHERE user_id = $1', [id])
-    await query('DELETE FROM payroll_government_deductions WHERE user_id = $1', [id])
-    await query('DELETE FROM payroll_calculator_results WHERE user_id = $1', [id])
-    await query('DELETE FROM employee_payslip_snapshots WHERE user_id = $1', [id])
-    await query('DELETE FROM payroll_inputs WHERE user_id = $1', [id])
-    await query('DELETE FROM leave_requests WHERE user_id = $1', [id])
-    await query('DELETE FROM sessions WHERE user_id = $1', [id])
-    await query("DELETE FROM documents WHERE entity_type = 'employee' AND entity_id = $1", [id])
-    await query('DELETE FROM employees WHERE user_id = $1', [id])
-    await query('DELETE FROM users WHERE id = $1', [id])
+    // 04JUN2026 client video: delete was silently failing because FK columns
+    // (audit/owner refs from other tables → users.id) were blocking the
+    // final DELETE FROM users. All of those columns are nullable, so we
+    // NULL them out first on rows that survive the cascade. Wrapped in a
+    // transaction so we never half-delete.
+    const c = await pool.connect()
+    try {
+      await c.query('BEGIN')
+      // 1. Remove rows owned by the user (FKs on user_id, cascades free-of-charge,
+      //    but explicit for clarity + to satisfy NO ACTION FKs on related cols).
+      await c.query('DELETE FROM schedule_assignments WHERE user_id = $1', [id])
+      await c.query('DELETE FROM notifications WHERE user_id = $1', [id])
+      await c.query('DELETE FROM payroll_government_deductions WHERE user_id = $1', [id])
+      await c.query('DELETE FROM payroll_calculator_results WHERE user_id = $1', [id])
+      await c.query('DELETE FROM employee_payslip_snapshots WHERE user_id = $1', [id])
+      await c.query('DELETE FROM payroll_inputs WHERE user_id = $1', [id])
+      await c.query('DELETE FROM leave_requests WHERE user_id = $1', [id])
+      await c.query('DELETE FROM sessions WHERE user_id = $1', [id])
+      await c.query("DELETE FROM documents WHERE entity_type = 'employee' AND entity_id = $1", [id])
+      // 2. NULL audit + owner references to the user on rows that survive.
+      //    (e.g. another admin's payroll_input may have modified_by = $1.)
+      await c.query(`UPDATE documents SET uploaded_by = NULL WHERE uploaded_by = $1`, [id])
+      await c.query(`UPDATE leave_requests SET created_by = NULL WHERE created_by = $1`, [id])
+      await c.query(`UPDATE leave_requests SET modified_by = NULL WHERE modified_by = $1`, [id])
+      await c.query(`UPDATE leave_requests SET reviewed_by = NULL WHERE reviewed_by = $1`, [id])
+      await c.query(`UPDATE payroll_inputs SET created_by = NULL WHERE created_by = $1`, [id])
+      await c.query(`UPDATE payroll_inputs SET modified_by = NULL WHERE modified_by = $1`, [id])
+      await c.query(`UPDATE payroll_inputs SET reviewed_by = NULL WHERE reviewed_by = $1`, [id])
+      await c.query(`UPDATE payroll_inputs SET approver_id = NULL WHERE approver_id = $1`, [id])
+      await c.query(`UPDATE sessions SET created_by = NULL WHERE created_by = $1`, [id])
+      await c.query(`UPDATE sessions SET modified_by = NULL WHERE modified_by = $1`, [id])
+      await c.query(`UPDATE sessions SET reviewed_by = NULL WHERE reviewed_by = $1`, [id])
+      await c.query(`UPDATE sessions SET reports_to_override = NULL WHERE reports_to_override = $1`, [id])
+      await c.query(`UPDATE employees SET reports_to = NULL WHERE reports_to = $1`, [id])
+      await c.query(`UPDATE clients SET sales_owner_id = NULL WHERE sales_owner_id = $1`, [id])
+      await c.query(`UPDATE clients SET ops_owner_id = NULL WHERE ops_owner_id = $1`, [id])
+      // 3. Finally remove the employee + user rows.
+      await c.query('DELETE FROM employees WHERE user_id = $1', [id])
+      await c.query('DELETE FROM users WHERE id = $1', [id])
+      await c.query('COMMIT')
+    } catch (e) {
+      await c.query('ROLLBACK')
+      throw e
+    } finally {
+      c.release()
+    }
     res.json({ success: true })
   } catch (err) {
     console.error('Delete employee error:', err)

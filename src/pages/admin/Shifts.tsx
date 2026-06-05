@@ -393,6 +393,25 @@ export default function AdminShifts() {
                   <input type="time" className="input" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
                 </div>
               </div>
+              {/* 04JUN2026 client video: when end < start the shift crosses
+                  midnight (e.g. 5 PM → 1 AM). The hour math already +24's
+                  correctly, but admins were confused that "End < Start"
+                  looked like a bug. Make it explicit. */}
+              {startTime && endTime && endTime < startTime && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 flex items-start gap-2">
+                  <span className="text-amber-600 dark:text-amber-400 text-sm leading-none mt-0.5">🌙</span>
+                  <div className="text-xs text-amber-700 dark:text-amber-300">
+                    <strong>Overnight shift</strong> — end time is on the <em>next</em> day.
+                    {' '}{formatTime(startTime)} to {formatTime(endTime)} = {(() => {
+                      const [sh, sm] = startTime.split(':').map(Number)
+                      const [eh, em] = endTime.split(':').map(Number)
+                      const mins = (eh * 60 + em + 24 * 60) - (sh * 60 + sm)
+                      const h = Math.floor(mins / 60); const m = mins % 60
+                      return `${h}h${m ? ' ' + m + 'm' : ''}`
+                    })()} scheduled.
+                  </div>
+                </div>
+              )}
               {/* 21MAY2026 client video: timezone + client share a single row to
                   shorten the form (was two stacked fields). */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

@@ -600,16 +600,27 @@ export default function AdminSchedule() {
                     ]}
                   />
                   {!paneShiftId && (
-                    <div className="mt-2 grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="label">Start</label>
-                        <input type="time" className="input" value={paneStart} onChange={(e) => setPaneStart(e.target.value)} />
+                    <>
+                      <div className="mt-2 grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="label">Start</label>
+                          <input type="time" className="input" value={paneStart} onChange={(e) => setPaneStart(e.target.value)} />
+                        </div>
+                        <div>
+                          <label className="label">End</label>
+                          <input type="time" className="input" value={paneEnd} onChange={(e) => setPaneEnd(e.target.value)} />
+                        </div>
                       </div>
-                      <div>
-                        <label className="label">End</label>
-                        <input type="time" className="input" value={paneEnd} onChange={(e) => setPaneEnd(e.target.value)} />
-                      </div>
-                    </div>
+                      {/* 04JUN2026 — overnight-shift hint, same as Shifts page */}
+                      {paneStart && paneEnd && paneEnd < paneStart && (
+                        <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 flex items-start gap-2">
+                          <span className="text-amber-600 dark:text-amber-400 text-sm leading-none mt-0.5">🌙</span>
+                          <p className="text-xs text-amber-700 dark:text-amber-300">
+                            <strong>Overnight shift</strong> — {fmtShiftTimeStr(paneStart)} to {fmtShiftTimeStr(paneEnd)} the next day. Hours are calculated correctly across midnight.
+                          </p>
+                        </div>
+                      )}
+                    </>
                   )}
                 </section>
               )}

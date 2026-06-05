@@ -231,6 +231,21 @@ try {
   } catch (e) {
     if (e.code !== '42701') console.warn('employees engagement columns migration:', e.message)
   }
+  // 04JUN2026 client video: audit columns on every table.
+  // Already present on sessions / leave_requests / payroll_inputs (added per
+  // 21MAY2026 rollout). Adding to employees, clients, payroll_calculator_results
+  // and payroll_periods so admins can see who created/modified each record.
+  try {
+    for (const t of ['employees', 'clients', 'payroll_calculator_results', 'payroll_periods']) {
+      await pool.query(`ALTER TABLE ${t} ADD COLUMN IF NOT EXISTS created_by UUID REFERENCES users(id) ON DELETE SET NULL`)
+      await pool.query(`ALTER TABLE ${t} ADD COLUMN IF NOT EXISTS created_on TIMESTAMPTZ DEFAULT NOW()`)
+      await pool.query(`ALTER TABLE ${t} ADD COLUMN IF NOT EXISTS modified_by UUID REFERENCES users(id) ON DELETE SET NULL`)
+      await pool.query(`ALTER TABLE ${t} ADD COLUMN IF NOT EXISTS modified_on TIMESTAMPTZ`)
+    }
+  } catch (e) {
+    if (e.code !== '42701') console.warn('audit columns migration:', e.message)
+  }
+
   // Bank/payment fields on employees
   await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS bank VARCHAR(100)`)
   await pool.query(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS bank_account VARCHAR(50)`)

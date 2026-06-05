@@ -817,24 +817,37 @@ export default function AdminAttendance() {
                           status from either group, or "(Auto)" to clear an
                           existing override. */}
                       <td className="px-2 py-1.5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                        <select
-                          value={r.statusOverride ?? ''}
-                          onChange={(e) => handleFieldUpdate(r, 'status', e.target.value)}
-                          className={`text-xs bg-transparent border-0 outline-none cursor-pointer py-0 px-0 pr-4 rounded ${statusColors[r.status] ?? 'text-surface-700 dark:text-surface-200'} focus:ring-1 focus:ring-brand-300`}
-                          title={r.statusOverride ? `Override: ${r.statusOverride}` : `Auto: ${r.autoStatus ?? r.status}`}
-                        >
-                          <option value="">(Auto{r.autoStatus ? `: ${r.autoStatus}` : ''})</option>
-                          <optgroup label="Auto-calculated">
-                            {AUTO_STATUS_OPTIONS.map((opt) => (
-                              <option key={opt} value={opt}>{opt}</option>
-                            ))}
-                          </optgroup>
-                          <optgroup label="Manual">
-                            {MANUAL_STATUS_OPTIONS.map((opt) => (
-                              <option key={opt} value={opt}>{opt}</option>
-                            ))}
-                          </optgroup>
-                        </select>
+                        <div className="inline-flex items-center gap-1">
+                          <select
+                            value={r.statusOverride ?? ''}
+                            onChange={(e) => handleFieldUpdate(r, 'status', e.target.value)}
+                            className={`text-xs bg-transparent border-0 outline-none cursor-pointer py-0 px-0 pr-4 rounded ${statusColors[r.status] ?? 'text-surface-700 dark:text-surface-200'} focus:ring-1 focus:ring-brand-300`}
+                            title={r.statusOverride ? `Manually set to "${r.statusOverride}"${r.modifiedByName ? ' by ' + r.modifiedByName : ''}. Auto-value would be "${r.autoStatus ?? '—'}". Click ↻ to reset.` : `Auto-calculated: ${r.autoStatus ?? r.status}`}
+                          >
+                            <option value="">(Auto{r.autoStatus ? `: ${r.autoStatus}` : ''})</option>
+                            <optgroup label="Auto-calculated">
+                              {AUTO_STATUS_OPTIONS.map((opt) => (
+                                <option key={opt} value={opt}>{opt}</option>
+                              ))}
+                            </optgroup>
+                            <optgroup label="Manual">
+                              {MANUAL_STATUS_OPTIONS.map((opt) => (
+                                <option key={opt} value={opt}>{opt}</option>
+                              ))}
+                            </optgroup>
+                          </select>
+                          {r.statusOverride && (
+                            <button
+                              type="button"
+                              onClick={() => handleFieldUpdate(r, 'status', '')}
+                              className="text-[10px] text-surface-400 hover:text-brand-600 dark:text-surface-500 dark:hover:text-brand-400 transition-colors leading-none"
+                              title={`Manually adjusted${r.modifiedByName ? ' by ' + r.modifiedByName : ''}. Click to reset to auto (${r.autoStatus ?? '—'}).`}
+                              aria-label="Reset to auto-calculated status"
+                            >
+                              ↻
+                            </button>
+                          )}
+                        </div>
                       </td>
                       {/* Pay (editable) */}
                       <td className="px-2 py-1.5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
