@@ -291,23 +291,32 @@ function toAttendanceRecord(row) {
 async function persistComputedHours(sessionId) {
   const res = await query(
     `SELECT clock_in, clock_out, shift_start, shift_end,
+            clock_in_override, clock_out_override,
+            shift_start_override, shift_end_override,
             pay_type, bill_type, scheduled_minutes
      FROM sessions WHERE id = $1`,
     [sessionId]
   )
   if (!res.rows.length) return
   const s = res.rows[0]
+  // 04JUN2026 client video — use effective values (override > raw) so the
+  // stored billable hours reflect admin-applied corrections, not the
+  // original captured punch / planned shift.
+  const effClockIn = s.clock_in_override || s.clock_in
+  const effClockOut = s.clock_out_override || s.clock_out
+  const effShiftStart = s.shift_start_override || s.shift_start
+  const effShiftEnd = s.shift_end_override || s.shift_end
 
   // Actual hours
   let actualHours = 0
-  if (s.clock_in && s.clock_out) {
-    actualHours = (new Date(s.clock_out).getTime() - new Date(s.clock_in).getTime()) / 3600000
+  if (effClockIn && effClockOut) {
+    actualHours = (new Date(effClockOut).getTime() - new Date(effClockIn).getTime()) / 3600000
   }
 
   // Scheduled hours
   let scheduledHours = 0
-  if (s.shift_start && s.shift_end) {
-    scheduledHours = (new Date(s.shift_end).getTime() - new Date(s.shift_start).getTime()) / 3600000
+  if (effShiftStart && effShiftEnd) {
+    scheduledHours = (new Date(effShiftEnd).getTime() - new Date(effShiftStart).getTime()) / 3600000
     if (scheduledHours < 0) scheduledHours += 24
   } else if (Number(s.scheduled_minutes ?? 0) > 0) {
     scheduledHours = Number(s.scheduled_minutes) / 60
