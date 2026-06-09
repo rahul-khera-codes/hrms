@@ -2664,9 +2664,14 @@ router.post('/employees', requireAdmin, async (req, res) => {
 router.delete('/employees/:id', requireAdmin, async (req, res) => {
   try {
     const { id } = req.params
-    const emp = await query("SELECT id FROM users WHERE id = $1 AND role = 'employee'", [id])
+    // 05JUN2026 client video — bulk delete was reporting "1 deleted, 3 failed"
+    // because the Employees page lists BOTH role='employee' and role='admin'
+    // (HR uses one screen to manage both tiers), but the DELETE was rejecting
+    // anything that wasn't 'employee'. Open it to admins too so test-admin
+    // accounts (e.g. "fghyjuikolp;'" / "hjkl" with @gmail.com) can be cleared.
+    const emp = await query("SELECT id FROM users WHERE id = $1 AND role IN ('employee', 'admin')", [id])
     if (emp.rows.length === 0) {
-      return res.status(404).json({ error: 'Not found', message: 'Employee not found' })
+      return res.status(404).json({ error: 'Not found', message: 'User not found' })
     }
     const lockRow = await query('SELECT is_locked FROM employees WHERE user_id = $1', [id])
     if (lockRow.rows.length > 0 && lockRow.rows[0].is_locked) {

@@ -818,10 +818,14 @@ export default function AdminAttendance() {
                           existing override. */}
                       <td className="px-2 py-1.5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                         <div className="inline-flex items-center gap-1">
+                          {/* 05JUN2026 client video: min-w-[170px] so the
+                              native dropdown panel is wide enough to show
+                              "Late In + Early Out" / "Manually Adjusted"
+                              option text without left-clipping. */}
                           <select
                             value={r.statusOverride ?? ''}
                             onChange={(e) => handleFieldUpdate(r, 'status', e.target.value)}
-                            className={`text-xs bg-transparent border-0 outline-none cursor-pointer py-0 px-0 pr-4 rounded ${statusColors[r.status] ?? 'text-surface-700 dark:text-surface-200'} focus:ring-1 focus:ring-brand-300`}
+                            className={`min-w-[170px] text-xs bg-transparent border-0 outline-none cursor-pointer py-0 px-0 pr-4 rounded ${statusColors[r.status] ?? 'text-surface-700 dark:text-surface-200'} focus:ring-1 focus:ring-brand-300`}
                             title={r.statusOverride ? `Manually set to "${r.statusOverride}"${r.modifiedByName ? ' by ' + r.modifiedByName : ''}. Auto-value would be "${r.autoStatus ?? '—'}". Click ↻ to reset.` : `Auto-calculated: ${r.autoStatus ?? r.status}`}
                           >
                             <option value="">(Auto{r.autoStatus ? `: ${r.autoStatus}` : ''})</option>
@@ -849,38 +853,42 @@ export default function AdminAttendance() {
                           )}
                         </div>
                       </td>
-                      {/* Pay (editable) */}
+                      {/* Pay (editable) — Holiday/X35%/X100%/Regular/DNP/Review */}
                       <td className="px-2 py-1.5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                         <InlineSelect
                           value={r.payType ?? ''}
                           options={PAY_OPTIONS}
                           onChange={(v) => handleFieldUpdate(r, 'payType', v)}
                           colorMap={{ Review: 'text-red-600 font-semibold' }}
+                          minWidth="min-w-[100px]"
                         />
                       </td>
-                      {/* Bill (editable) */}
+                      {/* Bill (editable) — Regular/Premium/DNB/Review */}
                       <td className="px-2 py-1.5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                         <InlineSelect
                           value={r.billType ?? ''}
                           options={BILL_OPTIONS}
                           onChange={(v) => handleFieldUpdate(r, 'billType', v)}
                           colorMap={{ Review: 'text-red-600 font-semibold' }}
+                          minWidth="min-w-[100px]"
                         />
                       </td>
-                      {/* Stage (editable) */}
+                      {/* Stage (editable) — Production/Nesting/Training */}
                       <td className="px-2 py-1.5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                         <InlineSelect
                           value={r.stage ?? ''}
                           options={STAGE_OPTIONS}
                           onChange={(v) => handleFieldUpdate(r, 'stage', v)}
+                          minWidth="min-w-[120px]"
                         />
                       </td>
-                      {/* Task (editable) */}
+                      {/* Task (editable) — long names like "Service Follow up" */}
                       <td className="px-2 py-1.5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                         <InlineSelect
                           value={r.task ?? ''}
                           options={TASK_OPTIONS}
                           onChange={(v) => handleFieldUpdate(r, 'task', v)}
+                          minWidth="min-w-[160px]"
                         />
                       </td>
                       {/* SCH */}
@@ -1525,18 +1533,22 @@ function InlineSelect({
   options,
   onChange,
   colorMap,
+  minWidth,
 }: {
   value: string
   options: readonly string[]
   onChange: (val: string) => void
   colorMap?: Record<string, string>
+  /** 05JUN2026 client video — set per-column so native dropdown panel
+   *  opens wide enough to show full option text without left-clipping. */
+  minWidth?: string
 }) {
   const colorClass = colorMap?.[value] ?? ''
   return (
     <select
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className={`text-xs bg-transparent border-0 outline-none cursor-pointer py-0 px-0 pr-4 rounded ${colorClass || 'text-surface-700 dark:text-surface-200'} focus:ring-1 focus:ring-brand-300`}
+      className={`${minWidth ?? 'min-w-[90px]'} text-xs bg-transparent border-0 outline-none cursor-pointer py-0 px-0 pr-4 rounded ${colorClass || 'text-surface-700 dark:text-surface-200'} focus:ring-1 focus:ring-brand-300`}
     >
       <option value="">--</option>
       {options.map((opt) => (
