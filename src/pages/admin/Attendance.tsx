@@ -817,17 +817,18 @@ export default function AdminAttendance() {
                             className={`min-w-[170px] text-xs bg-transparent border-0 outline-none cursor-pointer py-0 px-0 pr-4 rounded ${statusColors[r.status] ?? 'text-surface-700 dark:text-surface-200'} focus:ring-1 focus:ring-brand-300`}
                             title={r.statusOverride ? `Manually set to "${r.statusOverride}"${r.modifiedByName ? ' by ' + r.modifiedByName : ''}. Auto-value would be "${r.autoStatus ?? '—'}". Click ↻ to reset.` : `Auto-calculated: ${r.autoStatus ?? r.status}`}
                           >
-                            <option value="">(Auto{r.autoStatus ? `: ${r.autoStatus}` : ''})</option>
-                            <optgroup label="Auto-calculated">
-                              {AUTO_STATUS_OPTIONS.map((opt) => (
-                                <option key={opt} value={opt}>{opt}</option>
-                              ))}
-                            </optgroup>
-                            <optgroup label="Manual">
-                              {MANUAL_STATUS_OPTIONS.map((opt) => (
-                                <option key={opt} value={opt}>{opt}</option>
-                              ))}
-                            </optgroup>
+                            {/* 10JUN2026 client video Item 6 — Orlando: drop
+                                the "(Auto: ...)" prefix on the displayed
+                                status, and drop the Auto/Manual split in
+                                the dropdown. The per-row "Manually
+                                adjusted" pill + ↻ reset already convey
+                                whether the value was overridden, so the
+                                prefix is redundant and misleading
+                                (absent CAN be set manually too). */}
+                            <option value="">{r.autoStatus ?? '—'}</option>
+                            {STATUS_OPTIONS.map((opt) => (
+                              <option key={opt} value={opt}>{opt}</option>
+                            ))}
                           </select>
                           {r.statusOverride && (
                             <button
