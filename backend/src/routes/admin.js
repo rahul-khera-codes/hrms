@@ -1905,6 +1905,9 @@ router.get('/settings', async (req, res) => {
       nightShiftStartHour: s.nightShiftStartHour,
       nightShiftEndHour: s.nightShiftEndHour,
       defaultBaseSalary: s.defaultBaseSalary ?? 0,
+      // 10JUN2026 Item 8 — clock-in IP allowlist
+      clockInIpAllowlistEnabled: s.clockInIpAllowlistEnabled === true,
+      clockInIpAllowlist: s.clockInIpAllowlist ?? '',
     })
   } catch (err) {
     console.error('Admin get settings error:', err)
@@ -1924,6 +1927,9 @@ router.patch('/settings', async (req, res) => {
       nightShiftStartHour,
       nightShiftEndHour,
       defaultBaseSalary,
+      // 10JUN2026 Item 8 — clock-in IP allowlist controls
+      clockInIpAllowlistEnabled,
+      clockInIpAllowlist,
     } = req.body
     const wd = workingDaysPerMonth != null ? Math.max(0.1, Number(workingDaysPerMonth)) : null
     const hd = hoursPerDay != null ? Math.max(0.1, Number(hoursPerDay)) : null
@@ -1947,6 +1953,14 @@ router.patch('/settings', async (req, res) => {
     if (startH != null) { updates.push(`night_shift_start_hour = $${i++}`); params.push(startH) }
     if (endH != null) { updates.push(`night_shift_end_hour = $${i++}`); params.push(endH) }
     if (dbs != null) { updates.push(`default_base_salary = $${i++}`); params.push(dbs) }
+    if (clockInIpAllowlistEnabled !== undefined) {
+      updates.push(`clock_in_ip_allowlist_enabled = $${i++}`)
+      params.push(!!clockInIpAllowlistEnabled)
+    }
+    if (clockInIpAllowlist !== undefined) {
+      updates.push(`clock_in_ip_allowlist = $${i++}`)
+      params.push(String(clockInIpAllowlist || ''))
+    }
     if (updates.length === 0) {
       const s = await getSettings()
       return res.json({
@@ -1975,6 +1989,9 @@ router.patch('/settings', async (req, res) => {
       nightShiftStartHour: s.nightShiftStartHour,
       nightShiftEndHour: s.nightShiftEndHour,
       defaultBaseSalary: s.defaultBaseSalary ?? 0,
+      // 10JUN2026 Item 8
+      clockInIpAllowlistEnabled: s.clockInIpAllowlistEnabled === true,
+      clockInIpAllowlist: s.clockInIpAllowlist ?? '',
     })
   } catch (err) {
     console.error('Admin update settings error:', err)

@@ -177,6 +177,19 @@ try {
     await pool.query(
       `ALTER TABLE settings ADD COLUMN IF NOT EXISTS double_ot_multiplier DECIMAL(4,2) NOT NULL DEFAULT 2.00`
     )
+    // 10JUN2026 client video Item 8 — Orlando: "limit the software to
+    // be used from the site or from an approved location… maybe a list
+    // through Settings of approved IPs". When `clock_in_ip_allowlist_enabled`
+    // is true, the clock-in/clock-out middleware rejects requests whose
+    // remote IP isn't in `clock_in_ip_allowlist` (newline-separated
+    // IPv4/IPv6 addresses or CIDR blocks). When false (default), behavior
+    // is unchanged — everyone can clock in from anywhere.
+    await pool.query(
+      `ALTER TABLE settings ADD COLUMN IF NOT EXISTS clock_in_ip_allowlist_enabled BOOLEAN NOT NULL DEFAULT FALSE`
+    )
+    await pool.query(
+      `ALTER TABLE settings ADD COLUMN IF NOT EXISTS clock_in_ip_allowlist TEXT NOT NULL DEFAULT ''`
+    )
   } catch (e) {
     if (e.code !== '42701') console.warn('settings.default_base_salary migration:', e.message)
   }

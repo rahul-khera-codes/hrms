@@ -7,6 +7,7 @@ import { buildPayrollEmployeeRow } from '../lib/payrollEmployeeRow.js'
 import { renderPayrollSlipPdf } from '../lib/renderPayrollSlipPdf.js'
 import { computeAutoStatus, normalizeStatus } from '../lib/attendanceStatus.js'
 import { buildPaystubHTML } from './payroll-calculator.js'
+import { clockInIpGuard } from '../lib/ipAllowlist.js'
 
 const router = express.Router()
 const REGULAR_MINUTES_PER_DAY = 8 * 60 // 480
@@ -203,7 +204,10 @@ function toMyAttendanceRecord(row) {
 router.use(authMiddleware)
 
 // POST /api/sessions/clock-in
-router.post('/clock-in', async (req, res) => {
+// 10JUN2026 client video Item 8 — clockInIpGuard rejects 403 when the
+// admin has enabled an IP allowlist and the request IP isn't on it.
+// No-op when the allowlist is disabled (feature is opt-in).
+router.post('/clock-in', clockInIpGuard(), async (req, res) => {
   try {
     const userId = req.user.id
     // 22MAY2026 bug fix: exclude scheduler-pre-populated rows (is_scheduled OR
@@ -233,7 +237,9 @@ router.post('/clock-in', async (req, res) => {
 })
 
 // POST /api/sessions/clock-out
-router.post('/clock-out', async (req, res) => {
+// 10JUN2026 Item 8 — same allowlist applies to clock-out (you can only
+// finish a shift from an approved location, not just start one).
+router.post('/clock-out', clockInIpGuard(), async (req, res) => {
   try {
     const userId = req.user.id
     // 22MAY2026 bug fix: same as clock-in — only target REAL active sessions.

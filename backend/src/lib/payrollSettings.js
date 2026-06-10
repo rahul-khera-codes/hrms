@@ -30,5 +30,8 @@ export async function getSettings() {
     nightShiftStartHour: Number(row.night_shift_start_hour) ?? 21,
     nightShiftEndHour: Number(row.night_shift_end_hour) ?? 7,
     defaultBaseSalary: row.default_base_salary != null ? Number(row.default_base_salary) : 0,
+    // 10JUN2026 Item 8 — clock-in IP allowlist (newline-separated)
+    clockInIpAllowlistEnabled: row.clock_in_ip_allowlist_enabled === true,
+    clockInIpAllowlist: String(row.clock_in_ip_allowlist || ''),
   }
 }

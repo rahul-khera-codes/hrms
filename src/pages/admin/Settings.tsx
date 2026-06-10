@@ -45,6 +45,9 @@ export default function AdminSettings() {
   const [nightShiftStartHour, setNightShiftStartHour] = useState(21)
   const [nightShiftEndHour, setNightShiftEndHour] = useState(7)
   const [defaultBaseSalary, setDefaultBaseSalary] = useState('0')
+  // 10JUN2026 client video Item 8 — clock-in IP allowlist
+  const [clockInIpAllowlistEnabled, setClockInIpAllowlistEnabled] = useState(false)
+  const [clockInIpAllowlist, setClockInIpAllowlist] = useState('')
   const [holidays, setHolidays] = useState<HolidayItem[]>([])
   const [holidayDate, setHolidayDate] = useState('')
   const [holidayName, setHolidayName] = useState('')
@@ -66,6 +69,8 @@ export default function AdminSettings() {
         setNightShiftStartHour(data.nightShiftStartHour)
         setNightShiftEndHour(data.nightShiftEndHour)
         setDefaultBaseSalary(String(data.defaultBaseSalary ?? 0))
+        setClockInIpAllowlistEnabled(data.clockInIpAllowlistEnabled === true)
+        setClockInIpAllowlist(String(data.clockInIpAllowlist ?? ''))
       })
       .catch((e: unknown) => {
         if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load settings')
@@ -148,6 +153,8 @@ export default function AdminSettings() {
         nightShiftStartHour,
         nightShiftEndHour,
         defaultBaseSalary: dbs,
+        clockInIpAllowlistEnabled,
+        clockInIpAllowlist,
       })
       setSuccess(true)
       setTimeout(() => setSuccess(false), 3000)
@@ -427,6 +434,40 @@ export default function AdminSettings() {
           <p className="text-xs text-surface-500 dark:text-surface-400 dark:text-surface-500 px-1">
             Night window: from {formatHour(nightShiftStartHour)} until {formatHour(nightShiftEndHour)} (e.g. 9 PM – 7 AM = 21 to 7).
           </p>
+
+          {/* 10JUN2026 client video Item 8 — Orlando: "limit the software
+              to be used from the site or from an approved location… a
+              list through Settings of approved IPs". When the toggle is
+              off (default) the allowlist is ignored, so admins can roll
+              this out gradually. */}
+          <div className="pt-4 mt-2 border-t border-surface-200 dark:border-surface-700">
+            <div className="flex items-center justify-between gap-3 mb-2">
+              <div>
+                <h4 className="text-sm font-semibold text-surface-900 dark:text-surface-50">Clock-in IP allowlist</h4>
+                <p className="text-xs text-surface-500 dark:text-surface-400 mt-0.5">When enabled, employees can only clock in/out from listed IPs.</p>
+              </div>
+              <label className="inline-flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={clockInIpAllowlistEnabled}
+                  onChange={(e) => setClockInIpAllowlistEnabled(e.target.checked)}
+                  className="rounded text-brand-600 focus:ring-brand-500"
+                />
+                <span className="text-xs font-medium text-surface-700 dark:text-surface-200">Enforce</span>
+              </label>
+            </div>
+            <textarea
+              value={clockInIpAllowlist}
+              onChange={(e) => setClockInIpAllowlist(e.target.value)}
+              rows={5}
+              placeholder={'# One IP or CIDR per line. # lines are comments.\n# Examples:\n# 203.0.113.5\n# 203.0.113.0/24'}
+              className="w-full text-xs font-mono rounded-lg border border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-900 px-3 py-2 focus:ring-1 focus:ring-brand-300 outline-none"
+              disabled={!clockInIpAllowlistEnabled}
+            />
+            <p className="text-[11px] text-surface-500 dark:text-surface-400 mt-1">
+              Supports single IPv4/IPv6 addresses and IPv4 CIDR blocks (e.g. <code>203.0.113.0/24</code>). Saved with the form below.
+            </p>
+          </div>
         </div>
         {error && (
           <p className="mt-3 text-sm text-red-600" role="alert">{error}</p>

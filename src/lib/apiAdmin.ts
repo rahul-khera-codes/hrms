@@ -323,6 +323,12 @@ export interface SettingsResponse {
   nightShiftEndHour: number
   /** Company default reference amount (USD); per-employee pay is still set under Employees. */
   defaultBaseSalary: number
+  // 10JUN2026 client video Item 8 — clock-in IP allowlist controls.
+  // When enabled, /api/sessions/clock-in returns 403 unless the request
+  // IP appears in the newline-separated `clockInIpAllowlist` (single
+  // IPs or CIDR blocks). When disabled (default), allow everyone.
+  clockInIpAllowlistEnabled?: boolean
+  clockInIpAllowlist?: string
 }
 
 export async function getSettings(): Promise<SettingsResponse> {
