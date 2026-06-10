@@ -20,6 +20,7 @@ import {
 import { fmtFullDateTime, fmtShiftTimeStr } from '@/lib/timeFormat'
 import { sortByName } from '@/lib/sortByName'
 import { inactiveRowClass } from '@/lib/inactiveEmployeeRow'
+import { cycleStateFor, cycleStateLabel, cycleStateBadgeClass } from '@/lib/cycleStatus'
 import AdminSelect from '@/components/AdminSelect'
 import DocumentUpload from '@/components/DocumentUpload'
 import StagedDocumentUpload, { uploadStagedDocuments } from '@/components/StagedDocumentUpload'
@@ -1145,7 +1146,23 @@ export default function AdminLeaveRequests() {
                     <td className={`px-2 py-1.5 text-xs tabular-nums whitespace-nowrap text-right font-semibold ${r.leavePayableAmount != null && r.leavePayableAmount > 0 ? 'text-brand-700' : 'text-surface-400 dark:text-surface-500'}`}>
                       {r.leavePayableAmount != null ? `$${r.leavePayableAmount.toFixed(2)}` : '-'}
                     </td>
-                    <td className="px-2 py-1.5 text-xs font-mono text-surface-700 dark:text-surface-200 tabular-nums whitespace-nowrap">{r.payrollCycleCode ?? '-'}</td>
+                    <td className="px-2 py-1.5 text-xs whitespace-nowrap">
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="font-mono text-surface-700 dark:text-surface-200 tabular-nums">{r.payrollCycleCode ?? '-'}</span>
+                        {/* 10JUN2026 — cycle status badge (Upcoming/Current/
+                            In Process/Closed) so admins can see at a glance
+                            whether the leave is tied to the active cycle. */}
+                        {r.payrollCycleCode && (() => {
+                          const st = cycleStateFor(r.payrollCycleCode, payrollPeriods)
+                          if (st === 'unknown') return null
+                          return (
+                            <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-semibold border ${cycleStateBadgeClass(st)}`}>
+                              {cycleStateLabel(st)}
+                            </span>
+                          )
+                        })()}
+                      </span>
+                    </td>
                     <td className="px-2 py-1.5 whitespace-nowrap text-right" onClick={(e) => e.stopPropagation()}>
                       <button
                         type="button"

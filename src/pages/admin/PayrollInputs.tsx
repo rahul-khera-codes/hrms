@@ -15,6 +15,7 @@ import { useToast } from '@/components/Toast'
 import { buildCycleOptions, recurrentCycleOption, RECURRENT_CYCLE_CODE } from '@/lib/cycleOptions'
 import { sortByName } from '@/lib/sortByName'
 import { inactiveRowClass } from '@/lib/inactiveEmployeeRow'
+import { cycleStateFor, cycleStateLabel, cycleStateBadgeClass } from '@/lib/cycleStatus'
 // 03JUN2026 — audit-column timestamps in AST 12-hour format
 import { fmtFullDateTime } from '@/lib/timeFormat'
 import {
@@ -608,7 +609,21 @@ export default function AdminPayrollInputs() {
                             {formatRecurrentLabel(r.recurrentFromCycle, r.recurrentToCycle)}
                           </span>
                         ) : (
-                          <span className="font-mono text-surface-700 dark:text-surface-200 tabular-nums">{r.payrollCycleCode ?? '-'}</span>
+                          <span className="inline-flex items-center gap-1.5">
+                            <span className="font-mono text-surface-700 dark:text-surface-200 tabular-nums">{r.payrollCycleCode ?? '-'}</span>
+                            {/* 10JUN2026 — cycle status badge per Orlando's
+                                notes-file line "Payroll status upcoming for
+                                upcoming vs current". */}
+                            {r.payrollCycleCode && (() => {
+                              const st = cycleStateFor(r.payrollCycleCode, payrollPeriods)
+                              if (st === 'unknown') return null
+                              return (
+                                <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-semibold border ${cycleStateBadgeClass(st)}`}>
+                                  {cycleStateLabel(st)}
+                                </span>
+                              )
+                            })()}
+                          </span>
                         )}
                       </td>
                       <td className="px-2 py-1.5 text-xs text-surface-700 dark:text-surface-200 whitespace-nowrap">{r.approverName ?? '-'}</td>
