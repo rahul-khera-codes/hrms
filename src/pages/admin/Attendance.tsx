@@ -994,7 +994,12 @@ export default function AdminAttendance() {
                 </div>
               )}
 
-              {/* Shift & Clock — editable datetime-local inputs */}
+              {/* Shift & Clock — editable datetime-local inputs.
+                  10JUN2026 client video Item 4 — Orlando: Add modal pairs
+                  (Shift Start | Shift End) on top and (Clock In | Clock
+                  Out) below; Edit modal previously paired by time-of-day
+                  (Shift Start | Clock In / Shift End | Clock Out). Now
+                  both forms use the Add layout for consistency. */}
               <div className="rounded-xl border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900 p-4">
                 <p className="text-[10px] font-semibold text-surface-400 dark:text-surface-500 uppercase tracking-wider mb-3">Shift & Clock (Editable)</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1010,17 +1015,6 @@ export default function AdminAttendance() {
                     modifiedByName={detailRecord.modifiedByName}
                   />
                   <ShiftTimeInput
-                    label="Clock In"
-                    value={toDateTimeLocal(detailRecord.clockIn)}
-                    disabled={detailRecord.isLocked ?? false}
-                    onSave={(v) => handleFieldUpdate(detailRecord, 'clockIn', fromDateTimeLocal(v) ?? '')}
-                    onClear={() => handleFieldUpdate(detailRecord, 'clockInClear', true)}
-                    overridden={detailRecord.clockInOverridden}
-                    rawValue={detailRecord.clockInRaw}
-                    onReset={() => handleFieldUpdate(detailRecord, 'clockIn', '')}
-                    modifiedByName={detailRecord.modifiedByName}
-                  />
-                  <ShiftTimeInput
                     label="Shift End"
                     value={toDateTimeLocal(detailRecord.shiftEnd)}
                     disabled={detailRecord.isLocked ?? false}
@@ -1029,6 +1023,17 @@ export default function AdminAttendance() {
                     overridden={detailRecord.shiftEndOverridden}
                     rawValue={detailRecord.shiftEndRaw}
                     onReset={() => handleFieldUpdate(detailRecord, 'shiftEnd', '')}
+                    modifiedByName={detailRecord.modifiedByName}
+                  />
+                  <ShiftTimeInput
+                    label="Clock In"
+                    value={toDateTimeLocal(detailRecord.clockIn)}
+                    disabled={detailRecord.isLocked ?? false}
+                    onSave={(v) => handleFieldUpdate(detailRecord, 'clockIn', fromDateTimeLocal(v) ?? '')}
+                    onClear={() => handleFieldUpdate(detailRecord, 'clockInClear', true)}
+                    overridden={detailRecord.clockInOverridden}
+                    rawValue={detailRecord.clockInRaw}
+                    onReset={() => handleFieldUpdate(detailRecord, 'clockIn', '')}
                     modifiedByName={detailRecord.modifiedByName}
                   />
                   <ShiftTimeInput
