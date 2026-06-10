@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { format, startOfWeek, endOfWeek } from 'date-fns'
-import { Search, Download, X, ArrowUp, ArrowDown, Filter, Clock, Plus, Lock, Unlock, Pencil } from 'lucide-react'
+import { Search, Download, X, ArrowUp, ArrowDown, Filter, Clock, Plus, Lock, Unlock, Pencil, CheckSquare } from 'lucide-react'
 import { getAdminAttendance, updateAttendanceRecord, createAttendanceRecord, getEmployees, getClients, getPayrollPeriods, setAttendanceReviewed, type EmployeeRecord, type Client, type PayrollPeriod } from '@/lib/apiAdmin'
 import { buildCycleOptions } from '@/lib/cycleOptions'
 import { sortByName } from '@/lib/sortByName'
@@ -9,6 +9,7 @@ import DateRangePicker from '@/components/DateRangePicker'
 import AdminSelect from '@/components/AdminSelect'
 import { PageHeader } from '@/components/PageHeader'
 import { DetailModalHeader } from '@/components/DetailModalHeader'
+import { BulkActionBar } from '@/components/BulkActionBar'
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -204,6 +205,22 @@ export default function AdminAttendance() {
   // Add Attendance Record modal
   const [showAddModal, setShowAddModal] = useState(false)
 
+  // 10JUN2026 client video Item 9 — Orlando: Attendance had NO bulk
+  // actions at all. Adding bulk selection + the actions he asked for:
+  // Lock / Unlock / Status Update ("that'll be awesome" — bulk-set the
+  // status_override across multiple sessions at once).
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkSaving, setBulkSaving] = useState(false)
+  const [bulkStatus, setBulkStatus] = useState<string>('')
+  const clearSelection = () => setSelectedIds(new Set())
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
+
   // -----------------------------------------------------------------------
   // Fetch
   // -----------------------------------------------------------------------
@@ -301,6 +318,47 @@ export default function AdminAttendance() {
     },
     [detailRecord],
   )
+
+  // -----------------------------------------------------------------------
+  // 10JUN2026 client video Item 9 — bulk actions on Attendance
+  // -----------------------------------------------------------------------
+
+  async function bulkSetLocked(locked: boolean) {
+    if (selectedIds.size === 0) return
+    const ids = Array.from(selectedIds)
+    setBulkSaving(true)
+    let ok = 0, failed = 0
+    for (const id of ids) {
+      try {
+        await updateAttendanceRecord(id, { isLocked: locked, force: locked === false } as never)
+        ok++
+      } catch { failed++ }
+    }
+    setBulkSaving(false)
+    clearSelection()
+    await fetchAttendance()
+    return { ok, failed }
+  }
+
+  async function bulkApplyStatus(newStatus: string) {
+    if (selectedIds.size === 0 || !newStatus) return
+    const ids = Array.from(selectedIds)
+    setBulkSaving(true)
+    let ok = 0, failed = 0
+    for (const id of ids) {
+      const r = records.find((x) => (x.sessionId ?? x.id) === id)
+      if (r?.isLocked) { failed++; continue }
+      try {
+        await updateAttendanceRecord(id, { statusOverride: newStatus } as never)
+        ok++
+      } catch { failed++ }
+    }
+    setBulkSaving(false)
+    clearSelection()
+    setBulkStatus('')
+    await fetchAttendance()
+    return { ok, failed }
+  }
 
   // -----------------------------------------------------------------------
   // CSV export
@@ -675,6 +733,22 @@ export default function AdminAttendance() {
               <thead className="sticky top-0 z-10 bg-surface-50 dark:bg-surface-900">
                 {/* Group header row */}
                 <tr>
+                  {/* 10JUN2026 Item 9 — checkbox column for bulk actions. */}
+                  <th rowSpan={2} className="w-8 px-2 py-1 border-b border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900">
+                    <input
+                      type="checkbox"
+                      aria-label="Select all visible"
+                      className="w-3.5 h-3.5 rounded border-surface-300 text-brand-600 focus:ring-brand-500 cursor-pointer"
+                      checked={filteredAndSorted.length > 0 && filteredAndSorted.every((r) => selectedIds.has(r.sessionId ?? r.id))}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedIds(new Set(filteredAndSorted.map((r) => r.sessionId ?? r.id)))
+                        } else {
+                          clearSelection()
+                        }
+                      }}
+                    />
+                  </th>
                   <th colSpan={3} className="px-2 py-1 text-[9px] font-bold text-brand-600 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 dark:border-surface-700 bg-brand-50/40 text-center">Employee</th>
                   <th colSpan={4} className="px-2 py-1 text-[9px] font-bold text-violet-600 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 dark:border-surface-700 bg-violet-50/40 text-center">Shift</th>
                   <th colSpan={5} className="px-2 py-1 text-[9px] font-bold text-amber-600 uppercase tracking-wider whitespace-nowrap border-b border-surface-200 dark:border-surface-700 bg-amber-50/40 text-center">Shift Classification</th>
@@ -767,9 +841,19 @@ export default function AdminAttendance() {
                   return (
                     <tr
                       key={sid}
-                      className={`border-b border-surface-100 dark:border-surface-800 hover:bg-surface-50/60 transition-colors cursor-pointer ${isSaving ? 'opacity-60' : ''}`}
+                      className={`border-b border-surface-100 dark:border-surface-800 hover:bg-surface-50/60 transition-colors cursor-pointer ${isSaving ? 'opacity-60' : ''} ${selectedIds.has(sid) ? 'bg-brand-50/40 dark:bg-brand-900/15' : ''}`}
                       onClick={() => setDetailRecord(r)}
                     >
+                      {/* 10JUN2026 Item 9 — selection checkbox */}
+                      <td className="px-2 py-1.5 w-8" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          aria-label={`Select ${r.employeeName}`}
+                          className="w-3.5 h-3.5 rounded border-surface-300 text-brand-600 focus:ring-brand-500 cursor-pointer"
+                          checked={selectedIds.has(sid)}
+                          onChange={() => toggleSelect(sid)}
+                        />
+                      </td>
                       {/* Record ID (SES-####) — 25MAY client follow-up */}
                       <td className="px-2 py-1.5 text-xs font-mono text-surface-700 dark:text-surface-200 tabular-nums whitespace-nowrap">
                         {r.recordId ?? '-'}
@@ -1324,6 +1408,55 @@ export default function AdminAttendance() {
           }}
         />
       )}
+
+      {/* 10JUN2026 client video Item 9 — Orlando: "I would do the same
+          thing — delete, lock, unlock — but I would also add a bulk
+          action to update the status for multiple records at the time.
+          That'll be awesome." Done. */}
+      <BulkActionBar count={selectedIds.size} onClear={clearSelection}>
+        <select
+          value={bulkStatus}
+          onChange={(e) => setBulkStatus(e.target.value)}
+          disabled={bulkSaving}
+          className="text-xs rounded-lg border border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-900 px-2 py-1 focus:ring-1 focus:ring-brand-300 outline-none disabled:opacity-60"
+          aria-label="Bulk status to apply"
+        >
+          <option value="">Set status…</option>
+          {STATUS_OPTIONS.map((opt) => (
+            <option key={opt} value={opt}>{opt}</option>
+          ))}
+        </select>
+        <button
+          type="button"
+          onClick={() => void bulkApplyStatus(bulkStatus)}
+          disabled={bulkSaving || !bulkStatus}
+          className="btn-secondary btn-sm"
+          title="Apply status to selected (skips locked)"
+        >
+          <CheckSquare className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">Apply</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => void bulkSetLocked(true)}
+          disabled={bulkSaving}
+          className="btn-secondary btn-sm"
+          title="Lock selected"
+        >
+          <Lock className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">Lock</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => void bulkSetLocked(false)}
+          disabled={bulkSaving}
+          className="btn-secondary btn-sm"
+          title="Unlock selected"
+        >
+          <Unlock className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">Unlock</span>
+        </button>
+      </BulkActionBar>
     </div>
   )
 }

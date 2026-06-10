@@ -630,6 +630,39 @@ export default function AdminLeaveRequests() {
     await load(false)
   }
 
+  // 10JUN2026 client video Item 9 — Orlando: "in leaves, I don't have
+  // the option to delete and I should be able to delete a leave". Bulk
+  // Delete added alongside Lock/Unlock/Approve/Reject. Skips locked rows.
+  async function bulkDelete() {
+    if (selectedIds.size === 0) return
+    if (!window.confirm(`Permanently delete ${selectedIds.size} leave request(s)? This cannot be undone.`)) return
+    const eligibleIds = Array.from(selectedIds).filter((id) => {
+      const row = rows.find((r) => r.id === id)
+      return row && !row.isLocked
+    })
+    if (eligibleIds.length === 0) {
+      setNotice('No eligible requests selected (all locked).')
+      return
+    }
+    setBulkSaving(true)
+    let ok = 0
+    let failed = 0
+    for (const id of eligibleIds) {
+      try {
+        await deleteAdminLeaveRequest(id)
+        ok++
+      } catch {
+        failed++
+      }
+    }
+    setBulkSaving(false)
+    setNotice(failed === 0
+      ? `${ok} request${ok === 1 ? '' : 's'} deleted.`
+      : `${ok} deleted, ${failed} failed.`)
+    clearSelection()
+    await load(false)
+  }
+
   // 21MAY2026 client video: leave form deletion (modal footer).
   async function handleDeleteReview(id: string) {
     if (!window.confirm('Permanently delete this leave request? This cannot be undone.')) return
@@ -2082,11 +2115,24 @@ export default function AdminLeaveRequests() {
           type="button"
           onClick={() => void bulkReject()}
           disabled={bulkSaving}
-          className="btn-danger btn-sm"
+          className="btn-secondary btn-sm"
           title="Reject selected (skips locked / already-rejected)"
         >
           <XCircle className="w-3.5 h-3.5" />
           <span className="hidden sm:inline">Reject</span>
+        </button>
+        {/* 10JUN2026 client video Item 9 — Delete bulk action. Sits in
+            the Danger slot at the right so it matches Employees /
+            Payroll Inputs / Accounts. */}
+        <button
+          type="button"
+          onClick={() => void bulkDelete()}
+          disabled={bulkSaving}
+          className="btn-danger btn-sm"
+          title="Delete selected (skips locked)"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">Delete</span>
         </button>
       </BulkActionBar>
     </div>
