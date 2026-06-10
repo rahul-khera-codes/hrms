@@ -419,6 +419,24 @@ router.post('/', async (req, res) => {
       ]
     )
     const newId = result.rows[0].id
+
+    // 10JUN2026 client video Item 2 — notify the approver on creation
+    // (when one was selected). Falls back to in-app notification if
+    // SMTP isn't configured.
+    if (approverId) {
+      try {
+        const { notifyApprover } = await import('../lib/notifyApprover.js')
+        await notifyApprover({
+          approverId,
+          type: 'payroll_input',
+          recordRef: newId.slice(0, 8),
+          subject: 'New payroll input awaiting your approval',
+        })
+      } catch (err) {
+        console.warn('[payroll-inputs POST] notifyApprover failed:', err?.message || err)
+      }
+    }
+
     const full = await query(
       `SELECT pi.*, u.name AS user_name,
               e.cmid AS employee_cmid, c.name AS account_name,
@@ -500,11 +518,25 @@ router.patch('/:id', async (req, res) => {
         updates.push(`recurrent_to_cycle = NULL`)
       }
     }
-    // Status transitions — set reviewed_by/reviewed_at automatically
+    // Status transitions — set reviewed_by/reviewed_at automatically.
+    // 10JUN2026 client video Item 2 — Orlando: "approval status should
+    // only be editable by the selected approver, not the submitter".
+    // Enforced here: if an approver is set, only that user (or an
+    // admin overriding via ?force=true) can move the status to
+    // approved/rejected. Pending → status transitions still allowed
+    // so submitters can flip approval back to pending after edits.
     if ('status' in req.body) {
+      const newStatus = req.body.status
+      const isFinalize = newStatus === 'approved' || newStatus === 'rejected'
+      if (isFinalize && prev.approver_id && prev.approver_id !== req.user.id && !req.body.force) {
+        return res.status(403).json({
+          error: 'Forbidden',
+          message: 'Only the selected approver can approve or reject this input.',
+        })
+      }
       updates.push(`status = $${i++}`)
-      params.push(req.body.status)
-      if (req.body.status === 'approved' || req.body.status === 'rejected') {
+      params.push(newStatus)
+      if (isFinalize) {
         updates.push(`reviewed_by = $${i++}`)
         params.push(req.user.id)
         updates.push(`reviewed_at = NOW()`)
@@ -544,6 +576,24 @@ router.patch('/:id', async (req, res) => {
     updates.push(`updated_at = NOW()`)
     params.push(id)
     await query(`UPDATE payroll_inputs SET ${updates.join(', ')} WHERE id = $${i}`, params)
+
+    // 10JUN2026 client video Item 2 — Orlando: "when the approver is
+    // selected, it should send an email to the approver". Triggered
+    // when approver_id changes (or is freshly set). The helper falls
+    // back to in-app notification when SMTP isn't configured.
+    if ('approverId' in req.body && req.body.approverId && req.body.approverId !== prev.approver_id) {
+      try {
+        const { notifyApprover } = await import('../lib/notifyApprover.js')
+        await notifyApprover({
+          approverId: req.body.approverId,
+          type: 'payroll_input',
+          recordRef: prev.record_id ? `#${prev.record_id}` : id.slice(0, 8),
+          subject: 'New payroll input awaiting your approval',
+        })
+      } catch (err) {
+        console.warn('[payroll-inputs PATCH] notifyApprover failed:', err?.message || err)
+      }
+    }
 
     const full = await query(
       `SELECT pi.*, u.name AS user_name,

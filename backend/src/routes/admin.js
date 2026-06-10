@@ -1507,11 +1507,50 @@ router.patch('/leave-requests/:id', async (req, res) => {
       if (!updated) {
         return res.status(400).json({ error: 'Bad request', message: 'No editable fields provided and no status change requested' })
       }
+      // 10JUN2026 client video Item 2 — when approver_name was just set
+      // or changed in this edit, notify the approver. Approver is stored
+      // as free text on leave_requests today (vs UUID on payroll_inputs),
+      // so we resolve the user by case-insensitive name match. If no
+      // user matches, the notification falls through silently.
+      if (approverName !== undefined && approverName && approverName !== existingRow.approver_name) {
+        try {
+          const u = await query(
+            `SELECT id FROM users WHERE LOWER(name) = LOWER($1) LIMIT 1`,
+            [String(approverName).trim()],
+          )
+          if (u.rows.length > 0) {
+            const { notifyApprover } = await import('../lib/notifyApprover.js')
+            await notifyApprover({
+              approverId: u.rows[0].id,
+              type: 'leave',
+              recordRef: id.slice(0, 8),
+              subject: 'New leave request awaiting your approval',
+            })
+          }
+        } catch (err) {
+          console.warn('[leave PATCH] notifyApprover failed:', err?.message || err)
+        }
+      }
       return res.json(mapLeaveRowToJson(updated))
     }
 
     if (!['approved', 'rejected'].includes(String(status))) {
       return res.status(400).json({ error: 'Bad request', message: 'status must be approved or rejected' })
+    }
+
+    // 10JUN2026 client video Item 2 — only the assigned approver (or
+    // forced via ?force=true) may finalize approve/reject. approver_name
+    // is a free-text field on leaves; we restrict by case-insensitive
+    // match against the current admin's name when one is set.
+    if (existingRow.approver_name && !req.body.force) {
+      const meRes = await query('SELECT name FROM users WHERE id = $1', [req.user.id])
+      const meName = String(meRes.rows[0]?.name || '').trim().toLowerCase()
+      if (meName !== String(existingRow.approver_name).trim().toLowerCase()) {
+        return res.status(403).json({
+          error: 'Forbidden',
+          message: `Only the selected approver (${existingRow.approver_name}) can approve or reject this leave.`,
+        })
+      }
     }
 
     // Allow re-review of any non-locked record (approved → rejected, rejected → approved, or re-apply settings)
