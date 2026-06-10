@@ -731,6 +731,13 @@ router.patch('/attendance/:sessionId', async (req, res) => {
       clockIn, clockOut, reportsToOverride, accountOverride, isLocked,
       // unlock helper (admin forces override even if locked)
       force,
+      // 10JUN2026 client video Item 12 — Jose Reyes demonstrated that
+      // clearing Clock In/Out via the date-picker's Clear button doesn't
+      // persist (effective value reverts to the raw captured punch). For
+      // stuck/invalid records (e.g. clock_in == clock_out at the same
+      // second) the raw IS the bad value, so the user needs to clear it
+      // too. These flags null out both the raw + override columns.
+      clearClockInRaw, clearClockOutRaw, clearShiftStartRaw, clearShiftEndRaw,
     } = req.body
 
     const session = await query('SELECT id, is_locked FROM sessions WHERE id = $1', [sessionId])
@@ -766,6 +773,12 @@ router.patch('/attendance/:sessionId', async (req, res) => {
     if (shiftEnd !== undefined) { updates.push(`shift_end_override = $${i++}`); params.push(shiftEnd || null) }
     if (clockIn !== undefined) { updates.push(`clock_in_override = $${i++}`); params.push(clockIn || null) }
     if (clockOut !== undefined) { updates.push(`clock_out_override = $${i++}`); params.push(clockOut || null) }
+    // 10JUN2026 Item 12 — null out RAW columns too so the effective value
+    // (override ?? raw) becomes NULL instead of reverting to the stuck raw.
+    if (clearClockInRaw === true)   updates.push(`clock_in = NULL`)
+    if (clearClockOutRaw === true)  updates.push(`clock_out = NULL`)
+    if (clearShiftStartRaw === true) updates.push(`shift_start = NULL`)
+    if (clearShiftEndRaw === true)   updates.push(`shift_end = NULL`)
     if (reportsToOverride !== undefined) { updates.push(`reports_to_override = $${i++}`); params.push(reportsToOverride || null) }
     if (accountOverride !== undefined) { updates.push(`account_override = $${i++}`); params.push(accountOverride || null) }
     if (isLocked !== undefined) { updates.push(`is_locked = $${i++}`); params.push(!!isLocked) }
@@ -1378,8 +1391,12 @@ router.patch('/leave-requests/:id', async (req, res) => {
       return res.status(409).json({ error: 'Locked', message: 'This leave request is locked. Unlock it first to edit.' })
     }
 
-    // Helper: build and run an UPDATE for editable core fields (when not locked)
-    const applyEditableFields = async (recordId) => {
+    // Helper: build and run an UPDATE for editable core fields (when not locked).
+    // 10JUN2026 — `extraSets` lets callers tack on already-computed calc fields
+    // (leave_type, leave_calculation_type, leave_payable_days, snapshot values)
+    // so the edit-only path can persist Item-3 conversions too, not just the
+    // approval path.
+    const applyEditableFields = async (recordId, extraSets = null) => {
       const editSets = []
       const editVals = []
       let pi = 0
@@ -1413,6 +1430,10 @@ router.patch('/leave-requests/:id', async (req, res) => {
       // control and hit Save, the row reopened with the OLD Approved/Approver.
       if (payrollStatus !== undefined) add('payroll_status', payrollStatus ? String(payrollStatus).trim() : null)
       if (approverName !== undefined) add('approver_name', approverName ? String(approverName).trim() : null)
+      // 10JUN2026 — Item 3 — calc-conversion fields when caller passes them
+      if (extraSets) {
+        for (const [col, val] of Object.entries(extraSets)) add(col, val)
+      }
       if (editSets.length === 0) return null
       // 21MAY2026 audit trail rollout: stamp modifier on every edit
       add('modified_by', req.user.id)
@@ -1431,7 +1452,54 @@ router.patch('/leave-requests/:id', async (req, res) => {
 
     // Edit-only path: no status change, just update core fields
     if (status === undefined || status === null) {
-      const updated = await applyEditableFields(id)
+      // 10JUN2026 — Item 3 — if admin sent calc fields without changing status
+      // (e.g., approval still "Approved", just changing Hourly→Monthly or
+      // converting non-payable→payable), recompute the snapshot and pass
+      // the derived fields to applyEditableFields.
+      let editCalcExtras = null
+      if (calculationType !== undefined || payableDays !== undefined) {
+        const ct = calculationType !== undefined
+          ? String(calculationType)
+          : (existingRow.leave_calculation_type || 'non_payable')
+        if (!['non_payable', 'hourly_salary', 'monthly_salary'].includes(ct)) {
+          return res.status(400).json({ error: 'Bad request', message: 'calculationType must be non_payable, hourly_salary, or monthly_salary' })
+        }
+        const pd = ct === 'non_payable'
+          ? 0
+          : (payableDays != null ? Number(payableDays) : 0)
+        if (!Number.isFinite(pd) || pd < 0 || pd > 366) {
+          return res.status(400).json({ error: 'Bad request', message: 'payableDays must be a number from 0 to 366' })
+        }
+        const empResult = await query(
+          `SELECT COALESCE(e.salary_type, u.salary_type) AS salary_type,
+                  COALESCE(e.base_salary, u.base_salary) AS base_salary
+           FROM users u
+           LEFT JOIN employees e ON e.user_id = u.id
+           WHERE u.id = $1`,
+          [existingRow.user_id]
+        )
+        const emp = empResult.rows[0]
+        const settings = await getSettings()
+        const salaryType = emp?.salary_type === 'monthly' ? 'monthly' : 'hourly'
+        const baseSalary = Number(emp?.base_salary) || 0
+        const snap = computeLeavePaySnapshot({
+          salaryType, baseSalary,
+          workingDaysPerMonth: settings.workingDaysPerMonth,
+          hoursPerDay: settings.hoursPerDay,
+          calculationType: ct,
+          payableDays: pd,
+        })
+        editCalcExtras = {
+          leave_type: ct === 'non_payable' ? 'unpaid' : 'paid',
+          leave_calculation_type: ct,
+          leave_payable_days: pd,
+          leave_hourly_rate: snap.hourlyRate ?? null,
+          leave_daily_hours: snap.dailyHours ?? null,
+          leave_daily_salary: snap.dailySalary ?? null,
+          leave_payable_amount: snap.payableAmount ?? 0,
+        }
+      }
+      const updated = await applyEditableFields(id, editCalcExtras)
       if (!updated) {
         return res.status(400).json({ error: 'Bad request', message: 'No editable fields provided and no status change requested' })
       }
@@ -1511,10 +1579,24 @@ router.patch('/leave-requests/:id', async (req, res) => {
     let leaveCalcType
     let leavePayableDaysNum
     let snap
+    let derivedLeaveType // 10JUN2026 — persist to leave_type column so unpaid↔paid conversion sticks
 
-    if (row.leave_type === 'unpaid') {
+    // 10JUN2026 client video Item 3 — Orlando demonstrated converting a
+    // non-payable "Tiempo Libre" leave to Hourly/Monthly Salary silently
+    // failed. Old logic gated on `row.leave_type === 'unpaid'`, forcing
+    // calc=non_payable regardless of what the admin chose. New logic:
+    // when the request explicitly carries a payable calculationType, treat
+    // it as a conversion (and persist leave_type=paid). When the request
+    // omits calculationType (or sends non_payable), keep the source
+    // unpaid behavior intact for back-compat.
+    const ctRequested = calculationType !== undefined ? String(calculationType) : ''
+    const wantsPayableCalc = ['hourly_salary', 'monthly_salary'].includes(ctRequested)
+    const stayUnpaid = row.leave_type === 'unpaid' && !wantsPayableCalc
+
+    if (stayUnpaid) {
       leaveCalcType = 'non_payable'
       leavePayableDaysNum = 0
+      derivedLeaveType = 'unpaid'
       snap = computeLeavePaySnapshot({
         salaryType,
         baseSalary,
@@ -1524,7 +1606,7 @@ router.patch('/leave-requests/:id', async (req, res) => {
         payableDays: 0,
       })
     } else {
-      const ct = String(calculationType || '')
+      const ct = ctRequested
       if (!['non_payable', 'hourly_salary', 'monthly_salary'].includes(ct)) {
         return res.status(400).json({
           error: 'Bad request',
@@ -1537,6 +1619,8 @@ router.patch('/leave-requests/:id', async (req, res) => {
       }
       leaveCalcType = ct
       leavePayableDaysNum = Math.round(pd * 100) / 100
+      // If admin set calc back to non_payable, leave reverts to unpaid.
+      derivedLeaveType = ct === 'non_payable' ? 'unpaid' : 'paid'
       snap = computeLeavePaySnapshot({
         salaryType,
         baseSalary,
@@ -1554,6 +1638,7 @@ router.patch('/leave-requests/:id', async (req, res) => {
            reviewed_note = $2,
            reviewed_at = NOW(),
            updated_at = NOW(),
+           leave_type = $13,
            leave_calculation_type = $3,
            leave_associate_days_off = $4,
            leave_payable_days = $5,
@@ -1582,6 +1667,7 @@ router.patch('/leave-requests/:id', async (req, res) => {
         id,
         payrollStatus ? String(payrollStatus).trim() : null,
         approverName ? String(approverName).trim() : null,
+        derivedLeaveType, // $13 — persists unpaid↔paid conversion (Item 3)
       ]
     )
     if (!result.rows.length) {

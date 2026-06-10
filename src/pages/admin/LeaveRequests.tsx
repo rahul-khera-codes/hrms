@@ -709,33 +709,34 @@ export default function AdminLeaveRequests() {
           setSaving(false)
           return
         }
-        const pd = parseFloat(payableDaysInput)
-        if (reviewContext.leave.leaveType === 'paid') {
+        // 10JUN2026 client video Item 3 — Orlando demonstrated converting a
+        // non-payable "Tiempo Libre" leave to Hourly/Monthly Salary silently
+        // failed. The old code gated on source `leaveType === 'paid'`,
+        // dropping `calculationType` when source was unpaid. Now we always
+        // send the chosen calc; backend derives the new leave_type from it.
+        const pd = calculationType === 'non_payable' ? 0 : parseFloat(payableDaysInput)
+        if (calculationType !== 'non_payable') {
           if (!Number.isFinite(pd) || pd < 0 || pd > 366) {
             setNotice('Payable days must be between 0 and 366.')
             setSaving(false)
             return
           }
-          await reviewAdminLeaveRequest(reviewingId, {
-            status: 'approved',
-            reviewedNote: reviewNote.trim() || undefined,
-            calculationType,
-            payableDays: pd,
-            ...editableFields,
-          })
-        } else {
-          await reviewAdminLeaveRequest(reviewingId, {
-            status: 'approved',
-            reviewedNote: reviewNote.trim() || undefined,
-            payableDays: 0,
-            ...editableFields,
-          })
         }
+        await reviewAdminLeaveRequest(reviewingId, {
+          status: 'approved',
+          reviewedNote: reviewNote.trim() || undefined,
+          calculationType,
+          payableDays: pd,
+          ...editableFields,
+        })
       } else {
         // Pending — edit-only PATCH (no status change). Backend takes the
-        // edit-only path when `status` is undefined.
+        // edit-only path when `status` is undefined. Still send calc so
+        // admin can change calculation type without re-approving.
         await reviewAdminLeaveRequest(reviewingId, {
           reviewedNote: reviewNote.trim() || undefined,
+          calculationType,
+          payableDays: calculationType === 'non_payable' ? 0 : (parseFloat(payableDaysInput) || 0),
           ...editableFields,
         })
       }

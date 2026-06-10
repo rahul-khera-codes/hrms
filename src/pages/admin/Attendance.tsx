@@ -269,6 +269,14 @@ export default function AdminAttendance() {
         else if (field === 'shiftEnd') payload.shiftEnd = (value as string) || null
         else if (field === 'clockIn') payload.clockIn = (value as string) || null
         else if (field === 'clockOut') payload.clockOut = (value as string) || null
+        // 10JUN2026 client video Item 12 — Jose's "Clear doesn't save" bug.
+        // Distinct from a reset (override-only clear), these flags null the
+        // raw + override columns together so the cell goes truly blank for
+        // stuck/invalid records where the raw IS the bad value.
+        else if (field === 'clockInClear')   { payload.clockIn = null;   payload.clearClockInRaw = true }
+        else if (field === 'clockOutClear')  { payload.clockOut = null;  payload.clearClockOutRaw = true }
+        else if (field === 'shiftStartClear') { payload.shiftStart = null; payload.clearShiftStartRaw = true }
+        else if (field === 'shiftEndClear')   { payload.shiftEnd = null;   payload.clearShiftEndRaw = true }
         else if (field === 'reportsToOverride') payload.reportsToOverride = (value as string) || null
         else if (field === 'accountOverride') payload.accountOverride = (value as string) || null
         else if (field === 'isLocked') payload.isLocked = Boolean(value)
@@ -994,6 +1002,7 @@ export default function AdminAttendance() {
                     value={toDateTimeLocal(detailRecord.shiftStart)}
                     disabled={detailRecord.isLocked ?? false}
                     onSave={(v) => handleFieldUpdate(detailRecord, 'shiftStart', fromDateTimeLocal(v) ?? '')}
+                    onClear={() => handleFieldUpdate(detailRecord, 'shiftStartClear', true)}
                     overridden={detailRecord.shiftStartOverridden}
                     rawValue={detailRecord.shiftStartRaw}
                     onReset={() => handleFieldUpdate(detailRecord, 'shiftStart', '')}
@@ -1004,6 +1013,7 @@ export default function AdminAttendance() {
                     value={toDateTimeLocal(detailRecord.clockIn)}
                     disabled={detailRecord.isLocked ?? false}
                     onSave={(v) => handleFieldUpdate(detailRecord, 'clockIn', fromDateTimeLocal(v) ?? '')}
+                    onClear={() => handleFieldUpdate(detailRecord, 'clockInClear', true)}
                     overridden={detailRecord.clockInOverridden}
                     rawValue={detailRecord.clockInRaw}
                     onReset={() => handleFieldUpdate(detailRecord, 'clockIn', '')}
@@ -1014,6 +1024,7 @@ export default function AdminAttendance() {
                     value={toDateTimeLocal(detailRecord.shiftEnd)}
                     disabled={detailRecord.isLocked ?? false}
                     onSave={(v) => handleFieldUpdate(detailRecord, 'shiftEnd', fromDateTimeLocal(v) ?? '')}
+                    onClear={() => handleFieldUpdate(detailRecord, 'shiftEndClear', true)}
                     overridden={detailRecord.shiftEndOverridden}
                     rawValue={detailRecord.shiftEndRaw}
                     onReset={() => handleFieldUpdate(detailRecord, 'shiftEnd', '')}
@@ -1024,6 +1035,7 @@ export default function AdminAttendance() {
                     value={toDateTimeLocal(detailRecord.clockOut)}
                     disabled={detailRecord.isLocked ?? false}
                     onSave={(v) => handleFieldUpdate(detailRecord, 'clockOut', fromDateTimeLocal(v) ?? '')}
+                    onClear={() => handleFieldUpdate(detailRecord, 'clockOutClear', true)}
                     overridden={detailRecord.clockOutOverridden}
                     rawValue={detailRecord.clockOutRaw}
                     onReset={() => handleFieldUpdate(detailRecord, 'clockOut', '')}
@@ -1615,6 +1627,7 @@ function ShiftTimeInput({
   label,
   value,
   onSave,
+  onClear,
   disabled,
   overridden,
   rawValue,
@@ -1624,6 +1637,11 @@ function ShiftTimeInput({
   label: string
   value: string  // datetime-local format
   onSave: (val: string) => void
+  // 10JUN2026 Item 12 — explicit "clear both raw + override" callback.
+  // Fires when the user empties the field (e.g., via the native date
+  // picker's Clear button) — distinct from `onReset` which only clears
+  // the override. Pairs with the backend's clearClockInRaw / etc flags.
+  onClear?: () => void
   disabled?: boolean
   // 04JUN2026 client video — "Manually adjusted by X, click to reset"
   overridden?: boolean
@@ -1665,7 +1683,18 @@ function ShiftTimeInput({
         type="datetime-local"
         value={local}
         onChange={(e) => setLocal(e.target.value)}
-        onBlur={() => { if (local !== value) onSave(local) }}
+        onBlur={() => {
+          if (local === value) return
+          if (local === '') {
+            // 10JUN2026 Item 12 — user emptied the field (native Clear).
+            // Treat as "wipe the value entirely" rather than the
+            // override-only reset.
+            if (onClear) onClear()
+            else onSave(local)
+          } else {
+            onSave(local)
+          }
+        }}
         disabled={disabled}
         className="w-full text-sm font-medium text-surface-900 dark:text-surface-50 tabular-nums mt-0.5 bg-transparent border-0 outline-none focus:ring-1 focus:ring-brand-300 rounded disabled:opacity-70"
       />
