@@ -218,6 +218,10 @@ function toAttendanceRecord(row) {
     clockOut: clockOut || null,
     location: row.location || null,
     stage: row.stage || null,
+    // 10JUN2026 DR site-manager request — surface the assigned shift's name
+    // ("Day", "Night", etc.) so it can appear in the attendance CSV export
+    // as the "SHIFT TYPE" column. Sourced from the LATERAL shifts join.
+    shiftType: row.shift_name || null,
     reportsTo: row.reports_to_name || null,
     reportsToId: row.reports_to_override || row.reports_to_id || null,
     task: row.task || null,
@@ -525,6 +529,7 @@ router.get('/attendance', async (req, res) => {
         CASE WHEN sh.end_time IS NOT NULL THEN
           (((s.clock_in AT TIME ZONE 'America/Santo_Domingo')::date || 'T' || COALESCE(sa_shift.override_end, sh.end_time)::text)::timestamp AT TIME ZONE 'America/Santo_Domingo')
         ELSE NULL END AS dynamic_shift_end,
+        sh.name AS shift_name,
         h.name AS dynamic_holiday_name
       FROM sessions s
       JOIN users u ON u.id = s.user_id AND u.role = 'employee'
@@ -812,7 +817,8 @@ router.patch('/attendance/:sessionId', async (req, res) => {
               reviewed_user.name AS reviewed_by_name,
               COALESCE(mgr_ov.name, mgr.name) AS reports_to_name,
               COALESCE(c_ov.name, c.name) AS account_name,
-              e.cmid AS employee_cmid
+              e.cmid AS employee_cmid,
+              sh.name AS shift_name
        FROM sessions s
        JOIN users u ON u.id = s.user_id
        LEFT JOIN employees e ON e.user_id = u.id
@@ -820,6 +826,13 @@ router.patch('/attendance/:sessionId', async (req, res) => {
        LEFT JOIN users mgr_ov ON mgr_ov.id = s.reports_to_override
        LEFT JOIN clients c ON c.id = e.primary_client_id
        LEFT JOIN clients c_ov ON c_ov.id = s.account_override
+       LEFT JOIN LATERAL (
+         SELECT a.shift_id
+         FROM schedule_assignments a
+         WHERE a.user_id = u.id AND a.date = (s.clock_in AT TIME ZONE 'America/Santo_Domingo')::date
+         LIMIT 1
+       ) sa_shift ON true
+       LEFT JOIN shifts sh ON sh.id = sa_shift.shift_id
        LEFT JOIN users created_user ON created_user.id = s.created_by
        LEFT JOIN users modified_user ON modified_user.id = s.modified_by
        LEFT JOIN users reviewed_user ON reviewed_user.id = s.reviewed_by
@@ -918,7 +931,8 @@ router.post('/attendance', async (req, res) => {
               reviewed_user.name AS reviewed_by_name,
               COALESCE(mgr_ov.name, mgr.name) AS reports_to_name,
               COALESCE(c_ov.name, c.name) AS account_name,
-              e.cmid AS employee_cmid
+              e.cmid AS employee_cmid,
+              sh.name AS shift_name
        FROM sessions s
        JOIN users u ON u.id = s.user_id
        LEFT JOIN employees e ON e.user_id = u.id
@@ -926,6 +940,13 @@ router.post('/attendance', async (req, res) => {
        LEFT JOIN users mgr_ov ON mgr_ov.id = s.reports_to_override
        LEFT JOIN clients c ON c.id = e.primary_client_id
        LEFT JOIN clients c_ov ON c_ov.id = s.account_override
+       LEFT JOIN LATERAL (
+         SELECT a.shift_id
+         FROM schedule_assignments a
+         WHERE a.user_id = u.id AND a.date = (s.clock_in AT TIME ZONE 'America/Santo_Domingo')::date
+         LIMIT 1
+       ) sa_shift ON true
+       LEFT JOIN shifts sh ON sh.id = sa_shift.shift_id
        LEFT JOIN users created_user ON created_user.id = s.created_by
        LEFT JOIN users modified_user ON modified_user.id = s.modified_by
        LEFT JOIN users reviewed_user ON reviewed_user.id = s.reviewed_by

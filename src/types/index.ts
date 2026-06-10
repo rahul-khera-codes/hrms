@@ -36,6 +36,9 @@ export interface AttendanceRecord {
   clockOut: string | null
   location?: string | null
   stage?: string | null
+  // 10JUN2026 DR site-manager request — assigned shift's name (e.g. "Day",
+  // "Night") exposed for the attendance CSV export's "SHIFT TYPE" column.
+  shiftType?: string | null
   reportsTo?: string | null
   reportsToId?: string | null
   task?: string | null
