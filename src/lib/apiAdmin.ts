@@ -723,6 +723,9 @@ export interface AdminLeaveRequest {
   isLocked?: boolean
   payrollStatus?: string | null
   approverName?: string | null
+  // 10JUN2026 client video Item 1 — for light-red row tint when
+  // employee is terminated or pre-noticed.
+  contractStatus?: string | null
   // 21MAY2026 audit-trail rollout
   createdBy?: string | null
   createdByName?: string | null
@@ -908,6 +911,9 @@ export interface PayrollInput {
   isLocked: boolean
   createdAt: string
   updatedAt: string
+  // 10JUN2026 client video Item 1 — light-red row tint for
+  // terminated/pre-noticed employees.
+  contractStatus?: string | null
   // 21MAY2026 audit trail rollout
   createdBy?: string | null
   createdByName?: string | null

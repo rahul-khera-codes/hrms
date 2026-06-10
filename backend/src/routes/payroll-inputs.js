@@ -67,6 +67,9 @@ function mapRow(r) {
     userId: r.user_id,
     employeeName: r.user_name || null,
     employeeCmid: r.employee_cmid != null ? Number(r.employee_cmid) : null,
+    // 10JUN2026 client video Item 1 — for light-red row tinting on
+    // terminated/pre-noticed employees across all tables.
+    contractStatus: r.contract_status || null,
     accountName: r.account_name || null,
     reportsTo: r.reports_to_name || null,
     inputType: r.input_type,
@@ -115,6 +118,7 @@ router.get('/', async (req, res) => {
     let sql = `
       SELECT pi.*, u.name AS user_name,
              e.cmid AS employee_cmid,
+             e.contract_status AS contract_status,
              c.name AS account_name,
              mgr.name AS reports_to_name,
              app.name AS approver_name,

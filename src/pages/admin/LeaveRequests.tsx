@@ -19,6 +19,7 @@ import {
 // 03JUN2026 — audit-column timestamps in AST 12-hour format
 import { fmtFullDateTime, fmtShiftTimeStr } from '@/lib/timeFormat'
 import { sortByName } from '@/lib/sortByName'
+import { inactiveRowClass } from '@/lib/inactiveEmployeeRow'
 import AdminSelect from '@/components/AdminSelect'
 import DocumentUpload from '@/components/DocumentUpload'
 import StagedDocumentUpload, { uploadStagedDocuments } from '@/components/StagedDocumentUpload'
@@ -1077,7 +1078,7 @@ export default function AdminLeaveRequests() {
                 {displayedRows.map((r) => (
                   <tr
                     key={r.id}
-                    className={`border-b border-surface-100 dark:border-surface-800 hover:bg-brand-50/40 transition-colors cursor-pointer group ${selectedIds.has(r.id) ? 'bg-brand-50/30' : ''}`}
+                    className={`border-b border-surface-100 dark:border-surface-800 hover:bg-brand-50/40 transition-colors cursor-pointer group ${selectedIds.has(r.id) ? 'bg-brand-50/30' : ''} ${inactiveRowClass(r.contractStatus)}`}
                     onClick={() => (r.isLocked ? setDetailRow(r) : openReview(r))}
                   >
                     <td className="px-2 py-1.5 w-10" onClick={(e) => e.stopPropagation()}>

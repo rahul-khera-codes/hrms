@@ -5,6 +5,7 @@ import { PageHeader } from '@/components/PageHeader'
 import { SkeletonTableRows } from '@/components/Skeleton'
 import { useToast } from '@/components/Toast'
 import { buildCycleOptions } from '@/lib/cycleOptions'
+import { inactiveRowClass } from '@/lib/inactiveEmployeeRow'
 import {
   getPayrollPeriods,
   getPayrollCalcResults,
@@ -766,7 +767,7 @@ export default function AdminPayroll() {
                 displayedRows.map((r) => (
                   <tr
                     key={r.id}
-                    className={`border-b border-surface-100 dark:border-surface-800 hover:bg-surface-50/70 transition-colors cursor-pointer ${selectedIds.has(r.id) ? 'bg-brand-50/30' : 'bg-white dark:bg-surface-900'}`}
+                    className={`border-b border-surface-100 dark:border-surface-800 hover:bg-surface-50/70 transition-colors cursor-pointer ${selectedIds.has(r.id) ? 'bg-brand-50/30' : 'bg-white dark:bg-surface-900'} ${inactiveRowClass(r.contractStatus)}`}
                     onClick={() => setDetailRow(r)}
                   >
                     {/* Checkbox */}

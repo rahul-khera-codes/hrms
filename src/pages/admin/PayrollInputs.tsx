@@ -14,6 +14,7 @@ import { SkeletonTableRows } from '@/components/Skeleton'
 import { useToast } from '@/components/Toast'
 import { buildCycleOptions, recurrentCycleOption, RECURRENT_CYCLE_CODE } from '@/lib/cycleOptions'
 import { sortByName } from '@/lib/sortByName'
+import { inactiveRowClass } from '@/lib/inactiveEmployeeRow'
 // 03JUN2026 — audit-column timestamps in AST 12-hour format
 import { fmtFullDateTime } from '@/lib/timeFormat'
 import {
@@ -579,7 +580,7 @@ export default function AdminPayrollInputs() {
                 {displayedRows.map((r) => {
                   const isDed = isDeductionInputType(r.inputType)
                   return (
-                    <tr key={r.id} className="border-b border-surface-100 dark:border-surface-800 hover:bg-brand-50/30 transition-colors cursor-pointer" onClick={() => (r.isLocked ? null : openEdit(r))}>
+                    <tr key={r.id} className={`border-b border-surface-100 dark:border-surface-800 hover:bg-brand-50/30 transition-colors cursor-pointer ${inactiveRowClass(r.contractStatus)}`} onClick={() => (r.isLocked ? null : openEdit(r))}>
                       <td className="px-2 py-1.5 w-8" onClick={(e) => e.stopPropagation()}>
                         <input
                           type="checkbox"

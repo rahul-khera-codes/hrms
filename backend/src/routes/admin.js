@@ -1197,6 +1197,7 @@ router.get('/leave-requests', async (req, res) => {
               created_by_user.name AS created_by_name,
               modified_by_user.name AS modified_by_name,
               e.cmid AS employee_cmid,
+              e.contract_status AS contract_status,
               c.name AS account_name,
               mgr.name AS reports_to_name
        FROM leave_requests lr
@@ -1250,6 +1251,9 @@ router.get('/leave-requests', async (req, res) => {
       payrollStatus: r.payroll_status || 'Pending',
       approverName: r.approver_name || null,
       recordId: r.record_id || null,
+      // 10JUN2026 client video Item 1 — surface so the table row can tint
+      // light-red when an employee is terminated or pre-noticed.
+      contractStatus: r.contract_status || null,
       // 21MAY2026 audit trail
       createdBy: r.created_by || null,
       createdByName: r.created_by_name || null,

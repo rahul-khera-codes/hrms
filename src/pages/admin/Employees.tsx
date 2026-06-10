@@ -7,6 +7,7 @@ import StagedDocumentUpload, { uploadStagedDocuments } from '@/components/Staged
 import { DetailModalHeader } from '@/components/DetailModalHeader'
 import { statusBadgeClass } from '@/lib/badges'
 import { sortByName } from '@/lib/sortByName'
+import { inactiveRowClass } from '@/lib/inactiveEmployeeRow'
 import { SkeletonTableRows } from '@/components/Skeleton'
 import { BulkActionBar } from '@/components/BulkActionBar'
 import {
@@ -1153,7 +1154,7 @@ export default function AdminEmployees() {
                   </tr>
                 ) : null}
                 {paginatedEmployees.map((emp) => (
-                  <tr key={emp.id} className={`border-b border-surface-100 dark:border-surface-800 hover:bg-brand-50/40 transition-colors cursor-pointer ${selectedEmpIds.has(emp.id) ? 'bg-brand-50/30' : ''}`} onClick={() => openEdit(emp)}>
+                  <tr key={emp.id} className={`border-b border-surface-100 dark:border-surface-800 hover:bg-brand-50/40 transition-colors cursor-pointer ${selectedEmpIds.has(emp.id) ? 'bg-brand-50/30' : ''} ${inactiveRowClass(emp.contractStatus)}`} onClick={() => openEdit(emp)}>
                     <td className="px-3 py-2.5 w-10" onClick={(e) => e.stopPropagation()}>
                       <input
                         type="checkbox"
