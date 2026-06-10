@@ -18,6 +18,7 @@ import {
 } from '@/lib/apiAdmin'
 // 03JUN2026 — audit-column timestamps in AST 12-hour format
 import { fmtFullDateTime, fmtShiftTimeStr } from '@/lib/timeFormat'
+import { sortByName } from '@/lib/sortByName'
 import AdminSelect from '@/components/AdminSelect'
 import DocumentUpload from '@/components/DocumentUpload'
 import StagedDocumentUpload, { uploadStagedDocuments } from '@/components/StagedDocumentUpload'
@@ -1151,7 +1152,7 @@ export default function AdminLeaveRequests() {
                     onChange={(val) => setCreateEmployeeId(val)}
                     options={[
                       { value: '', label: 'Select employee' },
-                      ...employees.map((e) => ({ value: e.id, label: e.name })),
+                      ...sortByName(employees).map((e) => ({ value: e.id, label: e.name })),
                     ]}
                   />
                 </div>

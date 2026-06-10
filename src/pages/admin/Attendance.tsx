@@ -3,6 +3,7 @@ import { format, startOfWeek, endOfWeek } from 'date-fns'
 import { Search, Download, X, ArrowUp, ArrowDown, Filter, Clock, Plus, Lock, Unlock, Pencil } from 'lucide-react'
 import { getAdminAttendance, updateAttendanceRecord, createAttendanceRecord, getEmployees, getClients, getPayrollPeriods, setAttendanceReviewed, type EmployeeRecord, type Client, type PayrollPeriod } from '@/lib/apiAdmin'
 import { buildCycleOptions } from '@/lib/cycleOptions'
+import { sortByName } from '@/lib/sortByName'
 import type { AttendanceRecord } from '@/types'
 import DateRangePicker from '@/components/DateRangePicker'
 import AdminSelect from '@/components/AdminSelect'
@@ -1184,7 +1185,7 @@ export default function AdminAttendance() {
                       onChange={(val) => handleFieldUpdate(detailRecord, 'reportsToOverride', val)}
                       options={[
                         { value: '', label: '— None —' },
-                        ...allEmployees.map((e) => ({ value: e.id, label: e.name })),
+                        ...sortByName(allEmployees).map((e) => ({ value: e.id, label: e.name })),
                       ]}
                     />
                   </div>
@@ -1411,7 +1412,7 @@ function AddAttendanceRecordModal({
               onChange={setEmployeeId}
               options={[
                 { value: '', label: 'Select employee' },
-                ...employees.map((e) => ({ value: e.id, label: `${e.name}${e.cmid != null ? ` · CMID ${e.cmid}` : ''}` })),
+                ...sortByName(employees).map((e) => ({ value: e.id, label: `${e.name}${e.cmid != null ? ` · CMID ${e.cmid}` : ''}` })),
               ]}
             />
           </div>
@@ -1457,7 +1458,7 @@ function AddAttendanceRecordModal({
             </div>
             <div>
               <label className="label">Reports To</label>
-              <AdminSelect value={reportsToOverride} onChange={setReportsToOverride} options={[{ value: '', label: '— None —' }, ...employees.map((e) => ({ value: e.id, label: e.name }))]} />
+              <AdminSelect value={reportsToOverride} onChange={setReportsToOverride} options={[{ value: '', label: '— None —' }, ...sortByName(employees).map((e) => ({ value: e.id, label: e.name }))]} />
             </div>
             <div>
               <label className="label">Pay</label>

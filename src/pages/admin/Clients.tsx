@@ -10,6 +10,7 @@ import AdminSelect from '@/components/AdminSelect'
 import AdminDatePicker from '@/components/AdminDatePicker'
 import DocumentUpload from '@/components/DocumentUpload'
 import StagedDocumentUpload, { uploadStagedDocuments } from '@/components/StagedDocumentUpload'
+import { sortByName } from '@/lib/sortByName'
 
 const VERTICALS = [
   'Home Care',
@@ -138,7 +139,7 @@ export default function AdminClients() {
   const showTerminationFields = contractStatus === 'Prenotice' || contractStatus === 'Terminated'
 
   const employeeOptions = useMemo(
-    () => [{ value: '', label: 'None' }, ...employees.map((e) => ({ value: e.id, label: e.name }))],
+    () => [{ value: '', label: 'None' }, ...sortByName(employees).map((e) => ({ value: e.id, label: e.name }))],
     [employees],
   )
 

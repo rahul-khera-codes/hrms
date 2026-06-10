@@ -6,6 +6,7 @@ import DocumentUpload from '@/components/DocumentUpload'
 import StagedDocumentUpload, { uploadStagedDocuments } from '@/components/StagedDocumentUpload'
 import { DetailModalHeader } from '@/components/DetailModalHeader'
 import { statusBadgeClass } from '@/lib/badges'
+import { sortByName } from '@/lib/sortByName'
 import { SkeletonTableRows } from '@/components/Skeleton'
 import { BulkActionBar } from '@/components/BulkActionBar'
 import {
@@ -1562,7 +1563,7 @@ export default function AdminEmployees() {
                       onChange={(val) => setReportsTo(val)}
                       options={[
                         { value: '', label: 'Select supervisor' },
-                        ...employees.filter((e) => e.id !== editing?.id).map((e) => ({ value: e.id, label: e.name })),
+                        ...sortByName(employees.filter((e) => e.id !== editing?.id)).map((e) => ({ value: e.id, label: e.name })),
                       ]}
                     />
                   </div>

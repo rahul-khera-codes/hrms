@@ -13,6 +13,7 @@ import { DetailModalHeader } from '@/components/DetailModalHeader'
 import { SkeletonTableRows } from '@/components/Skeleton'
 import { useToast } from '@/components/Toast'
 import { buildCycleOptions, recurrentCycleOption, RECURRENT_CYCLE_CODE } from '@/lib/cycleOptions'
+import { sortByName } from '@/lib/sortByName'
 // 03JUN2026 — audit-column timestamps in AST 12-hour format
 import { fmtFullDateTime } from '@/lib/timeFormat'
 import {
@@ -899,7 +900,7 @@ function PayrollInputModal({
                 disabled={locked || isEdit}
                 options={[
                   { value: '', label: 'Select employee' },
-                  ...employees.map((e) => ({ value: e.id, label: `${e.name}${e.cmid != null ? ` · CMID ${e.cmid}` : ''}` })),
+                  ...sortByName(employees).map((e) => ({ value: e.id, label: `${e.name}${e.cmid != null ? ` · CMID ${e.cmid}` : ''}` })),
                 ]}
               />
             </div>
