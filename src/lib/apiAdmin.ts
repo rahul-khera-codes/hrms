@@ -661,6 +661,10 @@ export interface BulkAssignRequest {
   // 7-entry array indexed 0=Sun … 6=Sat. When provided, the endpoint runs in
   // per-weekday mode and ignores `shiftId`, `overrideStart/EndTime`, `daysOff`.
   weeklyPattern?: WeeklyPatternEntry[]
+  // 10JUN2026 client video Item 10 — optional task to pre-populate on each
+  // auto-created session, so admins can bulk-assign "this shift, this task,
+  // these days" in one click.
+  task?: string
 }
 export interface BulkAssignResponse {
   created: number

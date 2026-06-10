@@ -3396,6 +3396,11 @@ router.post('/schedule/bulk-assign', async (req, res) => {
       dateTo,
       daysOff,
       weeklyPattern,
+      // 10JUN2026 client video Item 10 — Orlando: "we should be able to
+      // bulk assign the task as well". The task gets pre-populated on
+      // each session created from this bulk assign, so the agent sees
+      // it when they open the record (and so reporting can group by it).
+      task,
     } = req.body || {}
 
     if (!clientId) return res.status(400).json({ error: 'Bad request', message: 'clientId is required' })
@@ -3593,6 +3598,7 @@ router.post('/schedule/bulk-assign', async (req, res) => {
                  user_id, clock_in, clock_out,
                  shift_start, shift_end,
                  account_override,
+                 task,
                  is_scheduled, is_manual,
                  created_by, created_on
                )
@@ -3601,11 +3607,13 @@ router.post('/schedule/bulk-assign', async (req, res) => {
                -- shift_end carry the planned times. Interpret entered "HH:MM"
                -- as Atlantic time (UTC-4, no DST) so the value the admin typed
                -- is what they see back — Orlando's "universal UTC-4" ask.
+               -- 10JUN2026 Item 10: pre-populate the task on each scheduled
+               -- session so the agent sees it (and reporting can group by it).
                VALUES ($1, NULL, NULL,
                           (($2::date || ' ' || $3::text)::timestamp AT TIME ZONE 'America/Santo_Domingo'),
                           (($2::date || ' ' || $4::text)::timestamp AT TIME ZONE 'America/Santo_Domingo'),
-                          $5, TRUE, TRUE, $6, NOW())`,
-              [userId, date, sStart, sEnd, clientId, req.user?.id || null],
+                          $5, $7, TRUE, TRUE, $6, NOW())`,
+              [userId, date, sStart, sEnd, clientId, req.user?.id || null, task || null],
             )
             attendanceCreated++
           }

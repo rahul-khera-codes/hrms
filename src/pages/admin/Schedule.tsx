@@ -21,6 +21,7 @@ import { addDays, startOfWeek, format, parseISO } from 'date-fns'
 // 03JUN2026 — render shift TIME strings as AST 12-hour
 import { fmtShiftTimeStr } from '@/lib/timeFormat'
 import { sortByName } from '@/lib/sortByName'
+import { TASK_OPTIONS } from '@/lib/taskOptions'
 import AdminSelect from '@/components/AdminSelect'
 import { PageHeader } from '@/components/PageHeader'
 
@@ -91,6 +92,10 @@ export default function AdminSchedule() {
   const [paneFrom, setPaneFrom] = useState('')
   const [paneTo, setPaneTo] = useState('')
   const [paneDaysOff, setPaneDaysOff] = useState<number[]>([0, 6]) // default: Sat/Sun off
+  // 10JUN2026 client video Item 10 — Orlando: "when creating a shift
+  // through the scheduler we should be able to bulk assign the task as
+  // well". Task gets passed alongside the shift assignments.
+  const [paneTask, setPaneTask] = useState('')
   const [paneSubmitting, setPaneSubmitting] = useState(false)
   const [publishing, setPublishing] = useState(false)
 
@@ -297,6 +302,8 @@ export default function AdminSchedule() {
       ...(paneAllInAccount ? { allInAccount: true } : {}),
       dateFrom: paneFrom,
       dateTo: paneTo,
+      // 10JUN2026 client video Item 10 — bulk-assign the task too.
+      ...(paneTask ? { task: paneTask } : {}),
     }
 
     if (paneMode === 'perDay') {
@@ -365,6 +372,14 @@ export default function AdminSchedule() {
   }
 
   async function handleClearCell(assignmentId: string) {
+    // 10JUN2026 client video Item 7 — Orlando: "we don't want the shift
+    // to be deleteable on click. If we want to delete, we should be
+    // given some sort of prompt". Until we build a full edit panel on
+    // click, the click-to-delete is gated behind a confirm dialog so
+    // it stops being a single-click-destroys-data trap.
+    if (!window.confirm('Delete this shift assignment?\n\nClick OK to delete. To edit instead, click Cancel and use the Assign Shifts panel.')) {
+      return
+    }
     setError(null)
     try {
       await deleteScheduleAssignment(assignmentId)
@@ -720,6 +735,20 @@ export default function AdminSchedule() {
                     value={paneShiftGroup}
                     onChange={setPaneShiftGroup}
                     options={[{ value: '', label: 'None' }, ...shiftGroups.map((g) => ({ value: g, label: g }))]}
+                  />
+                </div>
+
+                {/* 10JUN2026 client video Item 10 — Orlando: "we should
+                    be able to bulk assign the task as well… a dropdown,
+                    same options as elsewhere". Reuses TASK_OPTIONS so
+                    the Scheduler list matches the per-record Attendance
+                    Task field exactly. */}
+                <div className="mt-3">
+                  <label className="label">Task (optional)</label>
+                  <AdminSelect
+                    value={paneTask}
+                    onChange={setPaneTask}
+                    options={[{ value: '', label: '— None —' }, ...TASK_OPTIONS.map((t) => ({ value: t, label: t }))]}
                   />
                 </div>
 

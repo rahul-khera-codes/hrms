@@ -10,6 +10,8 @@ import AdminSelect from '@/components/AdminSelect'
 import { PageHeader } from '@/components/PageHeader'
 import { DetailModalHeader } from '@/components/DetailModalHeader'
 import { BulkActionBar } from '@/components/BulkActionBar'
+// 10JUN2026 Item 10 — task list shared with the Scheduler bulk-assign panel.
+import { TASK_OPTIONS } from '@/lib/taskOptions'
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -48,52 +50,7 @@ const STATUS_OPTIONS = [...AUTO_STATUS_OPTIONS, ...MANUAL_STATUS_OPTIONS] as con
 const PAY_OPTIONS = ['Regular', 'X35%', 'X100%', 'Holiday', 'DNP', 'Review'] as const
 const BILL_OPTIONS = ['Regular', 'Premium', 'DNB', 'Review'] as const
 const STAGE_OPTIONS = ['Production', 'Nesting', 'Training'] as const
-const TASK_OPTIONS = [
-  'Admin',
-  'Authorizations',
-  'Billing Support',
-  'Call Center',
-  'CDPAP Prebilling',
-  'Care Manager',
-  'Collections',
-  'Coord Support',
-  'Coordination',
-  'COVID Screening',
-  'Cross Training',
-  'Customer Support',
-  'Data Entry',
-  'Document Coord',
-  'EVV',
-  'Floater',
-  'Flu Shot',
-  'Follow ups',
-  'Help Desk',
-  'HHAX App',
-  'HR Project',
-  'HR Support',
-  'Inflowcare',
-  'Intake Support',
-  'Lead Generator',
-  'LIHTC Support',
-  'Medical Billing',
-  'Nursing Support',
-  'On Call',
-  'Operator',
-  'Pre-Billing',
-  'Property Mgmt',
-  'Receptionist',
-  'Recruitment',
-  'Sales Support',
-  'Service Follow up',
-  'Special Project',
-  'Staffing',
-  'VOC Surveys',
-  'Sales Support T1',
-  'OB Sales',
-  'Junior Trainer',
-  'Senior Trainer',
-  'Accountant',
-] as const
+// TASK_OPTIONS moved to src/lib/taskOptions.ts (10JUN2026 Item 10).
 
 // Color scheme per 19MAY2026 client video:
 // "Present this green, absent this red, late/left early/everything in between this orange,
