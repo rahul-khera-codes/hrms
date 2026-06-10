@@ -61,6 +61,14 @@ export async function updateAttendanceRecord(
   })
 }
 
+// 10JUN2026 client video Item 9 — Orlando explicitly listed Delete as
+// one of the Attendance bulk actions. Single-record delete that the
+// bulk Delete handler loops over.
+export async function deleteAttendanceRecord(sessionId: string, force = false): Promise<void> {
+  const qs = force ? '?force=true' : ''
+  return api<void>(`/api/admin/attendance/${sessionId}${qs}`, { method: 'DELETE' })
+}
+
 export async function setAttendanceReviewed(sessionId: string, reviewed: boolean): Promise<{ id: string; reviewed: boolean }> {
   return api<{ id: string; reviewed: boolean }>(`/api/admin/attendance/${sessionId}/reviewed`, {
     method: 'PATCH',
@@ -644,6 +652,19 @@ export async function createScheduleAssignment(data: {
 
 export async function deleteScheduleAssignment(id: string): Promise<void> {
   return api(`/api/admin/schedule/${id}`, { method: 'DELETE' })
+}
+
+// 10JUN2026 client video Item 7 — single-cell edit on click. Updates the
+// schedule_assignment's shift template and/or override times. Edits
+// reset the published flag, so admin must re-publish to confirm.
+export async function updateScheduleAssignment(
+  id: string,
+  data: { shiftId?: string; overrideStartTime?: string; overrideEndTime?: string },
+): Promise<{ id: string; shiftId: string; overrideStart: string | null; overrideEnd: string | null; published: boolean }> {
+  return api(`/api/admin/schedule/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  })
 }
 
 // Per-weekday "Master Week" entry — exactly one of `off`, `shiftId`, or

@@ -10,6 +10,7 @@ import {
   publishSchedule,
   getShiftGroups,
   deleteScheduleAssignment,
+  updateScheduleAssignment,
   type Client,
   type Shift,
   type ScheduleAssignment,
@@ -91,6 +92,58 @@ export default function AdminSchedule() {
   const [paneAllInAccount, setPaneAllInAccount] = useState(false)
   const [paneFrom, setPaneFrom] = useState('')
   const [paneTo, setPaneTo] = useState('')
+  // 10JUN2026 Item 7 — single-cell edit modal state. Clicking on a cell
+  // opens this modal (instead of immediately deleting); admin can change
+  // the shift template or its override times and Save, or hit Delete
+  // (with confirm) to remove the assignment entirely.
+  const [editingCell, setEditingCell] = useState<ScheduleAssignment | null>(null)
+  const [editShiftId, setEditShiftId] = useState('')
+  const [editStartTime, setEditStartTime] = useState('')
+  const [editEndTime, setEditEndTime] = useState('')
+  const [editSaving, setEditSaving] = useState(false)
+
+  function openCellEditor(a: ScheduleAssignment) {
+    setEditingCell(a)
+    setEditShiftId(a.shiftId || '')
+    setEditStartTime(a.overrideStart ? String(a.overrideStart).slice(0, 5) : '')
+    setEditEndTime(a.overrideEnd ? String(a.overrideEnd).slice(0, 5) : '')
+  }
+
+  async function saveCellEdit() {
+    if (!editingCell) return
+    setEditSaving(true)
+    setError(null)
+    try {
+      await updateScheduleAssignment(editingCell.id, {
+        ...(editShiftId ? { shiftId: editShiftId } : {}),
+        // Empty strings = revert to shift template default times.
+        overrideStartTime: editStartTime || '',
+        overrideEndTime: editEndTime || '',
+      })
+      setEditingCell(null)
+      await reload()
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to save')
+    } finally {
+      setEditSaving(false)
+    }
+  }
+
+  async function deleteFromEditor() {
+    if (!editingCell) return
+    if (!window.confirm('Delete this shift assignment? This cannot be undone.')) return
+    setEditSaving(true)
+    try {
+      await deleteScheduleAssignment(editingCell.id)
+      setEditingCell(null)
+      await reload()
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to delete')
+    } finally {
+      setEditSaving(false)
+    }
+  }
+
   const [paneDaysOff, setPaneDaysOff] = useState<number[]>([0, 6]) // default: Sat/Sun off
   // 10JUN2026 client video Item 10 — Orlando: "when creating a shift
   // through the scheduler we should be able to bulk assign the task as
@@ -371,23 +424,10 @@ export default function AdminSchedule() {
     }
   }
 
-  async function handleClearCell(assignmentId: string) {
-    // 10JUN2026 client video Item 7 — Orlando: "we don't want the shift
-    // to be deleteable on click. If we want to delete, we should be
-    // given some sort of prompt". Until we build a full edit panel on
-    // click, the click-to-delete is gated behind a confirm dialog so
-    // it stops being a single-click-destroys-data trap.
-    if (!window.confirm('Delete this shift assignment?\n\nClick OK to delete. To edit instead, click Cancel and use the Assign Shifts panel.')) {
-      return
-    }
-    setError(null)
-    try {
-      await deleteScheduleAssignment(assignmentId)
-      await reload()
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to clear')
-    }
-  }
+  // 10JUN2026 client video Item 7 — single-record delete moved into
+  // the edit modal's Delete button (with confirm). Cell click now
+  // opens the edit modal via openCellEditor() instead of going
+  // straight to delete. See editingCell state above.
 
   return (
     <div className="page">
@@ -522,8 +562,8 @@ export default function AdminSchedule() {
                             {a ? (
                               <button
                                 type="button"
-                                onClick={() => handleClearCell(a.id)}
-                                title={a.published ? 'Published — click to clear' : 'Draft (not yet published) — click to clear'}
+                                onClick={() => openCellEditor(a)}
+                                title={a.published ? 'Published — click to edit (Delete inside the editor)' : 'Draft (not yet published) — click to edit'}
                                 className={`group relative w-full inline-flex flex-col items-stretch rounded-lg px-2 py-1.5 text-[11px] font-medium ring-1 ring-inset ${shiftColor(a.shiftId)} ${a.published ? '' : 'opacity-70'} hover:opacity-90`}
                               >
                                 <span className="truncate">{a.shiftName}</span>
@@ -826,6 +866,87 @@ export default function AdminSchedule() {
               </button>
             </div>
           </aside>
+        </div>
+      )}
+
+      {/* 10JUN2026 client video Item 7 — single-cell edit modal. Opens
+          when admin clicks a shift cell in the grid. Lets them swap the
+          shift template / tweak override times / or Delete (with
+          confirm). Replaces the previous click-to-delete behavior. */}
+      {editingCell && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4" onClick={() => !editSaving && setEditingCell(null)}>
+          <div className="bg-white dark:bg-surface-900 rounded-2xl shadow-2xl w-full max-w-md p-5" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-base font-semibold text-surface-900 dark:text-surface-50 mb-1">Edit shift assignment</h3>
+            <p className="text-xs text-surface-500 dark:text-surface-400 mb-4">
+              {editingCell.userName} · {editingCell.date}
+              {!editingCell.published && <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-surface-100 text-surface-600">Draft</span>}
+            </p>
+            <div className="space-y-3">
+              <div>
+                <label className="label">Shift template</label>
+                <AdminSelect
+                  value={editShiftId}
+                  onChange={setEditShiftId}
+                  options={shifts.map((s) => ({
+                    value: s.id,
+                    label: `${s.name} (${fmtShiftTimeStr(s.startTime)}–${fmtShiftTimeStr(s.endTime)})`,
+                  }))}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="label">Override start (optional)</label>
+                  <input
+                    type="time"
+                    value={editStartTime}
+                    onChange={(e) => setEditStartTime(e.target.value)}
+                    className="input w-full"
+                  />
+                </div>
+                <div>
+                  <label className="label">Override end (optional)</label>
+                  <input
+                    type="time"
+                    value={editEndTime}
+                    onChange={(e) => setEditEndTime(e.target.value)}
+                    className="input w-full"
+                  />
+                </div>
+              </div>
+              <p className="text-[11px] text-surface-500 dark:text-surface-400">
+                Leave overrides empty to use the shift template's default times. Saving an edit resets the Published flag so admins should re-publish.
+              </p>
+            </div>
+            <div className="flex items-center justify-between gap-2 mt-5 pt-4 border-t border-surface-200 dark:border-surface-700">
+              <button
+                type="button"
+                onClick={deleteFromEditor}
+                disabled={editSaving}
+                className="btn-danger btn-sm"
+                title="Delete this shift assignment (asks for confirmation)"
+              >
+                Delete shift
+              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingCell(null)}
+                  disabled={editSaving}
+                  className="btn-secondary btn-sm"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={saveCellEdit}
+                  disabled={editSaving || !editShiftId}
+                  className="btn-primary btn-sm"
+                >
+                  {editSaving ? 'Saving…' : 'Save'}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

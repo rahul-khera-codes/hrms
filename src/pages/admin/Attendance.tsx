@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { format, startOfWeek, endOfWeek } from 'date-fns'
-import { Search, Download, X, ArrowUp, ArrowDown, Filter, Clock, Plus, Lock, Unlock, Pencil, CheckSquare } from 'lucide-react'
-import { getAdminAttendance, updateAttendanceRecord, createAttendanceRecord, getEmployees, getClients, getPayrollPeriods, setAttendanceReviewed, type EmployeeRecord, type Client, type PayrollPeriod } from '@/lib/apiAdmin'
+import { Search, Download, X, ArrowUp, ArrowDown, Filter, Clock, Plus, Lock, Unlock, Pencil, CheckSquare, Trash2 } from 'lucide-react'
+import { getAdminAttendance, updateAttendanceRecord, createAttendanceRecord, deleteAttendanceRecord, getEmployees, getClients, getPayrollPeriods, setAttendanceReviewed, type EmployeeRecord, type Client, type PayrollPeriod } from '@/lib/apiAdmin'
 import { buildCycleOptions } from '@/lib/cycleOptions'
 import { sortByName } from '@/lib/sortByName'
 import type { AttendanceRecord } from '@/types'
@@ -288,6 +288,26 @@ export default function AdminAttendance() {
     for (const id of ids) {
       try {
         await updateAttendanceRecord(id, { isLocked: locked, force: locked === false } as never)
+        ok++
+      } catch { failed++ }
+    }
+    setBulkSaving(false)
+    clearSelection()
+    await fetchAttendance()
+    return { ok, failed }
+  }
+
+  async function bulkDeleteSelected() {
+    if (selectedIds.size === 0) return
+    if (!window.confirm(`Permanently delete ${selectedIds.size} attendance record(s)? This cannot be undone.`)) return
+    const ids = Array.from(selectedIds)
+    setBulkSaving(true)
+    let ok = 0, failed = 0
+    for (const id of ids) {
+      const r = records.find((x) => (x.sessionId ?? x.id) === id)
+      if (r?.isLocked) { failed++; continue }
+      try {
+        await deleteAttendanceRecord(id)
         ok++
       } catch { failed++ }
     }
@@ -1412,6 +1432,21 @@ export default function AdminAttendance() {
         >
           <Unlock className="w-3.5 h-3.5" />
           <span className="hidden sm:inline">Unlock</span>
+        </button>
+        {/* 10JUN2026 Item 9 completion — Orlando explicitly listed Delete
+            as one of the Attendance bulk actions. Originally deferred
+            because no backend endpoint existed; now the DELETE
+            /admin/attendance/:sessionId endpoint is in place. Skips
+            locked rows. */}
+        <button
+          type="button"
+          onClick={() => void bulkDeleteSelected()}
+          disabled={bulkSaving}
+          className="btn-danger btn-sm"
+          title="Delete selected (skips locked)"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">Delete</span>
         </button>
       </BulkActionBar>
     </div>

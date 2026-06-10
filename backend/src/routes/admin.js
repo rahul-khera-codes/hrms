@@ -975,6 +975,32 @@ router.post('/attendance', async (req, res) => {
   }
 })
 
+// DELETE /api/admin/attendance/:sessionId
+// 10JUN2026 client video Item 9 — Orlando: "for attendance bulk action,
+// I would do the same thing — delete, lock, unlock". Single-record
+// delete that the bulk Delete loops over. Blocks delete on locked rows
+// unless ?force=true (mirrors leaves + payroll-inputs deletion guards).
+router.delete('/attendance/:sessionId', async (req, res) => {
+  try {
+    const { sessionId } = req.params
+    if (!UUID_RE.test(sessionId)) {
+      return res.status(400).json({ error: 'Bad request', message: 'Session id must be a valid UUID.' })
+    }
+    const cur = await query('SELECT id, is_locked FROM sessions WHERE id = $1', [sessionId])
+    if (cur.rows.length === 0) {
+      return res.status(404).json({ error: 'Not found', message: 'Session not found' })
+    }
+    if (cur.rows[0].is_locked && !req.query.force) {
+      return res.status(409).json({ error: 'Locked', message: 'This record is locked. Unlock it first to delete.' })
+    }
+    await query('DELETE FROM sessions WHERE id = $1', [sessionId])
+    res.status(204).send()
+  } catch (err) {
+    console.error('Admin delete attendance error:', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
 // PATCH /api/admin/attendance/:sessionId/reviewed — toggle Reviewed/Normalized flag.
 // Per 19MAY2026 Scheduler Demos meeting: admins need to flag timesheets as
 // reviewed/normalized so they can filter unreviewed ones quickly.
@@ -3399,6 +3425,64 @@ router.delete('/schedule/:id', async (req, res) => {
     res.status(204).send()
   } catch (err) {
     console.error('Admin delete schedule error:', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+// PATCH /api/admin/schedule/:id
+// 10JUN2026 client video Item 7 — Orlando: "a click should open the
+// shift and allow us to edit it". This endpoint backs the single-cell
+// edit modal: admin can change shift_id (template) and/or override
+// start/end times. Setting overrideStartTime + overrideEndTime to
+// empty/null reverts to the shift template's default times.
+router.patch('/schedule/:id', async (req, res) => {
+  try {
+    const { id } = req.params
+    const { shiftId, overrideStartTime, overrideEndTime } = req.body || {}
+    const updates = []
+    const params = []
+    let i = 1
+    if (shiftId !== undefined) {
+      if (!shiftId) return res.status(400).json({ error: 'Bad request', message: 'shiftId cannot be empty' })
+      updates.push(`shift_id = $${i++}`)
+      params.push(shiftId)
+    }
+    if (overrideStartTime !== undefined) {
+      const v = overrideStartTime ? String(overrideStartTime).slice(0, 5) : null
+      updates.push(`override_start_time = $${i++}::time`)
+      params.push(v)
+    }
+    if (overrideEndTime !== undefined) {
+      const v = overrideEndTime ? String(overrideEndTime).slice(0, 5) : null
+      updates.push(`override_end_time = $${i++}::time`)
+      params.push(v)
+    }
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'Bad request', message: 'Nothing to update' })
+    }
+    // Edits invalidate Publish — admin should re-publish after editing.
+    updates.push(`published = FALSE`)
+    params.push(id)
+    const result = await query(
+      `UPDATE schedule_assignments SET ${updates.join(', ')} WHERE id = $${i}
+       RETURNING id, client_id, user_id, shift_id, date::text AS date_str,
+                 override_start_time, override_end_time, published`,
+      params
+    )
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' })
+    const r = result.rows[0]
+    res.json({
+      id: r.id,
+      clientId: r.client_id,
+      userId: r.user_id,
+      shiftId: r.shift_id,
+      overrideStart: r.override_start_time,
+      overrideEnd: r.override_end_time,
+      published: r.published === true,
+      date: r.date_str ? r.date_str.slice(0, 10) : null,
+    })
+  } catch (err) {
+    console.error('Admin patch schedule error:', err)
     res.status(500).json({ error: 'Internal server error' })
   }
 })
