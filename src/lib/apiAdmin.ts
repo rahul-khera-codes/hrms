@@ -365,6 +365,15 @@ export interface Client {
   terminationDate: string | null
   terminationReason: string | null
   isLocked: boolean
+  // 10JUN2026 client video Item 11 — audit fields surfaced so the Accounts
+  // edit modal can render the shared AuditFooter (parity with Attendance /
+  // Leaves / Payroll Inputs).
+  createdBy?: string | null
+  createdByName?: string | null
+  createdOn?: string | null
+  modifiedBy?: string | null
+  modifiedByName?: string | null
+  modifiedOn?: string | null
 }
 
 export interface Shift {
@@ -1059,6 +1068,14 @@ export interface PayrollCalcResult {
   deductionValidation: boolean; totalDeductions: number; netSalary: number; notes: string | null
   governmentId: string | null; ccEmail: string | null
   afpEmployer: number; sfsEmployer: number; arl: number; infotepEmployer: number
+  // 10JUN2026 client video Item 11 — audit footer fields. Payment method
+  // / bank are editable, so admins need to see who last touched them.
+  createdBy?: string | null
+  createdByName?: string | null
+  createdOn?: string | null
+  modifiedBy?: string | null
+  modifiedByName?: string | null
+  modifiedOn?: string | null
 }
 
 export async function getPayrollCalcResults(cycleCode: string): Promise<PayrollCalcResult[]> {

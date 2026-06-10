@@ -96,6 +96,17 @@ function mapRow(r) {
     infotepEmployer: Number(r.infotep_employer) || 0,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
+    // 10JUN2026 client video Item 11 — surface the audit columns
+    // (added by the 04JUN audit migration in index.js:238-247) so the
+    // Payroll Calculator detail modal can render the same gray-box
+    // AuditFooter that Attendance / Leaves / Payroll Inputs use.
+    // Payment method + bank account are editable here, so audit matters.
+    createdBy: r.created_by || null,
+    createdByName: r.created_by_name || null,
+    createdOn: r.created_on || r.created_at || null,
+    modifiedBy: r.modified_by || null,
+    modifiedByName: r.modified_by_name || null,
+    modifiedOn: r.modified_on || null,
   }
 }
 
@@ -115,7 +126,15 @@ router.get('/', async (req, res) => {
     }
     const result = await query(
       // 25MAY client: latest record_id on top by default
-      'SELECT * FROM payroll_calculator_results WHERE payroll_cycle_code = $1 ORDER BY record_id DESC NULLS LAST, employee_name',
+      // 10JUN2026 — LEFT JOIN users for audit name lookups (Item 11)
+      `SELECT pcr.*,
+              cb.name AS created_by_name,
+              mb.name AS modified_by_name
+       FROM payroll_calculator_results pcr
+       LEFT JOIN users cb ON cb.id = pcr.created_by
+       LEFT JOIN users mb ON mb.id = pcr.modified_by
+       WHERE pcr.payroll_cycle_code = $1
+       ORDER BY pcr.record_id DESC NULLS LAST, pcr.employee_name`,
       [cycle]
     )
     res.json(result.rows.map(mapRow))
@@ -589,10 +608,22 @@ router.patch('/:id', async (req, res) => {
 
     if (updates.length === 0) return res.status(400).json({ error: 'No fields to update' })
 
+    // 10JUN2026 Item 11 — stamp modifier on payment-method/bank edits so
+    // the AuditFooter on the detail modal shows "Modified by X · date".
+    updates.push(`modified_by = $${i++}`); params.push(req.user?.id || null)
+    updates.push(`modified_on = NOW()`)
+
     params.push(id)
     await query(`UPDATE payroll_calculator_results SET ${updates.join(', ')}, updated_at = NOW() WHERE id = $${i}`, params)
 
-    const result = await query('SELECT * FROM payroll_calculator_results WHERE id = $1', [id])
+    const result = await query(
+      `SELECT pcr.*, cb.name AS created_by_name, mb.name AS modified_by_name
+       FROM payroll_calculator_results pcr
+       LEFT JOIN users cb ON cb.id = pcr.created_by
+       LEFT JOIN users mb ON mb.id = pcr.modified_by
+       WHERE pcr.id = $1`,
+      [id]
+    )
     if (!result.rows.length) return res.status(404).json({ error: 'Not found' })
     res.json(mapRow(result.rows[0]))
   } catch (err) {

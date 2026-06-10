@@ -11,6 +11,7 @@ import AdminDatePicker from '@/components/AdminDatePicker'
 import DocumentUpload from '@/components/DocumentUpload'
 import StagedDocumentUpload, { uploadStagedDocuments } from '@/components/StagedDocumentUpload'
 import { sortByName } from '@/lib/sortByName'
+import { AuditFooter } from '@/components/AuditFooter'
 
 const VERTICALS = [
   'Home Care',
@@ -716,6 +717,14 @@ export default function AdminClients() {
                   <div className="min-w-0 flex-1">
                     <h2 className="text-base font-semibold text-surface-900 dark:text-surface-50 truncate">{editing.name}</h2>
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1">
+                      {/* 10JUN2026 client video Item 11 — Orlando: "for
+                          accounts, we need the account ID here on top, the
+                          way employees show CMID at the top". */}
+                      {editing.recordId && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-brand-50 dark:bg-brand-900/30 border border-brand-100 dark:border-brand-800 text-[11px] font-mono font-medium text-brand-700 dark:text-brand-200">
+                          {editing.recordId}
+                        </span>
+                      )}
                       {editing.vertical && (
                         <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-surface-100 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-[11px] font-medium text-surface-700 dark:text-surface-200">
                           {editing.vertical}
@@ -892,6 +901,17 @@ export default function AdminClients() {
                   <StagedDocumentUpload files={stagedDocs} onFilesChange={setStagedDocs} disabled={saving} />
                 )}
               </>
+
+              {/* 10JUN2026 client video Item 11 — audit footer on Accounts
+                  (parity with Attendance / Leaves / Payroll Inputs). */}
+              {modal === 'edit' && editing && (editing.createdOn || editing.modifiedOn) && (
+                <AuditFooter
+                  createdByName={editing.createdByName}
+                  createdOn={editing.createdOn}
+                  modifiedByName={editing.modifiedByName}
+                  modifiedOn={editing.modifiedOn}
+                />
+              )}
             </div>
 
             <div className="modal-footer">

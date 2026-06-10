@@ -2891,6 +2891,14 @@ function mapClientRow(r) {
     terminationDate: r.termination_date || null,
     terminationReason: r.termination_reason || null,
     isLocked: r.is_locked === true,
+    // 10JUN2026 client video Item 11 — surface audit fields on Accounts
+    // form, matching the Attendance / Leaves / Payroll Inputs pattern.
+    createdBy: r.created_by || null,
+    createdByName: r.created_by_name || null,
+    createdOn: r.created_on || r.created_at || null,
+    modifiedBy: r.modified_by || null,
+    modifiedByName: r.modified_by_name || null,
+    modifiedOn: r.modified_on || null,
   }
 }
 
@@ -2900,10 +2908,14 @@ router.get('/clients', async (req, res) => {
     const result = await query(`
       SELECT c.*,
         so.name AS sales_owner_name,
-        oo.name AS ops_owner_name
+        oo.name AS ops_owner_name,
+        cb.name AS created_by_name,
+        mb.name AS modified_by_name
       FROM clients c
       LEFT JOIN users so ON so.id = c.sales_owner_id
       LEFT JOIN users oo ON oo.id = c.ops_owner_id
+      LEFT JOIN users cb ON cb.id = c.created_by
+      LEFT JOIN users mb ON mb.id = c.modified_by
       ORDER BY c.name
     `)
     res.json(result.rows.map(mapClientRow))
@@ -2962,14 +2974,24 @@ router.post('/clients', async (req, res) => {
       vals
     )
     const row = result.rows[0]
-    // Fetch with owner names
+    // 10JUN2026 — stamp creator on freshly-inserted client (audit fields
+    // come from the migration at index.js:234-247). created_on defaults to
+    // NOW(); created_by gets set here so Item 11 footer shows "by X".
+    if (req.user?.id) {
+      await query(`UPDATE clients SET created_by = $1, modified_by = $1, modified_on = NOW() WHERE id = $2`, [req.user.id, row.id])
+    }
+    // Fetch with owner + audit name JOINs
     const full = await query(`
       SELECT c.*,
         so.name AS sales_owner_name,
-        oo.name AS ops_owner_name
+        oo.name AS ops_owner_name,
+        cb.name AS created_by_name,
+        mb.name AS modified_by_name
       FROM clients c
       LEFT JOIN users so ON so.id = c.sales_owner_id
       LEFT JOIN users oo ON oo.id = c.ops_owner_id
+      LEFT JOIN users cb ON cb.id = c.created_by
+      LEFT JOIN users mb ON mb.id = c.modified_by
       WHERE c.id = $1
     `, [row.id])
     res.status(201).json(mapClientRow(full.rows[0]))
@@ -3024,23 +3046,33 @@ router.patch('/clients/:id', async (req, res) => {
     maybeAdd('termination_reason', terminationReason !== undefined ? (terminationReason || null) : undefined)
     if (updates.length === 0) {
       const r = await query(`
-        SELECT c.*, so.name AS sales_owner_name, oo.name AS ops_owner_name
+        SELECT c.*, so.name AS sales_owner_name, oo.name AS ops_owner_name,
+               cb.name AS created_by_name, mb.name AS modified_by_name
         FROM clients c
         LEFT JOIN users so ON so.id = c.sales_owner_id
         LEFT JOIN users oo ON oo.id = c.ops_owner_id
+        LEFT JOIN users cb ON cb.id = c.created_by
+        LEFT JOIN users mb ON mb.id = c.modified_by
         WHERE c.id = $1
       `, [id])
       if (r.rows.length === 0) return res.status(404).json({ error: 'Not found' })
       return res.json(mapClientRow(r.rows[0]))
     }
     updates.push('updated_at = NOW()')
+    // 10JUN2026 — Item 11 — stamp the modifier on every client edit so the
+    // AuditFooter on the Accounts modal shows "Modified by X · <date>".
+    updates.push(`modified_by = $${i++}`); params.push(req.user?.id || null)
+    updates.push(`modified_on = NOW()`)
     params.push(id)
     await query(`UPDATE clients SET ${updates.join(', ')} WHERE id = $${i}`, params)
     const r = await query(`
-      SELECT c.*, so.name AS sales_owner_name, oo.name AS ops_owner_name
+      SELECT c.*, so.name AS sales_owner_name, oo.name AS ops_owner_name,
+             cb.name AS created_by_name, mb.name AS modified_by_name
       FROM clients c
       LEFT JOIN users so ON so.id = c.sales_owner_id
       LEFT JOIN users oo ON oo.id = c.ops_owner_id
+      LEFT JOIN users cb ON cb.id = c.created_by
+      LEFT JOIN users mb ON mb.id = c.modified_by
       WHERE c.id = $1
     `, [id])
     if (r.rows.length === 0) return res.status(404).json({ error: 'Not found' })

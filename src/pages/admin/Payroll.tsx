@@ -6,6 +6,7 @@ import { SkeletonTableRows } from '@/components/Skeleton'
 import { useToast } from '@/components/Toast'
 import { buildCycleOptions } from '@/lib/cycleOptions'
 import { inactiveRowClass } from '@/lib/inactiveEmployeeRow'
+import { AuditFooter } from '@/components/AuditFooter'
 import {
   getPayrollPeriods,
   getPayrollCalcResults,
@@ -1041,6 +1042,21 @@ export default function AdminPayroll() {
                   </div>
                 )
               })}
+
+              {/* 10JUN2026 client video Item 11 — audit footer on the
+                  Payroll Calculator detail modal. Payment method + bank
+                  are editable here, so admins need to see who last
+                  touched them. */}
+              {(detailRow.createdOn || detailRow.modifiedOn) && (
+                <div className="mt-4">
+                  <AuditFooter
+                    createdByName={detailRow.createdByName}
+                    createdOn={detailRow.createdOn}
+                    modifiedByName={detailRow.modifiedByName}
+                    modifiedOn={detailRow.modifiedOn}
+                  />
+                </div>
+              )}
             </div>
 
             {/* 22MAY2026 client video: explicit Save (+ Lock) buttons on the

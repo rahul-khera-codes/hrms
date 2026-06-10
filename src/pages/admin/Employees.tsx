@@ -8,6 +8,7 @@ import { DetailModalHeader } from '@/components/DetailModalHeader'
 import { statusBadgeClass } from '@/lib/badges'
 import { sortByName } from '@/lib/sortByName'
 import { inactiveRowClass } from '@/lib/inactiveEmployeeRow'
+import { AuditFooter } from '@/components/AuditFooter'
 import { SkeletonTableRows } from '@/components/Skeleton'
 import { BulkActionBar } from '@/components/BulkActionBar'
 import {
@@ -29,7 +30,7 @@ import {
 import AdminSelect from '@/components/AdminSelect'
 import { addDays, format } from 'date-fns'
 // 03JUN2026 — 12-hour AST display for shift TIME strings
-import { fmtShiftTimeStr, fmtFullDateTime } from '@/lib/timeFormat'
+import { fmtShiftTimeStr } from '@/lib/timeFormat'
 
 const EMPLOYEES_PER_PAGE = 10
 
@@ -1744,26 +1745,16 @@ export default function AdminEmployees() {
               ) : null}
 
               {/* 04JUN2026 client video: audit columns on every table.
-                  Show created/modified for existing employees. */}
+                  10JUN2026 — Item 11 — wrapped in the shared gray-box
+                  AuditFooter so styling matches Attendance / Leaves /
+                  Payroll Inputs (was a plain top-border grid before). */}
               {modal === 'edit' && editing && (editing.createdOn || editing.modifiedOn) && (
-                <div className="grid grid-cols-2 gap-x-4 gap-y-2 pt-3 mt-3 border-t border-surface-200 dark:border-surface-700 text-xs">
-                  <div>
-                    <p className="text-[10px] font-semibold text-surface-500 dark:text-surface-400 uppercase tracking-wider">Created by</p>
-                    <p className="text-surface-800 dark:text-surface-100">{editing.createdByName || '—'}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-semibold text-surface-500 dark:text-surface-400 uppercase tracking-wider">Created on</p>
-                    <p className="text-surface-800 dark:text-surface-100 tabular-nums">{editing.createdOn ? fmtFullDateTime(editing.createdOn) : '—'}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-semibold text-surface-500 dark:text-surface-400 uppercase tracking-wider">Modified by</p>
-                    <p className="text-surface-800 dark:text-surface-100">{editing.modifiedByName || '—'}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-semibold text-surface-500 dark:text-surface-400 uppercase tracking-wider">Modified on</p>
-                    <p className="text-surface-800 dark:text-surface-100 tabular-nums">{editing.modifiedOn ? fmtFullDateTime(editing.modifiedOn) : '—'}</p>
-                  </div>
-                </div>
+                <AuditFooter
+                  createdByName={editing.createdByName}
+                  createdOn={editing.createdOn}
+                  modifiedByName={editing.modifiedByName}
+                  modifiedOn={editing.modifiedOn}
+                />
               )}
             </div>
             <div className="modal-footer">
