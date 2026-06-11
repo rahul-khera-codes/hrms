@@ -1289,10 +1289,14 @@ export default function AdminEmployees() {
           type="button"
           onClick={() => void bulkDeleteEmployees()}
           disabled={bulkSaving}
-          className="btn-secondary btn-sm"
+          className="btn-danger btn-sm"
           title="Permanently delete selected employees (skips locked)"
         >
-          <Trash2 className="w-3.5 h-3.5 text-red-500" />
+          {/* 11JUN2026 Orlando follow-up — Delete button was btn-secondary
+              with a red icon while every other table uses btn-danger
+              (whole button dark-red). Standardized here for cross-table
+              consistency Orlando specifically called out. */}
+          <Trash2 className="w-3.5 h-3.5" />
           <span className="hidden sm:inline">Delete</span>
         </button>
       </BulkActionBar>

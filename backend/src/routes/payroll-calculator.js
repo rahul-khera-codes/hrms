@@ -31,7 +31,11 @@ function mapRow(r) {
     salaryType: r.salary_type,
     salary: Number(r.salary) || 0,
     hourlySalary: Number(r.hourly_salary) || 0,
-    contractStatus: r.contract_status,
+    // 11JUN2026 — prefer the live employee.contract_status over the
+    // snapshot so row highlighting tracks the employee's CURRENT state
+    // (Orlando: Payroll Calculations rows weren't lighting up for
+    // employees terminated after a past payroll was calculated).
+    contractStatus: r.effective_contract_status ?? r.contract_status,
     bank: r.bank,
     bankAccount: r.bank_account,
     payMethod: r.pay_method,
@@ -127,12 +131,22 @@ router.get('/', async (req, res) => {
     const result = await query(
       // 25MAY client: latest record_id on top by default
       // 10JUN2026 — LEFT JOIN users for audit name lookups (Item 11)
+      // 11JUN2026 — Orlando follow-up: light-red row highlighting for
+      // terminated/pre-noticed employees wasn't firing on this page.
+      // Root cause: pcr.contract_status is a SNAPSHOT from when the
+      // payroll was calculated. If an employee was active at calc time
+      // but is terminated NOW, the snapshot still reads 'active' so
+      // the highlight rule missed them. JOIN employees and prefer the
+      // CURRENT contract_status (with the snapshot as a fallback for
+      // employees whose record was later deleted).
       `SELECT pcr.*,
               cb.name AS created_by_name,
-              mb.name AS modified_by_name
+              mb.name AS modified_by_name,
+              COALESCE(e.contract_status, pcr.contract_status) AS effective_contract_status
        FROM payroll_calculator_results pcr
        LEFT JOIN users cb ON cb.id = pcr.created_by
        LEFT JOIN users mb ON mb.id = pcr.modified_by
+       LEFT JOIN employees e ON e.user_id = pcr.user_id
        WHERE pcr.payroll_cycle_code = $1
        ORDER BY pcr.record_id DESC NULLS LAST, pcr.employee_name`,
       [cycle]
