@@ -114,21 +114,24 @@ function toAttendanceRecord(row) {
 
   // --- N15%: Night differential ---
   //
-  // Per Dominican Labor Code Art. 204: night work is the period between 9:00 PM
-  // and 7:00 AM, and earns at least a 15% premium. Only the hours actually
-  // worked inside that window count — NOT the whole shift if it merely overlaps
-  // the window (this was the bug Orlando flagged on 19MAY2026 at 08:24).
+  // Dominican Republic labor code: night work is the period between 9:00 PM
+  // and 7:00 AM. Per Orlando's 13JUN2026 review video (re-stating the rule
+  // after the 19MAY simplification didn't match how DR payroll actually
+  // calculates), the rule has TWO branches:
   //
-  // The previous implementation:
-  //   1. Used a hand-rolled case-analysis that mis-computed the overlap when
-  //      both clock-in and clock-out fell outside the night window but the
-  //      shift crossed the 9 PM boundary.
-  //   2. Added a "if nightRawHours ≥ 3 then the whole shift becomes N15" rule
-  //      that doesn't match the labor code or the Excel reference.
+  //   - If the worked hours that fall INSIDE the 9pm-7am window total at
+  //     least 3, the ENTIRE shift is paid at 15% extra.
+  //   - If less than 3, only the night portion gets the 15% bonus.
   //
-  // Replaced with an explicit hour-aligned scan: walk from clock-in to clock-out
-  // one hour-boundary at a time, summing minutes whose hour is in [21,24)∪[0,7).
-  // Worst case ~24 iterations per session — exact for crossing-midnight shifts.
+  // (e.g. 4 AM – 9 AM shift: 4-7 AM = 3 night hours → whole shift at 15%;
+  //  but a 5 PM – 11 PM shift: 9-11 PM = 2 night hours → only 2 hours at 15%.)
+  //
+  // Implementation: walk clock-in → clock-out one hour at a time, summing
+  // minutes whose AST hour (UTC-4, no DST in Dominican Republic) falls in
+  // [21,24)∪[0,7). 15JUN2026 bug fix — the previous implementation read
+  // `d.getUTCHours()` which mis-classified AST evening shifts as night
+  // (AST 5pm = UTC 21:00, which trivially passes hour>=21). AST hour =
+  // (UTC hour - 4 + 24) % 24.
   let n15Hours = 0
   if (payType !== 'DNP' && clockIn && clockOut) {
     const startMs = new Date(clockIn).getTime()
@@ -138,9 +141,12 @@ function toAttendanceRecord(row) {
       let t = startMs
       while (t < endMs) {
         const d = new Date(t)
-        const hour = d.getUTCHours()
-        const isNight = hour >= 21 || hour < 7
-        // Step to the next hour boundary, clamped to endMs.
+        const utcHour = d.getUTCHours()
+        const astHour = (utcHour - 4 + 24) % 24
+        const isNight = astHour >= 21 || astHour < 7
+        // Step to the next UTC hour boundary, clamped to endMs. AST hour
+        // boundaries align with UTC hour boundaries (integer offset), so
+        // walking by UTC hours still gives exact AST hour segments.
         const nextHour = new Date(d)
         nextHour.setUTCMinutes(0, 0, 0)
         nextHour.setUTCHours(d.getUTCHours() + 1)
@@ -148,10 +154,17 @@ function toAttendanceRecord(row) {
         if (isNight) nightMs += segmentEnd - t
         t = segmentEnd
       }
-      // Subtract any deducted break (ADBT) that overlaps the night window — but
-      // we only have the total ADBT here, not its timing. To stay conservative
-      // and consistent with the Excel reference, we cap n15 at (actual - adbt).
-      n15Hours = Math.max(0, Math.min(nightMs / 3600000, actualHours - adbtHours))
+      const nightHoursRaw = nightMs / 3600000
+      const payable = Math.max(0, actualHours - adbtHours)
+      if (nightHoursRaw >= 3) {
+        // Threshold met — entire shift gets the 15% bonus (per Orlando's
+        // 13JUN re-statement of the DR rule).
+        n15Hours = payable
+      } else {
+        // Threshold NOT met — only the night portion gets the bonus.
+        // Cap at payable to stay consistent with the Excel reference.
+        n15Hours = Math.min(nightHoursRaw, payable)
+      }
     }
   }
 
@@ -803,6 +816,14 @@ router.patch('/attendance/:sessionId', async (req, res) => {
     await persistComputedHours(sessionId)
 
     // Re-fetch the updated record with joins
+    // 15JUN2026 (Jose review-13JUN video Bug A) — selecting only s.shift_start /
+    // s.shift_end here meant scheduled records (whose effective shift comes
+    // from schedule_assignments via LATERAL) returned NULL after a clock edit,
+    // so the modal would show shift fields as blank after editing clock_out.
+    // Mirror the GET endpoint's dynamic_shift_start / dynamic_shift_end /
+    // dynamic_holiday_name selects + LATERAL join on schedule_assignments +
+    // shifts + holidays so toAttendanceRecord can resolve the effective
+    // shift values the same way it does in the list query.
     const updated = await query(
       `SELECT s.id AS session_id, u.id AS user_id, u.name AS user_name,
               (s.clock_in AT TIME ZONE 'America/Santo_Domingo')::date AS date,
@@ -831,7 +852,15 @@ router.patch('/attendance/:sessionId', async (req, res) => {
               COALESCE(mgr_ov.name, mgr.name) AS reports_to_name,
               COALESCE(c_ov.name, c.name) AS account_name,
               e.cmid AS employee_cmid,
-              sh.name AS shift_name
+              sh.name AS shift_name,
+              -- Dynamic shift lookup (matches GET endpoint at line ~522)
+              CASE WHEN sh.start_time IS NOT NULL THEN
+                (((s.clock_in AT TIME ZONE 'America/Santo_Domingo')::date || 'T' || COALESCE(sa_shift.override_start, sh.start_time)::text)::timestamp AT TIME ZONE 'America/Santo_Domingo')
+              ELSE NULL END AS dynamic_shift_start,
+              CASE WHEN sh.end_time IS NOT NULL THEN
+                (((s.clock_in AT TIME ZONE 'America/Santo_Domingo')::date || 'T' || COALESCE(sa_shift.override_end, sh.end_time)::text)::timestamp AT TIME ZONE 'America/Santo_Domingo')
+              ELSE NULL END AS dynamic_shift_end,
+              h.name AS dynamic_holiday_name
        FROM sessions s
        JOIN users u ON u.id = s.user_id
        LEFT JOIN employees e ON e.user_id = u.id
@@ -840,12 +869,18 @@ router.patch('/attendance/:sessionId', async (req, res) => {
        LEFT JOIN clients c ON c.id = e.primary_client_id
        LEFT JOIN clients c_ov ON c_ov.id = s.account_override
        LEFT JOIN LATERAL (
-         SELECT a.shift_id
+         -- 15JUN Bug A — match the GET endpoint by also pulling
+         -- override_start_time / override_end_time so the dynamic_shift
+         -- expressions above can resolve.
+         SELECT a.shift_id,
+                a.override_start_time AS override_start,
+                a.override_end_time AS override_end
          FROM schedule_assignments a
          WHERE a.user_id = u.id AND a.date = (s.clock_in AT TIME ZONE 'America/Santo_Domingo')::date
          LIMIT 1
        ) sa_shift ON true
        LEFT JOIN shifts sh ON sh.id = sa_shift.shift_id
+       LEFT JOIN holidays h ON h.holiday_date = (s.clock_in AT TIME ZONE 'America/Santo_Domingo')::date AND h.is_paid = TRUE
        LEFT JOIN users created_user ON created_user.id = s.created_by
        LEFT JOIN users modified_user ON modified_user.id = s.modified_by
        LEFT JOIN users reviewed_user ON reviewed_user.id = s.reviewed_by
@@ -945,7 +980,15 @@ router.post('/attendance', async (req, res) => {
               COALESCE(mgr_ov.name, mgr.name) AS reports_to_name,
               COALESCE(c_ov.name, c.name) AS account_name,
               e.cmid AS employee_cmid,
-              sh.name AS shift_name
+              sh.name AS shift_name,
+              -- 15JUN Bug A — same dynamic shift lookup the GET endpoint uses
+              CASE WHEN sh.start_time IS NOT NULL THEN
+                (((s.clock_in AT TIME ZONE 'America/Santo_Domingo')::date || 'T' || COALESCE(sa_shift.override_start, sh.start_time)::text)::timestamp AT TIME ZONE 'America/Santo_Domingo')
+              ELSE NULL END AS dynamic_shift_start,
+              CASE WHEN sh.end_time IS NOT NULL THEN
+                (((s.clock_in AT TIME ZONE 'America/Santo_Domingo')::date || 'T' || COALESCE(sa_shift.override_end, sh.end_time)::text)::timestamp AT TIME ZONE 'America/Santo_Domingo')
+              ELSE NULL END AS dynamic_shift_end,
+              h.name AS dynamic_holiday_name
        FROM sessions s
        JOIN users u ON u.id = s.user_id
        LEFT JOIN employees e ON e.user_id = u.id
@@ -954,12 +997,15 @@ router.post('/attendance', async (req, res) => {
        LEFT JOIN clients c ON c.id = e.primary_client_id
        LEFT JOIN clients c_ov ON c_ov.id = s.account_override
        LEFT JOIN LATERAL (
-         SELECT a.shift_id
+         SELECT a.shift_id,
+                a.override_start_time AS override_start,
+                a.override_end_time AS override_end
          FROM schedule_assignments a
          WHERE a.user_id = u.id AND a.date = (s.clock_in AT TIME ZONE 'America/Santo_Domingo')::date
          LIMIT 1
        ) sa_shift ON true
        LEFT JOIN shifts sh ON sh.id = sa_shift.shift_id
+       LEFT JOIN holidays h ON h.holiday_date = (s.clock_in AT TIME ZONE 'America/Santo_Domingo')::date AND h.is_paid = TRUE
        LEFT JOIN users created_user ON created_user.id = s.created_by
        LEFT JOIN users modified_user ON modified_user.id = s.modified_by
        LEFT JOIN users reviewed_user ON reviewed_user.id = s.reviewed_by

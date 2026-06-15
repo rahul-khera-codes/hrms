@@ -41,13 +41,20 @@ function getNightMinutesBetween(start, end, nightStartHour, nightEndHour) {
   let t = startMs
   while (t < endMs) {
     const d = new Date(t)
-    const hour = d.getHours()
+    // 15JUN2026 (Jose review Bug C) — was d.getHours() which reads server-
+    // local time. Production server runs in Berlin (CET/CEST), so an AST
+    // evening shift was being checked against Berlin hours. Convert to AST
+    // (UTC-4, no DST in Dominican Republic) for the night-window check.
+    const utcHour = d.getUTCHours()
+    const astHour = (utcHour - 4 + 24) % 24
     const isNight = nightStartHour <= nightEndHour
-      ? hour >= nightStartHour && hour < nightEndHour
-      : hour >= nightStartHour || hour < nightEndHour
+      ? astHour >= nightStartHour && astHour < nightEndHour
+      : astHour >= nightStartHour || astHour < nightEndHour
+    // Walk by UTC hour boundaries (these align with AST since the
+    // offset is integer hours).
     const nextHour = new Date(d)
-    nextHour.setMinutes(0, 0, 0)
-    nextHour.setHours(d.getHours() + 1)
+    nextHour.setUTCMinutes(0, 0, 0)
+    nextHour.setUTCHours(d.getUTCHours() + 1)
     const segmentEnd = Math.min(nextHour.getTime(), endMs)
     if (isNight) nightMs += segmentEnd - t
     t = segmentEnd
