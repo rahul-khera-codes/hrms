@@ -136,6 +136,28 @@ export default function AdminAttendance() {
   const [savingId, setSavingId] = useState<string | null>(null)
   const [detailRecord, setDetailRecord] = useState<AttendanceRecord | null>(null)
 
+  // 15JUN2026 (Jose review-13JUN Bug B) — staged edits for the 4 shift +
+  // clock fields. Until Save is clicked, blur / Reset / Clear interactions
+  // only update this draft (no PATCH). Save sends one combined PATCH with
+  // every changed field; Cancel discards.
+  //
+  // Each entry being absent = no change. Explicit `null` = clear the override
+  // (effective falls back to raw). Pairing `null` with `clear*Raw: true` =
+  // null both raw + override (per the 10JUN clear-clock flow). String value
+  // = set the override to that datetime.
+  type ClockShiftDraft = {
+    shiftStart?: string | null
+    shiftEnd?: string | null
+    clockIn?: string | null
+    clockOut?: string | null
+    clearShiftStartRaw?: boolean
+    clearShiftEndRaw?: boolean
+    clearClockInRaw?: boolean
+    clearClockOutRaw?: boolean
+  }
+  const [editDraft, setEditDraft] = useState<ClockShiftDraft>({})
+  const draftDirty = Object.keys(editDraft).length > 0
+
   // Sort & Filter state
   // 25MAY client: default sort = Record ID desc (most recent on top)
   const [sortCol, setSortCol] = useState<string | null>('Record ID')
@@ -275,6 +297,72 @@ export default function AdminAttendance() {
     },
     [detailRecord],
   )
+
+  // 15JUN2026 (Jose review-13JUN Bug B) — commit all staged shift+clock
+  // edits in one PATCH. Modal-level "Save" button calls this. If nothing's
+  // staged, it just closes the modal.
+  const commitDraftAndClose = useCallback(async () => {
+    if (!detailRecord) return
+    if (!draftDirty) { setDetailRecord(null); return }
+    const sessionId = detailRecord.sessionId ?? detailRecord.id
+    setSavingId(sessionId)
+    try {
+      const payload: Record<string, unknown> = {}
+      if ('shiftStart' in editDraft) payload.shiftStart = editDraft.shiftStart
+      if ('shiftEnd'   in editDraft) payload.shiftEnd   = editDraft.shiftEnd
+      if ('clockIn'    in editDraft) payload.clockIn    = editDraft.clockIn
+      if ('clockOut'   in editDraft) payload.clockOut   = editDraft.clockOut
+      if (editDraft.clearShiftStartRaw) payload.clearShiftStartRaw = true
+      if (editDraft.clearShiftEndRaw)   payload.clearShiftEndRaw   = true
+      if (editDraft.clearClockInRaw)    payload.clearClockInRaw    = true
+      if (editDraft.clearClockOutRaw)   payload.clearClockOutRaw   = true
+      const updated = await updateAttendanceRecord(sessionId, payload as never)
+      setRecords((prev) =>
+        prev.map((r) => {
+          const rSid = r.sessionId ?? r.id
+          return rSid === sessionId ? { ...r, ...updated } : r
+        }),
+      )
+    } catch (err) {
+      console.error('Failed to commit attendance edit', err)
+    } finally {
+      setSavingId(null)
+      setEditDraft({})
+      setDetailRecord(null)
+    }
+  }, [detailRecord, editDraft, draftDirty])
+
+  // Cancel = discard staged changes, close. X close button uses the same path.
+  const cancelDraftAndClose = useCallback(() => {
+    setEditDraft({})
+    setDetailRecord(null)
+  }, [])
+
+  // Clear the draft whenever the active record changes (switching rows or
+  // closing the modal). Prevents stale edits leaking between records.
+  useEffect(() => {
+    setEditDraft({})
+  }, [detailRecord?.id])
+
+  // Display helper — what value to show in a ShiftTimeInput given the draft.
+  // - Field absent from draft → show the current effective value from
+  //   detailRecord (the GET response).
+  // - String in draft → show that.
+  // - null + clear-raw flag → show empty (preview of "both cleared").
+  // - null without clear-raw flag → show empty (Reset preview); on Save
+  //   the override is cleared and the effective falls back to raw.
+  function draftDisplay(
+    record: AttendanceRecord,
+    draft: ClockShiftDraft,
+    field: 'shiftStart' | 'shiftEnd' | 'clockIn' | 'clockOut',
+  ): string {
+    if (field in draft) {
+      const v = draft[field]
+      if (v == null) return ''
+      return toDateTimeLocal(v)
+    }
+    return toDateTimeLocal(record[field])
+  }
 
   // -----------------------------------------------------------------------
   // 10JUN2026 client video Item 9 — bulk actions on Attendance
@@ -1028,19 +1116,22 @@ export default function AdminAttendance() {
           <button
             type="button"
             className="absolute inset-0 bg-black/40"
-            onClick={() => setDetailRecord(null)}
+            onClick={cancelDraftAndClose}
             aria-label="Close"
           />
           <div className="relative z-10 w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl border border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-900 shadow-xl">
             {/* Header */}
             <div className="sticky top-0 z-10 bg-white dark:bg-surface-900 rounded-t-2xl">
-              {/* Client standard header (14APR2026): Name + CMID + Reports To */}
+              {/* Client standard header (14APR2026): Name + CMID + Reports To.
+                  15JUN2026: header X also routes through cancelDraftAndClose
+                  so it discards any staged shift/clock edits rather than
+                  silently saving them. */}
               <DetailModalHeader
                 employeeName={detailRecord.employeeName}
                 cmid={detailRecord.employeeCmid}
                 reportsTo={detailRecord.reportsTo}
                 recordId={detailRecord.recordId}
-                onClose={() => setDetailRecord(null)}
+                onClose={cancelDraftAndClose}
               />
             </div>
 
@@ -1062,51 +1153,59 @@ export default function AdminAttendance() {
                   Out) below; Edit modal previously paired by time-of-day
                   (Shift Start | Clock In / Shift End | Clock Out). Now
                   both forms use the Add layout for consistency. */}
+              {/* 15JUN2026 (Jose review-13JUN Bug B) — these 4 fields now
+                  STAGE their edits into editDraft instead of auto-saving
+                  on blur. The modal's Save button commits everything in
+                  one PATCH; Cancel discards. Editing one field no longer
+                  triggers a refetch that wipes the others. */}
               <div className="rounded-xl border border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-900 p-4">
-                <p className="text-[10px] font-semibold text-surface-400 dark:text-surface-500 uppercase tracking-wider mb-3">Shift & Clock (Editable)</p>
+                <p className="text-[10px] font-semibold text-surface-400 dark:text-surface-500 uppercase tracking-wider mb-3">
+                  Shift &amp; Clock (Editable)
+                  {draftDirty && <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-amber-100 text-amber-700 border border-amber-200">Unsaved changes</span>}
+                </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <ShiftTimeInput
                     label="Shift Start"
-                    value={toDateTimeLocal(detailRecord.shiftStart)}
+                    value={draftDisplay(detailRecord, editDraft, 'shiftStart')}
                     disabled={detailRecord.isLocked ?? false}
-                    onSave={(v) => handleFieldUpdate(detailRecord, 'shiftStart', fromDateTimeLocal(v) ?? '')}
-                    onClear={() => handleFieldUpdate(detailRecord, 'shiftStartClear', true)}
+                    onSave={(v) => setEditDraft((d) => ({ ...d, shiftStart: fromDateTimeLocal(v) || null }))}
+                    onClear={() => setEditDraft((d) => ({ ...d, shiftStart: null, clearShiftStartRaw: true }))}
                     overridden={detailRecord.shiftStartOverridden}
                     rawValue={detailRecord.shiftStartRaw}
-                    onReset={() => handleFieldUpdate(detailRecord, 'shiftStart', '')}
+                    onReset={() => setEditDraft((d) => ({ ...d, shiftStart: null }))}
                     modifiedByName={detailRecord.modifiedByName}
                   />
                   <ShiftTimeInput
                     label="Shift End"
-                    value={toDateTimeLocal(detailRecord.shiftEnd)}
+                    value={draftDisplay(detailRecord, editDraft, 'shiftEnd')}
                     disabled={detailRecord.isLocked ?? false}
-                    onSave={(v) => handleFieldUpdate(detailRecord, 'shiftEnd', fromDateTimeLocal(v) ?? '')}
-                    onClear={() => handleFieldUpdate(detailRecord, 'shiftEndClear', true)}
+                    onSave={(v) => setEditDraft((d) => ({ ...d, shiftEnd: fromDateTimeLocal(v) || null }))}
+                    onClear={() => setEditDraft((d) => ({ ...d, shiftEnd: null, clearShiftEndRaw: true }))}
                     overridden={detailRecord.shiftEndOverridden}
                     rawValue={detailRecord.shiftEndRaw}
-                    onReset={() => handleFieldUpdate(detailRecord, 'shiftEnd', '')}
+                    onReset={() => setEditDraft((d) => ({ ...d, shiftEnd: null }))}
                     modifiedByName={detailRecord.modifiedByName}
                   />
                   <ShiftTimeInput
                     label="Clock In"
-                    value={toDateTimeLocal(detailRecord.clockIn)}
+                    value={draftDisplay(detailRecord, editDraft, 'clockIn')}
                     disabled={detailRecord.isLocked ?? false}
-                    onSave={(v) => handleFieldUpdate(detailRecord, 'clockIn', fromDateTimeLocal(v) ?? '')}
-                    onClear={() => handleFieldUpdate(detailRecord, 'clockInClear', true)}
+                    onSave={(v) => setEditDraft((d) => ({ ...d, clockIn: fromDateTimeLocal(v) || null }))}
+                    onClear={() => setEditDraft((d) => ({ ...d, clockIn: null, clearClockInRaw: true }))}
                     overridden={detailRecord.clockInOverridden}
                     rawValue={detailRecord.clockInRaw}
-                    onReset={() => handleFieldUpdate(detailRecord, 'clockIn', '')}
+                    onReset={() => setEditDraft((d) => ({ ...d, clockIn: null }))}
                     modifiedByName={detailRecord.modifiedByName}
                   />
                   <ShiftTimeInput
                     label="Clock Out"
-                    value={toDateTimeLocal(detailRecord.clockOut)}
+                    value={draftDisplay(detailRecord, editDraft, 'clockOut')}
                     disabled={detailRecord.isLocked ?? false}
-                    onSave={(v) => handleFieldUpdate(detailRecord, 'clockOut', fromDateTimeLocal(v) ?? '')}
-                    onClear={() => handleFieldUpdate(detailRecord, 'clockOutClear', true)}
+                    onSave={(v) => setEditDraft((d) => ({ ...d, clockOut: fromDateTimeLocal(v) || null }))}
+                    onClear={() => setEditDraft((d) => ({ ...d, clockOut: null, clearClockOutRaw: true }))}
                     overridden={detailRecord.clockOutOverridden}
                     rawValue={detailRecord.clockOutRaw}
-                    onReset={() => handleFieldUpdate(detailRecord, 'clockOut', '')}
+                    onReset={() => setEditDraft((d) => ({ ...d, clockOut: null }))}
                     modifiedByName={detailRecord.modifiedByName}
                   />
                 </div>
@@ -1360,12 +1459,28 @@ export default function AdminAttendance() {
               </div>
             </div>
 
-            {/* 22MAY2026 client video: explicit Save button on the edit modal.
-                Fields auto-save inline as they're edited; Save is the visual
-                confirmation + exit. */}
+            {/* 22MAY2026 client: explicit Save button on the edit modal.
+                15JUN2026 (Jose review-13JUN Bug B): clock + shift fields
+                now stage their edits — Save commits them in one PATCH,
+                Cancel discards. Other fields (Status / Pay / Bill / etc.)
+                still inline-save on change. */}
             <div className="modal-footer">
-              <button type="button" onClick={() => setDetailRecord(null)} className="btn-secondary">Cancel</button>
-              <button type="button" onClick={() => setDetailRecord(null)} className="btn-primary">Save</button>
+              <button
+                type="button"
+                onClick={cancelDraftAndClose}
+                className="btn-secondary"
+                disabled={savingId !== null}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void commitDraftAndClose()}
+                className="btn-primary"
+                disabled={savingId !== null}
+              >
+                {savingId !== null ? 'Saving…' : draftDirty ? 'Save changes' : 'Save'}
+              </button>
             </div>
           </div>
         </div>
