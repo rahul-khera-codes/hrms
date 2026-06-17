@@ -3,7 +3,7 @@ import { format, startOfWeek, endOfWeek } from 'date-fns'
 import { Search, Download, X, ArrowUp, ArrowDown, Filter, Clock, Plus, Lock, Unlock, Pencil, CheckSquare, Trash2 } from 'lucide-react'
 import { getAdminAttendance, updateAttendanceRecord, createAttendanceRecord, deleteAttendanceRecord, getEmployees, getClients, getPayrollPeriods, setAttendanceReviewed, type EmployeeRecord, type Client, type PayrollPeriod } from '@/lib/apiAdmin'
 import { buildCycleOptions } from '@/lib/cycleOptions'
-import { sortByName } from '@/lib/sortByName'
+import { sortByName, activeForLookup } from '@/lib/sortByName'
 import type { AttendanceRecord } from '@/types'
 import DateRangePicker from '@/components/DateRangePicker'
 import AdminSelect from '@/components/AdminSelect'
@@ -1652,7 +1652,9 @@ function AddAttendanceRecordModal({
               onChange={setEmployeeId}
               options={[
                 { value: '', label: 'Select employee' },
-                ...sortByName(employees).map((e) => ({ value: e.id, label: `${e.name}${e.cmid != null ? ` · CMID ${e.cmid}` : ''}` })),
+                // 17JUN2026 (Jose 16JUN Issue 2) — exclude terminated /
+                // pre-noticed / inactive from the NEW-record picker.
+                ...activeForLookup(employees).map((e) => ({ value: e.id, label: `${e.name}${e.cmid != null ? ` · CMID ${e.cmid}` : ''}` })),
               ]}
             />
           </div>

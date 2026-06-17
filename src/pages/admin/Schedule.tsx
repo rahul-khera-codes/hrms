@@ -21,7 +21,7 @@ import {
 import { addDays, startOfWeek, format, parseISO } from 'date-fns'
 // 03JUN2026 — render shift TIME strings as AST 12-hour
 import { fmtShiftTimeStr } from '@/lib/timeFormat'
-import { sortByName } from '@/lib/sortByName'
+import { activeForLookup } from '@/lib/sortByName'
 import { TASK_OPTIONS } from '@/lib/taskOptions'
 import AdminSelect from '@/components/AdminSelect'
 import { PageHeader } from '@/components/PageHeader'
@@ -754,7 +754,10 @@ export default function AdminSchedule() {
                   {employees.length === 0 ? (
                     <p className="p-3 text-xs text-surface-500 dark:text-surface-400 dark:text-surface-500">No employees.</p>
                   ) : (
-                    sortByName(employees).map((e) => (
+                    activeForLookup(employees).map((e) => (
+                      // 17JUN2026 (Jose 16JUN Issue 2) — terminated /
+                      // pre-noticed employees hidden from the Assign
+                      // Shifts picker.
                       <label key={e.id} className="flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-surface-50 dark:hover:bg-surface-800 dark:bg-surface-900 cursor-pointer">
                         <input
                           type="checkbox"

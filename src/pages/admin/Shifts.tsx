@@ -5,6 +5,7 @@ import { getShifts, getClients, createShift, updateShift, deleteShift, type Shif
 import AdminSelect from '@/components/AdminSelect'
 import { PageHeader } from '@/components/PageHeader'
 import { SkeletonTableRows } from '@/components/Skeleton'
+import { BulkActionBar } from '@/components/BulkActionBar'
 // 03JUN2026 — 12-hour AST display for shift TIME strings
 import { fmtShiftTimeStr } from '@/lib/timeFormat'
 
@@ -35,6 +36,19 @@ function timezoneLabel(tz: string | null | undefined): string {
 export default function AdminShifts() {
   const [shifts, setShifts] = useState<Shift[]>([])
   const [clients, setClients] = useState<Client[]>([])
+  // 17JUN2026 (Jose 16JUN video, Issue 6) — bulk select + bulk delete for
+  // shift templates. Jose: "scheduler is also creating shift templates over
+  // here... we don't have an option to delete this in a bulk".
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkSaving, setBulkSaving] = useState(false)
+  const clearSelection = () => setSelectedIds(new Set())
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
   const [clientFilter, setClientFilter] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -162,6 +176,25 @@ export default function AdminShifts() {
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to delete')
     }
+  }
+
+  // 17JUN2026 (Jose 16JUN Issue 6) — bulk delete handler. Loops through
+  // the existing single-record DELETE endpoint (skips ones that fail
+  // due to FK from schedule_assignments — those need a separate cleanup).
+  async function bulkDelete() {
+    if (selectedIds.size === 0) return
+    if (!window.confirm(`Permanently delete ${selectedIds.size} shift template(s)? This cannot be undone.`)) return
+    setBulkSaving(true)
+    let ok = 0, failed = 0
+    for (const id of Array.from(selectedIds)) {
+      try { await deleteShift(id); ok++ } catch { failed++ }
+    }
+    setBulkSaving(false)
+    setError(failed === 0
+      ? null
+      : `${ok} deleted, ${failed} failed (may be in use by assignments — delete those first).`)
+    clearSelection()
+    await load()
   }
 
   function exportShiftsCSV() {
@@ -313,6 +346,19 @@ export default function AdminShifts() {
             <table className="min-w-full w-full text-left border-collapse">
               <thead className="sticky top-0 z-10 bg-surface-50 dark:bg-surface-900 shadow-[0_1px_0_0_theme(colors.surface.200)]">
                 <tr>
+                  {/* 17JUN2026 Item 6 — bulk-select checkbox column */}
+                  <th className="w-8 px-2 py-1.5 border-b border-surface-200 dark:border-surface-700">
+                    <input
+                      type="checkbox"
+                      aria-label="Select all visible shifts"
+                      className="w-3.5 h-3.5 rounded border-surface-300 text-brand-600 focus:ring-brand-500 cursor-pointer"
+                      checked={filteredShifts.length > 0 && filteredShifts.every((s) => selectedIds.has(s.id))}
+                      onChange={(e) => {
+                        if (e.target.checked) setSelectedIds(new Set(filteredShifts.map((s) => s.id)))
+                        else clearSelection()
+                      }}
+                    />
+                  </th>
                   {['Name', 'Start Time', 'End Time', 'Timezone', 'Client', 'Actions'].map((col) => (
                     <th
                       key={col}
@@ -342,12 +388,22 @@ export default function AdminShifts() {
               </thead>
               <tbody>
                 {filteredShifts.map((s) => (
-                  // 25MAY client: make shifts openable on click (whole row)
+                  // 25MAY client: make shifts openable on click (whole row).
+                  // 17JUN2026 Item 6: row tint when selected, checkbox cell first.
                   <tr
                     key={s.id}
-                    className="border-b border-surface-100 dark:border-surface-800 hover:bg-brand-50/40 transition-colors cursor-pointer"
+                    className={`border-b border-surface-100 dark:border-surface-800 hover:bg-brand-50/40 transition-colors cursor-pointer ${selectedIds.has(s.id) ? 'bg-brand-50/40 dark:bg-brand-900/15' : ''}`}
                     onClick={() => openEdit(s)}
                   >
+                    <td className="px-2 py-2.5 w-8" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        aria-label={`Select ${s.name}`}
+                        className="w-3.5 h-3.5 rounded border-surface-300 text-brand-600 focus:ring-brand-500 cursor-pointer"
+                        checked={selectedIds.has(s.id)}
+                        onChange={() => toggleSelect(s.id)}
+                      />
+                    </td>
                     <td className="px-3 py-2.5 text-xs font-medium text-surface-900 dark:text-surface-50 whitespace-nowrap">{s.name}</td>
                     <td className="px-3 py-2.5 text-xs font-mono text-surface-700 dark:text-surface-200 tabular-nums whitespace-nowrap">{formatTime(s.startTime)}</td>
                     <td className="px-3 py-2.5 text-xs font-mono text-surface-700 dark:text-surface-200 tabular-nums whitespace-nowrap">{formatTime(s.endTime)}</td>
@@ -446,6 +502,22 @@ export default function AdminShifts() {
         </div>,
         document.body
       )}
+
+      {/* 17JUN2026 Item 6 — bulk Delete bar for shift templates. Matches
+          the pattern used on Leaves / Payroll Inputs / Accounts /
+          Employees / Attendance. */}
+      <BulkActionBar count={selectedIds.size} onClear={clearSelection}>
+        <button
+          type="button"
+          onClick={() => void bulkDelete()}
+          disabled={bulkSaving}
+          className="btn-danger btn-sm"
+          title="Delete selected shift templates"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">Delete</span>
+        </button>
+      </BulkActionBar>
     </div>
   )
 }

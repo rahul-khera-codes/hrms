@@ -117,12 +117,17 @@ export default function Landing() {
             >
               Log in
             </button>
+            {/* 17JUN2026 (Jose 16JUN video, Issue 4) — public Sign Up
+                removed. Jose+Orlando: "no accounts could be self-created
+                ... should be only created by an admin user through the
+                admin platform". The header still shows the Log in button
+                styled as the primary call-to-action below for visibility. */}
             <button
               type="button"
-              onClick={() => openAuth('signup')}
+              onClick={() => openAuth('login')}
               className="btn-primary text-sm py-2 px-3 sm:py-2 sm:px-4 flex items-center gap-1.5 sm:gap-2 min-h-[2.5rem]"
             >
-              Sign up
+              Log in
               <ChevronRight className="w-4 h-4 shrink-0" />
             </button>
           </div>
@@ -322,19 +327,12 @@ export default function Landing() {
               <LogIn className="w-4 h-4 shrink-0" />
               Log in
             </button>
-            <button
-              type="button"
-              onClick={() => openAuth('signup')}
-              className="btn-secondary px-5 py-3 sm:px-6 sm:py-3 flex items-center justify-center gap-2 min-h-[2.75rem] w-full sm:w-auto"
-            >
-              Sign up
-              <ChevronRight className="w-4 h-4 shrink-0" />
-            </button>
+            {/* 17JUN2026 — Sign up removed; admin-only account creation. */}
           </div>
         </div>
       </section>
 
-      {/* Auth modal (Log in / Sign up via header buttons only) */}
+      {/* Auth modal (Log in only — Sign up disabled 17JUN2026) */}
       {authOpen && (
         <>
           <div
@@ -349,7 +347,7 @@ export default function Landing() {
             >
               <div className="p-4 sm:p-6 border-b border-surface-100 dark:border-surface-800 flex items-center justify-between shrink-0">
                 <h3 className="text-base sm:text-lg font-semibold text-surface-900 dark:text-surface-50">
-                  {mode === 'login' ? 'Log in' : 'Sign up'}
+                  Log in
                 </h3>
                 <button
                   type="button"
@@ -360,29 +358,11 @@ export default function Landing() {
                   <X className="w-5 h-5" />
                 </button>
               </div>
+              {/* 17JUN2026 — Sign up tab removed. Login is the only mode
+                  available to anonymous visitors; admin creates accounts
+                  from the Employees page. */}
               <div className="p-4 sm:p-6 overflow-y-auto">
-                <div className="flex gap-1 p-1 rounded-xl bg-surface-100 dark:bg-surface-800 mb-4 sm:mb-5">
-                  <button
-                    type="button"
-                    onClick={() => { setMode('login'); setError('') }}
-                    className={clsx(
-                      'flex-1 py-2 rounded-lg text-sm font-medium transition-all min-h-[2.5rem]',
-                      mode === 'login' ? 'bg-white dark:bg-surface-900 text-surface-900 dark:text-surface-50 shadow-sm' : 'text-surface-600 dark:text-surface-300'
-                    )}
-                  >
-                    Log in
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { setMode('signup'); setError('') }}
-                    className={clsx(
-                      'flex-1 py-2 rounded-lg text-sm font-medium transition-all min-h-[2.5rem]',
-                      mode === 'signup' ? 'bg-white dark:bg-surface-900 text-surface-900 dark:text-surface-50 shadow-sm' : 'text-surface-600 dark:text-surface-300'
-                    )}
-                  >
-                    Sign up
-                  </button>
-                </div>
+                <div className="hidden">{/* (was: Log in / Sign up tab toggle) */}</div>
                 <form onSubmit={handleAuthSubmit} className="space-y-3 sm:space-y-4">
                     {mode === 'signup' && (
                     <div>

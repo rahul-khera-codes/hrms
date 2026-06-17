@@ -18,7 +18,7 @@ import {
 } from '@/lib/apiAdmin'
 // 03JUN2026 — audit-column timestamps in AST 12-hour format
 import { fmtFullDateTime, fmtShiftTimeStr } from '@/lib/timeFormat'
-import { sortByName } from '@/lib/sortByName'
+import { activeForLookup } from '@/lib/sortByName'
 import { inactiveRowClass } from '@/lib/inactiveEmployeeRow'
 import { cycleStateFor, cycleStateLabel, cycleStateBadgeClass } from '@/lib/cycleStatus'
 import AdminSelect from '@/components/AdminSelect'
@@ -1203,7 +1203,9 @@ export default function AdminLeaveRequests() {
                     onChange={(val) => setCreateEmployeeId(val)}
                     options={[
                       { value: '', label: 'Select employee' },
-                      ...sortByName(employees).map((e) => ({ value: e.id, label: e.name })),
+                      // 17JUN2026 (Jose 16JUN Issue 2) — terminated /
+                      // pre-noticed hidden from New Leave employee picker.
+                      ...activeForLookup(employees).map((e) => ({ value: e.id, label: e.name })),
                     ]}
                   />
                 </div>

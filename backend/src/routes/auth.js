@@ -29,7 +29,28 @@ function isValidEmail(value) {
 }
 
 // POST /api/auth/register
+// 17JUN2026 (Jose 16JUN video, Issue 4) — Jose + Orlando: "no accounts
+// could be self-created. It should be only accounts that an admin
+// create… so that nobody is recreating accounts in the event that they
+// have more than one email or creating accounts for other people".
+//
+// Public self-registration is now closed. Admin-driven creation continues
+// to work through POST /api/admin/employees (admin-authenticated) — the
+// path the Employees page already uses. Returning 403 (not 404) so any
+// caller checking for the endpoint gets an explicit "this is closed,
+// contact your admin" signal rather than "route doesn't exist".
 router.post('/register', async (req, res) => {
+  return res.status(403).json({
+    error: 'Forbidden',
+    message: 'Self-registration is disabled. Please contact your administrator to have an account created.',
+  })
+})
+
+// Legacy self-register handler kept below behind a feature flag we
+// don't set. If we ever need to re-enable it (e.g. for SSO onboarding),
+// flip ENABLE_PUBLIC_REGISTER=true in backend/.env and unblock above.
+// eslint-disable-next-line no-unused-vars
+async function _legacyRegisterHandler(req, res) {
   try {
     const { email, password, name, role } = req.body
     if (!email || !password || !name || !role) {
@@ -88,7 +109,7 @@ router.post('/register', async (req, res) => {
     console.error('Register error:', err)
     res.status(500).json({ error: 'Internal server error' })
   }
-})
+}
 
 // POST /api/auth/login
 router.post('/login', async (req, res) => {

@@ -134,8 +134,17 @@ function toAttendanceRecord(row) {
   // (UTC hour - 4 + 24) % 24.
   let n15Hours = 0
   if (payType !== 'DNP' && clockIn && clockOut) {
-    const startMs = new Date(clockIn).getTime()
-    const endMs = new Date(clockOut).getTime()
+    // 17JUN2026 (Jose 16JUN video, Issue 1) — when a shift is set, clamp
+    // the clock window to the shift window for the NIGHT-portion calc
+    // specifically. A 1-minute clock-out overage was inflating P-N15%
+    // from 2.00 to 2.02 hours (the agent clocked out at 11:01 PM on an
+    // 11:00 PM shift end). Jose: "it should be two hours flat".
+    // ACT / REG / billable still use the actual clock window — the
+    // overage gets paid as regular hours, just not extra night-bonus.
+    let startMs = new Date(clockIn).getTime()
+    let endMs = new Date(clockOut).getTime()
+    if (shiftStart) startMs = Math.max(startMs, new Date(shiftStart).getTime())
+    if (shiftEnd)   endMs   = Math.min(endMs,   new Date(shiftEnd).getTime())
     if (endMs > startMs) {
       let nightMs = 0
       let t = startMs
@@ -525,6 +534,8 @@ router.get('/attendance', async (req, res) => {
         COALESCE(mgr_ov.name, mgr.name) AS reports_to_name,
         COALESCE(c_ov.name, c.name) AS account_name,
         e.cmid AS employee_cmid,
+        e.reports_to AS reports_to_id,
+        e.primary_client_id AS account_id,
         s.is_locked,
         s.reports_to_override,
         s.account_override,
@@ -843,6 +854,12 @@ router.patch('/attendance/:sessionId', async (req, res) => {
               s.billable_reg_hours, s.billable_prm_hours, s.billable_rvw_hours, s.payable_rvw_hours,
               s.is_locked,
               s.reports_to_override, s.account_override,
+              -- 17JUN2026 (Jose 16JUN video Issue 5): expose the employee
+              -- roster's reports_to + primary_client_id so the
+              -- AttendanceRecord.reportsToId / accountId fallbacks resolve
+              -- (toAttendanceRecord COALESCES override → these → null).
+              e.reports_to AS reports_to_id,
+              e.primary_client_id AS account_id,
               s.created_by, s.created_on, s.modified_by, s.modified_on,
               s.reviewed, s.reviewed_by, s.reviewed_at,
               s.is_scheduled,
@@ -971,6 +988,8 @@ router.post('/attendance', async (req, res) => {
               s.reg_hours, s.n15_hours, s.x35_hours, s.x100_hours, s.hol_hours,
               s.billable_reg_hours, s.billable_prm_hours, s.billable_rvw_hours, s.payable_rvw_hours,
               s.is_locked, s.reports_to_override, s.account_override,
+              e.reports_to AS reports_to_id,
+              e.primary_client_id AS account_id,
               s.created_by, s.created_on, s.modified_by, s.modified_on,
               s.reviewed, s.reviewed_by, s.reviewed_at,
               s.is_scheduled,
@@ -3785,6 +3804,7 @@ router.post('/schedule/bulk-assign', async (req, res) => {
                  shift_start, shift_end,
                  account_override,
                  task,
+                 reports_to_override,
                  is_scheduled, is_manual,
                  created_by, created_on
                )
@@ -3795,10 +3815,18 @@ router.post('/schedule/bulk-assign', async (req, res) => {
                -- is what they see back — Orlando's "universal UTC-4" ask.
                -- 10JUN2026 Item 10: pre-populate the task on each scheduled
                -- session so the agent sees it (and reporting can group by it).
+               -- 17JUN2026 (Jose 16JUN video, Issue 5): also pre-populate
+               -- reports_to_override from employees.reports_to so the
+               -- attendance modal's Reports To field isn't blank by default
+               -- on scheduler-created records. Admin can still override it
+               -- per-session if the employee is doing overtime for a
+               -- different supervisor.
                VALUES ($1, NULL, NULL,
                           (($2::date || ' ' || $3::text)::timestamp AT TIME ZONE 'America/Santo_Domingo'),
                           (($2::date || ' ' || $4::text)::timestamp AT TIME ZONE 'America/Santo_Domingo'),
-                          $5, $7, TRUE, TRUE, $6, NOW())`,
+                          $5, $7,
+                          (SELECT reports_to FROM employees WHERE user_id = $1),
+                          TRUE, TRUE, $6, NOW())`,
               [userId, date, sStart, sEnd, clientId, req.user?.id || null, task || null],
             )
             attendanceCreated++
